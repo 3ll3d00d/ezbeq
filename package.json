@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@material-ui/data-grid": "^4.0.0-alpha.17"
+  }
+}
