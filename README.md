@@ -21,13 +21,13 @@ Use your distro package manager to install python.
 Example is provided for rpi users
 
     $ ssh pi@myrpi
-    $ sudo apt install python3 python3-venv python3-pip libyaml-dev git
+    $ sudo apt install python3 python3-venv python3-pip libyaml-dev
     $ mkdir python
     $ cd python
     $ python3 -m venv ezbeq
     $ cd ezbeq
     $ . bin/activate
-    $ pip install git+https://github.com/3ll3d00d/ezbeq
+    $ pip install ezbeq
 
 Install minidsp-rs as per the provided instructionshttps://github.com/mrene/minidsp-rs#installation
 
@@ -36,7 +36,7 @@ Install minidsp-rs as per the provided instructionshttps://github.com/mrene/mini
     $ ssh pi@myrpi
     $ cd python/ezbeq
     $ . bin/activate
-    $ pip install --upgrade --force-reinstall git+https://github.com/3ll3d00d/ezbeq
+    $ pip install --upgrade --force-reinstall ezbeq
 
 then restart the app
 
