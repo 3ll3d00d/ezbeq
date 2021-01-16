@@ -7,13 +7,9 @@ verify_ssl = true
 flask-restful = "*"
 pyyaml = "*"
 plumbum = "*"
-netifaces = "*"
 twisted = "*"
 requests = "*"
 python-dateutil = "*"
-
-[dev-packages]
-pytest = "*"
 
 [requires]
 python_version = "3.8"

@@ -1,0 +1,65 @@
+name: create apps
+on:
+  push:
+    tags:
+      - '*'
+defaults:
+  run:
+    shell: bash
+jobs:
+  create_release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Generate changelog
+        id: changelog
+        uses: metcalfc/changelog-generator@v0.4.4
+        with:
+          myToken: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ github.ref }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          draft: false
+          prerelease: true
+  build:
+    name: Create Binaries
+    needs: create_release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup node_modules
+        working-directory: ./ui
+        run: yarn install --frozen-lockfile
+      - name: Build UI
+        working-directory: ./ui
+        run: yarn build
+      - name: Copy UI to Server
+        run: |
+          rm -Rf ezbeq/ui
+          mv ui/build ezbeq/ui
+      - name: Get version
+        id: get_version
+        run: echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
+      - name: Echo version
+        run: |
+          echo ${{ steps.get_version.outputs.sha_short }} > VERSION
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pipenv
+          pipenv install -d
+          pip list
+          pipenv run pip list

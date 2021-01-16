@@ -38,6 +38,7 @@ api.add_resource(AudioTypes, API_PREFIX + '/audiotypes', resource_class_kwargs=r
 # GET: catalogue entries
 api.add_resource(CatalogueSearch, API_PREFIX + '/search', resource_class_kwargs=resource_args)
 
+
 def main(args=None):
     """ The main routine. """
     logger = cfg.configure_logger()
