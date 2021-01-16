@@ -62,10 +62,12 @@ class CatalogueProvider:
 
     def __reload(self):
         logger.info('Reloading catalogue')
-        DatabaseDownloader(self.__catalogue_file).run()
+        downloader = DatabaseDownloader(self.__catalogue_file)
+        downloader.run()
         if os.path.exists(self.__catalogue_file):
             with open(self.__catalogue_file, 'r') as infile:
-                self.__catalogue = [Catalogue(idx, c) for idx, c in enumerate(json.load(infile))]
+                base = int(downloader.cached_date.timestamp())
+                self.__catalogue = [Catalogue(base + idx, c) for idx, c in enumerate(json.load(infile))]
                 self.__last_load = datetime.now()
         else:
             raise ValueError(f"No catalogue available at {self.__catalogue_file}")
