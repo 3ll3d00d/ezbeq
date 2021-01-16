@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 from typing import Optional, List
 
@@ -56,18 +56,34 @@ class CatalogueProvider:
     def __init__(self, config: Config):
         self.__config = config
         self.__catalogue_file = os.path.join(config.config_path, 'database.json')
-        # TODO schedule a run every hour
-        DatabaseDownloader(self.__catalogue_file).run()
+        self.__last_load = None
         self.__catalogue = []
+        self.__reload()
+
+    def __reload(self):
+        logger.info('Reloading catalogue')
+        DatabaseDownloader(self.__catalogue_file).run()
         if os.path.exists(self.__catalogue_file):
             with open(self.__catalogue_file, 'r') as infile:
                 self.__catalogue = [Catalogue(idx, c) for idx, c in enumerate(json.load(infile))]
+                self.__last_load = datetime.now()
         else:
             raise ValueError(f"No catalogue available at {self.__catalogue_file}")
 
     @property
     def catalogue(self) -> List[Catalogue]:
+        self.__refresh_catalogue_if_stale()
         return self.__catalogue
+
+    def __refresh_catalogue_if_stale(self):
+        previous_load_time = self.__last_load
+        self.__last_load = datetime.now()
+        if previous_load_time is None or (datetime.now() - previous_load_time) > timedelta(hours=1):
+            try:
+                self.__reload()
+            except Exception as e:
+                self.__last_load = previous_load_time
+                raise e
 
 
 class Authors(Resource):
@@ -123,6 +139,7 @@ class DatabaseDownloader:
 
     def __init__(self, cached_file):
         self.__cached = cached_file
+        self.cached_date = datetime.fromtimestamp(os.path.getmtime(self.__cached)).astimezone() if os.path.exists(self.__cached) else None
 
     def run(self):
         '''
@@ -130,8 +147,7 @@ class DatabaseDownloader:
         if there is an updated database then download it.
         '''
         mod_date = self.__get_mod_date()
-        cached_date = datetime.fromtimestamp(os.path.getmtime(self.__cached)).astimezone() if os.path.exists(self.__cached) else None
-        if mod_date is None or cached_date is None or mod_date > cached_date:
+        if mod_date is None or self.cached_date is None or mod_date > self.cached_date:
             logger.info(f"Loading {self.DATABASE_CSV}")
             r = requests.get(self.DATABASE_CSV, allow_redirects=True)
             if r.status_code == 200:
