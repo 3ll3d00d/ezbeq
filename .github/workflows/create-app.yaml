@@ -46,12 +46,12 @@ jobs:
         run: |
           rm -Rf ezbeq/ui
           mv ui/build ezbeq/ui
-      - name: Get version
+      - name: Get latest release version number
         id: get_version
-        run: echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
-      - name: Echo version
+        uses: battila7/get-version-action@v2
+      - name: Set version
         run: |
-          echo ${{ steps.get_version.outputs.sha_short }} > VERSION
+          echo ${{ steps.get_version.outputs.version-without-v }} > VERSION
       - name: Set up Python 3.7
         uses: actions/setup-python@v2
         with:
