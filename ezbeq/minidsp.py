@@ -59,16 +59,28 @@ class MinidspSender(Resource):
 
     def put(self, slot):
         payload = request.get_json()
-        id = payload['id']
-        logger.info(f"Sending {id} to Slot {slot}")
-        match: Catalogue = next(c for c in self.__catalogue_provider.catalogue if c.idx == int(id))
-        try:
-            self.__bridge.send(match, int(slot))
-            self.__state.put(slot, match)
-        except Exception as e:
-            logger.exception(f"Failed to write {id} to Slot {slot}")
-            self.__state.error(slot)
-        return self.__state.get(), 200
+        if 'id' in payload:
+            id = payload['id']
+            logger.info(f"Sending {id} to Slot {slot}")
+            match: Catalogue = next(c for c in self.__catalogue_provider.catalogue if c.idx == int(id))
+            try:
+                self.__bridge.send(match, int(slot))
+                self.__state.put(slot, match)
+            except Exception as e:
+                logger.exception(f"Failed to write {id} to Slot {slot}")
+                self.__state.error(slot)
+            return self.__state.get(), 200
+        elif 'command' in payload:
+            cmd = payload['command']
+            if cmd == 'activate':
+                logger.info(f"Activating Slot {slot}")
+                try:
+                    self.__bridge.activate(int(slot))
+                except Exception as e:
+                    logger.exception(f"Failed to activate Slot {slot}")
+                    self.__state.error(slot)
+                return self.__state.get(), 200
+        return self.__state.get(), 404
 
     def delete(self, slot):
         logger.info(f"Clearing Slot {slot}")
@@ -91,6 +103,9 @@ class MinidspBridge:
             self.__runner = cmd[cfg.minidsp_options.split(' ')]
         else:
             self.__runner = cmd
+
+    def activate(self, slot: int):
+        self.__send_config(slot)
 
     def send(self, entry: Optional[Catalogue], slot: int):
         self.__send_config(slot)

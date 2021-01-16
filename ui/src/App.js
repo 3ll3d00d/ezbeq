@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {SelectValue} from "./components/Filter";
 import {useValueChange} from "./components/valueState";
-import {fade, makeStyles} from '@material-ui/core/styles';
+import {createMuiTheme, fade, makeStyles, ThemeProvider} from '@material-ui/core/styles';
 import AppBar from '@material-ui/core/AppBar';
 import {DataGrid} from '@material-ui/data-grid';
 import Toolbar from '@material-ui/core/Toolbar';
@@ -13,8 +13,8 @@ import ClearIcon from '@material-ui/icons/Clear';
 import beqcIcon from './beqc.png'
 import ezbeq from './services/ezbeq';
 import useMediaQuery from '@material-ui/core/useMediaQuery';
-import { createMuiTheme, ThemeProvider } from '@material-ui/core/styles';
 import CssBaseline from '@material-ui/core/CssBaseline';
+import PlayArrowIcon from '@material-ui/icons/PlayArrow';
 
 const useStyles = makeStyles((theme) => ({
     root: {
@@ -168,6 +168,11 @@ const App = () => {
         setMinidspConfigSlots(vals);
     }
 
+    const activateSlot = async (slotId) => {
+        const vals = await ezbeq.activateSlot(slotId);
+        setMinidspConfigSlots(vals);
+    }
+
     // grid definitions
     const minidspGridColumns = [
         {
@@ -190,12 +195,20 @@ const App = () => {
                     <IconButton aria-label={'send'}
                                 disabled={selectedEntryId === -1}
                                 onClick={() => sendToDevice(selectedEntryId, params.row.id)}
-                                color="primary">
+                                color="primary"
+                                edge={'start'}>
                         <CloudUploadIcon/>
+                    </IconButton>
+                    <IconButton aria-label={'activate'}
+                                onClick={() => activateSlot(params.row.id)}
+                                color="primary"
+                                edge={'start'}>
+                        <PlayArrowIcon/>
                     </IconButton>
                     <IconButton aria-label={'clear'}
                                 onClick={() => clearDeviceSlot(params.row.id)}
-                                color="primary">
+                                color="primary"
+                                edge={'start'}>
                         <ClearIcon/>
                     </IconButton>
                 </>

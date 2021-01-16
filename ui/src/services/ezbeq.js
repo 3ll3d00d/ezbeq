@@ -61,7 +61,7 @@ class EzBeqService {
             },
         });
         if (!response.ok) {
-            throw new Error(`EzBeq.send failed, HTTP status ${response.status}`);
+            throw new Error(`EzBeq.sendFilter failed, HTTP status ${response.status}`);
         }
         return await response.json();
     }
@@ -71,7 +71,24 @@ class EzBeqService {
             method: 'DELETE'
         });
         if (!response.ok) {
-            throw new Error(`EzBeq.send failed, HTTP status ${response.status}`);
+            throw new Error(`EzBeq.clearSlot failed, HTTP status ${response.status}`);
+        }
+        return await response.json();
+    }
+
+    activateSlot = async (slot) => {
+        const response = await fetch(`${API_PREFIX}/minidsp/${slot}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+                command: 'activate'
+            }),
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+        });
+        if (!response.ok) {
+            throw new Error(`EzBeq.activateSlot failed, HTTP status ${response.status}`);
         }
         return await response.json();
     }
