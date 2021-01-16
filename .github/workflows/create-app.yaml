@@ -1,8 +1,8 @@
 name: create apps
 on:
   push:
-    tags:
-      - '*'
+    branches:
+      - 'main'
 defaults:
   run:
     shell: bash
@@ -60,6 +60,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pipenv
+          pip install wheel
           pipenv install -d
           pip list
           pipenv run pip list
+      - name: Build dist
+        run: python setup.py sdist bdist_wheel
+      - name: Publish a Python distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@master
+        with:
+          user: __token__
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          repository_url: https://test.pypi.org/legacy/

@@ -5,9 +5,20 @@ for local remote control of a minidsp.
 
 # Setup
 
+## Windows / MacOS
+
+Python is required so use an appropriate package manager to install it. 
+
+[chocolatey](https://chocolatey.org/) is a convenient choice for Windows
+[homebrew](https://docs.brew.sh/Installation) is the equivalent for MacOS
+
+## Linux
+
+Use your distro package manager to install python.
+
 ## Installation
 
-ssh into your rpi and
+Example is provided for rpi users
 
     $ ssh pi@myrpi
     $ sudo apt install python3 python3-venv python3-pip libyaml-dev git
