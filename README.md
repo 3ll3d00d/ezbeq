@@ -20,6 +20,15 @@ ssh into your rpi and
 
 Install minidsp-rs as per the provided instructionshttps://github.com/mrene/minidsp-rs#installation
 
+## Upgrade
+
+    $ ssh pi@myrpi
+    $ cd python/ezbeq
+    $ . bin/activate
+    $ pip install --upgrade --force-reinstall git+https://github.com/3ll3d00d/ezbeq
+
+then restart the app
+
 ## Running the app manually
 
     $ ssh pi@myrpi
