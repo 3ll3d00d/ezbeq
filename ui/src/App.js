@@ -95,6 +95,7 @@ const App = () => {
     const [authors, setAuthors] = useState([]);
     const [years, setYears] = useState([]);
     const [audioTypes, setAudioTypes] = useState([]);
+    const [meta, setMeta] = useState({});
     // filtered catalogue data
     const [filteredEntries, setFilteredEntries] = useState([]);
     const [filteredAuthors, setFilteredAuthors] = useState([]);
@@ -103,6 +104,9 @@ const App = () => {
     // minidsp data
     const [minidspConfigSlots, setMinidspConfigSlots] = useState([]);
     // user selections
+    const [selectedAuthors, handleAuthorChange] = useValueChange()
+    const [selectedYears, handleYearChange] = useValueChange()
+    const [selectedAudioTypes, handleAudioTypeChange] = useValueChange()
     const [txtFilter, handleTxtFilterChange] = useValueChange('');
     const [showFilters, setShowFilters] = useState(false);
     const [selectedEntryId, setSelectedEntryId] = useState(-1);
@@ -122,23 +126,24 @@ const App = () => {
     }, []);
 
     useEffect(() => {
+        pushData(setMeta, ezbeq.getMeta);
+    }, []);
+
+    useEffect(() => {
         pushData(setMinidspConfigSlots, ezbeq.getMinidspConfig);
     }, []);
 
     useEffect(() => {
         pushData(setAuthors, ezbeq.getAuthors);
     }, []);
-    const [selectedAuthors, handleAuthorChange] = useValueChange()
 
     useEffect(() => {
         pushData(setYears, ezbeq.getYears);
     }, []);
-    const [selectedYears, handleYearChange] = useValueChange()
 
     useEffect(() => {
         pushData(setAudioTypes, ezbeq.getAudioTypes);
     }, []);
-    const [selectedAudioTypes, handleAudioTypeChange] = useValueChange()
 
     useEffect(() => {
         // catalogue filter
@@ -232,6 +237,15 @@ const App = () => {
             flex: 0.4
         }
     ];
+    const padZero = n => n.toString().padStart(2, '0');
+    const formatSeconds = s => {
+        if (s) {
+            const d = new Date(0);
+            d.setUTCSeconds(s);
+            return `${d.getFullYear()}${padZero(d.getMonth()+1)}${padZero(d.getDate())}_${padZero(d.getHours())}${padZero(d.getMinutes())}${padZero(d.getSeconds())}`
+        }
+        return '?';
+    }
 
     return (
         <ThemeProvider theme={theme}>
@@ -316,6 +330,18 @@ const App = () => {
                             </Grid>
                         </Grid>
                         : null
+                }
+                {
+                    meta
+                    ?
+                        <Grid container justify="center">
+                            <Grid item>
+                                <Typography align={'center'} variant={'caption'} color={'textSecondary'}>
+                                    BEQCatalogue: {formatSeconds(meta.created)}
+                                </Typography>
+                            </Grid>
+                        </Grid>
+                    : null
                 }
             </div>
         </ThemeProvider>

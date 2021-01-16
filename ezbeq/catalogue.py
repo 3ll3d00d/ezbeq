@@ -57,6 +57,7 @@ class CatalogueProvider:
         self.__config = config
         self.__catalogue_file = os.path.join(config.config_path, 'database.json')
         self.__last_load = None
+        self.__created_at = None
         self.__catalogue = []
         self.__reload()
 
@@ -68,9 +69,18 @@ class CatalogueProvider:
             with open(self.__catalogue_file, 'r') as infile:
                 base = int(downloader.cached_date.timestamp())
                 self.__catalogue = [Catalogue(base + idx, c) for idx, c in enumerate(json.load(infile))]
+                self.__created_at = downloader.cached_date
                 self.__last_load = datetime.now()
         else:
             raise ValueError(f"No catalogue available at {self.__catalogue_file}")
+
+    @property
+    def loaded_at(self):
+        return self.__last_load
+
+    @property
+    def created_at(self):
+        return self.__created_at
 
     @property
     def catalogue(self) -> List[Catalogue]:
@@ -136,12 +146,30 @@ class CatalogueSearch(Resource):
         return [c.for_search for c in catalogue if c.matches(authors, years, audio_types)]
 
 
+class CatalogueMeta(Resource):
+
+    def __init__(self, **kwargs):
+        self.__provider: CatalogueProvider = kwargs['catalogue']
+
+    def get(self):
+        created_at = self.__provider.created_at
+        loaded_at = self.__provider.loaded_at
+        return {
+            'created': int(created_at.timestamp()) if created_at is not None else None,
+            'loaded': int(loaded_at.timestamp()) if loaded_at is not None else None,
+            'count': len(self.__provider.catalogue)
+        }
+
+
 class DatabaseDownloader:
     DATABASE_CSV = 'http://beqcatalogue.readthedocs.io/en/latest/database.json'
 
     def __init__(self, cached_file):
         self.__cached = cached_file
-        self.cached_date = datetime.fromtimestamp(os.path.getmtime(self.__cached)).astimezone() if os.path.exists(self.__cached) else None
+        self.cached_date = self.__load_cached_date()
+
+    def __load_cached_date(self):
+        return datetime.fromtimestamp(os.path.getmtime(self.__cached)).astimezone() if os.path.exists(self.__cached) else None
 
     def run(self):
         '''
@@ -159,6 +187,7 @@ class DatabaseDownloader:
                     modified = time.mktime(mod_date.timetuple())
                     now = time.mktime(datetime.today().timetuple())
                     os.utime(self.__cached, (now, modified))
+                    self.cached_date = self.__load_cached_date()
                     logger.info(f"Downloaded {self.DATABASE_CSV} with moddate {modified}")
                 else:
                     logger.warning("Downloaded catalogue but moddate was not available")

@@ -17,6 +17,10 @@ class EzBeqService {
         return this.doGet('audiotypes');
     };
 
+    getMeta = () => {
+        return this.doGet('meta');
+    }
+
     doGet = async (payload) => {
         const response = await fetch(`${API_PREFIX}/${payload}`, {
             method: 'GET'
