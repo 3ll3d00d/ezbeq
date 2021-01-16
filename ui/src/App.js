@@ -98,9 +98,9 @@ const App = () => {
     const [meta, setMeta] = useState({});
     // filtered catalogue data
     const [filteredEntries, setFilteredEntries] = useState([]);
-    const [filteredAuthors, setFilteredAuthors] = useState([]);
-    const [filteredYears, setFilteredYears] = useState([]);
-    const [filteredContentTypes, setFilteredContentTypes] = useState([]);
+    // const [filteredAuthors, setFilteredAuthors] = useState([]);
+    // const [filteredYears, setFilteredYears] = useState([]);
+    // const [filteredContentTypes, setFilteredContentTypes] = useState([]);
     // minidsp data
     const [minidspConfigSlots, setMinidspConfigSlots] = useState([]);
     // user selections
