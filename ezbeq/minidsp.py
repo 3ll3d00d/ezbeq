@@ -3,8 +3,8 @@ from typing import List
 
 from flask_restful import Resource
 
-from catalogue import Catalogue, CatalogueProvider
-from config import Config
+from ezbeq.catalogue import Catalogue, CatalogueProvider
+from ezbeq.config import Config
 
 logger = logging.getLogger('ezbeq.minidsp')
 

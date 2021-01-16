@@ -5,9 +5,9 @@ from os import path
 from flask import Flask
 from flask_restful import Api
 
-from catalogue import CatalogueProvider, Authors, Years, AudioTypes, CatalogueSearch
-from config import Config
-from minidsp import Minidsp, MinidspBridge
+from ezbeq.catalogue import CatalogueProvider, Authors, Years, AudioTypes, CatalogueSearch
+from ezbeq.config import Config
+from ezbeq.minidsp import Minidsp, MinidspBridge
 
 API_PREFIX = '/api/1'
 

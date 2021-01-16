@@ -10,7 +10,7 @@ from dateutil.parser import parse as parsedate
 import requests
 from flask_restful import Resource, reqparse
 
-from config import Config
+from app.config import Config
 
 logger = logging.getLogger('ezbeq.catalogue')
 

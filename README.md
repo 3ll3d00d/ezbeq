@@ -18,8 +18,20 @@ ssh into your rpi and
     $ . bin/activate
     $ pip install git+https://github.com/3ll3d00d/ezbeq
 
- ## Starting ezbeq on bootup
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Install minidsp-rs as per the provided instructionshttps://github.com/mrene/minidsp-rs#installation
+
+## Running the app manually
+
+    $ ssh pi@myrpi
+    $ cd python/ezbeq
+    $ . bin/activate
+    $ ./bin/ezbeq
+
+## Configuration
+
+See `$HOME/.ezbeq/ezbeq.yml`
+
+## Starting ezbeq on bootup
 
 This is optional but recommended, it ensures the app starts automatically whenever the rpi boots up and makes
 sure it restarts automatically if it ever crashes.
