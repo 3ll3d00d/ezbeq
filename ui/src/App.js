@@ -12,6 +12,9 @@ import CloudUploadIcon from '@material-ui/icons/CloudUpload';
 import ClearIcon from '@material-ui/icons/Clear';
 import beqcIcon from './beqc.png'
 import ezbeq from './services/ezbeq';
+import useMediaQuery from '@material-ui/core/useMediaQuery';
+import { createMuiTheme, ThemeProvider } from '@material-ui/core/styles';
+import CssBaseline from '@material-ui/core/CssBaseline';
 
 const useStyles = makeStyles((theme) => ({
     root: {
@@ -75,6 +78,17 @@ const useStyles = makeStyles((theme) => ({
 }));
 
 const App = () => {
+    const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
+    const theme = React.useMemo(
+        () =>
+            createMuiTheme({
+                palette: {
+                    type: prefersDarkMode ? 'dark' : 'light',
+                },
+            }),
+        [prefersDarkMode],
+    );
+
     const classes = useStyles();
     // catalogue data
     const [entries, setEntries] = useState([]);
@@ -207,88 +221,91 @@ const App = () => {
     ];
 
     return (
-        <div className={classes.root}>
-            <AppBar position="static">
-                <Toolbar>
-                    <Avatar alt="beqcatalogue"
-                            variant="rounded"
-                            src={beqcIcon}
-                            className={classes.smallAvatar}/>
-                    <Typography className={classes.title} variant="h6" noWrap>ezbeq</Typography>
-                    <div className={classes.search}>
-                        <div className={classes.searchIcon}>
-                            <SearchIcon/>
-                        </div>
-                        <InputBase
-                            placeholder="Search…"
-                            classes={{
-                                root: classes.inputRoot,
-                                input: classes.inputInput,
-                            }}
-                            inputProps={{'aria-label': 'search'}}
-                            value={txtFilter}
-                            onChange={handleTxtFilterChange}
-                            size={'small'}
-                        />
-                    </div>
-                    <FormControlLabel className={classes.advancedFilter}
-                                      control={<Switch checked={showFilters} onChange={toggleShowFilters}
-                                                       size={'small'}/>}
-                    />
-                </Toolbar>
-            </AppBar>
-            {
-                showFilters
-                    ?
-                    <Grid container>
-                        <Grid item>
-                            <SelectValue name="Author"
-                                         value={selectedAuthors}
-                                         handleValueChange={handleAuthorChange}
-                                         values={authors}/>
-                            <SelectValue name="Year"
-                                         value={selectedYears}
-                                         handleValueChange={handleYearChange}
-                                         values={years}/>
-                            <SelectValue name="Audio Type"
-                                         value={selectedAudioTypes}
-                                         handleValueChange={handleAudioTypeChange}
-                                         values={audioTypes}/>
-                        </Grid>
-                    </Grid>
-                    : null
-            }
-            <Grid container direction={'column'}>
-                <Grid item style={{height: '190px', width: '100%'}}>
-                    <DataGrid rows={minidspConfigSlots}
-                              columns={minidspGridColumns}
-                              autoPageSize
-                              hideFooter
-                              density={'compact'}/>
-                </Grid>
-            </Grid>
-            {
-                filteredEntries.length
-                    ?
-                    <Grid container>
-                        <Grid item style={{minHeight: '60vh', width: '100%'}}>
-                            <DataGrid rows={filteredEntries}
-                                      columns={catalogueGridColumns}
-                                      pageSize={100}
-                                      density={'compact'}
-                                      sortModel={[
-                                          {
-                                              field: 'title',
-                                              sort: 'asc',
-                                          },
-                                      ]}
-                                      onRowSelected={p => setSelectedEntryId(p.data.id)}
+        <ThemeProvider theme={theme}>
+            <CssBaseline/>
+            <div className={classes.root}>
+                <AppBar position="static">
+                    <Toolbar>
+                        <Avatar alt="beqcatalogue"
+                                variant="rounded"
+                                src={beqcIcon}
+                                className={classes.smallAvatar}/>
+                        <Typography className={classes.title} variant="h6" noWrap>ezbeq</Typography>
+                        <div className={classes.search}>
+                            <div className={classes.searchIcon}>
+                                <SearchIcon/>
+                            </div>
+                            <InputBase
+                                placeholder="Search…"
+                                classes={{
+                                    root: classes.inputRoot,
+                                    input: classes.inputInput,
+                                }}
+                                inputProps={{'aria-label': 'search'}}
+                                value={txtFilter}
+                                onChange={handleTxtFilterChange}
+                                size={'small'}
                             />
+                        </div>
+                        <FormControlLabel className={classes.advancedFilter}
+                                          control={<Switch checked={showFilters} onChange={toggleShowFilters}
+                                                           size={'small'}/>}
+                        />
+                    </Toolbar>
+                </AppBar>
+                {
+                    showFilters
+                        ?
+                        <Grid container>
+                            <Grid item>
+                                <SelectValue name="Author"
+                                             value={selectedAuthors}
+                                             handleValueChange={handleAuthorChange}
+                                             values={authors}/>
+                                <SelectValue name="Year"
+                                             value={selectedYears}
+                                             handleValueChange={handleYearChange}
+                                             values={years}/>
+                                <SelectValue name="Audio Type"
+                                             value={selectedAudioTypes}
+                                             handleValueChange={handleAudioTypeChange}
+                                             values={audioTypes}/>
+                            </Grid>
                         </Grid>
+                        : null
+                }
+                <Grid container direction={'column'}>
+                    <Grid item style={{height: '190px', width: '100%'}}>
+                        <DataGrid rows={minidspConfigSlots}
+                                  columns={minidspGridColumns}
+                                  autoPageSize
+                                  hideFooter
+                                  density={'compact'}/>
                     </Grid>
-                    : null
-            }
-        </div>
+                </Grid>
+                {
+                    filteredEntries.length
+                        ?
+                        <Grid container>
+                            <Grid item style={{minHeight: '60vh', width: '100%'}}>
+                                <DataGrid rows={filteredEntries}
+                                          columns={catalogueGridColumns}
+                                          pageSize={100}
+                                          density={'compact'}
+                                          sortModel={[
+                                              {
+                                                  field: 'title',
+                                                  sort: 'asc',
+                                              },
+                                          ]}
+                                          onRowSelected={p => setSelectedEntryId(p.data.id)}
+                                />
+                            </Grid>
+                        </Grid>
+                        : null
+                }
+            </div>
+        </ThemeProvider>
     );
 };
 
