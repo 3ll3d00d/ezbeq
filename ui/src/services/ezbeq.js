@@ -49,14 +49,35 @@ class EzBeqService {
         return this.search();
     }
 
-    send = async (id, slot) => {
-        const response = await fetch(`${API_PREFIX}/minidsp/${id}/${slot}`, {
-            method: 'GET'
+    sendFilter = async (id, slot) => {
+        const response = await fetch(`${API_PREFIX}/minidsp/${slot}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+                id: id
+            }),
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
         });
         if (!response.ok) {
             throw new Error(`EzBeq.send failed, HTTP status ${response.status}`);
         }
         return await response.json();
+    }
+
+    clearSlot = async (slot) => {
+        const response = await fetch(`${API_PREFIX}/minidsp/${slot}`, {
+            method: 'DELETE'
+        });
+        if (!response.ok) {
+            throw new Error(`EzBeq.send failed, HTTP status ${response.status}`);
+        }
+        return await response.json();
+    }
+
+    getMinidspConfig = async () => {
+        return this.doGet('minidsps');
     }
 }
 

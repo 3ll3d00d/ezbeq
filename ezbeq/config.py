@@ -62,7 +62,7 @@ class Config:
     @property
     def port(self):
         """
-        :return: the port to listen on, defaults to 10001
+        :return: the port to listen on, defaults to 8080
         """
         return self.__port
 
@@ -72,6 +72,10 @@ class Config:
         :return: the address on which this service is listening.
         """
         return self.__service_url
+
+    @property
+    def ignore_retcode(self):
+        return self.config.get('ignoreRetcode', False)
 
     def __load_config(self):
         """

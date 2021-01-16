@@ -7,7 +7,7 @@ from flask_restful import Api
 
 from ezbeq.catalogue import CatalogueProvider, Authors, Years, AudioTypes, CatalogueSearch
 from ezbeq.config import Config
-from ezbeq.minidsp import Minidsp, MinidspBridge
+from ezbeq.minidsp import MinidspSender, MinidspBridge, Minidsps, MinidspState
 
 API_PREFIX = '/api/1'
 
@@ -22,21 +22,24 @@ api = Api(app)
 cfg = Config('ezbeq')
 resource_args = {
     'config': cfg,
+    'minidsp_state': MinidspState(cfg),
     'minidsp_bridge': MinidspBridge(cfg),
     'catalogue': CatalogueProvider(cfg)
 }
 
-# GET: minidsp state
-# PUT: executes a command
-api.add_resource(Minidsp, API_PREFIX + '/minidsp/<id>/<slot>', resource_class_kwargs=resource_args)
+# GET: slot state
+api.add_resource(Minidsps, f"{API_PREFIX}/minidsps", resource_class_kwargs=resource_args)
+# PUT: set config
+# DELETE: remove config
+api.add_resource(MinidspSender, f"{API_PREFIX}/minidsp/<slot>", resource_class_kwargs=resource_args)
 # GET: distinct authors in the catalogue
-api.add_resource(Authors, API_PREFIX + '/authors', resource_class_kwargs=resource_args)
+api.add_resource(Authors, f"{API_PREFIX}/authors", resource_class_kwargs=resource_args)
 # GET: distinct years in the catalogue
-api.add_resource(Years, API_PREFIX + '/years', resource_class_kwargs=resource_args)
+api.add_resource(Years, f"{API_PREFIX}/years", resource_class_kwargs=resource_args)
 # GET: distinct audio types in the catalogue
-api.add_resource(AudioTypes, API_PREFIX + '/audiotypes', resource_class_kwargs=resource_args)
+api.add_resource(AudioTypes, f"{API_PREFIX}/audiotypes", resource_class_kwargs=resource_args)
 # GET: catalogue entries
-api.add_resource(CatalogueSearch, API_PREFIX + '/search', resource_class_kwargs=resource_args)
+api.add_resource(CatalogueSearch, f"{API_PREFIX}/search", resource_class_kwargs=resource_args)
 
 
 def main(args=None):

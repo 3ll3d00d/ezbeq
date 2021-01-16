@@ -47,6 +47,9 @@ class Catalogue:
                 return not audio_types or any(a_t in audio_types for a_t in self.audio_types)
         return False
 
+    def __repr__(self):
+        return f"{self.title} / {self.audio_types} / {self.year}"
+
 
 class CatalogueProvider:
 

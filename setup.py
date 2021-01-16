@@ -17,6 +17,7 @@ setup(name='ezbeq',
       long_description_content_type='text/markdown',
       classifiers=[
           'License :: OSI Approved :: MIT License',
+          'Programming Language :: Python :: 3.7',
           'Programming Language :: Python :: 3.8',
           'Development Status :: 4 - Beta',
       ],
@@ -25,7 +26,7 @@ setup(name='ezbeq',
       author_email='mattkhan+ezbeq@gmail.com',
       license='MIT',
       packages=find_packages(exclude=('test', 'docs')),
-      python_requires='>=3.8',
+      python_requires='>=3.7',
       entry_points={
           'console_scripts': [
               'ezbeq = ezbeq.app:main',

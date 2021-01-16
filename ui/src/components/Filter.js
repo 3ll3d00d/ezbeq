@@ -69,24 +69,6 @@ const SelectValue = ({name, value, handleValueChange, values, multi = true}) => 
     );
 };
 
-const EnterValue = ({name, value, handleValueChange}) => {
-    const classes = useStyles();
-    const theme = useTheme();
-    return (
-        <FormControl className={classes.formControl}>
-            <TextField
-                id={`${name}-select`}
-                label={name}
-                value={value}
-                onChange={handleValueChange}
-                variant="filled"
-                size={'small'}
-            />
-        </FormControl>
-    );
-};
-
 export {
-    SelectValue,
-    EnterValue
+    SelectValue
 };
