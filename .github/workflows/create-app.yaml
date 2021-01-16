@@ -1,8 +1,8 @@
 name: create apps
 on:
   push:
-    branches:
-      - 'main'
+    tags:
+      - '*'
 defaults:
   run:
     shell: bash
