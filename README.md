@@ -26,6 +26,8 @@ Install minidsp-rs as per the provided instructionshttps://github.com/mrene/mini
     $ cd python/ezbeq
     $ . bin/activate
     $ ./bin/ezbeq
+      Loading config from /home/pi/.ezbeq/ezbeq.yml
+      2021-01-16 08:43:15,374 - twisted - INFO - __init__ - Serving ui from /home/pi/python/ezbeq/lib/python3.8/site-packages/ezbeq/ui
 
 ## Configuration
 
@@ -40,27 +42,31 @@ We will achieve this by creating and enabling a `systemd`_ service.
 
 1) Create a file ezbeq.service in the appropriate location for your distro (e.g. ``/etc/systemd/system/`` for debian)::
 
-   [Unit]
-   Description=ezbeq
-   After=network.target
+```
+[Unit]
+Description=ezbeq
+After=network.target
 
-   [Service]
-   Type=simple
-   User=myuser
-   WorkingDirectory=/home/pi
-   ExecStart=/home/pi/python/ezbeq/bin/ezbeq
-   Restart=always
-   RestartSec=1
+[Service]
+Type=simple
+User=myuser
+WorkingDirectory=/home/pi
+ExecStart=/home/pi/python/ezbeq/bin/ezbeq
+Restart=always
+RestartSec=1
 
-   [Install]
-   WantedBy=multi-user.target
+[Install]
+WantedBy=multi-user.target
+```
 
 2) enable the service and start it up::
 
-   $ sudo systemctl enable ezbeq.service
-   $ sudo service ezbeq start
-   $ sudo journalctl -u ezbeq.service
-   -- Logs begin at Sat 2019-08-17 12:17:02 BST, end at Sun 2019-08-18 21:58:43 BST. --
-   Aug 18 21:58:36 swoop systemd[1]: Started ezbeq.
+
+    $ sudo systemctl enable ezbeq.service
+    $ sudo service ezbeq start
+    $ sudo journalctl -u ezbeq.service
+    -- Logs begin at Sat 2019-08-17 12:17:02 BST, end at Sun 2019-08-18 21:58:43 BST. --
+    Aug 18 21:58:36 swoop systemd[1]: Started ezbeq.
+
 
 3) reboot and repeat step 2 to verify the recorder has automatically started
