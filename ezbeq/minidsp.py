@@ -20,10 +20,14 @@ class MinidspState:
     def __init__(self, cfg: Config):
         self.__state = [{'id': id, 'last': 'Empty'} for id in range(4)]
         self.__file_name = os.path.join(cfg.config_path, 'minidsp.json')
+        self.__active_slot = None
         if os.path.exists(self.__file_name):
             with open(self.__file_name, 'r') as f:
                 self.__state = json.load(f)
                 logger.info(f"Loaded {self.__state} from {self.__file_name}")
+
+    def activate(self, slot: int):
+        self.__active_slot = slot
 
     def put(self, slot, entry: Catalogue):
         self.__update(slot, entry.title)
@@ -33,6 +37,7 @@ class MinidspState:
         self.__state[int(slot)]['last'] = value
         with open(self.__file_name, 'w') as f:
             json.dump(self.__state, f, sort_keys=True)
+        self.activate(int(slot))
 
     def error(self, slot: int):
         self.__update(slot, 'ERROR')
@@ -41,15 +46,17 @@ class MinidspState:
         self.__update(slot, 'Empty')
 
     def get(self):
-        return self.__state
+        return {'slots': self.__state, 'active': self.__active_slot}
 
 
 class Minidsps(Resource):
 
     def __init__(self, **kwargs):
         self.__state: MinidspState = kwargs['minidsp_state']
+        self.__bridge: MinidspBridge = kwargs['minidsp_bridge']
 
     def get(self):
+        self.__state.activate(self.__bridge.state())
         return self.__state.get()
 
 
@@ -67,8 +74,8 @@ class MinidspSender(Resource):
             logger.info(f"Sending {id} to Slot {slot}")
             match: Catalogue = next(c for c in self.__catalogue_provider.catalogue if c.idx == int(id))
             try:
-                self.__bridge.send(MinidspBeqCommandGenerator.filt(match, int(slot)))
-                self.__state.put(slot, match)
+                self.__bridge.send(MinidspBeqCommandGenerator.filt(match, int(slot), self.__bridge.state()))
+                self.__state.put(int(slot), match)
             except Exception as e:
                 logger.exception(f"Failed to write {id} to Slot {slot}")
                 self.__state.error(slot)
@@ -79,6 +86,7 @@ class MinidspSender(Resource):
                 logger.info(f"Activating Slot {slot}")
                 try:
                     self.__bridge.send(MinidspBeqCommandGenerator.activate(int(slot)))
+                    self.__state.activate(int(slot))
                 except Exception as e:
                     logger.exception(f"Failed to activate Slot {slot}")
                     self.__state.error(slot)
@@ -88,7 +96,7 @@ class MinidspSender(Resource):
     def delete(self, slot):
         logger.info(f"Clearing Slot {slot}")
         try:
-            self.__bridge.send(MinidspBeqCommandGenerator.filt(None, int(slot)))
+            self.__bridge.send(MinidspBeqCommandGenerator.filt(None, int(slot), self.__bridge.state()))
             self.__state.clear(slot)
         except Exception as e:
             logger.exception(f"Failed to clear Slot {slot}")
@@ -103,11 +111,14 @@ class MinidspBeqCommandGenerator:
         return [f"config {slot}"]
 
     @staticmethod
-    def filt(entry: Optional[Catalogue], slot: int):
+    def filt(entry: Optional[Catalogue], slot: int, active_slot: Optional[int]):
         # config <slot>
         # input <channel> peq <index> set -- <b0> <b1> <b2> <a1> <a2>
         # input <channel> peq <index> bypass [on|off]
-        cmds = MinidspBeqCommandGenerator.activate(slot)
+        if active_slot is None or active_slot != slot:
+            cmds = MinidspBeqCommandGenerator.activate(slot)
+        else:
+            cmds = []
         for c in range(2):
             idx = 0
             if entry:
@@ -145,6 +156,26 @@ class MinidspBridge:
             self.__runner = cmd[cfg.minidsp_options.split(' ')]
         else:
             self.__runner = cmd
+
+    def state(self) -> Optional[int]:
+        with acquire_timeout(self.__lock, 10) as acquired:
+            if acquired:
+                lines = self.__runner()
+                active_slot = None
+                try:
+                    for line in lines.split('\n'):
+                        if line.startswith('MasterStatus'):
+                            idx = line.find('{ ')
+                            if idx > -1:
+                                vals = line[idx+2:-2].split(', ')
+                                for v in vals:
+                                    if v.startswith('preset: '):
+                                        active_slot = int(v[8:])
+                except:
+                    logger.exception(f"Unable to locate active preset in {lines}")
+                return active_slot
+            else:
+                raise OSError(f"Failed to acquire lock on minidsp")
 
     def send(self, cmds: List[str]):
         with tmp_file(cmds) as file_name:

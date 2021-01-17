@@ -136,8 +136,12 @@ const App = () => {
         pushData(setMeta, ezbeq.getMeta);
     }, []);
 
+    const combineMinidspState = state => {
+        setMinidspConfigSlots(state.slots.map(s => Object.assign(s, {active: state.active !== null && state.active === s.id})));
+    };
+
     useEffect(() => {
-        pushData(setMinidspConfigSlots, ezbeq.getMinidspConfig);
+        pushData(combineMinidspState, ezbeq.getMinidspConfig);
     }, []);
 
     useEffect(() => {
@@ -177,17 +181,17 @@ const App = () => {
     const sendToDevice = async (entryId, slotId) => {
         const selected = filteredEntries.find(e => e.id === entryId);
         const vals = await ezbeq.sendFilter(selected.id, slotId);
-        setMinidspConfigSlots(vals);
+        combineMinidspState(vals);
     }
 
     const clearDeviceSlot = async (slotId) => {
         const vals = await ezbeq.clearSlot(slotId);
-        setMinidspConfigSlots(vals);
+        combineMinidspState(vals);
     }
 
     const activateSlot = async (slotId) => {
         const vals = await ezbeq.activateSlot(slotId);
-        setMinidspConfigSlots(vals);
+        combineMinidspState(vals);
     }
 
     // grid definitions
@@ -196,7 +200,7 @@ const App = () => {
             field: 'id',
             headerName: ' ',
             width: 25,
-            valueFormatter: params => params.value + 1
+            valueFormatter: params => `${params.value + 1}${params.getValue('active') ? '*' : ''}`
         },
         {
             field: 'actions',
@@ -224,12 +228,17 @@ const App = () => {
                         <ClearIcon/>
                     </IconButton>
                 </>
-            )
+            ),
         },
         {
             field: 'last',
             headerName: 'Loaded',
             flex: 0.45,
+        },
+        {
+            field: 'active',
+            headerName: 'Active',
+            hide: true
         }
     ];
     const catalogueGridColumns = [
