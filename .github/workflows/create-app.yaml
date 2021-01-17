@@ -30,9 +30,9 @@ jobs:
           body: ${{ steps.changelog.outputs.changelog }}
           draft: false
           prerelease: true
-  build:
-    name: Create Binaries
-    needs: create_release
+  buildpypi:
+    name: Publsh to Pypi
+    needs: create_pypi_release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -71,3 +71,66 @@ jobs:
         with:
           user: __token__
           password: ${{ secrets.PYPI_API_TOKEN }}
+  buildpyinstaller:
+    name: Publish to Github
+    needs: create_gh_release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ macos-10.15, windows-2019 ]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup node_modules
+        working-directory: ./ui
+        run: yarn install --frozen-lockfile
+      - name: Build UI
+        working-directory: ./ui
+        run: yarn build
+      - name: Get latest release version number
+        id: get_version
+        uses: battila7/get-version-action@v2
+      - name: Set version
+        run: |
+          echo ${{ steps.get_version.outputs.version-without-v }} > VERSION
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pipenv
+          pipenv install -d
+          pip install pyinstaller
+          pip list
+          pipenv run pip list
+      - name: Create distribution
+        id: create_dist
+        run: |
+          pipenv run pyinstaller --clean --log-level=INFO -F ezbeq.spec
+          if [[ "$RUNNER_OS" == "macOS" ]]
+          then
+            pushd dist
+            rm ezbeq
+            zip -r ezbeq.app.zip ezbeq.app
+            rm -Rf ezbeq.app
+            popd
+            echo ::set-output name=binary_path::"dist/ezbeq.app.zip"
+            echo ::set-output name=binary_name::"ezbeq.app.zip"
+            echo ::set-output name=binary_content_type::"application/zip"
+          elif [[ "$RUNNER_OS" == "Windows" ]]
+          then
+            echo ::set-output name=binary_path::"dist/ezbeq.exe"
+            echo ::set-output name=binary_name::"ezbeq.exe"
+            echo ::set-output name=binary_content_type::"application/vnd.microsoft.portable-executable"
+          fi
+      - name: Upload asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
+          asset_name: ${{ steps.create_dist.outputs.binary_name }}
+          asset_path: ${{ steps.create_dist.outputs.binary_path }}
+          asset_content_type: ${{ steps.create_dist.outputs.binary_content_type }}
