@@ -102,7 +102,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install pipenv
           pipenv --python 3.8 install -d
-          pip install pyinstaller
+          pipenv run pip install pyinstaller
           pip list
           pipenv run pip list
       - name: Create distribution
