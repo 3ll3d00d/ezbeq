@@ -1,3 +1,6 @@
+from contextlib import contextmanager
+
+import time
 import json
 import logging
 import os
@@ -64,7 +67,7 @@ class MinidspSender(Resource):
             logger.info(f"Sending {id} to Slot {slot}")
             match: Catalogue = next(c for c in self.__catalogue_provider.catalogue if c.idx == int(id))
             try:
-                self.__bridge.send(match, int(slot))
+                self.__bridge.send(MinidspBeqCommandGenerator.filt(match, int(slot)))
                 self.__state.put(slot, match)
             except Exception as e:
                 logger.exception(f"Failed to write {id} to Slot {slot}")
@@ -75,7 +78,7 @@ class MinidspSender(Resource):
             if cmd == 'activate':
                 logger.info(f"Activating Slot {slot}")
                 try:
-                    self.__bridge.activate(int(slot))
+                    self.__bridge.send(MinidspBeqCommandGenerator.activate(int(slot)))
                 except Exception as e:
                     logger.exception(f"Failed to activate Slot {slot}")
                     self.__state.error(slot)
@@ -85,7 +88,7 @@ class MinidspSender(Resource):
     def delete(self, slot):
         logger.info(f"Clearing Slot {slot}")
         try:
-            self.__bridge.send(None, int(slot))
+            self.__bridge.send(MinidspBeqCommandGenerator.filt(None, int(slot)))
             self.__state.clear(slot)
         except Exception as e:
             logger.exception(f"Failed to clear Slot {slot}")
@@ -93,22 +96,18 @@ class MinidspSender(Resource):
         return self.__state.get(), 200
 
 
-class MinidspBridge:
+class MinidspBeqCommandGenerator:
 
-    def __init__(self, cfg: Config):
-        from plumbum import local
-        self.__ignore_retcode = cfg.ignore_retcode
-        cmd = local[cfg.minidsp_exe]
-        if cfg.minidsp_options:
-            self.__runner = cmd[cfg.minidsp_options.split(' ')]
-        else:
-            self.__runner = cmd
+    @staticmethod
+    def activate(slot: int):
+        return [f"config {slot}"]
 
-    def activate(self, slot: int):
-        self.__send_config(slot)
-
-    def send(self, entry: Optional[Catalogue], slot: int):
-        self.__send_config(slot)
+    @staticmethod
+    def filt(entry: Optional[Catalogue], slot: int):
+        # config <slot>
+        # input <channel> peq <index> set -- <b0> <b1> <b2> <a1> <a2>
+        # input <channel> peq <index> bypass [on|off]
+        cmds = MinidspBeqCommandGenerator.activate(slot)
         for c in range(2):
             idx = 0
             if entry:
@@ -118,30 +117,82 @@ class MinidspBridge:
                     if len(coeffs) != 5:
                         raise ValueError(f"Invalid coeff count {len(coeffs)} at idx {idx}")
                     else:
-                        self.__send_biquad(str(c), str(idx), coeffs)
+                        cmds.append(MinidspBeqCommandGenerator.bq(c, idx, coeffs))
+                        cmds.append(MinidspBeqCommandGenerator.bypass(c, idx, False))
                         idx += 1
             for i in range(idx, 10):
-                self.__send_bypass(str(c), str(i), True)
+                cmds.append(MinidspBeqCommandGenerator.bypass(c, i, True))
+        return cmds
 
-    def __send_config(self, slot):
-        # minidsp config <slot>
-        cmd = self.__runner['config', str(slot)]
-        logger.info(f"Executing {cmd}")
-        self.__do_run(cmd)
+    @staticmethod
+    def bq(channel: int, idx: int, coeffs):
+        return f"input {channel} peq {idx} set -- {' '.join(coeffs)}"
 
-    def __do_run(self, cmd):
-        kwargs = {'retcode': None} if self.__ignore_retcode else {}
-        cmd.run(timeout=5, **kwargs)
+    @staticmethod
+    def bypass(channel: int, idx: int, bypass: bool):
+        return f"input {channel} peq {idx} bypass {'on' if bypass else 'off'}"
 
-    def __send_biquad(self, channel: str, idx: str, coeffs: List[str]):
-        # minidsp input <channel> peq <index> set -- <b0> <b1> <b2> <a1> <a2>
-        cmd = self.__runner['input', channel, 'peq', idx, 'set', '--', coeffs]
-        logger.info(f"Executing {cmd}")
-        self.__do_run(cmd)
-        self.__send_bypass(channel, idx, False)
 
-    def __send_bypass(self, channel: str, idx: str, bypass: bool):
-        # minidsp input <channel> bypass on
-        cmd = self.__runner['input', channel, 'peq', idx, 'bypass', 'on' if bypass else 'off']
-        logger.info(f"Executing {cmd}")
-        self.__do_run(cmd)
+class MinidspBridge:
+
+    def __init__(self, cfg: Config):
+        from plumbum import local
+        from threading import Lock
+        self.__lock = Lock()
+        self.__ignore_retcode = cfg.ignore_retcode
+        cmd = local[cfg.minidsp_exe]
+        if cfg.minidsp_options:
+            self.__runner = cmd[cfg.minidsp_options.split(' ')]
+        else:
+            self.__runner = cmd
+
+    def send(self, cmds: List[str]):
+        with tmp_file(cmds) as file_name:
+            self.__do_run(self.__runner['-f', file_name], len(cmds))
+
+    def __do_run(self, cmd, count: int):
+        with acquire_timeout(self.__lock, 10) as acquired:
+            if acquired:
+                kwargs = {'retcode': None} if self.__ignore_retcode else {}
+                logger.info(f"Sending {count} via {cmd} {kwargs if kwargs else ''}")
+                start = time.time()
+                code, stdout, stderr = cmd.run(timeout=5, **kwargs)
+                end = time.time()
+                logger.info(f"Sent {count} commands in {to_millis(start, end)}ms - result is {code}")
+            else:
+                raise OSError(f"Failed to acquire lock on minidsp")
+
+
+def to_millis(start, end, precision=1):
+    '''
+    Calculates the differences in time in millis.
+    :param start: start time in seconds.
+    :param end: end time in seconds.
+    :return: delta in millis.
+    '''
+    return round((end - start) * 1000, precision)
+
+
+@contextmanager
+def acquire_timeout(lock, timeout):
+    result = lock.acquire(timeout=timeout)
+    yield result
+    if result:
+        lock.release()
+
+
+@contextmanager
+def tmp_file(cmds: List[str]):
+    import tempfile
+    tmp_name = None
+    try:
+        f = tempfile.NamedTemporaryFile(mode='w+', delete=False)
+        for cmd in cmds:
+            f.write(cmd)
+            f.write('\n')
+        tmp_name = f.name
+        f.close()
+        yield tmp_name
+    finally:
+        if tmp_name:
+            os.unlink(tmp_name)
