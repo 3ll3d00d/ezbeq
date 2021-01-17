@@ -31,8 +31,8 @@ jobs:
           draft: false
           prerelease: true
   buildpypi:
-    name: Publsh to Pypi
-    needs: create_pypi_release
+    name: Publish to Pypi
+    needs: create_release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -73,7 +73,7 @@ jobs:
           password: ${{ secrets.PYPI_API_TOKEN }}
   buildpyinstaller:
     name: Publish to Github
-    needs: create_gh_release
+    needs: create_release
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
