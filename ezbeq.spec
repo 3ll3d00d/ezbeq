@@ -12,7 +12,7 @@ a = Analysis(['ezbeq/app.py'],
                  ('VERSION', '.'),
                  ('ui/build', 'ui')
              ],
-             hiddenimports=[],
+             hiddenimports=['flask'],
              hookspath=[],
              runtime_hooks=[],
              excludes=['pkg_resources'],
