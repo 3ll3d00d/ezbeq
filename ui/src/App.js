@@ -19,10 +19,18 @@ import PlayArrowIcon from '@material-ui/icons/PlayArrow';
 const useStyles = makeStyles((theme) => ({
     root: {
         flexGrow: 1,
-        minHeight: '100vh',
+        width: '100wh',
+        height: '100vh',
         '& > *': {
             margin: theme.spacing(1),
         }
+    },
+    noLeft: {
+        marginLeft: '0px'
+    },
+    noLeftTop: {
+        marginLeft: '0px',
+        marginTop: '0px'
     },
     title: {
         flexGrow: 1,
@@ -183,18 +191,13 @@ const App = () => {
         {
             field: 'id',
             headerName: ' ',
-            flex: 0.12,
+            width: 25,
             valueFormatter: params => params.value + 1
-        },
-        {
-            field: 'last',
-            headerName: 'Loaded',
-            flex: 0.45,
         },
         {
             field: 'actions',
             headerName: 'Actions',
-            flex: 0.33,
+            width: 120,
             renderCell: params => (
                 <>
                     <IconButton aria-label={'send'}
@@ -218,6 +221,11 @@ const App = () => {
                     </IconButton>
                 </>
             )
+        },
+        {
+            field: 'last',
+            headerName: 'Loaded',
+            flex: 0.45,
         }
     ];
     const catalogueGridColumns = [
@@ -251,7 +259,7 @@ const App = () => {
         <ThemeProvider theme={theme}>
             <CssBaseline/>
             <div className={classes.root}>
-                <AppBar position="static">
+                <AppBar position="static" className={classes.noLeftTop}>
                     <Toolbar>
                         <Avatar alt="beqcatalogue"
                                 variant="rounded"
@@ -283,7 +291,7 @@ const App = () => {
                 {
                     showFilters
                         ?
-                        <Grid container>
+                        <Grid container className={classes.noLeft}>
                             <Grid item>
                                 <SelectValue name="Author"
                                              value={selectedAuthors}
@@ -301,7 +309,7 @@ const App = () => {
                         </Grid>
                         : null
                 }
-                <Grid container direction={'column'}>
+                <Grid container direction={'column'} className={classes.noLeft}>
                     <Grid item style={{height: '190px', width: '100%'}}>
                         <DataGrid rows={minidspConfigSlots}
                                   columns={minidspGridColumns}
@@ -313,8 +321,8 @@ const App = () => {
                 {
                     filteredEntries.length
                         ?
-                        <Grid container>
-                            <Grid item style={{minHeight: '60vh', width: '100%'}}>
+                        <Grid container className={classes.noLeft}>
+                            <Grid item style={{height: `${window.innerHeight - 306}px`, width: '100%'}}>
                                 <DataGrid rows={filteredEntries}
                                           columns={catalogueGridColumns}
                                           pageSize={100}
@@ -334,7 +342,7 @@ const App = () => {
                 {
                     meta
                     ?
-                        <Grid container justify="center">
+                        <Grid container justify="center" className={classes.noLeft}>
                             <Grid item>
                                 <Typography align={'center'} variant={'caption'} color={'textSecondary'}>
                                     BEQCatalogue: {formatSeconds(meta.created)}
