@@ -7,7 +7,7 @@ def get_icon_file():
     '''
     :return: the full path to the icon file for the current platform.
     '''
-    return f"src/main/icons/{'icon.icns' if platform.system() == 'Darwin' else 'icon.ico'}"
+    return f"icons/{'icon.icns' if platform.system() == 'Darwin' else 'icon.ico'}"
 
 
 def get_data_args():
