@@ -106,9 +106,8 @@ const App = () => {
     const [meta, setMeta] = useState({});
     // filtered catalogue data
     const [filteredEntries, setFilteredEntries] = useState([]);
-    // const [filteredAuthors, setFilteredAuthors] = useState([]);
-    // const [filteredYears, setFilteredYears] = useState([]);
-    // const [filteredContentTypes, setFilteredContentTypes] = useState([]);
+    const [filteredYears, setFilteredYears] = useState([]);
+    const [filteredAudioTypes, setFilteredAudioTypes] = useState([]);
     // minidsp data
     const [minidspConfigSlots, setMinidspConfigSlots] = useState([]);
     // user selections
@@ -169,6 +168,11 @@ const App = () => {
         }
         pushData(setFilteredEntries, () => entries.filter(isMatch));
     }, [entries, selectedAudioTypes, selectedYears, selectedAuthors, txtFilter]);
+
+    useEffect(() => {
+        pushData(setFilteredYears, () => [...new Set(filteredEntries.map(e => e.year))]);
+        pushData(setFilteredAudioTypes, () => [...new Set(filteredEntries.map(e => e.audioTypes).flat())]);
+    }, [filteredEntries]);
 
     const sendToDevice = async (entryId, slotId) => {
         const selected = filteredEntries.find(e => e.id === entryId);
@@ -255,6 +259,7 @@ const App = () => {
         return '?';
     }
 
+
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline/>
@@ -296,15 +301,18 @@ const App = () => {
                                 <SelectValue name="Author"
                                              value={selectedAuthors}
                                              handleValueChange={handleAuthorChange}
-                                             values={authors}/>
+                                             values={authors}
+                                             isInView={v => true}/>
                                 <SelectValue name="Year"
                                              value={selectedYears}
                                              handleValueChange={handleYearChange}
-                                             values={years}/>
+                                             values={years}
+                                             isInView={v => filteredYears.length === 0 || filteredYears.indexOf(v) > -1}/>
                                 <SelectValue name="Audio Type"
                                              value={selectedAudioTypes}
                                              handleValueChange={handleAudioTypeChange}
-                                             values={audioTypes}/>
+                                             values={audioTypes}
+                                             isInView={v => filteredAudioTypes.length === 0 || filteredAudioTypes.indexOf(v) > -1}/>
                             </Grid>
                         </Grid>
                         : null

@@ -35,16 +35,17 @@ const MenuProps = {
     },
 };
 
-function getStyles(v1, v2, theme) {
+function getStyles(v1, v2, theme, isInView) {
     return {
         fontWeight:
             v2.indexOf(v1) === -1
-                ? theme.typography.fontWeightRegular
+                ? (isInView ? theme.typography.fontWeightRegular : theme.typography.fontWeightLight)
                 : theme.typography.fontWeightMedium,
+        textDecoration: isInView ? 'none' : 'line-through'
     };
 }
 
-const SelectValue = ({name, value, handleValueChange, values, multi = true}) => {
+const SelectValue = ({name, value, handleValueChange, values, multi = true, isInView}) => {
     const classes = useStyles();
     const theme = useTheme();
     return (
@@ -59,7 +60,7 @@ const SelectValue = ({name, value, handleValueChange, values, multi = true}) => 
                 input={<Input />}
                 MenuProps={MenuProps}>
                 {values.map((v) => (
-                    <MenuItem key={v} value={v} style={getStyles(v, value, theme)}>
+                    <MenuItem key={v} value={v} style={getStyles(v, value, theme, isInView(v))}>
                         {v}
                     </MenuItem>
                 ))}
