@@ -1,21 +1,36 @@
 # -*- mode: python -*-
 import os
+import platform
 
-# helper functions
+
+def get_icon_file():
+    '''
+    :return: the full path to the icon file for the current platform.
+    '''
+    return f"src/main/icons/{'icon.icns' if platform.system() == 'Darwin' else 'icon.ico'}"
+
+
+def get_data_args():
+    '''
+    :return: the data array for the analysis.
+    '''
+    return [
+        ('icons/icon.ico', '.'),
+        ('VERSION', '.'),
+        ('ui/build', 'ui')
+    ]
+
 block_cipher = None
 spec_root = os.path.abspath(SPECPATH)
 
 a = Analysis(['ezbeq/app.py'],
              pathex=[spec_root],
              binaries=[],
-             datas=[
-                 ('VERSION', '.'),
-                 ('ui/build', 'ui')
-             ],
+             datas=get_data_args(),
              hiddenimports=['flask'],
              hookspath=[],
              runtime_hooks=[],
-             excludes=['pkg_resources'],
+             excludes=[],
              win_no_prefer_redirects=False,
              win_private_assemblies=False,
              cipher=block_cipher)
@@ -31,5 +46,20 @@ exe = EXE(pyz,
           debug=False,
           strip=False,
           upx=False,
-          runtime_tmpdir=None,
-          console=True)
+          console=True,
+          exclude_binaries=False,
+          icon=get_icon_file())
+
+if platform.system() == 'Darwin':
+    app = BUNDLE(exe,
+                 name='ezbeq.app',
+                 bundle_identifier='com.3ll3d00d.ezbeq',
+                 icon='icons/icon.icns',
+                 info_plist={
+                     'NSHighResolutionCapable': 'True',
+                     'LSBackgroundOnly': 'False',
+                     'NSRequiresAquaSystemAppearance': 'False',
+                     'LSEnvironment': {
+                         'PATH': '/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:'
+                     }
+                 })
