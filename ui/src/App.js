@@ -1,5 +1,4 @@
 import React, {useEffect, useState} from 'react';
-import {SelectValue} from "./components/Filter";
 import {useValueChange} from "./components/valueState";
 import {createMuiTheme, fade, makeStyles, ThemeProvider} from '@material-ui/core/styles';
 import AppBar from '@material-ui/core/AppBar';
@@ -15,6 +14,7 @@ import ezbeq from './services/ezbeq';
 import useMediaQuery from '@material-ui/core/useMediaQuery';
 import CssBaseline from '@material-ui/core/CssBaseline';
 import PlayArrowIcon from '@material-ui/icons/PlayArrow';
+import MultiSelect from "./components/MultiSelect";
 
 const useStyles = makeStyles((theme) => ({
     root: {
@@ -111,9 +111,9 @@ const App = () => {
     // minidsp data
     const [minidspConfigSlots, setMinidspConfigSlots] = useState([]);
     // user selections
-    const [selectedAuthors, handleAuthorChange] = useValueChange()
-    const [selectedYears, handleYearChange] = useValueChange()
-    const [selectedAudioTypes, handleAudioTypeChange] = useValueChange()
+    const [selectedAuthors, setSelectedAuthors] = useState([]);
+    const [selectedYears, setSelectedYears] = useState([]);
+    const [selectedAudioTypes, setSelectedAudioTypes] = useState([]);
     const [txtFilter, handleTxtFilterChange] = useValueChange('');
     const [showFilters, setShowFilters] = useState(false);
     const [selectedEntryId, setSelectedEntryId] = useState(-1);
@@ -194,6 +194,16 @@ const App = () => {
         combineMinidspState(vals);
     }
 
+    const addSelectedAudioTypes = values => {
+        const matches = audioTypes.filter(at => values.some(v => v === at || at.toLowerCase().indexOf(v.toLowerCase()) > -1));
+        setSelectedAudioTypes(matches);
+    };
+
+    const addSelectedYears = values => {
+        const matches = years.filter(y => values.some(v => v === y || `${y}`.indexOf(v) > -1));
+        setSelectedYears(matches);
+    };
+
     // grid definitions
     const minidspGridColumns = [
         {
@@ -263,7 +273,7 @@ const App = () => {
         if (s) {
             const d = new Date(0);
             d.setUTCSeconds(s);
-            return `${d.getFullYear()}${padZero(d.getMonth()+1)}${padZero(d.getDate())}_${padZero(d.getHours())}${padZero(d.getMinutes())}${padZero(d.getSeconds())}`
+            return `${d.getFullYear()}${padZero(d.getMonth() + 1)}${padZero(d.getDate())}_${padZero(d.getHours())}${padZero(d.getMinutes())}${padZero(d.getSeconds())}`
         }
         return '?';
     }
@@ -305,25 +315,28 @@ const App = () => {
                 {
                     showFilters
                         ?
-                        <Grid container className={classes.noLeft}>
-                            <Grid item>
-                                <SelectValue name="Author"
-                                             value={selectedAuthors}
-                                             handleValueChange={handleAuthorChange}
-                                             values={authors}
-                                             isInView={v => true}/>
-                                <SelectValue name="Year"
-                                             value={selectedYears}
-                                             handleValueChange={handleYearChange}
-                                             values={years}
-                                             isInView={v => filteredYears.length === 0 || filteredYears.indexOf(v) > -1}/>
-                                <SelectValue name="Audio Type"
-                                             value={selectedAudioTypes}
-                                             handleValueChange={handleAudioTypeChange}
-                                             values={audioTypes}
-                                             isInView={v => filteredAudioTypes.length === 0 || filteredAudioTypes.indexOf(v) > -1}/>
-                            </Grid>
-                        </Grid>
+                        <>
+                            <MultiSelect items={authors}
+                                         selectedValues={selectedAuthors}
+                                         label="Author"
+                                         onToggleOption={selected => setSelectedAuthors(selected)}
+                                         onClearOptions={() => setSelectedAuthors([])}/>
+                            <MultiSelect items={years}
+                                         selectedValues={selectedYears}
+                                         label="Year"
+                                         onToggleOption={selected => setSelectedYears(selected)}
+                                         onCreateOption={value => addSelectedYears(value)}
+                                         onClearOptions={() => setSelectedYears([])}
+                                         getOptionLabel={o => `${o}`}
+                                         isInView={v => filteredYears.length === 0 || filteredYears.indexOf(v) > -1}/>
+                            <MultiSelect items={audioTypes}
+                                         selectedValues={selectedAudioTypes}
+                                         label="Audio Types"
+                                         onToggleOption={selected => setSelectedAudioTypes(selected)}
+                                         onCreateOption={value => addSelectedAudioTypes(value)}
+                                         onClearOptions={() => setSelectedAudioTypes([])}
+                                         isInView={v => filteredAudioTypes.length === 0 || filteredAudioTypes.indexOf(v) > -1}/>
+                        </>
                         : null
                 }
                 <Grid container direction={'column'} className={classes.noLeft}>
@@ -358,7 +371,7 @@ const App = () => {
                 }
                 {
                     meta
-                    ?
+                        ?
                         <Grid container justify="center" className={classes.noLeft}>
                             <Grid item>
                                 <Typography align={'center'} variant={'caption'} color={'textSecondary'}>
@@ -366,7 +379,7 @@ const App = () => {
                                 </Typography>
                             </Grid>
                         </Grid>
-                    : null
+                        : null
                 }
             </div>
         </ThemeProvider>

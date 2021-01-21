@@ -160,9 +160,10 @@ class MinidspBridge:
     def state(self) -> Optional[int]:
         with acquire_timeout(self.__lock, 10) as acquired:
             if acquired:
-                lines = self.__runner()
                 active_slot = None
+                lines = None
                 try:
+                    lines = self.__runner(timeout=5)
                     for line in lines.split('\n'):
                         if line.startswith('MasterStatus'):
                             idx = line.find('{ ')
@@ -206,9 +207,11 @@ def to_millis(start, end, precision=1):
 
 @contextmanager
 def acquire_timeout(lock, timeout):
+    logger.debug("Acquiring LOCK")
     result = lock.acquire(timeout=timeout)
     yield result
     if result:
+        logger.debug("Releasing LOCK")
         lock.release()
 
 
