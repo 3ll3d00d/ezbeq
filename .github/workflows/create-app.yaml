@@ -51,7 +51,7 @@ jobs:
         uses: battila7/get-version-action@v2
       - name: Set version
         run: |
-          echo ${{ steps.get_version.outputs.version-without-v }} > VERSION
+          echo ${{ steps.get_version.outputs.version-without-v }} > ezbeq/VERSION
       - name: Set up Python 3.7
         uses: actions/setup-python@v2
         with:
@@ -92,7 +92,7 @@ jobs:
         uses: battila7/get-version-action@v2
       - name: Set version
         run: |
-          echo ${{ steps.get_version.outputs.version-without-v }} > VERSION
+          echo ${{ steps.get_version.outputs.version-without-v }} > ezbeq/VERSION
       - name: Set up Python 3.8
         uses: actions/setup-python@v2
         with:

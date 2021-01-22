@@ -21,6 +21,10 @@ class EzBeqService {
         return this.doGet('meta');
     }
 
+    getVersion = () => {
+        return this.doGet('version');
+    }
+
     doGet = async (payload) => {
         const response = await fetch(`${API_PREFIX}/${payload}`, {
             method: 'GET'

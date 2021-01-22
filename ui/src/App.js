@@ -104,6 +104,7 @@ const App = () => {
     const [years, setYears] = useState([]);
     const [audioTypes, setAudioTypes] = useState([]);
     const [meta, setMeta] = useState({});
+    const [version, setVersion] = useState({});
     // filtered catalogue data
     const [filteredEntries, setFilteredEntries] = useState([]);
     const [filteredYears, setFilteredYears] = useState([]);
@@ -134,6 +135,10 @@ const App = () => {
 
     useEffect(() => {
         pushData(setMeta, ezbeq.getMeta);
+    }, []);
+
+    useEffect(() => {
+        pushData(setVersion, ezbeq.getVersion);
     }, []);
 
     const combineMinidspState = state => {
@@ -370,12 +375,17 @@ const App = () => {
                         : null
                 }
                 {
-                    meta
+                    meta || version
                         ?
-                        <Grid container justify="center" className={classes.noLeft}>
+                        <Grid container justify="space-around" className={classes.noLeft}>
                             <Grid item>
-                                <Typography align={'center'} variant={'caption'} color={'textSecondary'}>
-                                    BEQCatalogue: {formatSeconds(meta.created)}
+                                <Typography variant={'caption'} color={'textSecondary'}>
+                                    {meta ? `BEQCatalogue: ${formatSeconds(meta.created)}` : ''}
+                                </Typography>
+                            </Grid>
+                            <Grid item>
+                                <Typography variant={'caption'} color={'textSecondary'}>
+                                    {version.version !== 'UNKNOWN' ? `v${version.version}` : version.version}
                                 </Typography>
                             </Grid>
                         </Grid>

@@ -4,8 +4,8 @@ from setuptools import setup, find_packages
 with open('README.md') as f:
     readme = f.read()
 
-if os.path.exists('VERSION'):
-    with open('VERSION', 'r') as f:
+if os.path.exists('ezbeq/VERSION'):
+    with open('ezbeq/VERSION', 'r') as f:
         version = f.read()
 else:
     version = '0.0.1-alpha.1+dirty'

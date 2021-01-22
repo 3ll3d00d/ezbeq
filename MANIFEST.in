@@ -1,2 +1,3 @@
 include LICENSE
 graft ezbeq/ui
+include ezbeq/VERSION

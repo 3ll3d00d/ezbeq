@@ -16,7 +16,7 @@ def get_data_args():
     '''
     return [
         ('icons/icon.ico', '.'),
-        ('VERSION', '.'),
+        ('ezbeq/VERSION', '.'),
         ('ui/build', 'ui')
     ]
 

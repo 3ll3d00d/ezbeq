@@ -1,10 +1,12 @@
 import logging
 import os
+import sys
 from logging import handlers
 from os import environ
 from os import path
 
 import yaml
+from flask_restful import Resource
 
 
 class Config:
@@ -156,3 +158,21 @@ class Config:
         logger.addHandler(fh)
         logger.addHandler(ch)
         return logger
+
+
+class Version(Resource):
+
+    def __init__(self, **kwargs):
+        if getattr(sys, 'frozen', False):
+            # pyinstaller lets you copy files to arbitrary locations under the _MEIPASS root dir
+            root = os.path.join(sys._MEIPASS, 'ui')
+        else:
+            root = os.path.dirname(__file__)
+        v_name = os.path.join(root, 'VERSION')
+        self.__v = 'UNKNOWN'
+        if os.path.exists(v_name):
+            with open(v_name, 'r') as f:
+                self.__v = f.read()
+
+    def get(self):
+        return {'version': self.__v}
