@@ -68,7 +68,6 @@ const MultiSelect = ({
             renderOption={optionRenderer}
             renderInput={inputRenderer}
             getOptionLabel={getOptionLabel}
-            debug
         />
     );
 };
