@@ -1,9 +1,8 @@
-from contextlib import contextmanager
-
-import time
 import json
 import logging
 import os
+import time
+from contextlib import contextmanager
 from typing import List, Optional
 
 from flask import request
@@ -46,7 +45,8 @@ class MinidspState:
         self.__update(slot, 'Empty')
 
     def get(self):
-        return {'slots': self.__state, 'active': self.__active_slot}
+        return [{**s, 'active': True if self.__active_slot is not None and s['id'] == self.__active_slot else False}
+                for s in self.__state]
 
 
 class Minidsps(Resource):
@@ -207,12 +207,16 @@ def to_millis(start, end, precision=1):
 
 @contextmanager
 def acquire_timeout(lock, timeout):
-    logger.debug("Acquiring LOCK")
+    logger.info("Acquiring LOCK")
     result = lock.acquire(timeout=timeout)
-    yield result
-    if result:
-        logger.debug("Releasing LOCK")
-        lock.release()
+    try:
+        yield result
+    finally:
+        if result:
+            logger.info("Releasing LOCK")
+            lock.release()
+        else:
+            logger.info("No LOCK to release")
 
 
 @contextmanager
