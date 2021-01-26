@@ -18,20 +18,22 @@ const useStyles = makeStyles((theme) => ({
     }
 }));
 
-const isInProgress = (active, label, slotId) => {
-    return active && active.hasOwnProperty(slotId) && active[slotId].action === label && active[slotId].state === 1;
+const getCurrentState = (active, label, slotId) => {
+    const match = active.find(a => a.slotId === slotId && a.action === label);
+    return match ? match.state : -1;
 };
 
 const Action = ({slotId, onClick, label, Icon, active, disabled = false}) => {
     const classes = useStyles();
+    const currentState = getCurrentState(active, label, slotId);
     return (
         <div>
         {
-            isInProgress(active, label, slotId)
+            currentState === 1
             ? <CircularProgress size={24} className={classes.progress}/>
             : <IconButton aria-label={label}
                           onClick={onClick}
-                          color="primary"
+                          color={currentState === 2 ? 'error' : 'primary'}
                           edge={'start'}
                           disabled={disabled}>
                 <Icon/>
@@ -45,28 +47,27 @@ const Devices = ({selectedEntryId}) => {
     const classes = useStyles();
 
     const [slots, setSlots] = useState([]);
-    const [updating, setUpdating] = useState({});
+    const [pending, setPending] = useState([]);
 
     useEffect(() => {
         pushData(setSlots, ezbeq.getMinidspConfig);
     }, []);
 
-    const newUpdate = (original, action, slotId, state) => {
-        return Object.assign({}, original, {[slotId]: {action, state}});
-    };
-
     const trackDeviceUpdate = async (action, slotId, valProvider) => {
-        setUpdating(u => newUpdate(u, action, slotId, 1));
+        setPending(u => [{slotId, action, state: 1}].concat(u));
         try {
             const vals = await valProvider();
-            setUpdating(u => {
-                const {[slotId]: remove, ...newState} = u;
-                return newState;
-            });
+            setPending(u => u.filter(p => !(p.slotId === slotId && p.action === action)));
             setSlots(vals);
         } catch (e) {
             console.error(e);
-            setUpdating(u => newUpdate(u, action, slotId, 2));
+            setPending(u => u.map(p => {
+                if (p.slotId === slotId && p.action === action) {
+                    return {slotId, action, state: 2};
+                } else {
+                    return p;
+                }
+            }));
         }
     };
 
@@ -101,17 +102,17 @@ const Devices = ({selectedEntryId}) => {
                             onClick={() => sendToDevice(selectedEntryId, params.row.id)}
                             label={'send'}
                             Icon={PublishIcon}
-                            active={updating}/>
+                            active={pending}/>
                     <Action slotId={params.row.id}
                             onClick={() => activateSlot(params.row.id)}
                             label={'activate'}
                             Icon={PlayArrowIcon}
-                            active={updating}/>
+                            active={pending}/>
                     <Action slotId={params.row.id}
                             onClick={() => clearDeviceSlot(params.row.id)}
                             label={'clear'}
                             Icon={ClearIcon}
-                            active={updating}/>
+                            active={pending}/>
                 </>
             ),
         },

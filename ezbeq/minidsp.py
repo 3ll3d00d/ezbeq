@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import time
+from concurrent.futures.thread import ThreadPoolExecutor
 from contextlib import contextmanager
 from typing import List, Optional
 
@@ -74,7 +75,7 @@ class MinidspSender(Resource):
             logger.info(f"Sending {id} to Slot {slot}")
             match: Catalogue = next(c for c in self.__catalogue_provider.catalogue if c.idx == int(id))
             try:
-                self.__bridge.send(MinidspBeqCommandGenerator.filt(match, int(slot), self.__bridge.state()))
+                self.__bridge.send(MinidspBeqCommandGenerator.filt(match, int(slot), self.__bridge.state()), int(slot))
                 self.__state.put(int(slot), match)
             except Exception as e:
                 logger.exception(f"Failed to write {id} to Slot {slot}")
@@ -85,7 +86,7 @@ class MinidspSender(Resource):
             if cmd == 'activate':
                 logger.info(f"Activating Slot {slot}")
                 try:
-                    self.__bridge.send(MinidspBeqCommandGenerator.activate(int(slot)))
+                    self.__bridge.send(MinidspBeqCommandGenerator.activate(int(slot)), int(slot))
                     self.__state.activate(int(slot))
                 except Exception as e:
                     logger.exception(f"Failed to activate Slot {slot}")
@@ -96,7 +97,7 @@ class MinidspSender(Resource):
     def delete(self, slot):
         logger.info(f"Clearing Slot {slot}")
         try:
-            self.__bridge.send(MinidspBeqCommandGenerator.filt(None, int(slot), self.__bridge.state()))
+            self.__bridge.send(MinidspBeqCommandGenerator.filt(None, int(slot), self.__bridge.state()), int(slot))
             self.__state.clear(slot)
         except Exception as e:
             logger.exception(f"Failed to clear Slot {slot}")
@@ -148,8 +149,7 @@ class MinidspBridge:
 
     def __init__(self, cfg: Config):
         from plumbum import local
-        from threading import Lock
-        self.__lock = Lock()
+        self.__executor = ThreadPoolExecutor(max_workers=1)
         self.__ignore_retcode = cfg.ignore_retcode
         cmd = local[cfg.minidsp_exe]
         if cfg.minidsp_options:
@@ -158,41 +158,37 @@ class MinidspBridge:
             self.__runner = cmd
 
     def state(self) -> Optional[int]:
-        with acquire_timeout(self.__lock, 10) as acquired:
-            if acquired:
-                active_slot = None
-                lines = None
-                try:
-                    lines = self.__runner(timeout=5)
-                    for line in lines.split('\n'):
-                        if line.startswith('MasterStatus'):
-                            idx = line.find('{ ')
-                            if idx > -1:
-                                vals = line[idx+2:-2].split(', ')
-                                for v in vals:
-                                    if v.startswith('preset: '):
-                                        active_slot = int(v[8:])
-                except:
-                    logger.exception(f"Unable to locate active preset in {lines}")
-                return active_slot
-            else:
-                raise OSError(f"Failed to acquire lock on minidsp")
+        return self.__executor.submit(self.__get_state).result(timeout=60)
 
-    def send(self, cmds: List[str]):
+    def __get_state(self) -> Optional[int]:
+        active_slot = None
+        lines = None
+        try:
+            kwargs = {'retcode': None} if self.__ignore_retcode else {}
+            lines = self.__runner(timeout=5, **kwargs)
+            for line in lines.split('\n'):
+                if line.startswith('MasterStatus'):
+                    idx = line.find('{ ')
+                    if idx > -1:
+                        vals = line[idx+2:-2].split(', ')
+                        for v in vals:
+                            if v.startswith('preset: '):
+                                active_slot = int(v[8:])
+        except:
+            logger.exception(f"Unable to locate active preset in {lines}")
+        return active_slot
+
+    def send(self, cmds: List[str], slot: int):
         with tmp_file(cmds) as file_name:
-            self.__do_run(self.__runner['-f', file_name], len(cmds))
+            return self.__executor.submit(self.__do_run, self.__runner['-f', file_name], len(cmds), slot).result(timeout=60)
 
-    def __do_run(self, cmd, count: int):
-        with acquire_timeout(self.__lock, 10) as acquired:
-            if acquired:
-                kwargs = {'retcode': None} if self.__ignore_retcode else {}
-                logger.info(f"Sending {count} via {cmd} {kwargs if kwargs else ''}")
-                start = time.time()
-                code, stdout, stderr = cmd.run(timeout=5, **kwargs)
-                end = time.time()
-                logger.info(f"Sent {count} commands in {to_millis(start, end)}ms - result is {code}")
-            else:
-                raise OSError(f"Failed to acquire lock on minidsp")
+    def __do_run(self, cmd, count: int, slot: int):
+        kwargs = {'retcode': None} if self.__ignore_retcode else {}
+        logger.info(f"Sending {count} commands to slot {slot} via {cmd} {kwargs if kwargs else ''}")
+        start = time.time()
+        code, stdout, stderr = cmd.run(timeout=5, **kwargs)
+        end = time.time()
+        logger.info(f"Sent {count} commands to slot {slot} in {to_millis(start, end)}ms - result is {code}")
 
 
 def to_millis(start, end, precision=1):
@@ -203,20 +199,6 @@ def to_millis(start, end, precision=1):
     :return: delta in millis.
     '''
     return round((end - start) * 1000, precision)
-
-
-@contextmanager
-def acquire_timeout(lock, timeout):
-    logger.info("Acquiring LOCK")
-    result = lock.acquire(timeout=timeout)
-    try:
-        yield result
-    finally:
-        if result:
-            logger.info("Releasing LOCK")
-            lock.release()
-        else:
-            logger.info("No LOCK to release")
 
 
 @contextmanager
