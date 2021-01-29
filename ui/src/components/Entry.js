@@ -61,7 +61,7 @@ const Entry = ({selectedEntry}) => {
                     }
                     {
                         selectedEntry.beqcUrl
-                        ? <Button size="small" color="primary" href={selectedEntry.beqcUrl} target='_beq'>Learn More</Button>
+                        ? <Button size="small" color="primary" href={selectedEntry.beqcUrl} target='_beq'>Catalogue</Button>
                         : null
                     }
                 </CardActions>
