@@ -26,9 +26,10 @@ class Catalogue:
         self.beqc_url = vals.get('catalogue_url', '')
         self.filters = vals.get('filters', {})
         self.images = vals.get('images', [])
-        self.notes = vals.get('warning', vals.get('note', ''))
+        self.episodes = vals.get('episode', '')
         self.content_type = vals.get('content_type', 'film')
         self.avs_url = vals.get('avs', '')
+        self.season = vals.get('season', '')
         self.mv_adjust = 0.0
         if 'mv' in vals:
             v = vals['mv']
@@ -45,7 +46,8 @@ class Catalogue:
             'beqcUrl': self.beqc_url,
             'images': self.images,
             'author': self.author,
-            'notes': self.notes,
+            'season': self.season,
+            'episodes': self.episodes,
             'contentType': self.content_type,
             'mvAdjust': self.mv_adjust,
             'avsUrl': self.avs_url

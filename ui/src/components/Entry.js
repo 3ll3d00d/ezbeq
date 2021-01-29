@@ -22,8 +22,27 @@ const formatMV = entry => {
     return null;
 };
 
+const formatTV = entry => {
+    if (entry && entry.season) {
+        if (entry.episodes) {
+            const is_dig = /^\d+$/.test(entry.episodes);
+            if (is_dig) {
+                return `S${entry.season} E${entry.episodes}`;
+            } else {
+                return `S${entry.season} ${entry.episodes}`;
+            }
+        } else {
+            return `S${entry.season}`;
+        }
+    }
+    return null;
+};
+
 const Entry = ({selectedEntry}) => {
     const classes = useStyles();
+    if (selectedEntry) {
+        console.log(selectedEntry);
+    }
     if (selectedEntry) {
         return (
             <Card className={classes.root}>
@@ -48,6 +67,7 @@ const Entry = ({selectedEntry}) => {
                             {selectedEntry.title} {selectedEntry.year ? `(${selectedEntry.year})` : ''}
                         </Typography>
                         <Typography variant="body2" color="textSecondary" component="p">
+                            {formatTV(selectedEntry)}
                             {formatAudioTypes(selectedEntry)}
                             {formatMV(selectedEntry)}
                         </Typography>
