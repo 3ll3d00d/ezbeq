@@ -17,6 +17,10 @@ class EzBeqService {
         return this.doGet('audiotypes');
     };
 
+    getContentTypes = () => {
+        return this.doGet('contenttypes');
+    };
+
     getMeta = () => {
         return this.doGet('meta');
     }

@@ -53,6 +53,7 @@ const App = () => {
     const [selectedAuthors, setSelectedAuthors] = useState([]);
     const [selectedYears, setSelectedYears] = useState([]);
     const [selectedAudioTypes, setSelectedAudioTypes] = useState([]);
+    const [selectedContentTypes, setSelectedContentTypes] = useState([]);
     const [txtFilter, handleTxtFilterChange] = useValueChange('');
     const [showFilters, setShowFilters] = useState(false);
     const [selectedEntryId, setSelectedEntryId] = useState(-1);
@@ -72,8 +73,10 @@ const App = () => {
             if (!selectedAuthors.length || selectedAuthors.indexOf(entry.author) > -1) {
                 if (!selectedYears.length || selectedYears.indexOf(entry.year) > -1) {
                     if (!selectedAudioTypes.length || entry.audioTypes.some(at => selectedAudioTypes.indexOf(at) > -1)) {
-                        if (!txtFilter || entry.title.toLowerCase().includes(txtFilter.toLowerCase())) {
-                            return true;
+                        if (!selectedContentTypes.length || selectedContentTypes.indexOf(entry.contentType) > -1) {
+                            if (!txtFilter || entry.title.toLowerCase().includes(txtFilter.toLowerCase())) {
+                                return true;
+                            }
                         }
                     }
                 }
@@ -81,7 +84,7 @@ const App = () => {
             return false;
         }
         pushData(setFilteredEntries, () => entries.filter(isMatch));
-    }, [entries, selectedAudioTypes, selectedYears, selectedAuthors, txtFilter]);
+    }, [entries, selectedAudioTypes, selectedYears, selectedAuthors, selectedContentTypes, txtFilter]);
 
     return (
         <ThemeProvider theme={theme}>
@@ -98,6 +101,8 @@ const App = () => {
                         setSelectedYears={setSelectedYears}
                         selectedAuthors={selectedAuthors}
                         setSelectedAuthors={setSelectedAuthors}
+                        selectedContentTypes={selectedContentTypes}
+                        setSelectedContentTypes={setSelectedContentTypes}
                         filteredEntries={filteredEntries}/>
                 <Devices selectedEntryId={selectedEntryId}/>
                 <Catalogue entries={filteredEntries}

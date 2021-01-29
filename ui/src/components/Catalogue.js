@@ -18,8 +18,8 @@ const Catalogue = ({entries, setSelectedEntryId}) => {
             flex: 0.6,
             renderCell: params => (
                 params.row.url
-                    ? <a href={params.row.url} target='_beq'>{params.value}</a>
-                    : params.value
+                    ? <span>{params.row.contentType === 'TV' ? "[TV] " : ''}<a href={params.row.url} target='_beq'>{params.value}</a></span>
+                    : <span>{params.row.contentType === 'TV' ? "[TV] " : ''}{params.value}</span>
             )
         },
         {

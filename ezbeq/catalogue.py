@@ -26,6 +26,8 @@ class Catalogue:
         self.url = vals.get('catalogue_url', '')
         self.filters = vals.get('filters', {})
         self.images = vals.get('images', [])
+        self.notes = vals.get('warning', vals.get('note', ''))
+        self.content_type = vals.get('content_type', 'film')
         self.for_search = {
             'id': self.idx,
             'title': self.title,
@@ -33,22 +35,26 @@ class Catalogue:
             'audioTypes': self.audio_types,
             'url': self.url,
             'images': self.images,
-            'author': self.author
+            'author': self.author,
+            'notes': self.notes,
+            'contentType': self.content_type
         }
         self.short_search = {
             'id': self.idx,
             'title': self.title,
             'year': self.year,
+            'contentType': self.content_type
         }
 
-    def matches(self, authors, years, audio_types):
+    def matches(self, authors, years, audio_types, content_types):
         if not authors or self.author in authors:
             if not years or self.year in years:
-                return not audio_types or any(a_t in audio_types for a_t in self.audio_types)
+                if not audio_types or any(a_t in audio_types for a_t in self.audio_types):
+                    return not content_types or self.content_type in content_types
         return False
 
     def __repr__(self):
-        return f"{self.title} / {self.audio_types} / {self.year}"
+        return f"[{self.content_type}] {self.title} / {self.audio_types} / {self.year}"
 
 
 class CatalogueProvider:
@@ -98,6 +104,16 @@ class CatalogueProvider:
                 raise e
 
 
+class ContentTypes(Resource):
+
+    def __init__(self, **kwargs):
+        self.__provider: CatalogueProvider = kwargs['catalogue']
+
+    def get(self):
+        catalogue = self.__provider.catalogue
+        return list(sorted({c.content_type for c in catalogue}))
+
+
 class Authors(Resource):
 
     def __init__(self, **kwargs):
@@ -136,6 +152,7 @@ class CatalogueSearch(Resource):
         self.__parser.add_argument('authors', action='append')
         self.__parser.add_argument('years', action='append')
         self.__parser.add_argument('audiotypes', action='append')
+        self.__parser.add_argument('contenttypes', action='append')
 
     def get(self):
         catalogue = self.__provider.catalogue
@@ -143,7 +160,8 @@ class CatalogueSearch(Resource):
         authors = args.get('authors')
         years = args.get('years')
         audio_types = args.get('audiotypes')
-        return [c.for_search for c in catalogue if c.matches(authors, years, audio_types)]
+        content_types = args.get('contenttypes')
+        return [c.for_search for c in catalogue if c.matches(authors, years, audio_types, content_types)]
 
 
 class CatalogueMeta(Resource):

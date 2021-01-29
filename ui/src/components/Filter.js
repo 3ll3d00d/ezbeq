@@ -11,12 +11,15 @@ const Filter = ({
                     setSelectedYears,
                     selectedAuthors,
                     setSelectedAuthors,
+                    selectedContentTypes,
+                    setSelectedContentTypes,
                     filteredEntries
                 }) => {
 
     const [authors, setAuthors] = useState([]);
     const [years, setYears] = useState([]);
     const [audioTypes, setAudioTypes] = useState([]);
+    const [contentTypes, setContentTypes] = useState([]);
     const [filteredYears, setFilteredYears] = useState([]);
     const [filteredAudioTypes, setFilteredAudioTypes] = useState([]);
 
@@ -30,6 +33,10 @@ const Filter = ({
 
     useEffect(() => {
         pushData(setAudioTypes, ezbeq.getAudioTypes);
+    }, []);
+
+    useEffect(() => {
+        pushData(setContentTypes, ezbeq.getContentTypes);
     }, []);
 
     useEffect(() => {
@@ -50,6 +57,11 @@ const Filter = ({
     if (visible) {
         return (
             <>
+                <MultiSelect items={contentTypes}
+                             selectedValues={selectedContentTypes}
+                             label="Content Types"
+                             onToggleOption={selected => setSelectedContentTypes(selected)}
+                             onClearOptions={() => setSelectedContentTypes([])}/>
                 <MultiSelect items={authors}
                              selectedValues={selectedAuthors}
                              label="Author"

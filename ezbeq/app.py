@@ -5,7 +5,7 @@ from os import path
 from flask import Flask
 from flask_restful import Api
 
-from ezbeq.catalogue import CatalogueProvider, Authors, Years, AudioTypes, CatalogueSearch, CatalogueMeta
+from ezbeq.catalogue import CatalogueProvider, Authors, Years, AudioTypes, CatalogueSearch, CatalogueMeta, ContentTypes
 from ezbeq.config import Config, Version
 from ezbeq.minidsp import MinidspSender, MinidspBridge, Minidsps, MinidspState
 
@@ -38,6 +38,8 @@ api.add_resource(Authors, f"{API_PREFIX}/authors", resource_class_kwargs=resourc
 api.add_resource(Years, f"{API_PREFIX}/years", resource_class_kwargs=resource_args)
 # GET: distinct audio types in the catalogue
 api.add_resource(AudioTypes, f"{API_PREFIX}/audiotypes", resource_class_kwargs=resource_args)
+# GET: distinct content types in the catalogue
+api.add_resource(ContentTypes, f"{API_PREFIX}/contenttypes", resource_class_kwargs=resource_args)
 # GET: catalogue entries
 api.add_resource(CatalogueSearch, f"{API_PREFIX}/search", resource_class_kwargs=resource_args)
 # GET: catalogue meta
