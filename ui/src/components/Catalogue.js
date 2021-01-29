@@ -9,7 +9,7 @@ const useStyles = makeStyles((theme) => ({
     }
 }));
 
-const Catalogue = ({entries, setSelectedEntryId}) => {
+const Catalogue = ({entries, setSelectedEntryId, selectedEntryId}) => {
     const classes = useStyles();
     const catalogueGridColumns = [
         {
@@ -18,7 +18,7 @@ const Catalogue = ({entries, setSelectedEntryId}) => {
             flex: 0.6,
             renderCell: params => (
                 params.row.url
-                    ? <span>{params.row.contentType === 'TV' ? "[TV] " : ''}<a href={params.row.url} target='_beq'>{params.value}</a></span>
+                    ? <span>{params.row.contentType === 'TV' ? "[TV] " : ''}<a href={params.row.avsUrl} target='_beq'>{params.value}</a></span>
                     : <span>{params.row.contentType === 'TV' ? "[TV] " : ''}{params.value}</span>
             )
         },
@@ -31,10 +31,13 @@ const Catalogue = ({entries, setSelectedEntryId}) => {
     if (entries.length > 0) {
         return (
             <Grid container className={classes.noLeft}>
-                <Grid item style={{height: `${window.innerHeight - 306}px`, width: '100%'}}>
+                <Grid item style={{
+                    height: `${Math.max(260, (window.innerHeight - 306) / (selectedEntryId > -1 ? 2 : 1))}px`,
+                    width: '100%'
+                }}>
                     <DataGrid rows={entries}
                               columns={catalogueGridColumns}
-                              pageSize={100}
+                              pageSize={50}
                               density={'compact'}
                               sortModel={[
                                   {

@@ -10,6 +10,7 @@ import Footer from "./components/Footer";
 import Catalogue from "./components/Catalogue";
 import Devices from "./components/Devices";
 import Filter from "./components/Filter";
+import Entry from "./components/Entry";
 
 const useStyles = makeStyles((theme) => ({
     root: {
@@ -106,7 +107,9 @@ const App = () => {
                         filteredEntries={filteredEntries}/>
                 <Devices selectedEntryId={selectedEntryId}/>
                 <Catalogue entries={filteredEntries}
-                           setSelectedEntryId={setSelectedEntryId}/>
+                           setSelectedEntryId={setSelectedEntryId}
+                           selectedEntryId={selectedEntryId}/>
+                <Entry selectedEntry={selectedEntryId ? filteredEntries.find(e => e.id === selectedEntryId) : null}/>
                 <Footer/>
             </div>
         </ThemeProvider>

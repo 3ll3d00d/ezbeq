@@ -23,21 +23,32 @@ class Catalogue:
         self.year = int(vals.get('year', 0))
         self.audio_types = vals.get('audioTypes', [])
         self.author = vals.get('author', '')
-        self.url = vals.get('catalogue_url', '')
+        self.beqc_url = vals.get('catalogue_url', '')
         self.filters = vals.get('filters', {})
         self.images = vals.get('images', [])
         self.notes = vals.get('warning', vals.get('note', ''))
         self.content_type = vals.get('content_type', 'film')
+        self.avs_url = vals.get('avs', '')
+        self.mv_adjust = 0.0
+        if 'mv' in vals:
+            v = vals['mv']
+            try:
+                self.mv_adjust = float(v)
+            except:
+                logger.error(f"Unknown mv_adjust value in {self.title} - {vals['mv']}")
+                pass
         self.for_search = {
             'id': self.idx,
             'title': self.title,
             'year': self.year,
             'audioTypes': self.audio_types,
-            'url': self.url,
+            'beqcUrl': self.beqc_url,
             'images': self.images,
             'author': self.author,
             'notes': self.notes,
-            'contentType': self.content_type
+            'contentType': self.content_type,
+            'mvAdjust': self.mv_adjust,
+            'avsUrl': self.avs_url
         }
         self.short_search = {
             'id': self.idx,
