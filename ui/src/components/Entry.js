@@ -41,9 +41,6 @@ const formatTV = entry => {
 const Entry = ({selectedEntry}) => {
     const classes = useStyles();
     if (selectedEntry) {
-        console.log(selectedEntry);
-    }
-    if (selectedEntry) {
         return (
             <Card className={classes.root}>
                 <CardActionArea>
