@@ -20,7 +20,12 @@ class Catalogue:
     def __init__(self, idx: int, vals: dict):
         self.idx = idx
         self.title = vals.get('title', '')
-        self.year = int(vals.get('year', 0))
+        y = 0
+        try:
+            y = int(vals.get('year', 0))
+        except:
+            logger.error(f"Invalid year {vals.get('year', 0)} in {self.title}")
+        self.year = y
         self.audio_types = vals.get('audioTypes', [])
         self.author = vals.get('author', '')
         self.beqc_url = vals.get('catalogue_url', '')
