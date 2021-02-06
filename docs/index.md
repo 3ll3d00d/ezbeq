@@ -16,7 +16,7 @@ NOTE – ezbeq and minidsp-rs will be modifying the INPUT settings of the MiniDS
 
 ## Installation Steps
 
-### 1. Install and verify minidsp-rs
+### Install and verify minidsp-rs
 
 minidsp-rs is a utility, written by mrene on avsforum.com, which allows the system to communicate with the MiniDSP 2x4HD, without using the proprietary minidsp plugin. Pre-compiled binaries are available for most operating systems, and there is an available Debian package.
 
@@ -43,7 +43,7 @@ sudo apt install ./minidsp_0.0.5_armhf.deb
 6\. If the MiniDSP 2x4HD is not detected, or is not connected, the following error will appear.
 ![Figure 4 – Example of minidsp error message](./img/ezbeq-04.png)
 
-### 2. Install and verify ezbeq
+### Install and verify ezbeq
 
 ezbeq is a web application which uses minisdsp-rs installed earlier to send the BEQ filters to an attached MiniDSP 2x4HD. The following steps walk through installing ezbeq.
 
@@ -88,7 +88,7 @@ Open a browser window to `http://<ip address of Rpi>:8080`
 7\. If the update is successful, the title will be display in the &quot;Loaded&quot; column. Otherwise, &quot;ERROR&quot; will be displayed.
 ![Figure 12 – Example of successful title load](./img/ezbeq-12.png)
 
-### 3. Automatically launch ezbeq on boot
+### Automatically launch ezbeq on boot
 
 These steps are optional but are highly recommended. If these steps are not followed, ezbeq will need to be started manually after every reboot of the RPi.
 
@@ -138,7 +138,7 @@ sudo journalctl -u ezbeq.service
 sudo shutdown -r now
 ```
 
-### 4. Updating minidsp-rs
+### Updating minidsp-rs
 
 Updating minidsp-rs is the same process outline in section I above.
 
@@ -150,7 +150,7 @@ Example: `wget https://github.com/mrene/minidsp-rs/releases/download/v0.0.5/mini
 3\. Install the .deb package using the following command: `sudo apt install ./<filename>`
 Example: `sudo apt install ./minidsp_0.0.5_armhf.deb`
 
-### 5. Updating ezbeq
+### Updating ezbeq
 
 Updating ezbeq follows a similar approach as the initial install, with an extra flag.
 
@@ -169,7 +169,7 @@ pip install --upgrade ezbeq
 sudo service ezbeq restart
 ```
 
-### Which Raspberry Pi should I buy?
+## Which Raspberry Pi should I buy?
 
 This question has been asked a few times. The biggest key to a successful Raspberry Pi implementation is a solid power supply.
 
@@ -177,6 +177,6 @@ For North American users, kits from CanaKit ([https://canakit.com](https://canak
 
 The software has been run on Pi3 successfully, and should also run on Pi4.
 
-### A few other notes.
+## A few other notes.
 
 Bear in mind that, so far, settings cannot be read back from the MiniDSP 2x4HD. This means that no applications are able to show your currently loaded configs, including the official plugin. The official plugin handles this by detecting a change to the local data and forcing that down to the MiniDSP. It may be worth periodically reloading any custom EQ&#39;s on all output channels and clearing all inputs.
