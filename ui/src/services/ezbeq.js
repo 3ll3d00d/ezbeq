@@ -62,7 +62,7 @@ class EzBeqService {
     }
 
     sendFilter = async (id, slot) => {
-        const response = await fetch(`${API_PREFIX}/minidsp/${slot}`, {
+        const response = await fetch(`${API_PREFIX}/device/${slot}`, {
             method: 'PUT',
             body: JSON.stringify({
                 id: id
@@ -79,7 +79,7 @@ class EzBeqService {
     }
 
     clearSlot = async (slot) => {
-        const response = await fetch(`${API_PREFIX}/minidsp/${slot}`, {
+        const response = await fetch(`${API_PREFIX}/device/${slot}`, {
             method: 'DELETE'
         });
         if (!response.ok) {
@@ -89,7 +89,7 @@ class EzBeqService {
     }
 
     activateSlot = async (slot) => {
-        const response = await fetch(`${API_PREFIX}/minidsp/${slot}`, {
+        const response = await fetch(`${API_PREFIX}/device/${slot}`, {
             method: 'PUT',
             body: JSON.stringify({
                 command: 'activate'
@@ -105,8 +105,8 @@ class EzBeqService {
         return await response.json();
     }
 
-    getMinidspConfig = async () => {
-        return this.doGet('minidsps');
+    getDeviceConfig = async () => {
+        return this.doGet('devices');
     }
 }
 

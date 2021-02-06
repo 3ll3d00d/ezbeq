@@ -20,6 +20,7 @@ class Config:
         self.__service_url = f"http://{self.hostname}:{self.port}"
         self.minidsp_exe = self.config.get('minidspExe', 'minidsp')
         self.minidsp_options = self.config.get('minidspOptions', None)
+        self.htp1_options = self.config.get('htp1', None)
         self.webapp_path = self.config.get('webappPath', None)
         self.use_twisted = self.config.get('useTwisted', True)
 

@@ -1,7 +1,7 @@
 # ezbeq
 
 A simple web browser for [beqcatalogue](https://beqcatalogue.readthedocs.io/en/latest/) which integrates with [minidsp-rs](https://github.com/mrene/minidsp-rs)
-for local remote control of a minidsp.
+for local remote control of a minidsp or HTP-1.
 
 # Setup
 
@@ -29,7 +29,13 @@ Example is provided for rpi users
     $ . bin/activate
     $ pip install ezbeq
 
+### Using with a Minidsp
+
 Install minidsp-rs as per the provided instructionshttps://github.com/mrene/minidsp-rs#installation
+
+### Using with a Monolith HTP-1
+
+See the configuration section below
 
 ## Upgrade
 
@@ -57,9 +63,12 @@ See `$HOME/.ezbeq/ezbeq.yml`
 
 Options that are intended for override are:
 
-* port: listens on port 8080 by default
-* minidspExe : full path to the minidsp-rs app, defaults to minidsp so assumes the binary is already on your PATH
-* minidspOptions : additional command line switches to pass to the minidsp binary
+  * port: listens on port 8080 by default
+  * if using a minidsp 
+    * minidspExe: full path to the minidsp-rs app, defaults to minidsp so assumes the binary is already on your PATH
+    * minidspOptions: additional command line switches to pass to the minidsp binary
+  * if using a htp1:
+    * TODO
 
 ## Starting ezbeq on bootup
 

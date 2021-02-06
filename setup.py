@@ -12,7 +12,7 @@ else:
 
 setup(name='ezbeq',
       version=version,
-      description='A small webapp which can send beqcatalogue filters to a minidsp',
+      description='A small webapp which can send beqcatalogue filters to a DSP device',
       long_description=readme,
       long_description_content_type='text/markdown',
       classifiers=[

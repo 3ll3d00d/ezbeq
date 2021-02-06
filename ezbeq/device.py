@@ -2,9 +2,10 @@ import json
 import logging
 import os
 import time
+from abc import ABC, abstractmethod
 from concurrent.futures.thread import ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from flask import request
 from flask_restful import Resource
@@ -15,58 +16,77 @@ from ezbeq.config import Config
 logger = logging.getLogger('ezbeq.minidsp')
 
 
-class MinidspState:
+def get_channels(cfg: Config) -> List[str]:
+    if cfg.minidsp_exe:
+        return [str(i+1) for i in range(4)]
+    else:
+        return sorted(cfg.htp1_options['channels'])
+
+
+class DeviceState:
 
     def __init__(self, cfg: Config):
-        self.__state = [{'id': id, 'last': 'Empty'} for id in range(4)]
-        self.__file_name = os.path.join(cfg.config_path, 'minidsp.json')
+        self.__state = [{'id': id, 'last': 'Empty'} for id in get_channels(cfg)]
+        self.__can_activate = cfg.minidsp_exe is not None
+        self.__file_name = os.path.join(cfg.config_path, 'device.json')
         self.__active_slot = None
         if os.path.exists(self.__file_name):
             with open(self.__file_name, 'r') as f:
-                self.__state = json.load(f)
-                logger.info(f"Loaded {self.__state} from {self.__file_name}")
+                j = json.load(f)
+                saved_ids = {v['id'] for v in j}
+                current_ids = {v['id'] for v in self.__state}
+                if saved_ids == current_ids:
+                    self.__state = j
+                    logger.info(f"Loaded {self.__state} from {self.__file_name}")
+                else:
+                    logger.warning(f"Discarded {j} from {self.__file_name}, does not match {self.__state}")
 
-    def activate(self, slot: int):
+    def activate(self, slot: str):
         self.__active_slot = slot
 
-    def put(self, slot, entry: Catalogue):
+    def put(self, slot: str, entry: Catalogue):
         self.__update(slot, entry.title)
 
-    def __update(self, slot, value: str):
+    def __update(self, slot: str, value: str):
         logger.info(f"Storing {value} in slot {slot}")
-        self.__state[int(slot)]['last'] = value
+        for s in self.__state:
+            if s['id'] == slot:
+                s['last'] = value
         with open(self.__file_name, 'w') as f:
             json.dump(self.__state, f, sort_keys=True)
-        self.activate(int(slot))
+        self.activate(slot)
 
-    def error(self, slot: int):
+    def error(self, slot: str):
         self.__update(slot, 'ERROR')
 
-    def clear(self, slot: int):
+    def clear(self, slot: str):
         self.__update(slot, 'Empty')
 
-    def get(self):
-        return [{**s, 'active': True if self.__active_slot is not None and s['id'] == self.__active_slot else False}
-                for s in self.__state]
+    def get(self) -> List[dict]:
+        return [{
+            **s,
+            'canActivate': self.__can_activate,
+            'active': True if self.__active_slot is not None and s['id'] == self.__active_slot else False
+        } for s in self.__state]
 
 
-class Minidsps(Resource):
+class Devices(Resource):
 
     def __init__(self, **kwargs):
-        self.__state: MinidspState = kwargs['minidsp_state']
-        self.__bridge: MinidspBridge = kwargs['minidsp_bridge']
+        self.__state: DeviceState = kwargs['device_state']
+        self.__bridge: DeviceBridge = kwargs['device_bridge']
 
-    def get(self):
+    def get(self) -> List[dict]:
         self.__state.activate(self.__bridge.state())
         return self.__state.get()
 
 
-class MinidspSender(Resource):
+class DeviceSender(Resource):
 
     def __init__(self, **kwargs):
-        self.__bridge: MinidspBridge = kwargs['minidsp_bridge']
+        self.__bridge: DeviceBridge = kwargs['device_bridge']
         self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
-        self.__state: MinidspState = kwargs['minidsp_state']
+        self.__state: DeviceState = kwargs['device_state']
 
     def put(self, slot):
         payload = request.get_json()
@@ -75,8 +95,8 @@ class MinidspSender(Resource):
             logger.info(f"Sending {id} to Slot {slot}")
             match: Catalogue = next(c for c in self.__catalogue_provider.catalogue if c.idx == int(id))
             try:
-                self.__bridge.send(MinidspBeqCommandGenerator.filt(match, int(slot), self.__bridge.state()), int(slot))
-                self.__state.put(int(slot), match)
+                self.__bridge.send(slot, match)
+                self.__state.put(slot, match)
             except Exception as e:
                 logger.exception(f"Failed to write {id} to Slot {slot}")
                 self.__state.error(slot)
@@ -86,8 +106,8 @@ class MinidspSender(Resource):
             if cmd == 'activate':
                 logger.info(f"Activating Slot {slot}")
                 try:
-                    self.__bridge.send(MinidspBeqCommandGenerator.activate(int(slot)), int(slot))
-                    self.__state.activate(int(slot))
+                    self.__bridge.send(slot, True)
+                    self.__state.activate(slot)
                 except Exception as e:
                     logger.exception(f"Failed to activate Slot {slot}")
                     self.__state.error(slot)
@@ -97,12 +117,37 @@ class MinidspSender(Resource):
     def delete(self, slot):
         logger.info(f"Clearing Slot {slot}")
         try:
-            self.__bridge.send(MinidspBeqCommandGenerator.filt(None, int(slot), self.__bridge.state()), int(slot))
+            self.__bridge.send(slot, None)
             self.__state.clear(slot)
         except Exception as e:
             logger.exception(f"Failed to clear Slot {slot}")
             self.__state.error(slot)
         return self.__state.get(), 200
+
+
+class Bridge(ABC):
+
+    @abstractmethod
+    def state(self) -> Optional[str]:
+        pass
+
+    @abstractmethod
+    def send(self, slot: str, entry: Union[Optional[Catalogue], bool]):
+        pass
+
+
+class DeviceBridge(Bridge):
+
+    def __init__(self, cfg: Config):
+        self.__bridge = Minidsp(cfg) if cfg.minidsp_exe else Htp1(cfg) if cfg.htp1_options else None
+        if self.__bridge is None:
+            raise ValueError('Must have minidsp or HTP1 in confi')
+
+    def state(self) -> Optional[str]:
+        return self.__bridge.state()
+
+    def send(self, slot: str, entry: Union[Optional[Catalogue], bool]):
+        return self.__bridge.send(slot, entry)
 
 
 class MinidspBeqCommandGenerator:
@@ -145,7 +190,7 @@ class MinidspBeqCommandGenerator:
         return f"input {channel} peq {idx} bypass {'on' if bypass else 'off'}"
 
 
-class MinidspBridge:
+class Minidsp(Bridge):
 
     def __init__(self, cfg: Config):
         from plumbum import local
@@ -157,10 +202,10 @@ class MinidspBridge:
         else:
             self.__runner = cmd
 
-    def state(self) -> Optional[int]:
+    def state(self) -> Optional[str]:
         return self.__executor.submit(self.__get_state).result(timeout=60)
 
-    def __get_state(self) -> Optional[int]:
+    def __get_state(self) -> Optional[str]:
         active_slot = None
         lines = None
         try:
@@ -173,14 +218,19 @@ class MinidspBridge:
                         vals = line[idx+2:-2].split(', ')
                         for v in vals:
                             if v.startswith('preset: '):
-                                active_slot = int(v[8:])
+                                active_slot = str(int(v[8:]) + 1)
         except:
             logger.exception(f"Unable to locate active preset in {lines}")
         return active_slot
 
-    def send(self, cmds: List[str], slot: int):
+    def send(self, slot: str, entry: Union[Optional[Catalogue], bool]):
+        target_slot_idx = int(slot) - 1
+        if entry is None or isinstance(entry, Catalogue):
+            cmds = MinidspBeqCommandGenerator.filt(entry, target_slot_idx, int(self.state()) - 1)
+        else:
+            cmds = MinidspBeqCommandGenerator.activate(target_slot_idx)
         with tmp_file(cmds) as file_name:
-            return self.__executor.submit(self.__do_run, self.__runner['-f', file_name], len(cmds), slot).result(timeout=60)
+            return self.__executor.submit(self.__do_run, self.__runner['-f', file_name], len(cmds), target_slot_idx).result(timeout=60)
 
     def __do_run(self, cmd, count: int, slot: int):
         kwargs = {'retcode': None} if self.__ignore_retcode else {}
@@ -216,3 +266,24 @@ def tmp_file(cmds: List[str]):
     finally:
         if tmp_name:
             os.unlink(tmp_name)
+
+
+class Htp1(Bridge):
+
+    def __init__(self, cfg: Config):
+        self.__ip = cfg.htp1_options['ip']
+        self.__channels = cfg.htp1_options['channels']
+        if not self.__channels:
+            raise ValueError('No channels supplied for HTP-1')
+
+    @abstractmethod
+    def state(self) -> Optional[str]:
+        pass
+
+    @abstractmethod
+    def send(self, slot: str, entry: Union[Optional[Catalogue], bool]):
+        if entry is None or isinstance(entry, Catalogue):
+            pass
+        else:
+            raise ValueError('Activation not supported')
+

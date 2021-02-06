@@ -50,7 +50,7 @@ const Devices = ({selectedEntryId}) => {
     const [pending, setPending] = useState([]);
 
     useEffect(() => {
-        pushData(setSlots, ezbeq.getMinidspConfig);
+        pushData(setSlots, ezbeq.getDeviceConfig);
     }, []);
 
     const trackDeviceUpdate = async (action, slotId, valProvider) => {
@@ -84,12 +84,12 @@ const Devices = ({selectedEntryId}) => {
     };
 
     // grid definitions
-    const minidspGridColumns = [
+    const deviceGridColumns = [
         {
             field: 'id',
             headerName: ' ',
             width: 25,
-            valueFormatter: params => `${params.value + 1}${params.getValue('active') ? '*' : ''}`
+            valueFormatter: params => `${params.value}${params.getValue('active') ? '*' : ''}`
         },
         {
             field: 'actions',
@@ -132,7 +132,7 @@ const Devices = ({selectedEntryId}) => {
         <Grid container direction={'column'} className={classes.noLeft}>
             <Grid item style={{height: '190px', width: '100%'}}>
                 <DataGrid rows={slots}
-                          columns={minidspGridColumns}
+                          columns={deviceGridColumns}
                           autoPageSize
                           hideFooter
                           density={'compact'}/>

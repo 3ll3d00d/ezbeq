@@ -7,7 +7,7 @@ from flask_restful import Api
 
 from ezbeq.catalogue import CatalogueProvider, Authors, Years, AudioTypes, CatalogueSearch, CatalogueMeta, ContentTypes
 from ezbeq.config import Config, Version
-from ezbeq.minidsp import MinidspSender, MinidspBridge, Minidsps, MinidspState
+from ezbeq.device import DeviceSender, Minidsp, Devices, DeviceState, DeviceBridge
 
 API_PREFIX = '/api/1'
 
@@ -22,16 +22,16 @@ api = Api(app)
 cfg = Config('ezbeq')
 resource_args = {
     'config': cfg,
-    'minidsp_state': MinidspState(cfg),
-    'minidsp_bridge': MinidspBridge(cfg),
+    'device_state': DeviceState(cfg),
+    'device_bridge': DeviceBridge(cfg),
     'catalogue': CatalogueProvider(cfg)
 }
 
 # GET: slot state
-api.add_resource(Minidsps, f"{API_PREFIX}/minidsps", resource_class_kwargs=resource_args)
+api.add_resource(Devices, f"{API_PREFIX}/devices", resource_class_kwargs=resource_args)
 # PUT: set config
 # DELETE: remove config
-api.add_resource(MinidspSender, f"{API_PREFIX}/minidsp/<slot>", resource_class_kwargs=resource_args)
+api.add_resource(DeviceSender, f"{API_PREFIX}/device/<slot>", resource_class_kwargs=resource_args)
 # GET: distinct authors in the catalogue
 api.add_resource(Authors, f"{API_PREFIX}/authors", resource_class_kwargs=resource_args)
 # GET: distinct years in the catalogue
