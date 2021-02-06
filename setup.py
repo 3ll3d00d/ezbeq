@@ -38,7 +38,9 @@ setup(name='ezbeq',
           'plumbum',
           'flask-restful',
           'requests',
-          'python-dateutil'
+          'python-dateutil',
+          'autobahn[twisted]',
+          'semver'
       ],
       include_package_data=True,
       zip_safe=False)

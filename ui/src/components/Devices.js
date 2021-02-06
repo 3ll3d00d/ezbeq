@@ -103,11 +103,16 @@ const Devices = ({selectedEntryId}) => {
                             label={'send'}
                             Icon={PublishIcon}
                             active={pending}/>
-                    <Action slotId={params.row.id}
-                            onClick={() => activateSlot(params.row.id)}
-                            label={'activate'}
-                            Icon={PlayArrowIcon}
-                            active={pending}/>
+                    {
+                        params.row.canActivate
+                        ?
+                            <Action slotId={params.row.id}
+                                    onClick={() => activateSlot(params.row.id)}
+                                    label={'activate'}
+                                    Icon={PlayArrowIcon}
+                                    active={pending}/>
+                        : null
+                    }
                     <Action slotId={params.row.id}
                             onClick={() => clearDeviceSlot(params.row.id)}
                             label={'clear'}

@@ -10,3 +10,5 @@ plumbum = "*"
 twisted = "*"
 requests = "*"
 python-dateutil = "*"
+autobahn = {extras = ["twisted"], version = "*"}
+semver = "*"

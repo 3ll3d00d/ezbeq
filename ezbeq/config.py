@@ -18,7 +18,7 @@ class Config:
         self.__hostname = self.config.get('host', self.default_hostname)
         self.__port = self.config.get('port', default_port)
         self.__service_url = f"http://{self.hostname}:{self.port}"
-        self.minidsp_exe = self.config.get('minidspExe', 'minidsp')
+        self.minidsp_exe = self.config.get('minidspExe', None)
         self.minidsp_options = self.config.get('minidspOptions', None)
         self.htp1_options = self.config.get('htp1', None)
         self.webapp_path = self.config.get('webappPath', None)
@@ -118,7 +118,8 @@ class Config:
             'port': 8080,
             'host': self.default_hostname,
             'useTwisted': True,
-            'iconPath': str(Path.home())
+            'iconPath': str(Path.home()),
+            'minidspExe': 'minidsp'
         }
 
     @property
