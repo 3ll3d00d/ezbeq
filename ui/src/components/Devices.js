@@ -44,7 +44,6 @@ const Action = ({slotId, onClick, label, Icon, active, disabled = false}) => {
 }
 
 const Devices = ({selectedEntryId}) => {
-    const classes = useStyles();
 
     const [slots, setSlots] = useState([]);
     const [pending, setPending] = useState([]);
