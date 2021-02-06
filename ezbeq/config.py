@@ -89,7 +89,11 @@ class Config:
         if os.path.exists(config_path):
             self.logger.warning("Loading config from " + config_path)
             with open(config_path, 'r') as yml:
-                return yaml.load(yml, Loader=yaml.FullLoader)
+                cfg = yaml.load(yml, Loader=yaml.FullLoader)
+                if not cfg.get('minidspExe', None) and not cfg.get('htp1', None):
+                    cfg['minidspExe'] = 'minidsp'
+                    self.__store_config(cfg, config_path)
+                return cfg
         default_config = self.load_default_config()
         self.__store_config(default_config, config_path)
         return default_config

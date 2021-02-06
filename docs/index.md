@@ -52,13 +52,13 @@ Install the pre-requisite python packages. Raspbian Buster had all but one neede
 ![Figure 5 – Example of installing python pre-requisites](./img/ezbeq-05.png)
 
 2\. Setup the python environment by running the follow commands:
- ![Figure 6 – Example of preparing environment](./img/ezbeq-06.png)
 ```
 mkdir python
 cd python
 python3 -m venv ezbeq
 cd ezbeq
 ```
+![Figure 6 – Example of preparing environment](./img/ezbeq-06.png)
 
 3\. Start the install of the ezbeq application. The required python modules will be installed. Run the following commands:
 ```
