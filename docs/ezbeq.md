@@ -31,6 +31,7 @@ minidsp-rs is a utility, written by mrene on avsforum.com, which allows the syst
   (Note that the filename above is current as of 2/2/2021. Please use the current version.)
 
   ![Figure 1 – Example downloading of v0.0.5](ezbeq-01.png)
+
   _Figure 1 – Example downloading of v0.0.5_
 
   3. Install the downloaded .deb file: `sudo apt install </path/to/file>`
@@ -38,18 +39,21 @@ minidsp-rs is a utility, written by mrene on avsforum.com, which allows the syst
   Example: `sudo apt install ./minidsp_0.0.5_armhf.deb`
 
   ![Figure 2 – Example installation of the .deb package](ezbeq-02.png)
+
   _Figure 2 – Example installation of the .deb package_
 
   4. To confirm basic functionality, type `minidsp` and press Enter.
 
   ![Figure 3 – Example of &quot;minidsp&quot; output](ezbeq-03.png)
+
   _Figure 3 – Example of &quot;minidsp&quot; output_
 
   5. If the MiniDSP 2x4HD is connected properly, similar information to Figure 3 will be displayed. Note the &quot;preset: 1&quot; in the image. That indicates that the MiniDSP 2x4HD is set to Config slot 2. The minidsp-rs application starts at 0 for the config presets, so 0 = Config slot 1, and so on.
 
   6. If the MiniDSP 2x4HD is not detected, or is not connected, the following error will appear.
 
-  ![Figure 4 – Example of minidsp error message](ezbeq-04.png) 
+  ![Figure 4 – Example of minidsp error message](ezbeq-04.png)
+
   _Figure 4 – Example of minidsp error message_
 
 
@@ -61,7 +65,8 @@ minidsp-rs is a utility, written by mrene on avsforum.com, which allows the syst
 
   Install the pre-requisite python packages. Raspbian Buster had all but one needed package already installed. Run this command to install all of them (already installed packages will be skipped): `sudo apt install python3 python3-venv python3-pip libyaml-dev`
 
-  ![Figure 5 – Example of installing python pre-requisites](ezbeq-05.png) 
+  ![Figure 5 – Example of installing python pre-requisites](ezbeq-05.png)
+
   _Figure 5 – Example of installing python pre-requisites_
 
   2. Setup the python environment by running the follow commands:
@@ -75,6 +80,7 @@ minidsp-rs is a utility, written by mrene on avsforum.com, which allows the syst
   `cd ezbeq`
 
   ![Figure 6 – Example of preparing environment](ezbeq-06.png)
+
   _Figure 6 – Example of preparing environment_
 
   3. Start the install of the ezbeq application. The required python modules will be installed. Run the following commands:
@@ -84,11 +90,13 @@ minidsp-rs is a utility, written by mrene on avsforum.com, which allows the syst
   `pip install ezbeq`
   
   ![Figure 7 – Example of launching the installer](ezbeq-07.png)
+
   _Figure 7 – Example of launching the installer_
 
   The installer will download and install the required modules. This may take quite a while, depending on the speed of your RPi and internet connection. The information below is truncated.
 
-  ![Figure 8 – Example of successful installation of ezbeq](ezbeq-08.png) 
+  ![Figure 8 – Example of successful installation of ezbeq](ezbeq-08.png)
+
   _Figure 8 – Example of successful installation of ezbeq_
 
   4. Launch ezbeq manually, to verify functionality. Type the following:
@@ -98,6 +106,7 @@ minidsp-rs is a utility, written by mrene on avsforum.com, which allows the syst
   `./ezbeq`
 
   ![Figure 9 – Example of launching ezbeq](ezbeq-09.png)
+
   _Figure 9 – Example of launching ezbeq_
 
   5. ezbeq runs on port 8080 of the RPi by default. On another device connected to the local network, open a web browser and connect to the RPi port 8080. Note that the web server is not encrypted, so the URL must be entered as http, otherwise most current browsers will automatically try to connect using HTTPS (secured) and fail.
@@ -105,16 +114,19 @@ minidsp-rs is a utility, written by mrene on avsforum.com, which allows the syst
   Open a browser window to `http://<ip address of Rpi>:8080`
 
   ![Figure 10 – Example of ezbeq interface](ezbeq-10.png)
+
   _Figure 10 – Example of ezbeq interface_
 
   6. To load a BEQ onto the MiniDSP 2x4HD, select a title (search is available in the upper right corner), then click on the &quot;up arrow&quot; on the corresponding config slot to be used.
 
   ![Figure 11 – Example of selecting a title and uploading to config slot 2](ezbeq-11.png)
+
   _Figure 11 – Example of selecting a title and uploading to config slot 2_
 
   7. If the update is successful, the title will be display in the &quot;Loaded&quot; column. Otherwise, &quot;ERROR&quot; will be displayed.
 
   ![Figure 12 – Example of successful title load](ezbeq-12.png)
+
   _Figure 12 – Example of successful title load_
 
 ### 3. Automatically launch ezbeq on boot
@@ -128,6 +140,7 @@ These steps are optional but are highly recommended. If these steps are not foll
   `sudo nano /etc/systemd/system/ezbeq.service`
 
   ![Figure 13 – Example editing the service file](ezbeq-13.png)
+
   _Figure 13 – Example editing the service file_
 
   3. Add the information below to the file. When complete, save the file (Ctrl-O), then exit (Ctrl-W).
@@ -159,6 +172,7 @@ These steps are optional but are highly recommended. If these steps are not foll
   `WantedBy=multi-user.target`
 
   ![Figure 14 – Example service file](ezbeq-14.png)
+
   _Figure 14 – Example service file_
 
   4. Register and start the service. Note that if ezbeq is still running from the earlier steps, it needs to be stopped (Ctrl-C), otherwise the service will not start.
@@ -168,6 +182,7 @@ These steps are optional but are highly recommended. If these steps are not foll
   `sudo service ezbeq start`
 
   ![Figure 15 – Register and start the ezbeq service](ezbeq-15.png)
+
   _Figure 15 – Register and start the ezbeq service_
 
   5. Verify the service started by issuing this command:
@@ -175,6 +190,7 @@ These steps are optional but are highly recommended. If these steps are not foll
   `sudo journalctl -u ezbeq.service`
 
   ![Figure 16 – Log messages showing the service is running](ezbeq-16.png)
+
   _Figure 16 – Log messages showing the service is running_
 
   6. Reboot the RPi, and then check the website again.
@@ -225,6 +241,3 @@ The software has been run on Pi3 successfully, and should also run on Pi4.
 ### A few other notes.
 
 Bear in mind that, so far, settings cannot be read back from the MiniDSP 2x4HD. This means that no applications are able to show your currently loaded configs, including the official plugin. The official plugin handles this by detecting a change to the local data and forcing that down to the MiniDSP. It may be worth periodically reloading any custom EQ&#39;s on all output channels and clearing all inputs.
-
-
-ezbeq + minidsp-rs Installation Guide – v0.2
