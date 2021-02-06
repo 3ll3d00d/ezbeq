@@ -278,7 +278,7 @@ class Htp1(Bridge):
         self.__supports_shelf = True
         if not self.__channels:
             raise ValueError('No channels supplied for HTP-1')
-        from htp1 import Htp1Client
+        from ezbeq.htp1 import Htp1Client
         self.__client = Htp1Client(self.__ip, self)
 
     def state(self) -> Optional[str]:
