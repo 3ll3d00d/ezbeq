@@ -67,8 +67,14 @@ Options that are intended for override are:
   * if using a minidsp 
     * minidspExe: full path to the minidsp-rs app, defaults to minidsp so assumes the binary is already on your PATH
     * minidspOptions: additional command line switches to pass to the minidsp binary
-  * if using a htp1:
-    * TODO
+  * if using a htp1, add the ip address and named channels to which the filters should be sent. e.g. if the HTP1 is at `192.168.1.181` and only sub1 should be updated 
+  
+```
+htp1:
+  ip: 192.168.1.181
+  channels:
+    - sub1
+```
 
 ## Starting ezbeq on bootup
 
