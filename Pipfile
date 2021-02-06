@@ -12,3 +12,7 @@ requests = "*"
 python-dateutil = "*"
 autobahn = {extras = ["twisted"], version = "*"}
 semver = "*"
+
+[dev-packages]
+mkdocs = "*"
+mkdocs-material = "*"

@@ -1,0 +1,20 @@
+site_name: ezbeq
+site_url: 'https://ezbeq.readthedocs.io'
+copyright: 'Copyright &copy; 2020'
+theme:
+  name: 'material'
+  logo: 'img/icon.png'
+  favicon: 'img/icon.ico'
+  features:
+    - instant
+  palette:
+    scheme: slate
+extra_javascript:
+  - https://cdnjs.cloudflare.com/ajax/libs/tablesort/5.2.1/tablesort.min.js
+  - javascripts/tables.js
+extra_css:
+  - css/extra.css
+markdown_extensions:
+  - toc:
+      permalink: true
+  - admonition
