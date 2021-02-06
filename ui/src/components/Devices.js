@@ -48,10 +48,17 @@ const Devices = ({selectedEntryId}) => {
 
     const [slots, setSlots] = useState([]);
     const [pending, setPending] = useState([]);
+    const [widths, setWidths] = useState([25, 120]);
 
     useEffect(() => {
         pushData(setSlots, ezbeq.getDeviceConfig);
     }, []);
+
+    useEffect(() => {
+        if (slots.length === 1) {
+            setWidths([75, 90]);
+        }
+    }, [slots])
 
     const trackDeviceUpdate = async (action, slotId, valProvider) => {
         setPending(u => [{slotId, action, state: 1}].concat(u));
@@ -88,13 +95,13 @@ const Devices = ({selectedEntryId}) => {
         {
             field: 'id',
             headerName: ' ',
-            width: 25,
+            width: widths[0],
             valueFormatter: params => `${params.value}${params.getValue('active') ? '*' : ''}`
         },
         {
             field: 'actions',
             headerName: 'Actions',
-            width: 120,
+            width: widths[1],
             renderCell: params => (
                 <>
                     <Action slotId={params.row.id}
