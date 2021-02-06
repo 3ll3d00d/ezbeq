@@ -48,7 +48,7 @@ const Devices = ({selectedEntryId}) => {
 
     const [slots, setSlots] = useState([]);
     const [pending, setPending] = useState([]);
-    const [widths, setWidths] = useState([25, 120]);
+    const [dims, setDims] = useState([25, 120, '190px']);
 
     useEffect(() => {
         pushData(setSlots, ezbeq.getDeviceConfig);
@@ -56,7 +56,7 @@ const Devices = ({selectedEntryId}) => {
 
     useEffect(() => {
         if (slots.length === 1) {
-            setWidths([75, 90]);
+            setDims([75, 90, '80px']);
         }
     }, [slots])
 
@@ -95,13 +95,13 @@ const Devices = ({selectedEntryId}) => {
         {
             field: 'id',
             headerName: ' ',
-            width: widths[0],
+            width: dims[0],
             valueFormatter: params => `${params.value}${params.getValue('active') ? '*' : ''}`
         },
         {
             field: 'actions',
             headerName: 'Actions',
-            width: widths[1],
+            width: dims[1],
             renderCell: params => (
                 <>
                     <Action slotId={params.row.id}
@@ -141,8 +141,8 @@ const Devices = ({selectedEntryId}) => {
     ];
 
     return (
-        <Grid container direction={'column'} className={classes.noLeft}>
-            <Grid item style={{height: '190px', width: '100%'}}>
+        <Grid container direction={'column'}>
+            <Grid item style={{height: dims[2], width: '100%'}}>
                 <DataGrid rows={slots}
                           columns={deviceGridColumns}
                           autoPageSize
