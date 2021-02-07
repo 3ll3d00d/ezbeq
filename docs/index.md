@@ -122,8 +122,8 @@ WantedBy=multi-user.target
 
 4\. Register and start the service. Note that if ezbeq is still running from the earlier steps, it needs to be stopped (Ctrl-C), otherwise the service will not start.
 ```
-sudo systemctl enable ezbeq.service`
-sudo service ezbeq start`
+sudo systemctl enable ezbeq.service
+sudo service ezbeq start
 ```
 ![Figure 15 – Register and start the ezbeq service](./img/ezbeq-15.png)
 
