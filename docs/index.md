@@ -100,7 +100,7 @@ sudo nano /etc/systemd/system/ezbeq.service
 ```
 ![Figure 13 – Example editing the service file](./img/ezbeq-13.png)
 
-3\. Add the information below to the file. When complete, save the file (Ctrl-O), then exit (Ctrl-W).
+3\. Add the information below to the file. When complete, save the file (Ctrl-O), then exit (Ctrl-X).
 NOTE – If the ezbeq software was installed using a different user than &quot;pi&quot;, ensure to modify the settings below, replacing &quot;pi&quot; with the correct userID.
 ```
 [Unit]
