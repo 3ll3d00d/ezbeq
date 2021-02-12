@@ -234,6 +234,60 @@ If it has been installed following these directions, the path should be: `C:\Use
 
 NOTE - If ezbeq is still running in a Powershell window, please stop it before attempting to run the task, or it will error out.
 
+### Updating minidsp-rs
+
+Updating minidsp-rs is the exact same process as above, with a new version of the file. Save a backup copy of the currently used version, then download, decompress, and place it in the same location as the old version (overwriting the old one).
+
+v0.0.5 of minidsp-rs appears to be "feature complete" regarding the pieces required to work with ezbeq, and is stable. As of 2/12/2021, there is no reason to upgrade.
+
+### Updating ezbeq
+
+Updating ezbeq is also extremely similar to the initial installation process, with a slight tweak to the install command in step #3 below.
+
+1\. If ezbeq is running, it needs to be stopped or else the upgrade will fail. If it is running manually in a Powershell window, Ctrl-C to stop it, and then close the Powershell window. Skip to step #XX.
+
+2\. If ezbeq was set to run automatically on boot, open Task Scheduler and select "Display All Running Tasks".
+
+![All running tasks](./img/37.png)
+
+3\. Select ezbeq and click "End Task".
+
+![End ezbeq task](./img/38.png)
+
+4\. Select "Yes" to end the selected task.
+
+![End task yes](./img/39.png)
+
+5\. Verify the ezbeq task is no longer listed, and close task scheduler windows.
+
+6\. Open a new Powershell with administrative privileges, just like the previous steps.
+
+7\. Setup the environment and ensure PIP is up to date, otherwise ezbeq installation may fail. 
+
+```
+cd ~
+Set-ExecutionPolicy -Scope CurrentUser
+RemoteSigned
+y
+
+cd python
+cd ezbeq
+.\Scripts\activate
+python -m pip install --upgrade pip
+```
+![Example of preparing environment](./img/40.png)
+
+8\. Start the upgrade of the ezbeq application. Python modules will be re-installed. Run the following commands:
+```
+pip install --upgrade --force-reinstall ezbeq
+```  
+The installer will download and install the required modules. This may take quite a while, depending on the speed of your device and internet connection. The information below is truncated.
+
+![Example of launching the installer](./img/41.png)
+![Example of successful install](./img/42.png)
+
+9\. Launch ezbeq as above (`.\Scripts\ezbeq.exe`), or if it is configured to launch on boot, reboot the device.
+
 ### A few other notes.
 
 Bear in mind that, so far, settings cannot be read back from the MiniDSP 2x4HD. This means that no applications are able to show your currently loaded configs, including the official plugin. The official plugin handles this by detecting a change to the local data and forcing that down to the MiniDSP. It may be worth periodically reloading any custom EQ&#39;s on all output channels and clearing all inputs.
