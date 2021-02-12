@@ -196,6 +196,10 @@ Open a browser window to `http://127.0.0.1:8080`
 
 ![Example of successful title load](./img/29.png)
 
+14\. To clear a title from a config slot, click on the "X".
+
+15\. To switch configuration slots without changing the title loaded, click on the play icon.
+
 ### Automatically launch ezbeq on boot
 
 These steps are optional but are highly recommended. If these steps are not followed, ezbeq will need to be started manually after every reboot of the Windows device, or if the Powershell window is closed.
