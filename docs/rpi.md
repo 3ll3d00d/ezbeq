@@ -11,6 +11,7 @@ ezbeq and minidsp-rs run on Linux, Windows, or Mac operating systems, but this d
 - USB cable connecting the Raspberry Pi and MiniDSP 2x4HD
 - Internet connection
 - Backup copy of all MiniDSP 2x4HD settings.
+- Static IP configured on the RPi (DHCP can be used, but the IP address of the RPi may change at some point)
 
 NOTE – ezbeq and minidsp-rs will be modifying the INPUT settings of the MiniDSP 2x4HD, but please take appropriate backups.
 
@@ -48,7 +49,10 @@ sudo apt install ./minidsp_0.0.5_armhf.deb
 ezbeq is a web application which uses minisdsp-rs installed earlier to send the BEQ filters to an attached MiniDSP 2x4HD. The following steps walk through installing ezbeq.
 
 1\. Open a shell on the RPi, or SSH to the RPi.
-Install the pre-requisite python packages. Raspbian Buster had all but one needed package already installed. Run this command to install all of them (already installed packages will be skipped): `sudo apt install python3 python3-venv python3-pip libyaml-dev`
+Install the pre-requisite python packages. Raspbian Buster had all but one needed package already installed. Run this command to install all of them (already installed packages will be skipped): 
+```
+sudo apt install python3 python3-venv python3-pip libyaml-dev
+```
 ![Figure 5 – Example of installing python pre-requisites](./img/rpi05.png)
 
 2\. Setup the python environment by running the follow commands:
@@ -100,7 +104,8 @@ sudo nano /etc/systemd/system/ezbeq.service
 ```
 ![Figure 13 – Example editing the service file](./img/rpi13.png)
 
-3\. Add the information below to the file. When complete, save the file (Ctrl-O), then exit (Ctrl-X).
+3\. Add the information below to the file. When complete, save the file and exit. To save, press Ctrl-O, which will prompt for a name of the file, press enter to accept the default, then Ctrl-X to exit the editor.
+
 NOTE – If the ezbeq software was installed using a different user than &quot;pi&quot;, ensure to modify the settings below, replacing &quot;pi&quot; with the correct userID.
 ```
 [Unit]
