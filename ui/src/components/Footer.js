@@ -39,7 +39,7 @@ const Footer = () => {
             <Grid container justify="space-around" className={classes.noLeft}>
                 <Grid item>
                     <Typography variant={'caption'} color={'textSecondary'}>
-                        {meta ? `BEQCatalogue: ${formatSeconds(meta.created)}` : ''}
+                        {meta ? `BEQCatalogue: ${formatSeconds(meta.loaded)} / ${meta.version}` : ''}
                     </Typography>
                 </Grid>
                 <Grid item>

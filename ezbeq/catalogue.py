@@ -2,10 +2,7 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta
-import time
 from typing import Optional, List
-
-from dateutil.parser import parse as parsedate
 
 import requests
 from flask_restful import Resource, reqparse
@@ -17,7 +14,7 @@ logger = logging.getLogger('ezbeq.catalogue')
 
 class Catalogue:
 
-    def __init__(self, idx: int, vals: dict):
+    def __init__(self, idx: str, vals: dict):
         self.idx = idx
         self.title = vals.get('title', '')
         y = 0
@@ -80,31 +77,35 @@ class CatalogueProvider:
     def __init__(self, config: Config):
         self.__config = config
         self.__catalogue_file = os.path.join(config.config_path, 'database.json')
-        self.__last_load = None
-        self.__created_at = None
+        self.__catalogue_version_file = os.path.join(config.config_path, 'version.txt')
+        self.__version = None
+        self.__loaded_at = None
         self.__catalogue = []
         self.__reload()
 
     def __reload(self):
         logger.info('Reloading catalogue')
-        downloader = DatabaseDownloader(self.__catalogue_file)
-        downloader.run()
-        if os.path.exists(self.__catalogue_file):
-            with open(self.__catalogue_file, 'r') as infile:
-                base = int(downloader.cached_date.timestamp())
-                self.__catalogue = [Catalogue(base + idx, c) for idx, c in enumerate(json.load(infile))]
-                self.__created_at = downloader.cached_date
-                self.__last_load = datetime.now()
+        downloader = DatabaseDownloader(self.__catalogue_file, self.__catalogue_version_file)
+        reload_required = downloader.run()
+        if reload_required or not self.__catalogue:
+            if os.path.exists(self.__catalogue_file):
+                with open(self.__catalogue_file, 'r') as infile:
+                    self.__catalogue = [Catalogue(f"{downloader.version}_{idx}", c)
+                                        for idx, c in enumerate(json.load(infile))]
+                    self.__loaded_at = datetime.now()
+                    self.__version = downloader.version
+            else:
+                raise ValueError(f"No catalogue available at {self.__catalogue_file}")
         else:
-            raise ValueError(f"No catalogue available at {self.__catalogue_file}")
+            logger.debug(f"No reload required")
 
     @property
-    def loaded_at(self):
-        return self.__last_load
+    def loaded_at(self) -> Optional[datetime]:
+        return self.__loaded_at
 
     @property
-    def created_at(self):
-        return self.__created_at
+    def version(self) -> Optional[str]:
+        return self.__version
 
     @property
     def catalogue(self) -> List[Catalogue]:
@@ -112,13 +113,11 @@ class CatalogueProvider:
         return self.__catalogue
 
     def __refresh_catalogue_if_stale(self):
-        previous_load_time = self.__last_load
-        self.__last_load = datetime.now()
-        if previous_load_time is None or (datetime.now() - previous_load_time) > timedelta(hours=1):
+        if self.__loaded_at is None or (datetime.now() - self.__loaded_at) > timedelta(minutes=15):
             try:
                 self.__reload()
             except Exception as e:
-                self.__last_load = previous_load_time
+                self.__loaded_at = None
                 raise e
 
 
@@ -188,10 +187,10 @@ class CatalogueMeta(Resource):
         self.__provider: CatalogueProvider = kwargs['catalogue']
 
     def get(self):
-        created_at = self.__provider.created_at
+        version = self.__provider.version
         loaded_at = self.__provider.loaded_at
         return {
-            'created': int(created_at.timestamp()) if created_at is not None else None,
+            'version': version,
             'loaded': int(loaded_at.timestamp()) if loaded_at is not None else None,
             'count': len(self.__provider.catalogue)
         }
@@ -199,49 +198,60 @@ class CatalogueMeta(Resource):
 
 class DatabaseDownloader:
     DATABASE_CSV = 'http://beqcatalogue.readthedocs.io/en/latest/database.json'
+    VERSION_TXT = 'http://beqcatalogue.readthedocs.io/en/latest/version.txt'
 
-    def __init__(self, cached_file):
-        self.__cached = cached_file
-        self.cached_date = self.__load_cached_date()
+    def __init__(self, cached_db_file, cached_version_file):
+        self.__cached_db_file = cached_db_file
+        self.__cached_version_file = cached_version_file
+        if os.path.exists(self.__cached_version_file):
+            with open(self.__cached_version_file) as f:
+                self.__cached_version = f.read()
+        else:
+            self.__cached_version = ''
 
-    def __load_cached_date(self):
-        return datetime.fromtimestamp(os.path.getmtime(self.__cached)).astimezone() if os.path.exists(self.__cached) else None
+    @property
+    def version(self) -> Optional[str]:
+        return self.__cached_version
 
-    def run(self):
+    def run(self) -> bool:
         '''
         Hit the BEQ Catalogue database and compare to the local cached version.
         if there is an updated database then download it.
         '''
-        mod_date = self.__get_mod_date()
-        if mod_date is None or self.cached_date is None or mod_date > self.cached_date:
-            logger.info(f"Loading {self.DATABASE_CSV}")
+        remote_version = self.__get_remote_catalogue_version()
+        if remote_version is None or self.__cached_version is None or remote_version != self.__cached_version:
+            logger.info(f"Reloading from {self.DATABASE_CSV}")
             r = requests.get(self.DATABASE_CSV, allow_redirects=True)
             if r.status_code == 200:
-                with open(self.__cached, 'wb') as f:
+                logger.info(f"Writing database to {self.__cached_db_file}")
+                with open(self.__cached_db_file, 'wb') as f:
                     f.write(r.content)
-                if mod_date is not None:
-                    modified = time.mktime(mod_date.timetuple())
-                    now = time.mktime(datetime.today().timetuple())
-                    os.utime(self.__cached, (now, modified))
-                    self.cached_date = self.__load_cached_date()
-                    logger.info(f"Downloaded {self.DATABASE_CSV} with moddate {modified}")
+                if remote_version:
+                    logger.info(f"Writing version {remote_version} to {self.__cached_version_file}")
+                    with open(self.__cached_version_file, 'w') as f:
+                        f.write(remote_version)
                 else:
-                    logger.warning("Downloaded catalogue but moddate was not available")
+                    logger.warning(f"No remote version to write")
+                self.__cached_version = remote_version
+                logger.info(f"Downloaded {self.DATABASE_CSV} @ {remote_version}")
+                return True
             else:
                 logger.warning(f"Unable to download catalogue, response is {r.status_code}")
+        else:
+            logger.info(f"No reload required {remote_version} vs {self.__cached_version}")
+        return False
 
-    def __get_mod_date(self) -> Optional[datetime]:
+    def __get_remote_catalogue_version(self) -> Optional[str]:
         '''
-        HEADs the database.csv to find the last modified date.
-        :return: the date.
+        gets version.txt to discover the remote catalogue version.
+        :return: the version, if any.
         '''
         try:
-            r = requests.head(self.DATABASE_CSV, allow_redirects=True)
+            r = requests.get(self.VERSION_TXT, allow_redirects=True)
             if r.status_code == 200:
-                if 'Last-Modified' in r.headers:
-                    return parsedate(r.headers['Last-Modified']).astimezone()
+                return r.text
             else:
-                logger.warning(f"Unable to hit BEQCatalogue, response was {r.status_code}")
+                logger.warning(f"Unable to get {self.VERSION_TXT}, response was {r.status_code}")
         except:
-            logger.exception('Failed to hit BEQCatalogue')
+            logger.exception(f"Failed to get {self.VERSION_TXT}")
         return None
