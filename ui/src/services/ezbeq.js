@@ -41,15 +41,16 @@ class EzBeqService {
 
     appendTo = (url, name, values) => {
         if (values && values.length > 0) {
-            return `${url}${url.indexOf('?') === -1 ? '?' : '&'}${name}=${values.join(',')}`;
+            const to_append = values.map(v => `${name}=${v}`).join('&');
+            return `${url}${url.indexOf('?') === -1 ? '?' : '&'}${to_append}`;
         }
         return url;
     }
 
-    search = async (authors = null, years = null, audioTypes = null) => {
-        const searchUrl = this.appendTo(this.appendTo(this.appendTo(`${API_PREFIX}/search`, 'authors', authors), 'years', years), 'audioTypes', audioTypes);
+    search = async (authors = null, years = null, audioTypes = null, fields = ['author', 'year', 'audioTypes', 'contentType', 'title', 'sortTitle', 'id']) => {
+        const searchUrl = this.appendTo(this.appendTo(this.appendTo(this.appendTo(`${API_PREFIX}/search`, 'authors', authors), 'years', years), 'audioTypes', audioTypes), 'fields', fields);
         const response = await fetch(searchUrl, {
-            method: 'GET'
+            method: 'GET',
         });
         if (!response.ok) {
             throw new Error(`EzBeq.search failed, HTTP status ${response.status}`);

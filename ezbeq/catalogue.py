@@ -190,6 +190,7 @@ class CatalogueSearch(Resource):
         self.__parser.add_argument('years', action='append')
         self.__parser.add_argument('audiotypes', action='append')
         self.__parser.add_argument('contenttypes', action='append')
+        self.__parser.add_argument('fields', action='append')
 
     def get(self):
         catalogue = self.__provider.catalogue
@@ -198,7 +199,16 @@ class CatalogueSearch(Resource):
         years = args.get('years')
         audio_types = args.get('audiotypes')
         content_types = args.get('contenttypes')
-        return [c.for_search for c in catalogue if c.matches(authors, years, audio_types, content_types)]
+        fields = args.get('fields')
+        return [self.__filter_fields(c.for_search, fields)
+                for c in catalogue if c.matches(authors, years, audio_types, content_types)]
+
+    @staticmethod
+    def __filter_fields(entry: dict, fields: list):
+        if fields:
+            return {k: v for k, v in entry.items() if k in fields}
+        else:
+            return entry
 
 
 class CatalogueMeta(Resource):
