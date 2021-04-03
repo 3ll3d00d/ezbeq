@@ -54,26 +54,41 @@ class Catalogue:
             'id': self.idx,
             'title': self.title,
             'year': self.year,
+            'sortTitle': self.sort_title,
             'audioTypes': self.audio_types,
             'contentType': self.content_type,
             'author': self.author,
-            'beqcUrl': self.beqc_url,
-            'images': self.images,
-            'warning': self.warning,
-            'season': self.season,
-            'episodes': self.episodes,
-            'mvAdjust': self.mv_adjust,
-            'avsUrl': self.avs_url,
-            'sortTitle': self.sort_title,
-            'edition': self.edition,
-            'note': self.note,
-            'language': self.language,
-            'source': self.source,
-            'overview': self.overview,
-            'theMovieDB': self.theMovieDB,
-            'rating': self.rating,
-            'genres': self.genres
         }
+        if self.beqc_url:
+            self.for_search['beqcUrl'] = self.beqc_url
+        if self.images:
+            self.for_search['images'] = self.images
+        if self.warning:
+            self.for_search['warning'] = self.warning
+        if self.season:
+            self.for_search['season'] = self.season
+        if self.episodes:
+            self.for_search['episodes'] = self.episodes
+        if self.mv_adjust:
+            self.for_search['mvAdjust'] = self.mv_adjust
+        if self.avs_url:
+            self.for_search['avsUrl'] = self.avs_url
+        if self.edition:
+            self.for_search['edition'] = self.edition
+        if self.note:
+            self.for_search['note'] = self.note
+        if self.language:
+            self.for_search['language'] = self.language
+        if self.source:
+            self.for_search['source'] = self.source
+        if self.overview:
+            self.for_search['overview'] = self.overview
+        if self.theMovieDB:
+            self.for_search['theMovieDB'] = self.theMovieDB
+        if self.rating:
+            self.for_search['rating'] = self.rating
+        if self.genres:
+            self.for_search['genres'] = self.genres
         self.short_search = {
             'id': self.idx,
             'title': self.title,
