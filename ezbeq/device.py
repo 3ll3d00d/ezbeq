@@ -94,7 +94,7 @@ class DeviceSender(Resource):
         if 'id' in payload:
             id = payload['id']
             logger.info(f"Sending {id} to Slot {slot}")
-            match: Catalogue = next(c for c in self.__catalogue_provider.catalogue if c.idx == int(id))
+            match: Catalogue = next(c for c in self.__catalogue_provider.catalogue if c.idx == id)
             try:
                 self.__bridge.send(slot, match)
                 self.__state.put(slot, match)
@@ -227,7 +227,9 @@ class Minidsp(Bridge):
     def send(self, slot: str, entry: Union[Optional[Catalogue], bool]):
         target_slot_idx = int(slot) - 1
         if entry is None or isinstance(entry, Catalogue):
-            cmds = MinidspBeqCommandGenerator.filt(entry, target_slot_idx, int(self.state()) - 1)
+            state = self.state()
+            active_slot = int(state) -1 if state else None
+            cmds = MinidspBeqCommandGenerator.filt(entry, target_slot_idx, active_slot)
         else:
             cmds = MinidspBeqCommandGenerator.activate(target_slot_idx)
         with tmp_file(cmds) as file_name:
