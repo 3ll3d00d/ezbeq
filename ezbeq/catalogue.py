@@ -24,14 +24,24 @@ class Catalogue:
             logger.error(f"Invalid year {vals.get('year', 0)} in {self.title}")
         self.year = y
         self.audio_types = vals.get('audioTypes', [])
+        self.content_type = vals.get('content_type', 'film')
         self.author = vals.get('author', '')
         self.beqc_url = vals.get('catalogue_url', '')
         self.filters = vals.get('filters', {})
         self.images = vals.get('images', [])
-        self.episodes = vals.get('episode', '')
-        self.content_type = vals.get('content_type', 'film')
-        self.avs_url = vals.get('avs', '')
+        self.warning = vals.get('warning', [])
         self.season = vals.get('season', '')
+        self.episodes = vals.get('episode', '')
+        self.avs_url = vals.get('avs', '')
+        self.sort_title = vals.get('sortTitle', '')
+        self.edition = vals.get('edition', '')
+        self.note = vals.get('note', '')
+        self.language = vals.get('language', '')
+        self.source = vals.get('source', '')
+        self.overview = vals.get('overview', '')
+        self.theMovieDB = vals.get('theMovieDB', '')
+        self.rating = vals.get('rating', '')
+        self.genres = vals.get('genres', [])
         self.mv_adjust = 0.0
         if 'mv' in vals:
             v = vals['mv']
@@ -45,14 +55,24 @@ class Catalogue:
             'title': self.title,
             'year': self.year,
             'audioTypes': self.audio_types,
+            'contentType': self.content_type,
+            'author': self.author,
             'beqcUrl': self.beqc_url,
             'images': self.images,
-            'author': self.author,
+            'warning': self.warning,
             'season': self.season,
             'episodes': self.episodes,
-            'contentType': self.content_type,
             'mvAdjust': self.mv_adjust,
-            'avsUrl': self.avs_url
+            'avsUrl': self.avs_url,
+            'sortTitle': self.sort_title,
+            'edition': self.edition,
+            'note': self.note,
+            'language': self.language,
+            'source': self.source,
+            'overview': self.overview,
+            'theMovieDB': self.theMovieDB,
+            'rating': self.rating,
+            'genres': self.genres
         }
         self.short_search = {
             'id': self.idx,

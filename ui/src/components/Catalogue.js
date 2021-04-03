@@ -41,7 +41,7 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId}) => {
                               density={'compact'}
                               sortModel={[
                                   {
-                                      field: 'title',
+                                      field: 'sortTitle',
                                       sort: 'asc',
                                   },
                               ]}
