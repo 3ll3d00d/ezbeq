@@ -26,6 +26,10 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId}) => {
             field: 'audioTypes',
             headerName: 'Audio Type',
             flex: 0.4
+        },
+        {
+            field: 'sortTitle',
+            hide: true
         }
     ];
     if (entries.length > 0) {
