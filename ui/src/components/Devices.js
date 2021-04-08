@@ -28,22 +28,22 @@ const Action = ({slotId, onClick, label, Icon, active, disabled = false}) => {
     const currentState = getCurrentState(active, label, slotId);
     return (
         <div>
-        {
-            currentState === 1
-            ? <CircularProgress size={24} className={classes.progress}/>
-            : <IconButton aria-label={label}
-                          onClick={onClick}
-                          color={currentState === 2 ? 'error' : 'primary'}
-                          edge={'start'}
-                          disabled={disabled}>
-                <Icon/>
-            </IconButton>
-        }
+            {
+                currentState === 1
+                    ? <CircularProgress size={24} className={classes.progress}/>
+                    : <IconButton aria-label={label}
+                                  onClick={onClick}
+                                  color={currentState === 2 ? 'error' : 'primary'}
+                                  edge={'start'}
+                                  disabled={disabled}>
+                        <Icon/>
+                    </IconButton>
+            }
         </div>
     )
 }
 
-const Devices = ({selectedEntryId}) => {
+const Devices = ({selectedEntryId, useWide}) => {
 
     const [slots, setSlots] = useState([]);
     const [pending, setPending] = useState([]);
@@ -111,13 +111,13 @@ const Devices = ({selectedEntryId}) => {
                             active={pending}/>
                     {
                         params.row.canActivate
-                        ?
+                            ?
                             <Action slotId={params.row.id}
                                     onClick={() => activateSlot(params.row.id)}
                                     label={'activate'}
                                     Icon={PlayArrowIcon}
                                     active={pending}/>
-                        : null
+                            : null
                     }
                     <Action slotId={params.row.id}
                             onClick={() => clearDeviceSlot(params.row.id)}
@@ -138,19 +138,15 @@ const Devices = ({selectedEntryId}) => {
             hide: true
         }
     ];
-
-    return (
-        <Grid container direction={'column'}>
-            <Grid item style={{height: dims[2], width: '100%'}}>
-                <DataGrid rows={slots}
-                          columns={deviceGridColumns}
-                          autoPageSize
-                          hideFooter
-                          density={'compact'}/>
-            </Grid>
-        </Grid>
-
-    );
+    const grid =
+        <Grid item style={{height: dims[2], width: '100%'}}>
+            <DataGrid rows={slots}
+                           columns={deviceGridColumns}
+                           autoPageSize
+                           hideFooter
+                           density={'compact'}/>
+        </Grid>;
+    return useWide ? grid : <Grid container direction={'column'}>{grid}</Grid>;
 }
 
 export default Devices;

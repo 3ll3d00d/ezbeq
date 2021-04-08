@@ -9,7 +9,7 @@ const useStyles = makeStyles((theme) => ({
     }
 }));
 
-const Catalogue = ({entries, setSelectedEntryId, selectedEntryId}) => {
+const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide}) => {
     const classes = useStyles();
     const catalogueGridColumns = [
         {
@@ -18,7 +18,8 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId}) => {
             flex: 0.6,
             renderCell: params => (
                 params.row.url
-                    ? <span>{params.row.contentType === 'TV' ? "[TV] " : ''}<a href={params.row.avsUrl} target='_beq'>{params.value}</a></span>
+                    ? <span>{params.row.contentType === 'TV' ? "[TV] " : ''}<a href={params.row.avsUrl}
+                                                                               target='_beq'>{params.value}</a></span>
                     : <span>{params.row.contentType === 'TV' ? "[TV] " : ''}{params.value}</span>
             )
         },
@@ -30,30 +31,32 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId}) => {
         {
             field: 'sortTitle',
             hide: true
+        },
+        {
+            field: 'edition',
+            headerName: 'Edition',
+            hide: !useWide
         }
     ];
     if (entries.length > 0) {
-        return (
-            <Grid container className={classes.noLeft}>
-                <Grid item style={{
-                    height: `${Math.max(260, (window.innerHeight - 306) / (selectedEntryId > -1 ? 2 : 1))}px`,
-                    width: '100%'
-                }}>
-                    <DataGrid rows={entries}
-                              columns={catalogueGridColumns}
-                              pageSize={50}
-                              density={'compact'}
-                              sortModel={[
-                                  {
-                                      field: 'sortTitle',
-                                      sort: 'asc',
-                                  },
-                              ]}
-                              onRowSelected={p => setSelectedEntryId(p.data.id)}
-                    />
-                </Grid>
-            </Grid>
-        );
+        const grid =
+            <Grid item style={{
+                height: `${Math.max(260, (window.innerHeight - 306) / (selectedEntryId > -1 ? 2 : 1))}px`,
+                width: '100%'
+            }}>
+                <DataGrid rows={entries}
+                               columns={catalogueGridColumns}
+                               pageSize={50}
+                               density={'compact'}
+                               sortModel={[
+                                   {
+                                       field: 'sortTitle',
+                                       sort: 'asc',
+                                   },
+                               ]}
+                               onRowSelected={p => setSelectedEntryId(p.data.id)}/>
+            </Grid>;
+        return useWide ? grid : <Grid container className={classes.noLeft}>{grid}</Grid>;
     } else {
         return null;
     }

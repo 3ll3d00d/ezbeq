@@ -11,26 +11,16 @@ import Catalogue from "./components/Catalogue";
 import Devices from "./components/Devices";
 import Filter from "./components/Filter";
 import Entry from "./components/Entry";
+import {Grid} from "@material-ui/core";
 
 const useStyles = makeStyles((theme) => ({
     root: {
         flexGrow: 1,
-        width: '100wh',
+        width: '100vw',
         height: '100vh',
         '& > *': {
             margin: theme.spacing(1),
         }
-    },
-    noLeft: {
-        marginLeft: '0px'
-    },
-    noLeftTop: {
-        marginLeft: '0px',
-        marginTop: '0px'
-    },
-    title: {
-        flexGrow: 1,
-        marginLeft: theme.spacing(1)
     }
 }));
 
@@ -86,7 +76,13 @@ const App = () => {
         }
         pushData(setFilteredEntries, () => entries.filter(isMatch));
     }, [entries, selectedAudioTypes, selectedYears, selectedAuthors, selectedContentTypes, txtFilter]);
-
+    const useWide = useMediaQuery('(orientation: landscape) and (min-height: 580px)');
+    const devices = <Devices selectedEntryId={selectedEntryId} useWide={useWide}/>;
+    const catalogue = <Catalogue entries={filteredEntries}
+                                 setSelectedEntryId={setSelectedEntryId}
+                                 selectedEntryId={selectedEntryId}
+                                 useWide={useWide}/>;
+    const entry = <Entry selectedEntry={selectedEntryId ? filteredEntries.find(e => e.id === selectedEntryId) : null} useWide={useWide}/>;
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline/>
@@ -105,11 +101,29 @@ const App = () => {
                         selectedContentTypes={selectedContentTypes}
                         setSelectedContentTypes={setSelectedContentTypes}
                         filteredEntries={filteredEntries}/>
-                <Devices selectedEntryId={selectedEntryId}/>
-                <Catalogue entries={filteredEntries}
-                           setSelectedEntryId={setSelectedEntryId}
-                           selectedEntryId={selectedEntryId}/>
-                <Entry selectedEntry={selectedEntryId ? filteredEntries.find(e => e.id === selectedEntryId) : null}/>
+                {
+                    useWide
+                        ?
+                        <Grid container>
+                            <Grid item xs={6} md={6}>
+                                <Grid container>
+                                    {devices}
+                                </Grid>
+                                <Grid container>
+                                    {catalogue}
+                                </Grid>
+                            </Grid>
+                            <Grid item xs={6} md={6}>
+                                {entry}
+                            </Grid>
+                        </Grid>
+                        :
+                        <>
+                        {devices}
+                        {catalogue}
+                        {entry}
+                        </>
+                }
                 <Footer/>
             </div>
         </ThemeProvider>
