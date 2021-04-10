@@ -4,6 +4,7 @@ from os import path
 
 from flask import Flask
 from flask_restful import Api
+from flask_compress import Compress
 
 from ezbeq.catalogue import CatalogueProvider, Authors, Years, AudioTypes, CatalogueSearch, CatalogueMeta, ContentTypes
 from ezbeq.config import Config, Version
@@ -18,6 +19,7 @@ if hasattr(faulthandler, 'register'):
     faulthandler.register(signal.SIGUSR2, all_threads=True)
 
 app = Flask(__name__)
+Compress(app)
 api = Api(app)
 cfg = Config('ezbeq')
 resource_args = {
