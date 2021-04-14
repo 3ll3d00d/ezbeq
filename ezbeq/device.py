@@ -94,7 +94,11 @@ class DeviceSender(Resource):
         if 'id' in payload:
             id = payload['id']
             logger.info(f"Sending {id} to Slot {slot}")
-            match: Catalogue = next(c for c in self.__catalogue_provider.catalogue if c.idx == id)
+            try:
+                match: Catalogue = next(c for c in self.__catalogue_provider.catalogue if c.idx == id)
+            except Exception as e:
+                logger.exception(f"ID for title not found: {id}")
+                return {'message':'Title not found, please refresh.'}, 400
             try:
                 self.__bridge.send(slot, match)
                 self.__state.put(slot, match)
