@@ -46,7 +46,7 @@ class DeviceState:
         self.__active_slot = slot
 
     def put(self, slot: str, entry: Catalogue):
-        self.__update(slot, entry.title)
+        self.__update(slot, entry.formattedTitle())
 
     def __update(self, slot: str, value: str):
         logger.info(f"Storing {value} in slot {slot}")
