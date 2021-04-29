@@ -37,6 +37,7 @@ setup(name='ezbeq',
           'twisted',
           'plumbum',
           'flask-restful',
+          'flask-compress'
           'requests',
           'python-dateutil',
           'autobahn[twisted]',
