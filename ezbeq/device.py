@@ -32,7 +32,7 @@ class DeviceState:
         self.__can_activate = cfg.minidsp_exe is not None
         self.__file_name = os.path.join(cfg.config_path, 'device.json')
         self.__active_slot = None
-        self.__masterVolume = None
+        self.__master_volume = None
         self.__mute = None
         if os.path.exists(self.__file_name):
             with open(self.__file_name, 'r') as f:
@@ -49,10 +49,10 @@ class DeviceState:
         self.__active_slot = slot
 
     def put(self, slot: str, entry: Catalogue):
-        self.__update(slot, 'last', entry.formattedTitle())
+        self.__update(slot, 'last', entry.formatted_title)
 
     def __update(self, slot: str, key: str, value: Union[str, bool]):
-        logger.info(f"Storing {value} in slot {slot}")
+        logger.info(f"Storing {value} in slot {slot} key {key}")
         for s in self.__state:
             if s['id'] == slot:
                 s[key] = value
@@ -68,7 +68,7 @@ class DeviceState:
 
     def gain(self, slot: str, channel: Optional[str], value: str):
         if slot == '0' or channel is None:
-            self.__masterVolume = value
+            self.__master_volume = value
         else:
             self.__update(slot, f'gain{channel}', value)
 
@@ -86,8 +86,8 @@ class DeviceState:
         } for s in self.__state]}
         if self.__mute is not None:
             values['mute'] = self.__mute
-        if self.__masterVolume is not None:
-            values['masterVolume'] = self.__masterVolume
+        if self.__master_volume is not None:
+            values['masterVolume'] = self.__master_volume
         return values
 
 
@@ -118,62 +118,75 @@ class DeviceSender(Resource):
             cmd = payload['command']
             if cmd == 'load':
                 if 'id' in payload:
-                    id = payload['id']
-                    logger.info(f"Sending {id} to Slot {slot}")
-                    try:
-                        match: Catalogue = next(c for c in self.__catalogue_provider.catalogue if c.idx == id)
-                    except Exception as e:
-                        logger.exception(f"ID for title not found: {id}")
-                        return {'message': 'Title not found, please refresh.'}, 400
-                    try:
-                        self.__bridge.send(slot, match, 'load')
-                        self.__state.put(slot, match)
-                    except Exception as e:
-                        logger.exception(f"Failed to write {id} to Slot {slot}")
-                        self.__state.error(slot)
-                    return self.__state.get(), 200
+                    return self.__handle_load(payload, slot)
             elif cmd == 'activate':
-                logger.info(f"Activating Slot {slot}")
-                try:
-                    self.__bridge.send(slot, True, 'activate')
-                    self.__state.activate(slot)
-                except Exception as e:
-                    logger.exception(f"Failed to activate Slot {slot}")
-                    self.__state.error(slot)
-                return self.__state.get(), 200
+                return self.__handle_activate(slot)
             elif cmd == 'mute':
                 if 'value' in payload:
-                    value = payload['value']
-                    channel = payload['channel'] if 'channel' in payload else None
-                    if value != 'on' and value != 'off':
-                        logger.exception(f"Invalid value for mute: {value}")
-                        return {'message': f"Invalid value for mute: {value}"}, 400
-                    try:
-                        self.__bridge.send(slot, payload, cmd)
-                        self.__state.mute(slot, channel, value == 'on')
-                    except Exception as e:
-                        logger.exception(f"Failed mute channel {slot}")
-                    return self.__state.get(), 200
+                    return self.__handle_mute(payload, slot, cmd)
             elif cmd == 'gain':
                 if 'value' in payload:
-                    value = payload['value']
-                    channel = payload['channel'] if 'channel' in payload else None
-                    floatValue = round(float(value), 2)
-                    if slot == '0':
-                        if not -127.0 <= floatValue <= 0.0:
-                            logger.exception(f"Invalid value for gain: {value}")
-                            return {'message': f"Invalid value for gain: {value}"}, 400
-                    else:
-                        if not -72.0 <= floatValue <= 12.0:
-                            logger.exception(f"Invalid value for gain: {value}")
-                            return {'message': f"Invalid value for gain: {value}"}, 400
-                    try:
-                        self.__bridge.send(slot, payload, cmd)
-                        self.__state.gain(slot, channel, value)
-                    except Exception as e:
-                        logger.exception(f"Failed to set gain on channel {slot}")
-                    return self.__state.get(), 200
+                    return self.__handle_gain(payload, slot, cmd)
         return self.__state.get(), 404
+
+    def __handle_gain(self, payload, slot, cmd):
+        value = payload['value']
+        channel = payload['channel'] if 'channel' in payload else None
+        float_value = round(float(value), 2)
+        if slot == '0':
+            if not -127.0 <= float_value <= 0.0:
+                logger.exception(f"Invalid value for gain: {value}")
+                return {'message': f"Invalid value for gain: {value}"}, 400
+        else:
+            if not -72.0 <= float_value <= 12.0:
+                logger.exception(f"Invalid value for gain: {value}")
+                return {'message': f"Invalid value for gain: {value}"}, 400
+        try:
+            self.__bridge.send(slot, payload, cmd)
+            self.__state.gain(slot, channel, value)
+            return self.__state.get(), 200
+        except Exception as e:
+            logger.exception(f"Failed to set gain on channel {slot}")
+            return self.__state.get(), 500
+
+    def __handle_activate(self, slot):
+        logger.info(f"Activating Slot {slot}")
+        try:
+            self.__bridge.send(slot, True, 'activate')
+            self.__state.activate(slot)
+        except Exception as e:
+            logger.exception(f"Failed to activate Slot {slot}")
+            self.__state.error(slot)
+        return self.__state.get(), 200
+
+    def __handle_load(self, payload, slot):
+        payload_id = payload['id']
+        logger.info(f"Sending {payload_id} to Slot {slot}")
+        match: Catalogue = next((c for c in self.__catalogue_provider.catalogue if c.idx == payload_id), None)
+        if not match:
+            logger.warning(f"No title with ID {payload_id} in catalogue {self.__catalogue_provider.version}")
+            return {'message': 'Title not found, please refresh.'}, 400
+        try:
+            self.__bridge.send(slot, match, 'load')
+            self.__state.put(slot, match)
+        except Exception as e:
+            logger.exception(f"Failed to write {payload_id} to Slot {slot}")
+            self.__state.error(slot)
+        return self.__state.get(), 200
+
+    def __handle_mute(self, payload, slot, cmd):
+        value = payload['value']
+        channel = payload['channel'] if 'channel' in payload else None
+        if value != 'on' and value != 'off':
+            logger.exception(f"Invalid value for mute: {value}")
+            return {'message': f"Invalid value for mute: {value}"}, 400
+        try:
+            self.__bridge.send(slot, payload, cmd)
+            self.__state.mute(slot, channel, value == 'on')
+            return self.__state.get(), 200
+        except Exception as e:
+            logger.exception(f"Failed mute channel {slot}")
+            return self.__state.get(), 500
 
     def delete(self, slot):
         logger.info(f"Clearing Slot {slot}")

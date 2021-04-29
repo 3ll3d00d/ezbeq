@@ -39,13 +39,14 @@ class Catalogue:
         self.language = vals.get('language', '')
         self.source = vals.get('source', '')
         self.overview = vals.get('overview', '')
-        self.theMovieDB = vals.get('theMovieDB', '')
+        self.the_movie_db = vals.get('theMovieDB', '')
         self.rating = vals.get('rating', '')
         self.genres = vals.get('genres', [])
         try:
             r = int(vals.get('runtime', 0))
         except:
             logger.error(f"Invalid runtime {vals.get('runtime', 0)} in {self.title}")
+            r = 0
         self.runtime = r
         self.mv_adjust = 0.0
         if 'mv' in vals:
@@ -88,8 +89,8 @@ class Catalogue:
             self.for_search['source'] = self.source
         if self.overview:
             self.for_search['overview'] = self.overview
-        if self.theMovieDB:
-            self.for_search['theMovieDB'] = self.theMovieDB
+        if self.the_movie_db:
+            self.for_search['theMovieDB'] = self.the_movie_db
         if self.rating:
             self.for_search['rating'] = self.rating
         if self.runtime:
@@ -113,7 +114,8 @@ class Catalogue:
     def __repr__(self):
         return f"[{self.content_type}] {self.title} / {self.audio_types} / {self.year}"
 
-    def __formatEpisodes(self, formatted, working):
+    @staticmethod
+    def __format_episodes(formatted, working):
         val = ''
         if len(formatted) > 1:
             val += ', '
@@ -123,36 +125,37 @@ class Catalogue:
             val += f"{working[0]}-{working[-1]}"
         return val
 
-    def __formatTVMeta(self):
+    def __format_tv_meta(self):
         season = f"S{self.season}" if self.season else ''
         episodes = self.episodes.split(',') if self.episodes else None
         if episodes:
             formatted = 'E'
             if len(episodes) > 1:
                 working = []
-                lastValue = 0
+                last_value = 0
                 for ep in episodes:
                     if len(working) == 0:
                         working.append(ep)
-                        lastValue = int(ep)
+                        last_value = int(ep)
                     else:
                         current = int(ep)
-                        if  lastValue == current - 1:
+                        if  last_value == current - 1:
                             working.append(ep)
-                            lastValue = current
+                            last_value = current
                         else:
-                            formatted += self.__formatEpisodes(formatted, working)
+                            formatted += self.__format_episodes(formatted, working)
                             working = []
                 if len(working) > 0:
-                    formatted += self.__formatEpisodes(formatted, working)
+                    formatted += self.__format_episodes(formatted, working)
             else:
-                formatted += f"E{self.episodes}"
+                formatted += f"{self.episodes}"
             return f"{season} {formatted}"
         return season
 
-    def formattedTitle(self):
+    @property
+    def formatted_title(self) -> str:
         if self.content_type == 'TV':
-            return f"{self.title} {self.__formatTVMeta()}"
+            return f"{self.title} {self.__format_tv_meta()}"
         return self.title
 
 
