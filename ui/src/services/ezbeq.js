@@ -67,7 +67,8 @@ class EzBeqService {
         const response = await fetch(`${API_PREFIX}/device/${slot}`, {
             method: 'PUT',
             body: JSON.stringify({
-                id: id
+                id: id,
+                command: 'load'
             }),
             headers: {
                 'Content-Type': 'application/json',

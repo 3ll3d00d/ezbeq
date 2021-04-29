@@ -42,6 +42,11 @@ class Catalogue:
         self.theMovieDB = vals.get('theMovieDB', '')
         self.rating = vals.get('rating', '')
         self.genres = vals.get('genres', [])
+        try:
+            r = int(vals.get('runtime', 0))
+        except:
+            logger.error(f"Invalid runtime {vals.get('runtime', 0)} in {self.title}")
+        self.runtime = r
         self.mv_adjust = 0.0
         if 'mv' in vals:
             v = vals['mv']
@@ -87,6 +92,8 @@ class Catalogue:
             self.for_search['theMovieDB'] = self.theMovieDB
         if self.rating:
             self.for_search['rating'] = self.rating
+        if self.runtime:
+            self.for_search['runtime'] = self.runtime
         if self.genres:
             self.for_search['genres'] = self.genres
         self.short_search = {
@@ -105,6 +112,48 @@ class Catalogue:
 
     def __repr__(self):
         return f"[{self.content_type}] {self.title} / {self.audio_types} / {self.year}"
+
+    def __formatEpisodes(self, formatted, working):
+        val = ''
+        if len(formatted) > 1:
+            val += ', '
+        if len(working) == 1:
+            val += working[0]
+        else:
+            val += f"{working[0]}-{working[-1]}"
+        return val
+
+    def __formatTVMeta(self):
+        season = f"S{self.season}" if self.season else ''
+        episodes = self.episodes.split(',') if self.episodes else None
+        if episodes:
+            formatted = 'E'
+            if len(episodes) > 1:
+                working = []
+                lastValue = 0
+                for ep in episodes:
+                    if len(working) == 0:
+                        working.append(ep)
+                        lastValue = int(ep)
+                    else:
+                        current = int(ep)
+                        if  lastValue == current - 1:
+                            working.append(ep)
+                            lastValue = current
+                        else:
+                            formatted += self.__formatEpisodes(formatted, working)
+                            working = []
+                if len(working) > 0:
+                    formatted += self.__formatEpisodes(formatted, working)
+            else:
+                formatted += f"E{self.episodes}"
+            return f"{season} {formatted}"
+        return season
+
+    def formattedTitle(self):
+        if self.content_type == 'TV':
+            return f"{self.title} {self.__formatTVMeta()}"
+        return self.title
 
 
 class CatalogueProvider:

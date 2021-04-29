@@ -45,26 +45,26 @@ const Action = ({slotId, onClick, label, Icon, active, disabled = false}) => {
 
 const Devices = ({selectedEntryId, useWide}) => {
 
-    const [slots, setSlots] = useState([]);
+    const [device, setDevice] = useState({});
     const [pending, setPending] = useState([]);
     const [dims, setDims] = useState([25, 120, '190px']);
 
     useEffect(() => {
-        pushData(setSlots, ezbeq.getDeviceConfig);
+        pushData(setDevice, ezbeq.getDeviceConfig);
     }, []);
 
     useEffect(() => {
-        if (slots.length === 1) {
+        if ("slots" in device && device.slots.length === 1) {
             setDims([75, 90, '80px']);
         }
-    }, [slots])
+    }, [device])
 
     const trackDeviceUpdate = async (action, slotId, valProvider) => {
         setPending(u => [{slotId, action, state: 1}].concat(u));
         try {
             const vals = await valProvider();
             setPending(u => u.filter(p => !(p.slotId === slotId && p.action === action)));
-            setSlots(vals);
+            setDevice(vals);
         } catch (e) {
             console.error(e);
             setPending(u => u.map(p => {
@@ -140,7 +140,7 @@ const Devices = ({selectedEntryId, useWide}) => {
     ];
     const grid =
         <Grid item style={{height: dims[2], width: '100%'}}>
-            <DataGrid rows={slots}
+            <DataGrid rows={"slots" in device ? device.slots : []}
                            columns={deviceGridColumns}
                            autoPageSize
                            hideFooter
