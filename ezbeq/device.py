@@ -19,7 +19,7 @@ logger = logging.getLogger('ezbeq.minidsp')
 
 def get_channels(cfg: Config) -> List[str]:
     if cfg.minidsp_exe:
-        return [str(i+1) for i in range(4)]
+        return [str(i + 1) for i in range(4)]
     else:
         return ['HTP1']
 
@@ -27,10 +27,13 @@ def get_channels(cfg: Config) -> List[str]:
 class DeviceState:
 
     def __init__(self, cfg: Config):
-        self.__state = [{'id': id, 'last': 'Empty'} for id in get_channels(cfg)]
+        self.__state = [{'id': id, 'last': 'Empty', 'gain1': '0.0', 'gain2': '0.0', 'mute1': False, 'mute2': False} for
+                        id in get_channels(cfg)]
         self.__can_activate = cfg.minidsp_exe is not None
         self.__file_name = os.path.join(cfg.config_path, 'device.json')
         self.__active_slot = None
+        self.__masterVolume = None
+        self.__mute = None
         if os.path.exists(self.__file_name):
             with open(self.__file_name, 'r') as f:
                 j = json.load(f)
@@ -46,29 +49,46 @@ class DeviceState:
         self.__active_slot = slot
 
     def put(self, slot: str, entry: Catalogue):
-        self.__update(slot, entry.formattedTitle())
+        self.__update(slot, 'last', entry.formattedTitle())
 
-    def __update(self, slot: str, value: str):
+    def __update(self, slot: str, key: str, value: Union[str, bool]):
         logger.info(f"Storing {value} in slot {slot}")
         for s in self.__state:
             if s['id'] == slot:
-                s['last'] = value
+                s[key] = value
         with open(self.__file_name, 'w') as f:
             json.dump(self.__state, f, sort_keys=True)
         self.activate(slot)
 
     def error(self, slot: str):
-        self.__update(slot, 'ERROR')
+        self.__update(slot, 'last', 'ERROR')
 
     def clear(self, slot: str):
-        self.__update(slot, 'Empty')
+        self.__update(slot, 'last', 'Empty')
 
-    def get(self) -> List[dict]:
-        return [{
+    def gain(self, slot: str, channel: Optional[str], value: str):
+        if slot == '0' or channel is None:
+            self.__masterVolume = value
+        else:
+            self.__update(slot, f'gain{channel}', value)
+
+    def mute(self, slot: str, channel: Optional[str], value: str):
+        if slot == '0' or channel is None:
+            self.__mute = value
+        else:
+            self.__update(slot, f'mute{channel}', value)
+
+    def get(self):
+        values = {'slots': [{
             **s,
             'canActivate': self.__can_activate,
             'active': True if self.__active_slot is not None and s['id'] == self.__active_slot else False
-        } for s in self.__state]
+        } for s in self.__state]}
+        if self.__mute is not None:
+            values['mute'] = self.__mute
+        if self.__masterVolume is not None:
+            values['masterVolume'] = self.__masterVolume
+        return values
 
 
 class Devices(Resource):
@@ -77,8 +97,11 @@ class Devices(Resource):
         self.__state: DeviceState = kwargs['device_state']
         self.__bridge: DeviceBridge = kwargs['device_bridge']
 
-    def get(self) -> List[dict]:
-        self.__state.activate(self.__bridge.state())
+    def get(self):
+        state = self.__bridge.state()
+        self.__state.activate(state['active_slot'])
+        self.__state.mute('0', '0', state['mute'])
+        self.__state.gain('0', '0', state['volume'])
         return self.__state.get()
 
 
@@ -91,38 +114,71 @@ class DeviceSender(Resource):
 
     def put(self, slot):
         payload = request.get_json()
-        if 'id' in payload:
-            id = payload['id']
-            logger.info(f"Sending {id} to Slot {slot}")
-            try:
-                match: Catalogue = next(c for c in self.__catalogue_provider.catalogue if c.idx == id)
-            except Exception as e:
-                logger.exception(f"ID for title not found: {id}")
-                return {'message':'Title not found, please refresh.'}, 400
-            try:
-                self.__bridge.send(slot, match)
-                self.__state.put(slot, match)
-            except Exception as e:
-                logger.exception(f"Failed to write {id} to Slot {slot}")
-                self.__state.error(slot)
-            return self.__state.get(), 200
-        elif 'command' in payload:
+        if 'command' in payload:
             cmd = payload['command']
-            if cmd == 'activate':
+            if cmd == 'load':
+                if 'id' in payload:
+                    id = payload['id']
+                    logger.info(f"Sending {id} to Slot {slot}")
+                    try:
+                        match: Catalogue = next(c for c in self.__catalogue_provider.catalogue if c.idx == id)
+                    except Exception as e:
+                        logger.exception(f"ID for title not found: {id}")
+                        return {'message': 'Title not found, please refresh.'}, 400
+                    try:
+                        self.__bridge.send(slot, match, 'load')
+                        self.__state.put(slot, match)
+                    except Exception as e:
+                        logger.exception(f"Failed to write {id} to Slot {slot}")
+                        self.__state.error(slot)
+                    return self.__state.get(), 200
+            elif cmd == 'activate':
                 logger.info(f"Activating Slot {slot}")
                 try:
-                    self.__bridge.send(slot, True)
+                    self.__bridge.send(slot, True, 'activate')
                     self.__state.activate(slot)
                 except Exception as e:
                     logger.exception(f"Failed to activate Slot {slot}")
                     self.__state.error(slot)
                 return self.__state.get(), 200
+            elif cmd == 'mute':
+                if 'value' in payload:
+                    value = payload['value']
+                    channel = payload['channel'] if 'channel' in payload else None
+                    if value != 'on' and value != 'off':
+                        logger.exception(f"Invalid value for mute: {value}")
+                        return {'message': f"Invalid value for mute: {value}"}, 400
+                    try:
+                        self.__bridge.send(slot, payload, cmd)
+                        self.__state.mute(slot, channel, value == 'on')
+                    except Exception as e:
+                        logger.exception(f"Failed mute channel {slot}")
+                    return self.__state.get(), 200
+            elif cmd == 'gain':
+                if 'value' in payload:
+                    value = payload['value']
+                    channel = payload['channel'] if 'channel' in payload else None
+                    floatValue = round(float(value), 2)
+                    if slot == '0':
+                        if not -127.0 <= floatValue <= 0.0:
+                            logger.exception(f"Invalid value for gain: {value}")
+                            return {'message': f"Invalid value for gain: {value}"}, 400
+                    else:
+                        if not -72.0 <= floatValue <= 12.0:
+                            logger.exception(f"Invalid value for gain: {value}")
+                            return {'message': f"Invalid value for gain: {value}"}, 400
+                    try:
+                        self.__bridge.send(slot, payload, cmd)
+                        self.__state.gain(slot, channel, value)
+                    except Exception as e:
+                        logger.exception(f"Failed to set gain on channel {slot}")
+                    return self.__state.get(), 200
         return self.__state.get(), 404
 
     def delete(self, slot):
         logger.info(f"Clearing Slot {slot}")
         try:
-            self.__bridge.send(slot, None)
+            self.__bridge.send(slot, None, 'clear')
             self.__state.clear(slot)
         except Exception as e:
             logger.exception(f"Failed to clear Slot {slot}")
@@ -137,7 +193,7 @@ class Bridge(ABC):
         pass
 
     @abstractmethod
-    def send(self, slot: str, entry: Union[Optional[Catalogue], bool]):
+    def send(self, slot: str, entry: Union[Optional[Catalogue], bool, dict], command: str):
         pass
 
 
@@ -148,11 +204,11 @@ class DeviceBridge(Bridge):
         if self.__bridge is None:
             raise ValueError('Must have minidsp or HTP1 in confi')
 
-    def state(self) -> Optional[str]:
+    def state(self) -> Optional[dict]:
         return self.__bridge.state()
 
-    def send(self, slot: str, entry: Union[Optional[Catalogue], bool]):
-        return self.__bridge.send(slot, entry)
+    def send(self, slot: str, entry: Union[Optional[Catalogue], bool, dict], command: str):
+        return self.__bridge.send(slot, entry, command)
 
 
 class MinidspBeqCommandGenerator:
@@ -194,6 +250,38 @@ class MinidspBeqCommandGenerator:
     def bypass(channel: int, idx: int, bypass: bool):
         return f"input {channel} peq {idx} bypass {'on' if bypass else 'off'}"
 
+    @staticmethod
+    def mute(state: bool, slot: int, channel: Optional[int], active_slot: Optional[int]):
+        if slot < 0:
+            return [f"mute {state}"]
+        elif channel is not None:
+            if active_slot is None or active_slot != slot:
+                cmds = MinidspBeqCommandGenerator.activate(slot)
+            else:
+                cmds = []
+            if channel == -1:
+                cmds.append(f"input 0 mute {state}")
+                cmds.append(f"input 1 mute {state}")
+            else:
+                cmds.append(f"input {channel} mute {state}")
+            return cmds
+
+    @staticmethod
+    def volume(gain: str, slot: int, channel: Optional[int], active_slot: Optional[int]):
+        if slot < 0:
+            return [f"gain -- {gain}"]
+        elif channel is not None:
+            if active_slot is None or active_slot != slot:
+                cmds = MinidspBeqCommandGenerator.activate(slot)
+            else:
+                cmds = []
+            if channel == -1:
+                cmds.append(f"input 0 gain -- {gain}")
+                cmds.append(f"input 1 gain -- {gain}")
+            else:
+                cmds.append(f"input {channel} gain -- {gain}")
+            return cmds
+
 
 class Minidsp(Bridge):
 
@@ -207,11 +295,11 @@ class Minidsp(Bridge):
         else:
             self.__runner = cmd
 
-    def state(self) -> Optional[str]:
+    def state(self) -> Optional[dict]:
         return self.__executor.submit(self.__get_state).result(timeout=60)
 
-    def __get_state(self) -> Optional[str]:
-        active_slot = None
+    def __get_state(self) -> Optional[dict]:
+        values = {}
         lines = None
         try:
             kwargs = {'retcode': None} if self.__ignore_retcode else {}
@@ -220,24 +308,36 @@ class Minidsp(Bridge):
                 if line.startswith('MasterStatus'):
                     idx = line.find('{ ')
                     if idx > -1:
-                        vals = line[idx+2:-2].split(', ')
+                        vals = line[idx + 2:-2].split(', ')
                         for v in vals:
                             if v.startswith('preset: '):
-                                active_slot = str(int(v[8:]) + 1)
+                                values['active_slot'] = str(int(v[8:]) + 1)
+                            elif v.startswith('mute: '):
+                                values['mute'] = v[6:] == 'true'
+                            elif v.startswith('volume: Gain('):
+                                values['volume'] = v[13:-1]
         except:
             logger.exception(f"Unable to locate active preset in {lines}")
-        return active_slot
+        return values
 
-    def send(self, slot: str, entry: Union[Optional[Catalogue], bool]):
+    def send(self, slot: str, entry: Union[Optional[Catalogue], bool, dict], command: str):
         target_slot_idx = int(slot) - 1
-        if entry is None or isinstance(entry, Catalogue):
-            state = self.state()
-            active_slot = int(state) -1 if state else None
+        state = self.state()
+        active_slot = int(state['active_slot']) - 1 if state['active_slot'] else None
+        channel = int(entry['channel']) - 1 if isinstance(entry, dict) and 'channel' in entry else None
+        if command == 'load' or command == 'clear':
             cmds = MinidspBeqCommandGenerator.filt(entry, target_slot_idx, active_slot)
-        else:
+        elif command == 'activate':
             cmds = MinidspBeqCommandGenerator.activate(target_slot_idx)
+        elif command == 'mute':
+            cmds = MinidspBeqCommandGenerator.mute(entry['value'], target_slot_idx, channel, active_slot)
+        elif command == 'gain':
+            cmds = MinidspBeqCommandGenerator.volume(entry['value'], target_slot_idx, channel, active_slot)
+        else:
+            cmds = []
         with tmp_file(cmds) as file_name:
-            return self.__executor.submit(self.__do_run, self.__runner['-f', file_name], len(cmds), target_slot_idx).result(timeout=60)
+            return self.__executor.submit(self.__do_run, self.__runner['-f', file_name], len(cmds),
+                                          target_slot_idx).result(timeout=60)
 
     def __do_run(self, cmd, count: int, slot: int):
         kwargs = {'retcode': None} if self.__ignore_retcode else {}
@@ -287,10 +387,10 @@ class Htp1(Bridge):
         from ezbeq.htp1 import Htp1Client
         self.__client = Htp1Client(self.__ip, self)
 
-    def state(self) -> Optional[str]:
+    def state(self) -> Optional[dict]:
         pass
 
-    def send(self, slot: str, entry: Union[Optional[Catalogue], bool]):
+    def send(self, slot: str, entry: Union[Optional[Catalogue], bool, dict], command: str):
         if entry is None or isinstance(entry, Catalogue):
             if entry is not None:
                 to_load = [PEQ(idx, fc=f['freq'], q=f['q'], gain=f['gain'], filter_type_name=f['type'])
