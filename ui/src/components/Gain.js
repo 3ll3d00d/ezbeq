@@ -60,7 +60,7 @@ const GainInput = ({fieldName, helpText, minGain, maxGain, step, savedValues, va
                                                 onClick={e => setMute(!values.mute)}
                                                 className={classes.zeroPad}
                                                 color={delta ? 'secondary' : 'default'}>
-                                        {values.mute ? <VolumeOffIcon/> : <VolumeUpIcon/>}
+                                        {values.mute ? <VolumeOffIcon fontSize="small"/> : <VolumeUpIcon fontSize="small"/>}
                                     </IconButton>
                                 </InputAdornment>
                             )
@@ -85,7 +85,7 @@ const Gain = ({selectedSlotId, deviceGains, gains, setGains, sendGains, isActive
             <div className={classes.padTop}>
                 <FormControl component="fieldset">
                     <FormGroup row>
-                        <GainInput fieldName='master-gain' helpText='Master Gain' minGain={-127} maxGain={0} step={0.5}
+                        <GainInput fieldName='master-gain' helpText='Master' minGain={-127} maxGain={0} step={0.5}
                                    savedValues={{mv: deviceGains.master_mv, mute: deviceGains.master_mute}}
                                    values={{mv: gains.master_mv, mute: gains.master_mute}}
                                    setMV={v => setGains({...gains, ...{master_mv: v}})}
@@ -105,7 +105,7 @@ const Gain = ({selectedSlotId, deviceGains, gains, setGains, sendGains, isActive
                                 color="default"
                                 className={classes.sized}
                                 onClick={() => sendGains(selectedSlotId, gains)}
-                                startIcon={isActive() ? <CircularProgress size={24}/> : <PublishIcon/>}>
+                                startIcon={isActive() ? <CircularProgress size={24}/> : <PublishIcon fontSize="small"/>}>
                             Upload
                         </Button>
                     </FormGroup>
