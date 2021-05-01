@@ -109,14 +109,18 @@ class EzBeqService {
     }
 
     setGains = async (slot, gains) => {
-        const payload = [
-            {"channel": "master", "value": `${gains.master_mv}`, "command": "gain"},
-            {"channel": "1", "value": `${gains.inputOne_mv}`, "command": "gain"},
-            {"channel": "2", "value": `${gains.inputTwo_mv}`, "command": "gain"},
-            {"channel": "master", "value": gains.master_mute ? 'on' : 'off', "command": "mute"},
-            {"channel": "1", "value": gains.inputOne_mute ? 'on' : 'off', "command": "mute"},
-            {"channel": "2", "value": gains.inputTwo_mute ? 'on' : 'off', "command": "mute"},
-        ];
+        const payload = [];
+        if (gains.master_mv) {
+            payload.push({"channel": "master", "value": `${gains.master_mv}`, "command": "gain"});
+        }
+        payload.push({"channel": "1", "value": `${gains.inputOne_mv}`, "command": "gain"});
+        payload.push({"channel": "2", "value": `${gains.inputTwo_mv}`, "command": "gain"});
+        if (gains.master_mute) {
+            payload.push({"channel": "master", "value": gains.master_mute ? 'on' : 'off', "command": "mute"});
+        }
+        payload.push({"channel": "1", "value": gains.inputOne_mute ? 'on' : 'off', "command": "mute"});
+        payload.push({"channel": "2", "value": gains.inputTwo_mute ? 'on' : 'off', "command": "mute"});
+
         const response = await fetch(`${API_PREFIX}/device/${slot}`, {
             method: 'PUT',
             body: JSON.stringify(payload),
@@ -129,6 +133,11 @@ class EzBeqService {
             throw new Error(`EzBeq.activateSlot failed, HTTP status ${response.status}`);
         }
         return await response.json();
+    };
+
+    loadWithMV = async (slot, gains, id) => {
+        await this.sendFilter(id, slot);
+        return await this.setGains(slot, gains);
     };
 
     getDeviceConfig = async () => {

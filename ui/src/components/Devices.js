@@ -53,10 +53,9 @@ const Action = ({slotId, onClick, label, Icon, active, disabled = false}) => {
     )
 }
 
-const Devices = ({selectedEntryId, selectedSlotId, useWide, setSelectedSlotId}) => {
+const Devices = ({selectedEntryId, selectedSlotId, useWide, setSelectedSlotId, device, setDevice}) => {
     const classes = useStyles();
 
-    const [device, setDevice] = useState({});
     const [pending, setPending] = useState([]);
     const [dims, setDims] = useState([25, 120, '190px']);
     const [currentGains, setCurrentGains] = useState(defaultGain);

@@ -40,6 +40,8 @@ const App = () => {
     // catalogue data
     const [entries, setEntries] = useState([]);
     const [filteredEntries, setFilteredEntries] = useState([]);
+    // device state
+    const [device, setDevice] = useState({});
     // user selections
     const [selectedAuthors, setSelectedAuthors] = useState([]);
     const [selectedYears, setSelectedYears] = useState([]);
@@ -93,13 +95,16 @@ const App = () => {
     const devices = <Devices selectedEntryId={selectedEntryId}
                              selectedSlotId={selectedSlotId}
                              useWide={useWide}
-                             setSelectedSlotId={setSelectedSlotId}/>;
+                             setSelectedSlotId={setSelectedSlotId}
+                             device={device}
+                             setDevice={setDevice}/>;
     const catalogue = <Catalogue entries={filteredEntries}
                                  setSelectedEntryId={setSelectedEntryId}
                                  selectedEntryId={selectedEntryId}
                                  useWide={useWide}/>;
     const entry = <Entry selectedEntry={selectedEntryId ? filteredEntries.find(e => e.id === selectedEntryId) : null}
-                         useWide={useWide}/>;
+                         useWide={useWide}
+                         setDevice={setDevice}/>;
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline/>
