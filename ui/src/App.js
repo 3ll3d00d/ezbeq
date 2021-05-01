@@ -60,13 +60,24 @@ const App = () => {
     }, []);
 
     useEffect(() => {
+        const txtMatch = e => {
+            if (e.title.toLowerCase().includes(txtFilter.toLowerCase())) {
+                return true;
+            } else if (e.hasOwnProperty('altTitle')) {
+                if (e.altTitle.toLowerCase().includes(txtFilter.toLowerCase())) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         // catalogue filter
         const isMatch = (entry) => {
             if (!selectedAuthors.length || selectedAuthors.indexOf(entry.author) > -1) {
                 if (!selectedYears.length || selectedYears.indexOf(entry.year) > -1) {
                     if (!selectedAudioTypes.length || entry.audioTypes.some(at => selectedAudioTypes.indexOf(at) > -1)) {
                         if (!selectedContentTypes.length || selectedContentTypes.indexOf(entry.contentType) > -1) {
-                            if (!txtFilter || entry.title.toLowerCase().includes(txtFilter.toLowerCase())) {
+                            if (!txtFilter || txtMatch(entry)) {
                                 return true;
                             }
                         }

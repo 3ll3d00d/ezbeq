@@ -48,7 +48,7 @@ class EzBeqService {
     }
 
     search = async (authors = null, years = null, audioTypes = null,
-                    fields = ['author', 'year', 'audioTypes', 'contentType', 'title', 'sortTitle', 'id', 'mvAdjust', 'season', 'episodes', 'images', 'avsUrl', 'beqcUrl', 'edition']) => {
+                    fields = ['author', 'year', 'audioTypes', 'contentType', 'title', 'sortTitle', 'id', 'mvAdjust', 'season', 'episodes', 'images', 'avsUrl', 'beqcUrl', 'edition', 'altTitle']) => {
         const searchUrl = this.appendTo(this.appendTo(this.appendTo(this.appendTo(`${API_PREFIX}/search`, 'authors', authors), 'years', years), 'audioTypes', audioTypes), 'fields', fields);
         const response = await fetch(searchUrl, {
             method: 'GET',

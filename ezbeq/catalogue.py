@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import Optional, List
 
@@ -42,6 +43,7 @@ class Catalogue:
         self.the_movie_db = vals.get('theMovieDB', '')
         self.rating = vals.get('rating', '')
         self.genres = vals.get('genres', [])
+        self.altTitle = vals.get('altTitle', '')
         try:
             r = int(vals.get('runtime', 0))
         except:
@@ -97,6 +99,8 @@ class Catalogue:
             self.for_search['runtime'] = self.runtime
         if self.genres:
             self.for_search['genres'] = self.genres
+        if self.altTitle:
+            self.for_search['altTitle'] = self.altTitle
         self.short_search = {
             'id': self.idx,
             'title': self.title,
@@ -165,10 +169,11 @@ class CatalogueProvider:
         self.__config = config
         self.__catalogue_file = os.path.join(config.config_path, 'database.json')
         self.__catalogue_version_file = os.path.join(config.config_path, 'version.txt')
+        self.__executor = ThreadPoolExecutor(max_workers=1)
         self.__version = None
         self.__loaded_at = None
         self.__catalogue = []
-        self.__reload()
+        self.__executor.submit(self.__reload).result(timeout=60)
 
     def __reload(self):
         logger.info('Reloading catalogue')
@@ -196,7 +201,7 @@ class CatalogueProvider:
 
     @property
     def catalogue(self) -> List[Catalogue]:
-        self.__refresh_catalogue_if_stale()
+        self.__executor.submit(self.__refresh_catalogue_if_stale).result(timeout=60)
         return self.__catalogue
 
     def __refresh_catalogue_if_stale(self):
@@ -300,11 +305,11 @@ class DatabaseDownloader:
     def __init__(self, cached_db_file, cached_version_file):
         self.__cached_db_file = cached_db_file
         self.__cached_version_file = cached_version_file
+        self.__cached_version = ''
         if os.path.exists(self.__cached_version_file):
-            with open(self.__cached_version_file) as f:
-                self.__cached_version = f.read()
-        else:
-            self.__cached_version = ''
+            if os.path.exists(self.__cached_db_file):
+                with open(self.__cached_version_file) as f:
+                    self.__cached_version = f.read()
 
     @property
     def version(self) -> Optional[str]:

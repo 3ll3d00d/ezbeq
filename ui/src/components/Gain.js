@@ -43,7 +43,7 @@ const TightTextField = withStyles({
     }
 })(TextField);
 
-const GainInput = ({fieldName, helpText, minGain, maxGain, savedValues, values, setMV, setMute}) => {
+const GainInput = ({fieldName, helpText, minGain, maxGain, step, savedValues, values, setMV, setMute}) => {
     const classes = useStyles();
     const delta = (parseFloat(values.mv) !== parseFloat(savedValues.mv) || values.mute !== savedValues.mute);
     return (
@@ -69,7 +69,7 @@ const GainInput = ({fieldName, helpText, minGain, maxGain, savedValues, values, 
                             'aria-label': fieldName,
                             min: minGain,
                             max: maxGain,
-                            step: 0.5
+                            step: step
                         }}
                         margin={'dense'}
                         type='number'
@@ -85,17 +85,17 @@ const Gain = ({selectedSlotId, deviceGains, gains, setGains, sendGains, isActive
             <div className={classes.padTop}>
                 <FormControl component="fieldset">
                     <FormGroup row>
-                        <GainInput fieldName='master-gain' helpText='Master Gain' minGain={-127} maxGain={0}
+                        <GainInput fieldName='master-gain' helpText='Master Gain' minGain={-127} maxGain={0} step={0.5}
                                    savedValues={{mv: deviceGains.master_mv, mute: deviceGains.master_mute}}
                                    values={{mv: gains.master_mv, mute: gains.master_mute}}
                                    setMV={v => setGains({...gains, ...{master_mv: v}})}
                                    setMute={v => setGains({...gains, ...{master_mute: v}})}/>
-                        <GainInput fieldName='input1-gain' helpText='Input 1' minGain={-72} maxGain={12}
+                        <GainInput fieldName='input1-gain' helpText='Input 1' minGain={-72} maxGain={12} step={0.25}
                                    savedValues={{mv: deviceGains.inputOne_mv, mute: deviceGains.inputOne_mute}}
                                    values={{mv: gains.inputOne_mv, mute: gains.inputOne_mute}}
                                    setMV={v => setGains({...gains, ...{inputOne_mv: v}})}
                                    setMute={v => setGains({...gains, ...{inputOne_mute: v}})}/>
-                        <GainInput fieldName='input2-gain' helpText='Input 2' minGain={-72} maxGain={12}
+                        <GainInput fieldName='input2-gain' helpText='Input 2' minGain={-72} maxGain={12} step={0.25}
                                    savedValues={{mv: deviceGains.inputTwo_mv, mute: deviceGains.inputTwo_mute}}
                                    values={{mv: gains.inputTwo_mv, mute: gains.inputTwo_mute}}
                                    setMV={v => setGains({...gains, ...{inputTwo_mv: v}})}
