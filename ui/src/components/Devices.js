@@ -1,4 +1,4 @@
-import {CircularProgress, Grid, IconButton} from "@material-ui/core";
+import {CircularProgress, ClickAwayListener, Grid, IconButton} from "@material-ui/core";
 import {DataGrid} from "@material-ui/data-grid";
 import React, {useEffect, useState} from "react";
 import {makeStyles} from "@material-ui/core/styles";
@@ -7,6 +7,7 @@ import PlayArrowIcon from "@material-ui/icons/PlayArrow";
 import ClearIcon from "@material-ui/icons/Clear";
 import ezbeq from "../services/ezbeq";
 import {pushData} from "../services/util";
+import Gain from "./Gain";
 
 const useStyles = makeStyles((theme) => ({
     noLeft: {
@@ -15,8 +16,17 @@ const useStyles = makeStyles((theme) => ({
     progress: {
         marginTop: '12px',
         marginRight: '12px'
+    },
+    fullWidth: {
+        width: '100%'
     }
 }));
+
+const defaultGain = {
+    master_mv: 0.0, master_mute: false,
+    inputOne_mv: 0.0, inputOne_mute: false,
+    inputTwo_mv: 0.0, inputTwo_mute: false
+};
 
 const getCurrentState = (active, label, slotId) => {
     const match = active.find(a => a.slotId === slotId && a.action === label);
@@ -43,11 +53,14 @@ const Action = ({slotId, onClick, label, Icon, active, disabled = false}) => {
     )
 }
 
-const Devices = ({selectedEntryId, useWide}) => {
+const Devices = ({selectedEntryId, selectedSlotId, useWide, setSelectedSlotId}) => {
+    const classes = useStyles();
 
     const [device, setDevice] = useState({});
     const [pending, setPending] = useState([]);
     const [dims, setDims] = useState([25, 120, '190px']);
+    const [currentGains, setCurrentGains] = useState(defaultGain);
+    const [deviceGains, setDeviceGains] = useState({});
 
     useEffect(() => {
         pushData(setDevice, ezbeq.getDeviceConfig);
@@ -58,6 +71,24 @@ const Devices = ({selectedEntryId, useWide}) => {
             setDims([75, 90, '80px']);
         }
     }, [device])
+
+    // reset gain on slot (de)select or device update
+    useEffect(() => {
+        const gain = {...defaultGain};
+        gain.master_mv = device.masterVolume;
+        gain.master_mute = device.mute;
+        if (selectedSlotId > 0 && device && device.hasOwnProperty('slots')) {
+            const slot = device.slots.find(s => s.id === selectedSlotId);
+            if (slot) {
+                gain.inputOne_mute = slot.mute1;
+                gain.inputTwo_mute = slot.mute2;
+                gain.inputOne_mv = slot.gain1;
+                gain.inputTwo_mv = slot.gain2;
+            }
+        }
+        setDeviceGains(gain);
+        setCurrentGains(gain);
+    }, [device, selectedSlotId]);
 
     const trackDeviceUpdate = async (action, slotId, valProvider) => {
         setPending(u => [{slotId, action, state: 1}].concat(u));
@@ -77,8 +108,12 @@ const Devices = ({selectedEntryId, useWide}) => {
         }
     };
 
+    const sendGainToDevice = (slotId, gains) => {
+        trackDeviceUpdate('gain', slotId, () => ezbeq.setGains(slotId, gains));
+    };
+
     const sendToDevice = (entryId, slotId) => {
-        trackDeviceUpdate('send', slotId, () => ezbeq.sendFilter(entryId, slotId))
+        trackDeviceUpdate('send', slotId, () => ezbeq.sendFilter(entryId, slotId));
     };
 
     const clearDeviceSlot = (slotId) => {
@@ -138,15 +173,53 @@ const Devices = ({selectedEntryId, useWide}) => {
             hide: true
         }
     ];
-    const grid =
+    const devices =
         <Grid item style={{height: dims[2], width: '100%'}}>
             <DataGrid rows={"slots" in device ? device.slots : []}
-                           columns={deviceGridColumns}
-                           autoPageSize
-                           hideFooter
-                           density={'compact'}/>
+                      columns={deviceGridColumns}
+                      autoPageSize
+                      hideFooter
+                      density={'compact'}
+                      onRowSelected={p => setSelectedSlotId(p.data.id)}/>
         </Grid>;
-    return useWide ? grid : <Grid container direction={'column'}>{grid}</Grid>;
+
+    if (device && device.hasOwnProperty('masterVolume')) {
+        const gain = <Gain selectedSlotId={selectedSlotId}
+                           deviceGains={deviceGains}
+                           gains={currentGains}
+                           setGains={setCurrentGains}
+                           sendGains={sendGainToDevice}
+                           isActive={() => getCurrentState(pending, 'gain', selectedSlotId) === 1} />;
+        if (useWide) {
+            return (
+                <ClickAwayListener onClickAway={() => setSelectedSlotId(-1)}>
+                    <div className={classes.fullWidth}>
+                        <Grid container>
+                            {devices}
+                        </Grid>
+                        <Grid container>
+                            {gain}
+                        </Grid>
+                    </div>
+                </ClickAwayListener>
+            );
+        } else {
+            return (
+                <ClickAwayListener onClickAway={() => setSelectedSlotId(-1)}>
+                    <div className={classes.fullWidth}>
+                        <Grid container direction={'column'}>{devices}</Grid>
+                        <Grid container direction={'column'}>{gain}</Grid>
+                    </div>
+                </ClickAwayListener>
+            );
+        }
+    } else {
+        if (useWide) {
+            return <Grid container>{devices}</Grid>;
+        } else {
+            return <Grid container direction={'column'}>{devices}</Grid>;
+        }
+    }
 }
 
 export default Devices;

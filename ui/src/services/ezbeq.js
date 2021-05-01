@@ -108,6 +108,29 @@ class EzBeqService {
         return await response.json();
     }
 
+    setGains = async (slot, gains) => {
+        const payload = [
+            {"channel": "master", "value": `${gains.master_mv}`, "command": "gain"},
+            {"channel": "1", "value": `${gains.inputOne_mv}`, "command": "gain"},
+            {"channel": "2", "value": `${gains.inputTwo_mv}`, "command": "gain"},
+            {"channel": "master", "value": gains.master_mute ? 'on' : 'off', "command": "mute"},
+            {"channel": "1", "value": gains.inputOne_mute ? 'on' : 'off', "command": "mute"},
+            {"channel": "2", "value": gains.inputTwo_mute ? 'on' : 'off', "command": "mute"},
+        ];
+        const response = await fetch(`${API_PREFIX}/device/${slot}`, {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+        });
+        if (!response.ok) {
+            throw new Error(`EzBeq.activateSlot failed, HTTP status ${response.status}`);
+        }
+        return await response.json();
+    };
+
     getDeviceConfig = async () => {
         return this.doGet('devices');
     }

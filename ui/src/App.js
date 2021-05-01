@@ -48,6 +48,7 @@ const App = () => {
     const [txtFilter, handleTxtFilterChange] = useValueChange('');
     const [showFilters, setShowFilters] = useState(false);
     const [selectedEntryId, setSelectedEntryId] = useState(-1);
+    const [selectedSlotId, setSelectedSlotId] = useState(-1);
 
     const toggleShowFilters = () => {
         setShowFilters((prev) => !prev);
@@ -77,12 +78,16 @@ const App = () => {
         pushData(setFilteredEntries, () => entries.filter(isMatch));
     }, [entries, selectedAudioTypes, selectedYears, selectedAuthors, selectedContentTypes, txtFilter]);
     const useWide = useMediaQuery('(orientation: landscape) and (min-height: 580px)');
-    const devices = <Devices selectedEntryId={selectedEntryId} useWide={useWide}/>;
+    const devices = <Devices selectedEntryId={selectedEntryId}
+                             selectedSlotId={selectedSlotId}
+                             useWide={useWide}
+                             setSelectedSlotId={setSelectedSlotId}/>;
     const catalogue = <Catalogue entries={filteredEntries}
                                  setSelectedEntryId={setSelectedEntryId}
                                  selectedEntryId={selectedEntryId}
                                  useWide={useWide}/>;
-    const entry = <Entry selectedEntry={selectedEntryId ? filteredEntries.find(e => e.id === selectedEntryId) : null} useWide={useWide}/>;
+    const entry = <Entry selectedEntry={selectedEntryId ? filteredEntries.find(e => e.id === selectedEntryId) : null}
+                         useWide={useWide}/>;
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline/>
@@ -106,9 +111,7 @@ const App = () => {
                         ?
                         <Grid container>
                             <Grid item xs={6} md={6}>
-                                <Grid container>
-                                    {devices}
-                                </Grid>
+                                {devices}
                                 <Grid container>
                                     {catalogue}
                                 </Grid>
@@ -119,9 +122,9 @@ const App = () => {
                         </Grid>
                         :
                         <>
-                        {devices}
-                        {catalogue}
-                        {entry}
+                            {devices}
+                            {catalogue}
+                            {entry}
                         </>
                 }
                 <Footer/>

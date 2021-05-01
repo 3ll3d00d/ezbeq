@@ -27,9 +27,9 @@ def get_channels(cfg: Config) -> List[str]:
 class DeviceState:
 
     def __init__(self, cfg: Config):
-        self.__state = [{'id': id, 'last': 'Empty', 'gain1': '0.0', 'gain2': '0.0', 'mute1': False, 'mute2': False} for
-                        id in get_channels(cfg)]
         self.__can_activate = cfg.minidsp_exe is not None
+        default_gain = {'gain1': '0.0', 'gain2': '0.0', 'mute1': False, 'mute2': False} if self.__can_activate else {}
+        self.__state = [{**default_gain, 'id': id, 'last': 'Empty'} for id in get_channels(cfg)]
         self.__file_name = os.path.join(cfg.config_path, 'device.json')
         self.__active_slot = None
         self.__master_volume = None
@@ -37,10 +37,10 @@ class DeviceState:
         if os.path.exists(self.__file_name):
             with open(self.__file_name, 'r') as f:
                 j = json.load(f)
-                saved_ids = {v['id'] for v in j}
-                current_ids = {v['id'] for v in self.__state}
-                if saved_ids == current_ids:
-                    self.__state = j
+                saved = {v['id']: v for v in j}
+                current = {v['id']: v for v in self.__state}
+                if saved.keys() == current.keys():
+                    self.__state = [{**current[k], **v} for k, v in saved.items()]
                     logger.info(f"Loaded {self.__state} from {self.__file_name}")
                 else:
                     logger.warning(f"Discarded {j} from {self.__file_name}, does not match {self.__state}")
@@ -86,8 +86,12 @@ class DeviceState:
         } for s in self.__state]}
         if self.__mute is not None:
             values['mute'] = self.__mute
+        elif self.__can_activate:
+            values['mute'] = False
         if self.__master_volume is not None:
             values['masterVolume'] = self.__master_volume
+        elif self.__can_activate:
+            values['masterVolume'] = 0.0
         return values
 
 
@@ -99,9 +103,10 @@ class Devices(Resource):
 
     def get(self):
         state = self.__bridge.state()
-        self.__state.activate(state['active_slot'])
-        self.__state.mute('0', '0', state['mute'])
-        self.__state.gain('0', '0', state['volume'])
+        if self.__bridge.supports_gain():
+            self.__state.activate(state['active_slot'])
+            self.__state.mute('0', '0', state['mute'])
+            self.__state.gain('0', '0', state['volume'])
         return self.__state.get()
 
 
@@ -113,7 +118,30 @@ class DeviceSender(Resource):
         self.__state: DeviceState = kwargs['device_state']
 
     def put(self, slot):
+        '''
+        Handles update commands for the device. The following rules apply
+        * slot is a string in the 1-4 range representing minidsp config slots except for mute/gain commands which translate 0 to the master controls
+        * command is one of load, activate, mute, gain
+        * the payload may be a single dict or a list of dicts (for multiple commands)
+        * mute: requires channel and value where channel is 0 (meaning 1 and 2), 1 or 2 and refers to the input channel, value is on or off
+        * gain: requires channel and value where channel is 0 (meaning 1 and 2), 1 or 2 and refers to the input channel, value is the dB level to set
+        * activate: requires no further data
+        * load: requires id which refers to catalogue.id
+        * mute and gain also accept channel = master which is used to override the provided slot and target the command at the master controls
+        :param slot: the slot to target.
+        :return: the device state, http status code.
+        '''
         payload = request.get_json()
+        if isinstance(payload, list):
+            result = None
+            for p in payload:
+                result, _ = self.__handle_command(slot, p)
+            return self.__state.get(), 200 if result else 500
+        elif isinstance(payload, dict):
+            return self.__handle_command(slot, payload)
+        return self.__state.get(), 404
+
+    def __handle_command(self, slot: str, payload: dict):
         if 'command' in payload:
             cmd = payload['command']
             if cmd == 'load':
@@ -127,11 +155,14 @@ class DeviceSender(Resource):
             elif cmd == 'gain':
                 if 'value' in payload:
                     return self.__handle_gain(payload, slot, cmd)
-        return self.__state.get(), 404
+        return None, 400
 
     def __handle_gain(self, payload, slot, cmd):
         value = payload['value']
         channel = payload['channel'] if 'channel' in payload else None
+        if channel == 'master':
+            slot = '0'
+            del payload['channel']
         float_value = round(float(value), 2)
         if slot == '0':
             if not -127.0 <= float_value <= 0.0:
@@ -177,6 +208,9 @@ class DeviceSender(Resource):
     def __handle_mute(self, payload, slot, cmd):
         value = payload['value']
         channel = payload['channel'] if 'channel' in payload else None
+        if channel == 'master':
+            slot = '0'
+            del payload['channel']
         if value != 'on' and value != 'off':
             logger.exception(f"Invalid value for mute: {value}")
             return {'message': f"Invalid value for mute: {value}"}, 400
@@ -216,6 +250,9 @@ class DeviceBridge(Bridge):
         self.__bridge = Minidsp(cfg) if cfg.minidsp_exe else Htp1(cfg) if cfg.htp1_options else None
         if self.__bridge is None:
             raise ValueError('Must have minidsp or HTP1 in confi')
+
+    def supports_gain(self):
+        return isinstance(self.__bridge, Minidsp)
 
     def state(self) -> Optional[dict]:
         return self.__bridge.state()

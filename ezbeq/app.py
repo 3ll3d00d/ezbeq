@@ -1,14 +1,14 @@
-import faulthandler
 import os
 from os import path
 
+import faulthandler
 from flask import Flask
-from flask_restful import Api
 from flask_compress import Compress
+from flask_restful import Api
 
 from ezbeq.catalogue import CatalogueProvider, Authors, Years, AudioTypes, CatalogueSearch, CatalogueMeta, ContentTypes
 from ezbeq.config import Config, Version
-from ezbeq.device import DeviceSender, Minidsp, Devices, DeviceState, DeviceBridge
+from ezbeq.device import DeviceSender, Devices, DeviceState, DeviceBridge
 
 API_PREFIX = '/api/1'
 
