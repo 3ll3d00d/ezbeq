@@ -61,10 +61,11 @@ const App = () => {
 
     useEffect(() => {
         const txtMatch = e => {
-            if (e.title.toLowerCase().includes(txtFilter.toLowerCase())) {
+            const matchOn = txtFilter.toLowerCase()
+            if (e.title.toLowerCase().includes(matchOn)) {
                 return true;
             } else if (e.hasOwnProperty('altTitle')) {
-                if (e.altTitle.toLowerCase().includes(txtFilter.toLowerCase())) {
+                if (e.altTitle.toLowerCase().includes(matchOn)) {
                     return true;
                 }
             }

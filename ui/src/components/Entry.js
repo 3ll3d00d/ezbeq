@@ -68,6 +68,15 @@ const Entry = ({selectedEntry, useWide}) => {
                         :
                         null
                 }
+                {
+                    selectedEntry.altTitle
+                        ?
+                        <Typography variant="body1" component="p">
+                            {selectedEntry.altTitle}
+                        </Typography>
+                        :
+                        null
+                }
                 <Typography variant="body2" color="textSecondary" component="p">
                     {formatTV(selectedEntry)}
                     {formatAudioTypes(selectedEntry)}
