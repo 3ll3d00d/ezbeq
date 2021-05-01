@@ -62,6 +62,10 @@ const App = () => {
     }, []);
 
     useEffect(() => {
+        pushData(setDevice, ezbeq.getDeviceConfig);
+    }, []);
+
+    useEffect(() => {
         const txtMatch = e => {
             const matchOn = txtFilter.toLowerCase()
             if (e.title.toLowerCase().includes(matchOn)) {

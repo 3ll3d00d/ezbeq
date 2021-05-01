@@ -6,7 +6,6 @@ import PublishIcon from '@material-ui/icons/Publish';
 import PlayArrowIcon from "@material-ui/icons/PlayArrow";
 import ClearIcon from "@material-ui/icons/Clear";
 import ezbeq from "../services/ezbeq";
-import {pushData} from "../services/util";
 import Gain from "./Gain";
 
 const useStyles = makeStyles((theme) => ({
@@ -60,10 +59,6 @@ const Devices = ({selectedEntryId, selectedSlotId, useWide, setSelectedSlotId, d
     const [dims, setDims] = useState([25, 120, '190px']);
     const [currentGains, setCurrentGains] = useState(defaultGain);
     const [deviceGains, setDeviceGains] = useState({});
-
-    useEffect(() => {
-        pushData(setDevice, ezbeq.getDeviceConfig);
-    }, []);
 
     useEffect(() => {
         if ("slots" in device && device.slots.length === 1) {
