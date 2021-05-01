@@ -143,6 +143,8 @@ sudo journalctl -u ezbeq.service
 sudo shutdown -r now
 ```
 
+## Updating the applications
+
 ### Updating minidsp-rs
 
 Updating minidsp-rs is the same process outline in section I above.
@@ -150,29 +152,109 @@ Updating minidsp-rs is the same process outline in section I above.
 1\. Open a shell on the RPi, either locally, or via SSH.
 
 2\. Download the latest Arm .deb package from [https://github.com/mrene/minidsp-rs/releases](https://github.com/mrene/minidsp-rs/releases)
-Example: `wget https://github.com/mrene/minidsp-rs/releases/download/v0.0.5/minidsp_0.0.5_armhf.deb`
+
+Example:
+```
+wget https://github.com/mrene/minidsp-rs/releases/download/v0.0.5/minidsp_0.0.5_armhf.deb
+```
 
 3\. Install the .deb package using the following command: `sudo apt install ./<filename>`
-Example: `sudo apt install ./minidsp_0.0.5_armhf.deb`
+
+Example: 
+```
+sudo apt install ./minidsp_0.0.5_armhf.deb
+```
 
 ### Updating ezbeq
 
-Updating ezbeq follows a similar approach as the initial install, with an extra flag.
+Updating ezbeq follows a similar approach as the initial install.
 
-1\. Open a shell on the RPi, either locally, or via SSH.
+1\. Open a shell/terminal on the RPi, either locally, or via SSH.
 
-2\. Run the following commands:
+2\. If running ezbeq as a service, stop the service.
 ```
-cd python
+sudo systemctl stop ezbeq.service
+```
+
+3\. Run the following commands:
+```
+cd ~/python
+rm -Rf ezbeq
+python3 -m venv ezbeq
 cd ezbeq
 . bin/activate
-pip install --upgrade ezbeq
+pip install -U ezbeq
 ```
 
-3\. If ezbeq is configured to run on boot (section III), restart the ezbeq service to ensure the update takes effect:
+4\. If ezbeq is configured to run on boot (section III), restart the ezbeq service to ensure the update takes effect:
 ```
-sudo service ezbeq restart
+sudo systemctl start ezbeq.service
 ```
+
+## Advanced Configuration Option
+
+minidsp-rs can be run in "server mode", which makes it run all of the time in the background. In this configuration, it allows the proprietary MiniDSP application, the MiniDSP Android/iOS Apps, and ezbeq to all connect to the MiniDSP hardware. It can basically act like a Wi-Dg and provide access to the MiniDSP hardware over the network.
+
+When run in this mode, the ezbeq configuration file must be modified as well. These advanced instructions assume that ezbeq is running as a service, per the earlier sections of the guide.
+
+### Configure minidsp-rs to run as a service
+
+If minidsp-rs was installed using the provided Debian packages found in this guide, two commands needed to be run.
+
+1\. Enable the service.
+```
+sudo systemctl enable minidsp.service
+```
+
+2\. Start the service (which will now also start on server restart).
+```
+sudo systemctl start minidsp.service
+```
+
+3\. minidsp-rs commands must now use the --tcp flag to connect to the already running server instance. To test, execute the following:
+```
+minidsp --tcp 127.0.0.1
+```
+
+This should result in the standard results showing the volume levels and current configuration slot.
+
+### Modify ezbeq configuration for minidsp-rs service
+
+The ezbeq configuration file must be updated to use the --tcp flag as well.
+
+1\. Stop the ezbeq service.
+```
+sudo systemctl stop ezbeq.service
+```
+
+2\. Open the ezbeq configuration file in a text editor (nano is used below, can also use pico, vi, etc).
+```
+nano ~/.ezbeq/ezbeq.yml
+```
+
+3\. Add the following line to the config, and save (To save in nano, press Ctrl-O, which will prompt for a name of the file, press enter to accept the default, then Ctrl-X to exit the editor.)
+```
+minidspOptions: --tcp 127.0.0.1
+```
+
+Please note that there are two dashes before tcp.
+
+4\. Restart the ezbeq service.
+```
+sudo systemctl start ezbeq.service
+```
+
+5\. Connect to the ezbeq web interface and validate functionality.
+
+### Using the Official MiniDSP App(s)
+
+At this point, with minidsp-rs running in server mode, the official MiniDSP plugin (app) can also be used. Assuming it is being run from a different machine, enter the IP address of the minidsp-rs server in the IP field of the application. Note that the automatic detection of the IP does not usually work, so the IP needs to be entered manually.
+
+The official MiniDSP Android and iOS applications will also work in this manner (manually entering the IP address of the minidsp-rs server instance).
+
+This allows for the official applications to work in conjunction with ezbeq, without needing to move the USB connection to different devices.
+
+Reminder - ezbeq applies BEQ settings to the INPUT side of the MiniDSP. Any house settings (house curve, crossovers, etc) should be applied on the OUTPUT side.
 
 ## Which Raspberry Pi should I buy?
 
@@ -180,7 +262,7 @@ This question has been asked a few times. The biggest key to a successful Raspbe
 
 For North American users, kits from CanaKit ([https://canakit.com](https://canakit.com)) have been recommended by some users. Note that this is not an endorsement of their product, nor is there any affiliation with this company.
 
-The software has been run on Pi3 successfully, and should also run on Pi4.
+The software has been run on Pi3, Pi4, and PiZero, with the Pi4 being generally recommended.
 
 ## A few other notes.
 
