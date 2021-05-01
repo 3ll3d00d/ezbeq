@@ -266,6 +266,16 @@ NOTE: This configuration assumes that minidsp-rs and ezbeq are running on the sa
 
 5\. Load the ezbeq webpage from a browser, and validate that it is working properly.
 
+### Using the Official MiniDSP App(s)
+
+At this point, with minidsp-rs running in server mode, the official MiniDSP plugin (app) can also be used. Assuming it is being run from a different machine, enter the IP address of the minidsp-rs server in the IP field of the application. Note that the automatic detection of the IP does not usually work, so the IP needs to be entered manually.
+
+The official MiniDSP Android and iOS applications will also work in this manner (manually entering the IP address of the minidsp-rs server instance).
+
+This allows for the official applications to work in conjunction with ezbeq, without needing to move the USB connection to different devices.
+
+Reminder - ezbeq applies BEQ settings to the INPUT side of the MiniDSP. Any house settings (house curve, crossovers, etc) should be applied on the OUTPUT side.
+
 ## Troubleshooting
 
 If attempting to access the site from a remote computer (still on the same internal network) and it is not working, but works when logged in locally, verify that the network is configured as "private", and not "public".
