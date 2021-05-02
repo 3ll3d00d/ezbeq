@@ -274,6 +274,8 @@ The official MiniDSP Android and iOS applications will also work in this manner 
 
 This allows for the official applications to work in conjunction with ezbeq, without needing to move the USB connection to different devices.
 
+Note - Do NOT have the official MiniDSP plugin in Connected state at the same time as trying to use ezbeq. It will typically generate an ERROR.
+
 Reminder - ezbeq applies BEQ settings to the INPUT side of the MiniDSP. Any house settings (house curve, crossovers, etc) should be applied on the OUTPUT side.
 
 ## Troubleshooting
