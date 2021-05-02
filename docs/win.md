@@ -10,7 +10,7 @@ NOTE – ezbeq and minidsp-rs will be modifying the INPUT settings of the MiniDS
 
 ## Installation Steps
 
-As of 4/22/2021, the installation steps have been simplified greatly. The steps below do not require any extra software besides the minidsp-rs and ezbeq binaries.
+As of 4/22/2021, the installation steps have been simplified greatly. The steps below do not require any extra software besides the minidsp-rs, ezbeq, and VC++ Redistributable binaries.
 
 ### Download and decompress minidsp-rs
 
@@ -82,37 +82,45 @@ Click "Keep Anyway"
 
 ![Defender firewall](./img/win16.png)
 
-7\. Close the Command prompt window in which ezbeq is running.
+7\. If a Command Prompt opens and then closes quickly, the VC++ Redistributable is probably not installed. 
 
-8\. Navigate to the user home folder, and then double-click on the newly created .ezbeq folder.
+Download the current VC++ redist file from Microsoft:
+- 64 bit (most users): [https://aka.ms/vs/16/release/VC_redist.x64.exe](https://aka.ms/vs/16/release/VC_redist.x64.exe)
+- 32 bit (very old systems): [https://aka.ms/vs/16/release/VC_redist.x86.exe](https://aka.ms/vs/16/release/VC_redist.x86.exe)
+
+Run the installer. When complete, re-launch ezbeq, which should now open a Command prompt window and stay running.
+
+8\. Close the Command prompt window in which ezbeq is running.
+
+9\. Navigate to the user home folder, and then double-click on the newly created .ezbeq folder.
 
 ![Windows explorer](./img/win17.png)
 
-9\. Double-click on the ezbeq.yml file.
+10\. Double-click on the ezbeq.yml file.
 
 ![Windows explorer .ezbeq folder](./img/win18.png)
 
-10\. Double-click on the file, click More Apps, choosing Notepad to open the file (or the preferred text editor).
+11\. Double-click on the file, click More Apps, choosing Notepad to open the file (or the preferred text editor).
 
 ![Unknown file dialog](./img/win19.png)
 
 ![Unknown file dialog2](./img/win20.png)
 
-11\. Initial configuration file example
+12\. Initial configuration file example
 
 ![Example of config file](./img/win21.png)
 
-12\. Host will be the name of the system. Change the "minidspExe" line to the location where the minidsp.exe was placed initially. Save the file.
+13\. Host will be the name of the system. Change the "minidspExe" line to the location where the minidsp.exe was placed initially. Save the file.
 
 NOTE: Ensure that .exe is added to the end as well, or it won't work correctly.
 
 ![ezbeq configuration file update](./img/win22.png)
 
-13\. Return to the Windows File Explorer window, and double-click on the ezbeq.exe file again. This will open a command prompt and the application will be running.
+14\. Return to the Windows File Explorer window, and double-click on the ezbeq.exe file again. This will open a command prompt and the application will be running.
 
 ![Run ezbeq again](./img/win23.png)
 
-14\. ezbeq runs on port 8080 of the system by default. Open a web browser and connect to the system on port 8080. Note that the web server is not encrypted, so the URL must be entered as http, otherwise most current browsers will automatically try to connect using HTTPS (secured) and fail.
+15\. ezbeq runs on port 8080 of the system by default. Open a web browser and connect to the system on port 8080. Note that the web server is not encrypted, so the URL must be entered as http, otherwise most current browsers will automatically try to connect using HTTPS (secured) and fail.
 
 Open a browser window to `http://127.0.0.1:8080`
 
@@ -120,7 +128,7 @@ Open a browser window to `http://127.0.0.1:8080`
 
 ![Example of ezbeq interface](./img/win24.png)
 
-11\. Verify that an asterisk (\*) is next to one of the slot numbers (1-4). This indicates that ezbeq was able to read the active config slot from the MiniDSP, and that everything is ready to go.
+16\. Verify that an asterisk (\*) is next to one of the slot numbers (1-4). This indicates that ezbeq was able to read the active config slot from the MiniDSP, and that everything is ready to go.
 
 Once ezbeq is installed, it can be run manually from a Command Prompt or Powershell (`C:\Users\<userid>\ezbeq.exe`), double-click on the executable, or continue to the next section to start ezbeq automatically upon system boot.
 
