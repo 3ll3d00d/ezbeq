@@ -22,6 +22,41 @@ const useStyles = makeStyles({
     root: {}
 });
 
+const formatExtraMeta = entry => {
+    const extras = []
+    if (entry.rating) {
+        extras.push(entry.rating);
+    }
+    if (entry.runtime) {
+        extras.push(`${Math.floor(entry.runtime / 60)}h ${entry.runtime % 60}m`);
+    }
+    if (entry.genres) {
+        extras.push(entry.genres.join(', '));
+    }
+    if (extras || entry.overview) {
+        return <>
+            {
+                extras
+                    ?
+                    <Typography variant="body1" component="p">
+                        {extras.join(' \u2022 ')}
+                    </Typography>
+                    : null
+            }
+            {
+                entry.overview
+                    ?
+                    <Typography variant="body2" component="p">
+                        {entry.overview}
+                    </Typography>
+                    : null
+            }
+        </>;
+    } else {
+        return null;
+    }
+}
+
 const formatAudioTypes = entry => {
     if (entry && entry.audioTypes) {
         return entry.audioTypes.map(a => <span key={a}><br/>{a}</span>);
@@ -108,20 +143,23 @@ const Entry = ({selectedEntry, useWide, setDevice}) => {
                 {
                     selectedEntry.edition
                         ?
-                        <Typography variant="body1" component="p">
+                        <Typography variant="h6" component="p">
                             {selectedEntry.edition}
                         </Typography>
                         :
                         null
                 }
                 {
-                    selectedEntry.altTitle
+                    selectedEntry.altTitle && selectedEntry.altTitle !== selectedEntry.title
                         ?
-                        <Typography variant="body1" component="p">
+                        <Typography variant="h6" component="p">
                             {selectedEntry.altTitle}
                         </Typography>
                         :
                         null
+                }
+                {
+                    formatExtraMeta(selectedEntry)
                 }
                 <Typography variant="body2" color="textSecondary" component="p">
                     {formatTV(selectedEntry)}
@@ -154,36 +192,44 @@ const Entry = ({selectedEntry, useWide, setDevice}) => {
                     </Button>
                 </FormGroup>
             </CardContent>;
+        const actions =
+            <CardActions>
+            {
+                selectedEntry.theMovieDB
+                    ? <Button size="small"
+                              color="primary"
+                              href={`https://themoviedb.org/movie/${selectedEntry.theMovieDB}`}
+                              target='_avs'>TMDb</Button>
+                    : null
+            }
+            {
+                selectedEntry.avsUrl
+                    ? <Button size="small" color="primary" href={selectedEntry.avsUrl}
+                              target='_avs'>Discuss</Button>
+                    : null
+            }
+            {
+                selectedEntry.beqcUrl
+                    ? <Button size="small" color="primary" href={selectedEntry.beqcUrl}
+                              target='_beq'>Catalogue</Button>
+                    : null
+            }
+        </CardActions>;
         const actionArea = useWide
             ?
             <CardActionArea>
                 {content}
+                {actions}
                 {images}
             </CardActionArea>
             :
             <CardActionArea>
                 {images}
                 {content}
+                {actions}
             </CardActionArea>;
-        return (
-            <Card className={classes.root}>
-                {actionArea}
-                <CardActions>
-                    {
-                        selectedEntry.avsUrl
-                            ? <Button size="small" color="primary" href={selectedEntry.avsUrl}
-                                      target='_avs'>Discuss</Button>
-                            : null
-                    }
-                    {
-                        selectedEntry.beqcUrl
-                            ? <Button size="small" color="primary" href={selectedEntry.beqcUrl}
-                                      target='_beq'>Catalogue</Button>
-                            : null
-                    }
-                </CardActions>
-            </Card>
-        );
+
+        return <Card className={classes.root}>{actionArea}</Card>;
     } else {
         return null;
     }
