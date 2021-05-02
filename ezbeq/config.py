@@ -171,7 +171,7 @@ class Version(Resource):
     def __init__(self, **kwargs):
         if getattr(sys, 'frozen', False):
             # pyinstaller lets you copy files to arbitrary locations under the _MEIPASS root dir
-            root = os.path.join(sys._MEIPASS, 'ui')
+            root = os.path.join(sys._MEIPASS)
         else:
             root = os.path.dirname(__file__)
         v_name = os.path.join(root, 'VERSION')
