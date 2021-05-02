@@ -104,9 +104,12 @@ class Devices(Resource):
     def get(self):
         state = self.__bridge.state()
         if self.__bridge.supports_gain():
-            self.__state.activate(state['active_slot'])
-            self.__state.mute('0', '0', state['mute'])
-            self.__state.gain('0', '0', state['volume'])
+            if 'active_slot' in state:
+                self.__state.activate(state['active_slot'])
+            if 'mute' in state:
+                self.__state.mute('0', '0', state['mute'])
+            if 'volume' in state:
+                self.__state.gain('0', '0', state['volume'])
         return self.__state.get()
 
 

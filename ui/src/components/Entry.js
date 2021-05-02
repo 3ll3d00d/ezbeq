@@ -30,6 +30,9 @@ const formatExtraMeta = entry => {
     if (entry.runtime) {
         extras.push(`${Math.floor(entry.runtime / 60)}h ${entry.runtime % 60}m`);
     }
+    if (entry.language && entry.language !== 'English') {
+        extras.push(entry.language);
+    }
     if (entry.genres) {
         extras.push(entry.genres.join(', '));
     }
