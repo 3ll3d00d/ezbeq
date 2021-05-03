@@ -92,7 +92,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=myuser
+User=pi
 WorkingDirectory=/home/pi
 ExecStart=/home/pi/python/ezbeq/bin/ezbeq
 Restart=always
