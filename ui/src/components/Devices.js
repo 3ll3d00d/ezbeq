@@ -114,6 +114,10 @@ const Devices = ({selectedEntryId, selectedSlotId, useWide, setSelectedSlotId, d
         trackDeviceUpdate('clear', slotId, () => ezbeq.clearSlot(slotId));
     };
 
+    const resetGains = (slotId) => {
+        trackDeviceUpdate('clear', slotId, () => ezbeq.resetInputGain(slotId));
+    };
+
     const activateSlot = (slotId) => {
         trackDeviceUpdate('activate', slotId, () => ezbeq.activateSlot(slotId));
     };
@@ -149,7 +153,13 @@ const Devices = ({selectedEntryId, selectedSlotId, useWide, setSelectedSlotId, d
                             : null
                     }
                     <Action slotId={params.row.id}
-                            onClick={() => clearDeviceSlot(params.row.id)}
+                            onClick={() => {
+                                if (params.row.last === 'Empty') {
+                                    resetGains(params.row.id);
+                                } else {
+                                    clearDeviceSlot(params.row.id);
+                                }
+                            }}
                             label={'clear'}
                             Icon={ClearIcon}
                             active={pending}/>
@@ -186,25 +196,21 @@ const Devices = ({selectedEntryId, selectedSlotId, useWide, setSelectedSlotId, d
                            isActive={() => getCurrentState(pending, 'gain', selectedSlotId) === 1} />;
         if (useWide) {
             return (
-                <ClickAwayListener onClickAway={() => setSelectedSlotId(-1)}>
-                    <div className={classes.fullWidth}>
-                        <Grid container>
-                            {devices}
-                        </Grid>
-                        <Grid container>
-                            {gain}
-                        </Grid>
-                    </div>
-                </ClickAwayListener>
+                <div className={classes.fullWidth}>
+                    <Grid container>
+                        {devices}
+                    </Grid>
+                    <Grid container>
+                        {gain}
+                    </Grid>
+                </div>
             );
         } else {
             return (
-                <ClickAwayListener onClickAway={() => setSelectedSlotId(-1)}>
-                    <div className={classes.fullWidth}>
-                        <Grid container direction={'column'}>{devices}</Grid>
-                        <Grid container direction={'column'}>{gain}</Grid>
-                    </div>
-                </ClickAwayListener>
+                <div className={classes.fullWidth}>
+                    <Grid container direction={'column'}>{devices}</Grid>
+                    <Grid container direction={'column'}>{gain}</Grid>
+                </div>
             );
         }
     } else {

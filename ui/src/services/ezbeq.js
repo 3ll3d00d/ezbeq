@@ -107,6 +107,15 @@ class EzBeqService {
         return await response.json();
     }
 
+    resetInputGain = async (slot) => {
+        return this.setGains(slot, {
+            'inputOne_mv': '0.0',
+            'inputTwo_mv': '0.0',
+            'inputOne_mute': false,
+            'inputTwo_mute': false
+        });
+    };
+
     setGains = async (slot, gains) => {
         const payload = [];
         if (gains.master_mv) {

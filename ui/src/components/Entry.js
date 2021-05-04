@@ -1,8 +1,6 @@
 import {
     Button,
     Card,
-    CardActionArea,
-    CardActions,
     CardContent,
     CardMedia,
     Checkbox,
@@ -169,6 +167,9 @@ const Entry = ({selectedEntry, useWide, setDevice}) => {
                     {formatAudioTypes(selectedEntry)}
                     {formatMV(selectedEntry)}
                 </Typography>
+            </CardContent>;
+        const uploadAction =
+            <CardContent>
                 <FormGroup row>
                     <RadioGroup row aria-label="slot" name="slot"
                                 onChange={e => setSelectedSlot(parseInt(e.target.value))}>
@@ -195,44 +196,48 @@ const Entry = ({selectedEntry, useWide, setDevice}) => {
                     </Button>
                 </FormGroup>
             </CardContent>;
-        const actions =
-            <CardActions>
-            {
-                selectedEntry.theMovieDB
-                    ? <Button size="small"
-                              color="primary"
-                              href={`https://themoviedb.org/movie/${selectedEntry.theMovieDB}`}
-                              target='_avs'>TMDb</Button>
-                    : null
-            }
-            {
-                selectedEntry.avsUrl
-                    ? <Button size="small" color="primary" href={selectedEntry.avsUrl}
-                              target='_avs'>Discuss</Button>
-                    : null
-            }
-            {
-                selectedEntry.beqcUrl
-                    ? <Button size="small" color="primary" href={selectedEntry.beqcUrl}
-                              target='_beq'>Catalogue</Button>
-                    : null
-            }
-        </CardActions>;
-        const actionArea = useWide
-            ?
-            <CardActionArea>
-                {content}
-                {actions}
-                {images}
-            </CardActionArea>
-            :
-            <CardActionArea>
-                {images}
-                {content}
-                {actions}
-            </CardActionArea>;
-
-        return <Card className={classes.root}>{actionArea}</Card>;
+        const links =
+            <FormGroup row>
+                {
+                    selectedEntry.theMovieDB
+                        ? <Button size="small"
+                                  color="primary"
+                                  href={`https://themoviedb.org/movie/${selectedEntry.theMovieDB}`}
+                                  target='_avs'>TMDb</Button>
+                        : null
+                }
+                {
+                    selectedEntry.avsUrl
+                        ? <Button size="small" color="primary" href={selectedEntry.avsUrl}
+                                  target='_avs'>Discuss</Button>
+                        : null
+                }
+                {
+                    selectedEntry.beqcUrl
+                        ? <Button size="small" color="primary" href={selectedEntry.beqcUrl}
+                                  target='_beq'>Catalogue</Button>
+                        : null
+                }
+            </FormGroup>;
+        if (useWide) {
+            return (
+                <Card className={classes.root}>
+                    {content}
+                    {uploadAction}
+                    {links}
+                    {images}
+                </Card>
+            );
+        } else {
+            return (
+                <Card className={classes.root}>
+                    {uploadAction}
+                    {content}
+                    {links}
+                    {images}
+                </Card>
+            );
+        }
     } else {
         return null;
     }
