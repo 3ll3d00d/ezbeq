@@ -1,4 +1,4 @@
-import {CircularProgress, ClickAwayListener, Grid, IconButton} from "@material-ui/core";
+import {CircularProgress, Grid, IconButton} from "@material-ui/core";
 import {DataGrid} from "@material-ui/data-grid";
 import React, {useEffect, useState} from "react";
 import {makeStyles} from "@material-ui/core/styles";
