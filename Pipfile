@@ -5,6 +5,7 @@ verify_ssl = true
 
 [packages]
 flask-restful = "*"
+flask = "<2.0"
 flask-compress = "*"
 pyyaml = "*"
 plumbum = "*"
