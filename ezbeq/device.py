@@ -65,6 +65,10 @@ class DeviceState:
 
     def clear(self, slot: str):
         self.__update(slot, 'last', 'Empty')
+        self.__update(slot, f'gain1', '0.0')
+        self.__update(slot, f'gain2', '0.0')
+        self.__update(slot, f'mute1', False)
+        self.__update(slot, f'mute2', False)
 
     def gain(self, slot: str, channel: Optional[str], value: str):
         if slot == '0' or channel is None:
@@ -378,8 +382,12 @@ class Minidsp(Bridge):
         state = self.state()
         active_slot = int(state['active_slot']) - 1 if state['active_slot'] else None
         channel = int(entry['channel']) - 1 if isinstance(entry, dict) and 'channel' in entry else None
-        if command == 'load' or command == 'clear':
+        if command == 'load':
             cmds = MinidspBeqCommandGenerator.filt(entry, target_slot_idx, active_slot)
+        elif  command == 'clear':
+            cmds = MinidspBeqCommandGenerator.filt(entry, target_slot_idx, active_slot)
+            cmds.extend(MinidspBeqCommandGenerator.mute('off', target_slot_idx, -1, target_slot_idx))
+            cmds.extend(MinidspBeqCommandGenerator.volume('0.0', target_slot_idx, -1, target_slot_idx))
         elif command == 'activate':
             cmds = MinidspBeqCommandGenerator.activate(target_slot_idx)
         elif command == 'mute':
