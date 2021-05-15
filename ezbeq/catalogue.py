@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 
 import requests
-from flask_restful import Resource, reqparse
 
 from ezbeq.config import Config
 
@@ -211,91 +210,6 @@ class CatalogueProvider:
             except Exception as e:
                 self.__loaded_at = None
                 raise e
-
-
-class ContentTypes(Resource):
-
-    def __init__(self, **kwargs):
-        self.__provider: CatalogueProvider = kwargs['catalogue']
-
-    def get(self):
-        catalogue = self.__provider.catalogue
-        return list(sorted({c.content_type for c in catalogue}))
-
-
-class Authors(Resource):
-
-    def __init__(self, **kwargs):
-        self.__provider: CatalogueProvider = kwargs['catalogue']
-
-    def get(self):
-        catalogue = self.__provider.catalogue
-        return list(sorted({c.author for c in catalogue}))
-
-
-class Years(Resource):
-
-    def __init__(self, **kwargs):
-        self.__provider: CatalogueProvider = kwargs['catalogue']
-
-    def get(self):
-        catalogue = self.__provider.catalogue
-        return list(sorted({c.year for c in catalogue}, reverse=True))
-
-
-class AudioTypes(Resource):
-
-    def __init__(self, **kwargs):
-        self.__provider: CatalogueProvider = kwargs['catalogue']
-
-    def get(self):
-        catalogue = self.__provider.catalogue
-        return list(sorted({a_t for audio_types in [c.audio_types for c in catalogue] for a_t in audio_types}))
-
-
-class CatalogueSearch(Resource):
-
-    def __init__(self, **kwargs):
-        self.__provider: CatalogueProvider = kwargs['catalogue']
-        self.__parser = reqparse.RequestParser()
-        self.__parser.add_argument('authors', action='append')
-        self.__parser.add_argument('years', action='append')
-        self.__parser.add_argument('audiotypes', action='append')
-        self.__parser.add_argument('contenttypes', action='append')
-        self.__parser.add_argument('fields', action='append')
-
-    def get(self):
-        catalogue = self.__provider.catalogue
-        args = self.__parser.parse_args()
-        authors = args.get('authors')
-        years = args.get('years')
-        audio_types = args.get('audiotypes')
-        content_types = args.get('contenttypes')
-        fields = args.get('fields')
-        return [self.__filter_fields(c.for_search, fields)
-                for c in catalogue if c.matches(authors, years, audio_types, content_types)]
-
-    @staticmethod
-    def __filter_fields(entry: dict, fields: list):
-        if fields:
-            return {k: v for k, v in entry.items() if k in fields}
-        else:
-            return entry
-
-
-class CatalogueMeta(Resource):
-
-    def __init__(self, **kwargs):
-        self.__provider: CatalogueProvider = kwargs['catalogue']
-
-    def get(self):
-        version = self.__provider.version
-        loaded_at = self.__provider.loaded_at
-        return {
-            'version': version,
-            'loaded': int(loaded_at.timestamp()) if loaded_at is not None else None,
-            'count': len(self.__provider.catalogue)
-        }
 
 
 class DatabaseDownloader:

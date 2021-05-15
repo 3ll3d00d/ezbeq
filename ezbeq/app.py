@@ -2,15 +2,15 @@ import os
 from os import path
 
 import faulthandler
+import sys
 from flask import Flask
 from flask_compress import Compress
-from flask_restful import Api
+from flask_restx import Api
 
-from ezbeq.catalogue import CatalogueProvider, Authors, Years, AudioTypes, CatalogueSearch, CatalogueMeta, ContentTypes
-from ezbeq.config import Config, Version
-from ezbeq.device import DeviceSender, Devices, DeviceState, DeviceBridge
-
-API_PREFIX = '/api/1'
+from ezbeq.apis import device, catalogue, version
+from ezbeq.catalogue import CatalogueProvider
+from ezbeq.config import Config
+from ezbeq.device import DeviceState, DeviceBridge
 
 faulthandler.enable()
 if hasattr(faulthandler, 'register'):
@@ -18,36 +18,46 @@ if hasattr(faulthandler, 'register'):
 
     faulthandler.register(signal.SIGUSR2, all_threads=True)
 
-app = Flask(__name__)
-Compress(app)
-api = Api(app)
+
+def load_version():
+    if getattr(sys, 'frozen', False):
+        # pyinstaller lets you copy files to arbitrary locations under the _MEIPASS root dir
+        root = os.path.join(sys._MEIPASS)
+    else:
+        root = os.path.dirname(__file__)
+    v_name = os.path.join(root, 'VERSION')
+    v = 'UNKNOWN'
+    if os.path.exists(v_name):
+        with open(v_name, 'r') as f:
+            v = f.read()
+    return v
+
+
 cfg = Config('ezbeq')
 resource_args = {
     'config': cfg,
     'device_state': DeviceState(cfg),
     'device_bridge': DeviceBridge(cfg),
-    'catalogue': CatalogueProvider(cfg)
+    'catalogue': CatalogueProvider(cfg),
+    'version': load_version()
 }
 
-# GET: slot state
-api.add_resource(Devices, f"{API_PREFIX}/devices", resource_class_kwargs=resource_args)
-# PUT: set config
-# DELETE: remove config
-api.add_resource(DeviceSender, f"{API_PREFIX}/device/<slot>", resource_class_kwargs=resource_args)
-# GET: distinct authors in the catalogue
-api.add_resource(Authors, f"{API_PREFIX}/authors", resource_class_kwargs=resource_args)
-# GET: distinct years in the catalogue
-api.add_resource(Years, f"{API_PREFIX}/years", resource_class_kwargs=resource_args)
-# GET: distinct audio types in the catalogue
-api.add_resource(AudioTypes, f"{API_PREFIX}/audiotypes", resource_class_kwargs=resource_args)
-# GET: distinct content types in the catalogue
-api.add_resource(ContentTypes, f"{API_PREFIX}/contenttypes", resource_class_kwargs=resource_args)
-# GET: catalogue entries
-api.add_resource(CatalogueSearch, f"{API_PREFIX}/search", resource_class_kwargs=resource_args)
-# GET: catalogue meta
-api.add_resource(CatalogueMeta, f"{API_PREFIX}/meta", resource_class_kwargs=resource_args)
-# GET: app meta
-api.add_resource(Version, f"{API_PREFIX}/version", resource_class_kwargs=resource_args)
+
+app = Flask(__name__)
+Compress(app)
+api = Api(app, prefix='/api/1', doc='/api/doc/', version=resource_args['version'], title='ezbeq',
+          description='Backend api for ezbeq')
+
+
+def decorate_ns(ns, p=None):
+    for r in ns.resources:
+        r.kwargs['resource_class_kwargs'] = resource_args
+    api.add_namespace(ns, path=p)
+
+
+decorate_ns(device.api)
+decorate_ns(catalogue.api)
+decorate_ns(version.api)
 
 
 def main(args=None):
@@ -130,7 +140,7 @@ def main(args=None):
                 request.setHeader('Access-Control-Allow-Headers', 'x-prototype-version,x-requested-with')
                 request.setHeader('Access-Control-Max-Age', '2520')  # 42 hours
                 logger.debug(f"Handling {path}")
-                if path == b'api':
+                if path == b'api' or path == b'doc' or path == b'swaggerui':
                     request.prepath.pop()
                     request.postpath.insert(0, path)
                     return self.wsgi
