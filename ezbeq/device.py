@@ -308,7 +308,7 @@ class MinidspBeqCommandGenerator:
         return f"input {channel} peq {idx} bypass {'on' if bypass else 'off'}"
 
     @staticmethod
-    def mute(state: bool, slot: int, channel: Optional[int], active_slot: Optional[int]):
+    def mute(state: str, slot: int, channel: Optional[int], active_slot: Optional[int]):
         if slot < 0:
             return [f"mute {state}"]
         elif channel is not None:
@@ -377,14 +377,14 @@ class Minidsp(Bridge):
             logger.exception(f"Unable to locate active preset in {lines}")
         return values
 
-    def send(self, slot: str, entry: Union[Optional[Catalogue], bool, dict], command: str):
+    def send(self, slot: str, entry: Union[Optional[Catalogue], str, dict], command: str):
         target_slot_idx = int(slot) - 1
         state = self.state()
         active_slot = int(state['active_slot']) - 1 if state['active_slot'] else None
         channel = int(entry['channel']) - 1 if isinstance(entry, dict) and 'channel' in entry else None
         if command == 'load':
             cmds = MinidspBeqCommandGenerator.filt(entry, target_slot_idx, active_slot)
-        elif  command == 'clear':
+        elif command == 'clear':
             cmds = MinidspBeqCommandGenerator.filt(entry, target_slot_idx, active_slot)
             cmds.extend(MinidspBeqCommandGenerator.mute('off', target_slot_idx, -1, target_slot_idx))
             cmds.extend(MinidspBeqCommandGenerator.volume('0.0', target_slot_idx, -1, target_slot_idx))
