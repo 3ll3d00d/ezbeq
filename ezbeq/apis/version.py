@@ -3,7 +3,7 @@ from flask_restx import Namespace, Resource
 api = Namespace('version', description='Provides access to the ezbeq version')
 
 
-@api.route('/')
+@api.route('')
 class Version(Resource):
 
     def __init__(self, *args, **kwargs):

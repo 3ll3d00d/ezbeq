@@ -237,7 +237,7 @@ class Minidsp(Bridge):
     def send(self, slot: str, entry: Union[Optional[Catalogue], str, dict], command: str):
         target_slot_idx = int(slot) - 1
         state = self.state()
-        active_slot = int(state['active_slot']) - 1 if state['active_slot'] else None
+        active_slot = int(state['active_slot']) - 1 if state.get('active_slot', None) else None
         channel = int(entry['channel']) - 1 if isinstance(entry, dict) and 'channel' in entry else None
         if command == 'load':
             cmds = MinidspBeqCommandGenerator.filt(entry, target_slot_idx, active_slot)

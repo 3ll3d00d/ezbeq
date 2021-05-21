@@ -7,7 +7,7 @@ from flask import Flask
 from flask_compress import Compress
 from flask_restx import Api
 
-from ezbeq.apis import device, catalogue, version
+from ezbeq.apis import device, catalogue, version, devices
 from ezbeq.catalogue import CatalogueProvider
 from ezbeq.config import Config
 from ezbeq.device import DeviceState, DeviceBridge
@@ -56,6 +56,7 @@ def decorate_ns(ns, p=None):
 
 
 decorate_ns(device.api)
+decorate_ns(devices.api)
 decorate_ns(catalogue.api)
 decorate_ns(version.api)
 

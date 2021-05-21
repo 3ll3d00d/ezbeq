@@ -1,41 +1,21 @@
 import logging
 
 from flask import request
-from flask_restx import Resource, Namespace
+from flask_restx import Resource, Namespace, fields
 
-from catalogue import CatalogueProvider
+from catalogue import CatalogueProvider, Catalogue
 from device import DeviceState, DeviceBridge
 
 logger = logging.getLogger('ezbeq.device')
 
-api = Namespace('devices', description='Device related operations')
+api = Namespace('device', description='Device related operations')
 
+resource_fields = api.model('Device', {
+    'command': fields.String,
+    'id': fields.String(required=False)
+})
 
-@api.route('/')
-class Devices(Resource):
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.__state: DeviceState = kwargs['device_state']
-        self.__bridge: DeviceBridge = kwargs['device_bridge']
-
-    @api.doc(responses={
-        200: 'Success'
-    })
-    def get(self):
-        state = self.__bridge.state()
-        if self.__bridge.supports_gain():
-            if 'active_slot' in state:
-                self.__state.activate(state['active_slot'])
-            if 'mute' in state:
-                self.__state.mute('0', '0', state['mute'])
-            if 'volume' in state:
-                self.__state.gain('0', '0', state['volume'])
-        return self.__state.get()
-
-
-@api.route('/<slot>')
-@api.param('slot', 'the slot id')
+@api.route('/<string:slot>')
 class DeviceSender(Resource):
 
     def __init__(self, *args, **kwargs):
@@ -44,7 +24,8 @@ class DeviceSender(Resource):
         self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
         self.__state: DeviceState = kwargs['device_state']
 
-    def put(self, slot):
+    @api.expect([resource_fields])
+    def put(self, slot: str):
         '''
         Handles update commands for the device. The following rules apply
         * slot is a string in the 1-4 range representing minidsp config slots except for mute/gain commands which translate 0 to the master controls

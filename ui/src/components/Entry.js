@@ -97,11 +97,7 @@ const Entry = ({selectedEntry, useWide, setDevice}) => {
     const [pending, setPending] = useState(false);
 
     useEffect(() => {
-        if (selectedEntry && selectedEntry.mvAdjust) {
-            setSendGain(true);
-        } else {
-            setSendGain(false);
-        }
+        setSendGain(false);
     }, [selectedEntry]);
 
     const upload = async () => {

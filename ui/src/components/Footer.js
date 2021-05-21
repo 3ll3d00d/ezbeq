@@ -35,11 +35,12 @@ const Footer = () => {
     }, []);
 
     if (meta || version) {
+        const sha1 = meta && meta.version ? meta.version.substring(0, 7) : '';
         return (
             <Grid container justify="space-around" className={classes.noLeft}>
                 <Grid item>
                     <Typography variant={'caption'} color={'textSecondary'}>
-                        {meta ? `BEQCatalogue: ${formatSeconds(meta.loaded)} / ${meta.version}` : ''}
+                        {meta ? `${formatSeconds(meta.loaded)} / ${sha1}` : ''}
                     </Typography>
                 </Grid>
                 <Grid item>

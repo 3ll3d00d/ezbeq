@@ -1,25 +1,47 @@
-import {CircularProgress, Grid, IconButton} from "@material-ui/core";
-import {DataGrid} from "@material-ui/data-grid";
-import React, {useEffect, useState} from "react";
 import {makeStyles} from "@material-ui/core/styles";
-import PublishIcon from '@material-ui/icons/Publish';
-import PlayArrowIcon from "@material-ui/icons/PlayArrow";
-import ClearIcon from "@material-ui/icons/Clear";
+import React, {useEffect, useState} from "react";
 import ezbeq from "../services/ezbeq";
+import {CircularProgress, Grid, IconButton, Paper} from "@material-ui/core";
+import ClearIcon from "@material-ui/icons/Clear";
+import Typography from "@material-ui/core/Typography";
 import Gain from "./Gain";
 
 const useStyles = makeStyles((theme) => ({
-    noLeft: {
-        marginLeft: '0px'
+    root: {
+        display: 'flex',
+        width: '100%',
     },
-    progress: {
-        marginTop: '12px',
-        marginRight: '12px'
+    container: {
+        paddingLeft: 4,
+        paddingRight: 4
     },
     fullWidth: {
-        width: '100%'
+        marginRight: 0
     }
 }));
+
+const deviceStyles = makeStyles(theme => ({
+    paper: props => ({
+        margin: `${theme.spacing(0.5)}px auto`,
+        padding: theme.spacing(0.5),
+        flexGrow: 1,
+        backgroundColor: props.selected ? theme.palette.action.selected : theme.palette.background.default
+    }),
+    content: () => ({
+        padding: 4,
+        paddingLeft: 8,
+        '&:last-child': {
+            paddingBottom: 4,
+        },
+    })
+}));
+
+const getCurrentState = (active, label, slotId) => {
+    const match = active.find(a => a.slotId === slotId && a.action === label);
+    return match ? match.state : -1;
+};
+
+const chunk = (arr, size) => arr.reduce((chunks, el, i) => (i % size ? chunks[chunks.length - 1].push(el) : chunks.push([el])) && chunks, []);
 
 const defaultGain = {
     master_mv: 0.0, master_mute: false,
@@ -27,44 +49,33 @@ const defaultGain = {
     inputTwo_mv: 0.0, inputTwo_mute: false
 };
 
-const getCurrentState = (active, label, slotId) => {
-    const match = active.find(a => a.slotId === slotId && a.action === label);
-    return match ? match.state : -1;
+const Device = ({selected, slot, onSelect, isPending, onClear}) => {
+    const classes = deviceStyles({selected});
+    return (
+        <Paper className={`${classes.paper}`}>
+            <Grid container wrap="nowrap" justify="space-between" alignItems="center">
+                <Grid item onClick={onSelect} xs={8} className={`${classes.content}`}>
+                    <Typography component="p" variant="body2">{slot.id}: {slot.last}</Typography>
+                </Grid>
+                <Grid item xs={4}>
+                    <IconButton onClick={onClear}>
+                        {
+                            isPending
+                                ? <CircularProgress size={24}/>
+                                : <ClearIcon fontSize="large"/>
+                        }
+                    </IconButton>
+                </Grid>
+            </Grid>
+        </Paper>
+    );
 };
 
-const Action = ({slotId, onClick, label, Icon, active, disabled = false}) => {
-    const classes = useStyles();
-    const currentState = getCurrentState(active, label, slotId);
-    return (
-        <div>
-            {
-                currentState === 1
-                    ? <CircularProgress size={24} className={classes.progress}/>
-                    : <IconButton aria-label={label}
-                                  onClick={onClick}
-                                  color={currentState === 2 ? 'error' : 'primary'}
-                                  edge={'start'}
-                                  disabled={disabled}>
-                        <Icon/>
-                    </IconButton>
-            }
-        </div>
-    )
-}
-
-const Devices = ({selectedEntryId, selectedSlotId, useWide, setSelectedSlotId, device, setDevice}) => {
-    const classes = useStyles();
-
+const Devices = ({selectedSlotId, useWide, device, setDevice}) => {
+    const classes = useStyles({selected: false});
     const [pending, setPending] = useState([]);
-    const [dims, setDims] = useState([25, 120, '190px']);
     const [currentGains, setCurrentGains] = useState(defaultGain);
     const [deviceGains, setDeviceGains] = useState({});
-
-    useEffect(() => {
-        if ("slots" in device && device.slots.length === 1) {
-            setDims([75, 90, '80px']);
-        }
-    }, [device])
 
     // reset gain on slot (de)select or device update
     useEffect(() => {
@@ -106,86 +117,28 @@ const Devices = ({selectedEntryId, selectedSlotId, useWide, setSelectedSlotId, d
         trackDeviceUpdate('gain', slotId, () => ezbeq.setGains(slotId, gains));
     };
 
-    const sendToDevice = (entryId, slotId) => {
-        trackDeviceUpdate('send', slotId, () => ezbeq.sendFilter(entryId, slotId));
-    };
-
     const clearDeviceSlot = (slotId) => {
         trackDeviceUpdate('clear', slotId, () => ezbeq.clearSlot(slotId));
-    };
-
-    const resetGains = (slotId) => {
-        trackDeviceUpdate('clear', slotId, () => ezbeq.resetInputGain(slotId));
     };
 
     const activateSlot = (slotId) => {
         trackDeviceUpdate('activate', slotId, () => ezbeq.activateSlot(slotId));
     };
 
-    // grid definitions
-    const deviceGridColumns = [
-        {
-            field: 'id',
-            headerName: ' ',
-            width: dims[0],
-            valueFormatter: params => `${params.value}${params.getValue('active') ? '*' : ''}`
-        },
-        {
-            field: 'actions',
-            headerName: 'Actions',
-            width: dims[1],
-            renderCell: params => (
-                <>
-                    <Action slotId={params.row.id}
-                            disabled={selectedEntryId === -1}
-                            onClick={() => sendToDevice(selectedEntryId, params.row.id)}
-                            label={'send'}
-                            Icon={PublishIcon}
-                            active={pending}/>
-                    {
-                        params.row.canActivate
-                            ?
-                            <Action slotId={params.row.id}
-                                    onClick={() => activateSlot(params.row.id)}
-                                    label={'activate'}
-                                    Icon={PlayArrowIcon}
-                                    active={pending}/>
-                            : null
-                    }
-                    <Action slotId={params.row.id}
-                            onClick={() => {
-                                if (params.row.last === 'Empty') {
-                                    resetGains(params.row.id);
-                                } else {
-                                    clearDeviceSlot(params.row.id);
-                                }
-                            }}
-                            label={'clear'}
-                            Icon={ClearIcon}
-                            active={pending}/>
-                </>
-            ),
-        },
-        {
-            field: 'last',
-            headerName: 'Loaded',
-            flex: 0.45,
-        },
-        {
-            field: 'active',
-            headerName: 'Active',
-            hide: true
-        }
-    ];
-    const devices =
-        <Grid item style={{height: dims[2], width: '100%'}}>
-            <DataGrid rows={"slots" in device ? device.slots : []}
-                      columns={deviceGridColumns}
-                      autoPageSize
-                      hideFooter
-                      density={'compact'}
-                      onRowSelected={p => setSelectedSlotId(p.data.id)}/>
-        </Grid>;
+    const rows = chunk("slots" in device ? device.slots : [], 2);
+    const devices = rows.map((r, i1) =>
+        <Grid container key={i1} className={classes.root}>
+            {r.map((d, i2) =>
+                <Grid key={i2} container item xs={r.length === 1 ? 12 : 6} className={classes.container}>
+                    <Device selected={d.id === selectedSlotId}
+                            slot={d}
+                            onSelect={() => activateSlot(d.id)}
+                            onClear={() => clearDeviceSlot(d.id)}
+                            isPending={getCurrentState(pending, 'clear', d.id) === 1}/>
+                </Grid>
+            )}
+        </Grid>
+    );
 
     if (device && device.hasOwnProperty('masterVolume')) {
         const gain = <Gain selectedSlotId={selectedSlotId}
@@ -193,13 +146,11 @@ const Devices = ({selectedEntryId, selectedSlotId, useWide, setSelectedSlotId, d
                            gains={currentGains}
                            setGains={setCurrentGains}
                            sendGains={sendGainToDevice}
-                           isActive={() => getCurrentState(pending, 'gain', selectedSlotId) === 1} />;
+                           isActive={() => getCurrentState(pending, 'gain', selectedSlotId) === 1}/>;
         if (useWide) {
             return (
                 <div className={classes.fullWidth}>
-                    <Grid container>
-                        {devices}
-                    </Grid>
+                    {devices}
                     <Grid container>
                         {gain}
                     </Grid>

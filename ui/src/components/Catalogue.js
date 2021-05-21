@@ -92,7 +92,7 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide}) => {
     if (entries.length > 0) {
         const grid =
             <Grid item style={{
-                height: `${Math.max(260, (window.innerHeight - 306) / (selectedEntryId === -1 || useWide ? 1 : 2))}px`,
+                height: `${Math.max(260, (window.innerHeight - 310) / (selectedEntryId === -1 || useWide ? 1 : 2))}px`,
                 width: '100%'
             }}>
                 <DataGrid rows={entries}

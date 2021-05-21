@@ -56,6 +56,15 @@ const App = () => {
         setShowFilters((prev) => !prev);
     };
 
+    useEffect(() => {
+        if (device && device.hasOwnProperty('slots')) {
+            const slot = device.slots.find(s => s.active === true);
+            if (slot) {
+                setSelectedSlotId(slot.id);
+            }
+        }
+    }, [device]);
+
     // initial data load
     useEffect(() => {
         pushData(setEntries, ezbeq.load);
