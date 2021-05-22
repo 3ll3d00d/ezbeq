@@ -6,6 +6,7 @@ on:
     paths:
       - 'ezbeq/**'
       - 'tests/**'
+      - 'workflows/test.yaml'
   pull_request:
     branches:
       - '*'

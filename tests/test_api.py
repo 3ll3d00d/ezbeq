@@ -116,3 +116,4 @@ def test_legacy_mute_master(minidsp_client, minidsp_app, mute_op):
     slots = verify_master_device_state(r.json, mute=True if mute_op == 'on' else False)
     for idx, s in enumerate(slots):
         verify_slot(s, idx + 1)
+
