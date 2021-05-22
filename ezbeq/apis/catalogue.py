@@ -2,7 +2,7 @@ import logging
 
 from flask_restx import Resource, reqparse, Namespace
 
-from catalogue import CatalogueProvider
+from ezbeq.catalogue import CatalogueProvider
 
 logger = logging.getLogger('ezbeq.catalogue')
 

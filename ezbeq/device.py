@@ -74,13 +74,23 @@ class DeviceState:
         else:
             self.__update(slot, f'gain{channel}', value)
 
-    def mute(self, slot: str, channel: Optional[str], value: str):
-        if slot == '0' or channel is None:
-            self.__mute = value
-        else:
-            self.__update(slot, f'mute{channel}', value)
+    def mute(self, slot: Optional[str], channel: Optional[str]):
+        self.__apply_mute(slot, channel, True)
 
-    def get(self):
+    def __apply_mute(self, slot: Optional[str], channel: Optional[str], op: bool):
+        if slot is None and channel is None:
+            self.__mute = op
+        else:
+            if channel is not None:
+                self.__update(slot, f'mute{channel}', op)
+            else:
+                self.__update(slot, f"mute1", op)
+                self.__update(slot, f"mute2", op)
+
+    def unmute(self, slot: Optional[str], channel: Optional[str]):
+        self.__apply_mute(slot, channel, False)
+
+    def get(self) -> dict:
         values = {'slots': [{
             **s,
             'canActivate': self.__can_activate,
@@ -104,16 +114,34 @@ class Bridge(ABC):
         pass
 
     @abstractmethod
-    def send(self, slot: str, entry: Union[Optional[Catalogue], bool, dict], command: str):
+    def activate(self, slot: str) -> None:
+        pass
+
+    @abstractmethod
+    def load_filter(self, slot: str, entry: Catalogue) -> None:
+        pass
+
+    @abstractmethod
+    def clear_filter(self, slot: str) -> None:
+        pass
+
+    @abstractmethod
+    def mute(self, slot: Optional[str], channel: Optional[str]) -> None:
+        pass
+
+    @abstractmethod
+    def unmute(self, slot: Optional[str], channel: Optional[str]) -> None:
+        pass
+
+    @abstractmethod
+    def set_gain(self, slot: Optional[str], channel: Optional[str], gain: float) -> None:
         pass
 
 
 class DeviceBridge(Bridge):
 
     def __init__(self, cfg: Config):
-        self.__bridge = Minidsp(cfg) if cfg.minidsp_exe else Htp1(cfg) if cfg.htp1_options else None
-        if self.__bridge is None:
-            raise ValueError('Must have minidsp or HTP1 in confi')
+        self.__bridge = create_bridge(cfg)
 
     def supports_gain(self):
         return isinstance(self.__bridge, Minidsp)
@@ -121,8 +149,32 @@ class DeviceBridge(Bridge):
     def state(self) -> Optional[dict]:
         return self.__bridge.state()
 
-    def send(self, slot: str, entry: Union[Optional[Catalogue], bool, dict], command: str):
-        return self.__bridge.send(slot, entry, command)
+    def activate(self, slot: str):
+        return self.__bridge.activate(slot)
+
+    def load_filter(self, slot: str, entry: Catalogue):
+        return self.__bridge.load_filter(slot, entry)
+
+    def clear_filter(self, slot: str):
+        return self.__bridge.clear_filter(slot)
+
+    def mute(self, slot: Optional[str], channel: Optional[str]) -> None:
+        return self.__bridge.mute(slot, channel)
+
+    def unmute(self, slot: Optional[str], channel: Optional[str]) -> None:
+        return self.__bridge.unmute(slot, channel)
+
+    def set_gain(self, slot: Optional[str], channel: Optional[str], gain: float) -> None:
+        return self.__bridge.set_gain(slot, channel, gain)
+
+
+def create_bridge(cfg: Config) -> Bridge:
+    if cfg.minidsp_exe:
+        return Minidsp(cfg)
+    elif cfg.htp1_options:
+        return Htp1(cfg)
+    else:
+        raise ValueError('No device configured')
 
 
 class MinidspBeqCommandGenerator:
@@ -132,7 +184,7 @@ class MinidspBeqCommandGenerator:
         return [f"config {slot}"]
 
     @staticmethod
-    def filt(entry: Optional[Catalogue], slot: int, active_slot: Optional[int]):
+    def filt(entry: Optional[Catalogue], slot: int, active_slot: Optional[int] = None):
         # config <slot>
         # input <channel> peq <index> set -- <b0> <b1> <b2> <a1> <a2>
         # input <channel> peq <index> bypass [on|off]
@@ -165,49 +217,65 @@ class MinidspBeqCommandGenerator:
         return f"input {channel} peq {idx} bypass {'on' if bypass else 'off'}"
 
     @staticmethod
-    def mute(state: str, slot: int, channel: Optional[int], active_slot: Optional[int]):
-        if slot < 0:
-            return [f"mute {state}"]
-        elif channel is not None:
+    def mute(state: bool, slot: Optional[int], channel: Optional[int], active_slot: Optional[int] = None):
+        '''
+        Generates commands to mute the configuration.
+        :param state: mute if true otherwise unmute.
+        :param slot: the target slot, if not set apply to the master control.
+        :param channel: the channel, applicable only if slot is set, if not set apply to both input channels.
+        :param active_slot: if not set or if it does not match the requested slot, activate the slot first.
+        :return: the commands.
+        '''
+        state_cmd = 'on' if state else 'off'
+        if slot is not None:
             if active_slot is None or active_slot != slot:
                 cmds = MinidspBeqCommandGenerator.activate(slot)
             else:
                 cmds = []
-            if channel == -1:
-                cmds.append(f"input 0 mute {state}")
-                cmds.append(f"input 1 mute {state}")
+            if channel is None:
+                cmds.append(f"input 0 mute {state_cmd}")
+                cmds.append(f"input 1 mute {state_cmd}")
             else:
-                cmds.append(f"input {channel} mute {state}")
+                cmds.append(f"input {channel} mute {state_cmd}")
             return cmds
+        else:
+            return [f"mute {state_cmd}"]
 
     @staticmethod
-    def volume(gain: str, slot: int, channel: Optional[int], active_slot: Optional[int]):
-        if slot < 0:
-            return [f"gain -- {gain}"]
-        elif channel is not None:
+    def gain(gain: float, slot: Optional[int], channel: Optional[int], active_slot: Optional[int] = None):
+        '''
+        Generates commands to set gain.
+        :param gain: the gain to set.
+        :param slot: the target slot, if not set apply to the master control.
+        :param channel: the channel, applicable only if slot is set, if not set apply to both input channels.
+        :param active_slot: if not set or if it does not match the requested slot, activate the slot first.
+        :return: the commands.
+        '''
+        if slot is not None:
+            if not -72.0 <= gain <= 12.0:
+                raise ValueError(f"Input gain {gain:.2f} out of range (>= -72.0 and <= 12.0)")
             if active_slot is None or active_slot != slot:
                 cmds = MinidspBeqCommandGenerator.activate(slot)
             else:
                 cmds = []
-            if channel == -1:
-                cmds.append(f"input 0 gain -- {gain}")
-                cmds.append(f"input 1 gain -- {gain}")
+            if channel is None:
+                cmds.append(f"input 0 gain -- {gain:.2f}")
+                cmds.append(f"input 1 gain -- {gain:.2f}")
             else:
-                cmds.append(f"input {channel} gain -- {gain}")
+                cmds.append(f"input {channel} gain -- {gain:.2f}")
             return cmds
+        else:
+            if not -127.0 <= gain <= 0.0:
+                raise ValueError(f"Master gain {gain:.2f} out of range (>= -127.0 and <= 0.0)")
+            return [f"gain -- {gain:.2f}"]
 
 
 class Minidsp(Bridge):
 
     def __init__(self, cfg: Config):
-        from plumbum import local
         self.__executor = ThreadPoolExecutor(max_workers=1)
         self.__ignore_retcode = cfg.ignore_retcode
-        cmd = local[cfg.minidsp_exe]
-        if cfg.minidsp_options:
-            self.__runner = cmd[cfg.minidsp_options.split(' ')]
-        else:
-            self.__runner = cmd
+        self.__runner = cfg.create_minidsp_runner()
 
     def state(self) -> Optional[dict]:
         return self.__executor.submit(self.__get_state).result(timeout=60)
@@ -234,36 +302,61 @@ class Minidsp(Bridge):
             logger.exception(f"Unable to locate active preset in {lines}")
         return values
 
-    def send(self, slot: str, entry: Union[Optional[Catalogue], str, dict], command: str):
-        target_slot_idx = int(slot) - 1
-        state = self.state()
-        active_slot = int(state['active_slot']) - 1 if state.get('active_slot', None) else None
-        channel = int(entry['channel']) - 1 if isinstance(entry, dict) and 'channel' in entry else None
-        if command == 'load':
-            cmds = MinidspBeqCommandGenerator.filt(entry, target_slot_idx, active_slot)
-        elif command == 'clear':
-            cmds = MinidspBeqCommandGenerator.filt(entry, target_slot_idx, active_slot)
-            cmds.extend(MinidspBeqCommandGenerator.mute('off', target_slot_idx, -1, target_slot_idx))
-            cmds.extend(MinidspBeqCommandGenerator.volume('0.0', target_slot_idx, -1, target_slot_idx))
-        elif command == 'activate':
-            cmds = MinidspBeqCommandGenerator.activate(target_slot_idx)
-        elif command == 'mute':
-            cmds = MinidspBeqCommandGenerator.mute(entry['value'], target_slot_idx, channel, active_slot)
-        elif command == 'gain':
-            cmds = MinidspBeqCommandGenerator.volume(entry['value'], target_slot_idx, channel, active_slot)
-        else:
-            cmds = []
+    @staticmethod
+    def __as_idx(idx: str):
+        return int(idx) - 1
+
+    def __send_cmds(self, target_slot_idx: int, cmds: List[str]):
         with tmp_file(cmds) as file_name:
-            return self.__executor.submit(self.__do_run, self.__runner['-f', file_name], len(cmds),
+            return self.__executor.submit(self.__do_run, self.__runner['-f', file_name], cmds,
                                           target_slot_idx).result(timeout=60)
 
-    def __do_run(self, cmd, count: int, slot: int):
+    def activate(self, slot: str) -> None:
+        target_slot_idx = self.__as_idx(slot)
+        self.__send_cmds(target_slot_idx, MinidspBeqCommandGenerator.activate(target_slot_idx))
+
+    def load_filter(self, slot: str, entry: Catalogue) -> None:
+        target_slot_idx = self.__as_idx(slot)
+        cmds = MinidspBeqCommandGenerator.filt(entry, target_slot_idx)
+        self.__send_cmds(target_slot_idx, cmds)
+
+    def clear_filter(self, slot: str) -> None:
+        target_slot_idx = self.__as_idx(slot)
+        cmds = MinidspBeqCommandGenerator.filt(None, target_slot_idx)
+        cmds.extend(MinidspBeqCommandGenerator.mute(True, target_slot_idx, None, target_slot_idx))
+        cmds.extend(MinidspBeqCommandGenerator.gain(0.0, target_slot_idx, None, target_slot_idx))
+        self.__send_cmds(target_slot_idx, cmds)
+
+    def mute(self, slot: Optional[str], channel: Optional[str]) -> None:
+        self.__do_mute_op(slot, channel, True)
+
+    def __do_mute_op(self, slot: Optional[str], channel: Optional[str], state: bool):
+        target_channel_idx, target_slot_idx = self.__as_idxes(channel, slot)
+        cmds = MinidspBeqCommandGenerator.mute(state, target_slot_idx, target_channel_idx)
+        self.__send_cmds(target_slot_idx, cmds)
+
+    def unmute(self, slot: Optional[str], channel: Optional[str]) -> None:
+        self.__do_mute_op(slot, channel, False)
+
+    def set_gain(self, slot: Optional[str], channel: Optional[str], gain: float) -> None:
+        target_channel_idx, target_slot_idx = self.__as_idxes(channel, slot)
+        cmds = MinidspBeqCommandGenerator.gain(gain, target_slot_idx, target_channel_idx)
+        self.__send_cmds(target_slot_idx, cmds)
+
+    def __as_idxes(self, channel, slot):
+        target_slot_idx = self.__as_idx(slot) if slot else None
+        target_channel_idx = self.__as_idx(channel) if channel else None
+        return target_channel_idx, target_slot_idx
+
+    def __do_run(self, cmd, config_cmds: List[str], slot: int):
         kwargs = {'retcode': None} if self.__ignore_retcode else {}
-        logger.info(f"Sending {count} commands to slot {slot} via {cmd} {kwargs if kwargs else ''}")
+        logger.info(f"Sending {len(config_cmds)} commands to slot {slot} via {cmd} {kwargs if kwargs else ''}")
+        formatted = '\n'.join(config_cmds)
+        logger.info(f"\n{formatted}")
         start = time.time()
         code, stdout, stderr = cmd.run(timeout=5, **kwargs)
         end = time.time()
-        logger.info(f"Sent {count} commands to slot {slot} in {to_millis(start, end)}ms - result is {code}")
+        logger.info(f"Sent {len(config_cmds)} commands to slot {slot} in {to_millis(start, end)}ms - result is {code}")
 
 
 def to_millis(start, end, precision=1):
@@ -291,85 +384,6 @@ def tmp_file(cmds: List[str]):
     finally:
         if tmp_name:
             os.unlink(tmp_name)
-
-
-class Htp1(Bridge):
-
-    def __init__(self, cfg: Config):
-        self.__ip = cfg.htp1_options['ip']
-        self.__channels = cfg.htp1_options['channels']
-        self.__peq = {}
-        self.__supports_shelf = True
-        if not self.__channels:
-            raise ValueError('No channels supplied for HTP-1')
-        from ezbeq.htp1 import Htp1Client
-        self.__client = Htp1Client(self.__ip, self)
-
-    def state(self) -> Optional[dict]:
-        pass
-
-    def send(self, slot: str, entry: Union[Optional[Catalogue], bool, dict], command: str):
-        if entry is None or isinstance(entry, Catalogue):
-            if entry is not None:
-                to_load = [PEQ(idx, fc=f['freq'], q=f['q'], gain=f['gain'], filter_type_name=f['type'])
-                           for idx, f in enumerate(entry.filters)]
-            else:
-                to_load = []
-            while len(to_load) < 16:
-                peq = PEQ(len(to_load), fc=100, q=1, gain=0, filter_type_name='PeakingEQ')
-                to_load.append(peq)
-            ops = [peq.as_ops(c, use_shelf=self.__supports_shelf) for peq in to_load for c in self.__peq.keys()]
-            ops = [op for slot_ops in ops for op in slot_ops if op]
-            if ops:
-                self.__client.send(f"changemso {json.dumps(ops)}")
-            else:
-                logger.warning(f"Nothing to send to {slot}")
-        else:
-            raise ValueError('Activation not supported')
-
-    def on_mso(self, mso: dict):
-        logger.info(f"Received {mso}")
-        version = mso['versions']['swVer']
-        version = version[1:] if version[0] == 'v' or version[0] == 'V' else version
-        try:
-            self.__supports_shelf = semver.parse_version_info(version) > semver.parse_version_info('1.4.0')
-        except:
-            logger.error(f"Unable to parse version {mso['versions']['swVer']}, will not send shelf filters")
-            self.__supports_shelf = False
-        if not self.__supports_shelf:
-            logger.error(f"Device version {mso['versions']['swVer']} too old, lacks shelf filter support")
-
-        speakers = mso['speakers']['groups']
-        channels = ['lf', 'rf']
-        for group in [s for s, v in speakers.items() if 'present' in v and v['present'] is True]:
-            if group[0:2] == 'lr' and len(group) > 2:
-                channels.append('l' + group[2:])
-                channels.append('r' + group[2:])
-            else:
-                channels.append(group)
-
-        peq_slots = mso['peq']['slots']
-
-        filters = {c: [] for c in channels}
-        unknown_channels = set()
-        for idx, s in enumerate(peq_slots):
-            for c in channels:
-                if c in s['channels']:
-                    filters[c].append(PEQ(idx, s['channels'][c]))
-                else:
-                    unknown_channels.add(c)
-        if unknown_channels:
-            peq_channels = peq_slots[0]['channels'].keys()
-            logger.error(f"Unknown channels encountered [peq channels: {peq_channels}, unknown: {unknown_channels}]")
-        for c in filters.keys():
-            if c in self.__channels:
-                logger.info(f"Updating PEQ channel {c} with {filters[c]}")
-                self.__peq[c] = filters[c]
-            else:
-                logger.info(f"Discarding filter channel {c} - {filters[c]}")
-
-    def on_msoupdate(self, msoupdate: dict):
-        logger.info(f"Received {msoupdate}")
 
 
 class PEQ:
@@ -423,3 +437,94 @@ class PEQ:
 
     def __repr__(self):
         return f"{self.slot}: {self.filter_type_name} {self.fc} Hz {self.gain} dB {self.q}"
+
+
+class Htp1(Bridge):
+
+    def __init__(self, cfg: Config):
+        self.__ip = cfg.htp1_options['ip']
+        self.__channels = cfg.htp1_options['channels']
+        self.__peq = {}
+        self.__supports_shelf = True
+        if not self.__channels:
+            raise ValueError('No channels supplied for HTP-1')
+        from ezbeq.htp1 import Htp1Client
+        self.__client = Htp1Client(self.__ip, self)
+
+    def state(self) -> Optional[dict]:
+        pass
+
+    def __send(self, to_load: List[PEQ]):
+        while len(to_load) < 16:
+            peq = PEQ(len(to_load), fc=100, q=1, gain=0, filter_type_name='PeakingEQ')
+            to_load.append(peq)
+        ops = [peq.as_ops(c, use_shelf=self.__supports_shelf) for peq in to_load for c in self.__peq.keys()]
+        ops = [op for slot_ops in ops for op in slot_ops if op]
+        if ops:
+            self.__client.send(f"changemso {json.dumps(ops)}")
+        else:
+            logger.warning(f"Nothing to send")
+
+    def activate(self, slot: str) -> None:
+        raise NotImplementedError()
+
+    def load_filter(self, slot: str, entry: Catalogue) -> None:
+        to_load = [PEQ(idx, fc=f['freq'], q=f['q'], gain=f['gain'], filter_type_name=f['type'])
+                   for idx, f in enumerate(entry.filters)]
+        self.__send(to_load)
+
+    def clear_filter(self, slot: str) -> None:
+        self.__send([])
+
+    def mute(self, slot: Optional[str], channel: Optional[str]) -> None:
+        raise NotImplementedError()
+
+    def unmute(self, slot: Optional[str], channel: Optional[str]) -> None:
+        raise NotImplementedError()
+
+    def set_gain(self, slot: Optional[str], channel: Optional[str], gain: float) -> None:
+        raise NotImplementedError()
+
+    def on_mso(self, mso: dict):
+        logger.info(f"Received {mso}")
+        version = mso['versions']['swVer']
+        version = version[1:] if version[0] == 'v' or version[0] == 'V' else version
+        try:
+            self.__supports_shelf = semver.parse_version_info(version) > semver.parse_version_info('1.4.0')
+        except:
+            logger.error(f"Unable to parse version {mso['versions']['swVer']}, will not send shelf filters")
+            self.__supports_shelf = False
+        if not self.__supports_shelf:
+            logger.error(f"Device version {mso['versions']['swVer']} too old, lacks shelf filter support")
+
+        speakers = mso['speakers']['groups']
+        channels = ['lf', 'rf']
+        for group in [s for s, v in speakers.items() if 'present' in v and v['present'] is True]:
+            if group[0:2] == 'lr' and len(group) > 2:
+                channels.append('l' + group[2:])
+                channels.append('r' + group[2:])
+            else:
+                channels.append(group)
+
+        peq_slots = mso['peq']['slots']
+
+        filters = {c: [] for c in channels}
+        unknown_channels = set()
+        for idx, s in enumerate(peq_slots):
+            for c in channels:
+                if c in s['channels']:
+                    filters[c].append(PEQ(idx, s['channels'][c]))
+                else:
+                    unknown_channels.add(c)
+        if unknown_channels:
+            peq_channels = peq_slots[0]['channels'].keys()
+            logger.error(f"Unknown channels encountered [peq channels: {peq_channels}, unknown: {unknown_channels}]")
+        for c in filters.keys():
+            if c in self.__channels:
+                logger.info(f"Updating PEQ channel {c} with {filters[c]}")
+                self.__peq[c] = filters[c]
+            else:
+                logger.info(f"Discarding filter channel {c} - {filters[c]}")
+
+    def on_msoupdate(self, msoupdate: dict):
+        logger.info(f"Received {msoupdate}")

@@ -1,0 +1,140 @@
+[
+  {
+    "title": "Alien Resurrection",
+    "year": "1997",
+    "audioTypes": [
+      "DTS-HD MA 5.1"
+    ],
+    "content_type": "film",
+    "author": "aron7awol",
+    "catalogue_url": "https://beqcatalogue.readthedocs.io/en/latest/aron7awol/56869036/#dts-hd-ma-51",
+    "filters": [
+      {
+        "type": "LowShelf",
+        "freq": 33.0,
+        "gain": 5.0,
+        "q": 0.9,
+        "biquads": {
+          "96000": {
+            "b": [
+              "1.0003468763586854",
+              "-1.9979191385126602",
+              "0.9975784764805841"
+            ],
+            "a": [
+              "1.9979204983896346",
+              "-0.9979239929622952"
+            ]
+          }
+        },
+        "count": 1
+      },
+      {
+        "type": "LowShelf",
+        "freq": 33.0,
+        "gain": 5.0,
+        "q": 0.9,
+        "biquads": {
+          "96000": {
+            "b": [
+              "1.0003468763586854",
+              "-1.9979191385126602",
+              "0.9975784764805841"
+            ],
+            "a": [
+              "1.9979204983896346",
+              "-0.9979239929622952"
+            ]
+          }
+        },
+        "count": 1
+      },
+      {
+        "type": "LowShelf",
+        "freq": 33.0,
+        "gain": 5.0,
+        "q": 0.9,
+        "biquads": {
+          "96000": {
+            "b": [
+              "1.0003468763586854",
+              "-1.9979191385126602",
+              "0.9975784764805841"
+            ],
+            "a": [
+              "1.9979204983896346",
+              "-0.9979239929622952"
+            ]
+          }
+        },
+        "count": 1
+      },
+      {
+        "type": "LowShelf",
+        "freq": 33.0,
+        "gain": 5.0,
+        "q": 0.9,
+        "biquads": {
+          "96000": {
+            "b": [
+              "1.0003468763586854",
+              "-1.9979191385126602",
+              "0.9975784764805841"
+            ],
+            "a": [
+              "1.9979204983896346",
+              "-0.9979239929622952"
+            ]
+          }
+        },
+        "count": 1
+      },
+      {
+        "type": "LowShelf",
+        "freq": 33.0,
+        "gain": 5.0,
+        "q": 0.9,
+        "biquads": {
+          "96000": {
+            "b": [
+              "1.0003468763586854",
+              "-1.9979191385126602",
+              "0.9975784764805841"
+            ],
+            "a": [
+              "1.9979204983896346",
+              "-0.9979239929622952"
+            ]
+          }
+        },
+        "count": 1
+      }
+    ],
+    "images": [
+      "https://fanart.tv/fanart/movies/8078/moviethumb/alien-resurrection-51a91feec5e6a.jpg",
+      "https://i.imgur.com/cUkWCE8.png"
+    ],
+    "warning": "",
+    "mv": "0",
+    "avs": "https://www.avsforum.com/threads/bass-eq-for-filtered-movies.2995212/post-56869036",
+    "sortTitle": "alien resurrection",
+    "edition": "",
+    "note": "",
+    "language": "English",
+    "source": "Disc",
+    "overview": "Two hundred years after Lt. Ripley died, a group of scientists clone her, hoping to breed the ultimate weapon. But the new Ripley is full of surprises \u2026 as are the new aliens. Ripley must team with a band of smugglers to keep the creatures from reaching Earth.",
+    "theMovieDB": "8078",
+    "rating": "R",
+    "runtime": "109",
+    "genres": [
+      "Science Fiction",
+      "Horror",
+      "Action"
+    ],
+    "altTitle": "",
+    "collection": {
+      "id": "8091",
+      "name": "Alien Collection"
+    }
+  }
+]

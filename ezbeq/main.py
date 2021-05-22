@@ -7,7 +7,7 @@ from flask import Flask
 from flask_compress import Compress
 from flask_restx import Api
 
-from ezbeq.apis import device, catalogue, version, devices
+from ezbeq.apis import catalogue, version, devices
 from ezbeq.catalogue import CatalogueProvider
 from ezbeq.config import Config
 from ezbeq.device import DeviceState, DeviceBridge
@@ -33,36 +33,36 @@ def load_version():
     return v
 
 
-cfg = Config('ezbeq')
-resource_args = {
-    'config': cfg,
-    'device_state': DeviceState(cfg),
-    'device_bridge': DeviceBridge(cfg),
-    'catalogue': CatalogueProvider(cfg),
-    'version': load_version()
-}
+def create_app(config: Config) -> Flask:
+    resource_args = {
+        'config': config,
+        'device_state': DeviceState(config),
+        'device_bridge': DeviceBridge(config),
+        'catalogue': CatalogueProvider(config),
+        'version': load_version()
+    }
+    app = Flask(__name__)
+    app.config['APP_CONFIG'] = config
+    Compress(app)
+    api = Api(app, prefix='/api/1', doc='/api/doc/', version=resource_args['version'], title='ezbeq',
+              description='Backend api for ezbeq')
 
+    def decorate_ns(ns, p=None):
+        for r in ns.resources:
+            r.kwargs['resource_class_kwargs'] = resource_args
+        api.add_namespace(ns, path=p)
 
-app = Flask(__name__)
-Compress(app)
-api = Api(app, prefix='/api/1', doc='/api/doc/', version=resource_args['version'], title='ezbeq',
-          description='Backend api for ezbeq')
-
-
-def decorate_ns(ns, p=None):
-    for r in ns.resources:
-        r.kwargs['resource_class_kwargs'] = resource_args
-    api.add_namespace(ns, path=p)
-
-
-decorate_ns(device.api)
-decorate_ns(devices.api)
-decorate_ns(catalogue.api)
-decorate_ns(version.api)
+    decorate_ns(devices.device_api)
+    decorate_ns(devices.api)
+    decorate_ns(catalogue.api)
+    decorate_ns(version.api)
+    return app
 
 
 def main(args=None):
     """ The main routine. """
+    cfg = Config('ezbeq')
+    app = create_app(cfg)
     logger = cfg.configure_logger()
 
     if cfg.use_twisted:

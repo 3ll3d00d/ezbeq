@@ -17,3 +17,6 @@ flask-restx = "*"
 [dev-packages]
 mkdocs = "*"
 mkdocs-material = "*"
+pytest = "*"
+pytest-httpserver = "*"
+pytest-cov = "*"

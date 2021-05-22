@@ -176,7 +176,7 @@ class CatalogueProvider:
 
     def __reload(self):
         logger.info('Reloading catalogue')
-        downloader = DatabaseDownloader(self.__catalogue_file, self.__catalogue_version_file)
+        downloader = DatabaseDownloader(self.__config.beqcatalogue_url, self.__catalogue_file, self.__catalogue_version_file)
         reload_required = downloader.run()
         if reload_required or not self.__catalogue:
             if os.path.exists(self.__catalogue_file):
@@ -213,10 +213,13 @@ class CatalogueProvider:
 
 
 class DatabaseDownloader:
-    DATABASE_CSV = 'http://beqcatalogue.readthedocs.io/en/latest/database.json'
-    VERSION_TXT = 'http://beqcatalogue.readthedocs.io/en/latest/version.txt'
 
-    def __init__(self, cached_db_file, cached_version_file):
+    def __init__(self, download_url: str, cached_db_file, cached_version_file):
+        self.__download_url = download_url
+        if download_url[-1] != '/':
+            self.__download_url = f"{download_url}/"
+        self.__db_url = f"{self.__download_url}database.json"
+        self.__version_url = f"{self.__download_url}version.txt"
         self.__cached_db_file = cached_db_file
         self.__cached_version_file = cached_version_file
         self.__cached_version = ''
@@ -236,8 +239,8 @@ class DatabaseDownloader:
         '''
         remote_version = self.__get_remote_catalogue_version()
         if remote_version is None or self.__cached_version is None or remote_version != self.__cached_version:
-            logger.info(f"Reloading from {self.DATABASE_CSV}")
-            r = requests.get(self.DATABASE_CSV, allow_redirects=True)
+            logger.info(f"Reloading from {self.__db_url}")
+            r = requests.get(self.__db_url, allow_redirects=True)
             if r.status_code == 200:
                 logger.info(f"Writing database to {self.__cached_db_file}")
                 with open(self.__cached_db_file, 'wb') as f:
@@ -249,7 +252,7 @@ class DatabaseDownloader:
                 else:
                     logger.warning(f"No remote version to write")
                 self.__cached_version = remote_version
-                logger.info(f"Downloaded {self.DATABASE_CSV} @ {remote_version}")
+                logger.info(f"Downloaded {self.__db_url} @ {remote_version}")
                 return True
             else:
                 logger.warning(f"Unable to download catalogue, response is {r.status_code}")
@@ -263,11 +266,11 @@ class DatabaseDownloader:
         :return: the version, if any.
         '''
         try:
-            r = requests.get(self.VERSION_TXT, allow_redirects=True)
+            r = requests.get(self.__version_url, allow_redirects=True)
             if r.status_code == 200:
                 return r.text
             else:
-                logger.warning(f"Unable to get {self.VERSION_TXT}, response was {r.status_code}")
+                logger.warning(f"Unable to get {self.__version_url}, response was {r.status_code}")
         except:
-            logger.exception(f"Failed to get {self.VERSION_TXT}")
+            logger.exception(f"Failed to get {self.__version_url}")
         return None

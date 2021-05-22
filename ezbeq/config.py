@@ -5,18 +5,18 @@ from os import environ
 from os import path
 
 import yaml
-from flask_restx import Resource
 
 
 class Config:
-    def __init__(self, name, default_port=8080):
+    def __init__(self, name, default_port=8080, beqcatalogue_url='http://beqcatalogue.readthedocs.io/en/latest/'):
         self._name = name
         self.logger = logging.getLogger(name + '.config')
-        self.config = self.__load_config()
+        self.config = self.load_config()
         self.icon_path = self.config.get('iconPath')
         self.__hostname = self.config.get('host', self.default_hostname)
         self.__port = self.config.get('port', default_port)
         self.__service_url = f"http://{self.hostname}:{self.port}"
+        self.__beqcatalogue_url = beqcatalogue_url
         self.minidsp_exe = self.config.get('minidspExe', None)
         self.minidsp_options = self.config.get('minidspOptions', None)
         self.htp1_options = self.config.get('htp1', None)
@@ -24,9 +24,13 @@ class Config:
         self.use_twisted = self.config.get('useTwisted', True)
 
     @staticmethod
-    def ensure_dir_exists(dir):
-        if not os.path.exists(dir):
-            os.makedirs(dir)
+    def ensure_dir_exists(d) -> None:
+        if not os.path.exists(d):
+            os.makedirs(d)
+
+    @property
+    def beqcatalogue_url(self) -> str:
+        return self.__beqcatalogue_url
 
     @property
     def default_hostname(self):
@@ -79,7 +83,7 @@ class Config:
     def ignore_retcode(self):
         return self.config.get('ignoreRetcode', False)
 
-    def __load_config(self):
+    def load_config(self):
         """
         loads configuration from some predictable locations.
         :return: the config.
@@ -163,3 +167,8 @@ class Config:
         logger.addHandler(fh)
         logger.addHandler(ch)
         return logger
+
+    def create_minidsp_runner(self):
+        from plumbum import local
+        cmd = local[self.minidsp_exe]
+        return cmd[self.minidsp_options.split(' ')] if self.minidsp_options else cmd
