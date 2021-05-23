@@ -286,6 +286,56 @@ def test_legacy_state_maintained_over_multiple_updates(minidsp_client, minidsp_a
     verify_slot(slots[3], 4)
 
 
+@pytest.mark.parametrize("slot", [1, 2, 3, 4])
+def test_legacy_multiple_updates_in_one_payload(minidsp_client, minidsp_app, slot):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+    # when: activate slot
+    # and: set master gain
+    # and: set input gain
+    payload = [
+        {
+            'command': 'activate'
+        },
+        {
+            'channel': 'master',
+            'value': -10.2,
+            'command': 'gain'
+        },
+        {
+            'channel': '0',
+            'value': 5.1,
+            'command': 'gain'
+        },
+        {
+            'channel': '2',
+            'value': 6.1,
+            'command': 'gain'
+        }
+    ]
+    r = minidsp_client.put(f"/api/1/device/{slot}", data=json.dumps(payload), content_type='application/json')
+    assert r.status_code == 200
+
+    # then: expected commands are sent
+    cmds = config.spy.take_commands()
+    assert len(cmds) == 7
+    assert cmds[0] == f"config {slot-1}"
+    assert cmds[1] == "gain -- -10.20"
+    assert cmds[2] == f"config {slot-1}"
+    assert cmds[3] == "input 0 gain -- 5.10"
+    assert cmds[4] == "input 1 gain -- 5.10"
+    assert cmds[5] == f"config {slot-1}"
+    assert cmds[6] == "input 1 gain -- 6.10"
+
+    # and: device state is accurate
+    slots = verify_master_device_state(r.json, gain=-10.2)
+    for idx, s in enumerate(slots):
+        if idx+1 == slot:
+            verify_slot(s, idx+1, active=True, gain=(5.10, 6.10))
+        else:
+            verify_slot(s, idx+1)
+
+
 def test_legacy_load_unknown_entry(minidsp_client, minidsp_app):
     config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
     assert isinstance(config, MinidspSpyConfig)
@@ -380,7 +430,7 @@ def test_legacy_load_known_entry_and_then_clear(minidsp_client, minidsp_app, slo
         assert r.status_code == 200
         cmds = config.spy.take_commands()
         assert len(cmds) == 31
-        expected_commands = f"""config {slot-1}
+        expected_commands = f"""config {slot - 1}
 input 0 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 0 peq 0 bypass off
 input 0 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
@@ -428,7 +478,7 @@ input 1 peq 9 bypass on"""
         assert r.status_code == 200
         cmds = config.spy.take_commands()
         assert len(cmds) == 25
-        expected_commands = f"""config {slot-1}
+        expected_commands = f"""config {slot - 1}
 input 0 peq 0 bypass on
 input 0 peq 1 bypass on
 input 0 peq 2 bypass on
