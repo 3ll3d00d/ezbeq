@@ -370,7 +370,7 @@ def test_version(minidsp_client):
 
 
 @pytest.mark.parametrize("slot,is_valid", [(0, False), (1, True), (2, True), (3, True), (4, True), (5, False)])
-def test_legacy_load_known_entry(minidsp_client, minidsp_app, slot, is_valid):
+def test_legacy_load_known_entry_and_then_clear(minidsp_client, minidsp_app, slot, is_valid):
     config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
     assert isinstance(config, MinidspSpyConfig)
 
@@ -422,3 +422,41 @@ input 1 peq 9 bypass on"""
             verify_slot(s, idx + 1, active=True, last='Alien Resurrection')
         else:
             verify_slot(s, idx + 1)
+
+    if is_valid:
+        r = minidsp_client.delete(f"/api/1/device/{slot}")
+        assert r.status_code == 200
+        cmds = config.spy.take_commands()
+        assert len(cmds) == 25
+        expected_commands = f"""config {slot-1}
+input 0 peq 0 bypass on
+input 0 peq 1 bypass on
+input 0 peq 2 bypass on
+input 0 peq 3 bypass on
+input 0 peq 4 bypass on
+input 0 peq 5 bypass on
+input 0 peq 6 bypass on
+input 0 peq 7 bypass on
+input 0 peq 8 bypass on
+input 0 peq 9 bypass on
+input 1 peq 0 bypass on
+input 1 peq 1 bypass on
+input 1 peq 2 bypass on
+input 1 peq 3 bypass on
+input 1 peq 4 bypass on
+input 1 peq 5 bypass on
+input 1 peq 6 bypass on
+input 1 peq 7 bypass on
+input 1 peq 8 bypass on
+input 1 peq 9 bypass on
+input 0 mute off
+input 1 mute off
+input 0 gain -- 0.00
+input 1 gain -- 0.00"""
+        assert '\n'.join(cmds) == expected_commands
+        slots = verify_master_device_state(r.json)
+        for idx, s in enumerate(slots):
+            if is_valid and idx + 1 == slot:
+                verify_slot(s, idx + 1, active=True)
+            else:
+                verify_slot(s, idx + 1)

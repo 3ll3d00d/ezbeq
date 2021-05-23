@@ -39,6 +39,7 @@ class DeviceState:
                 saved = {v['id']: v for v in j}
                 current = {v['id']: v for v in self.__state}
                 if saved.keys() == current.keys():
+                    # TODO convert str to float and bool
                     self.__state = [{**current[k], **v} for k, v in saved.items()]
                     logger.info(f"Loaded {self.__state} from {self.__file_name}")
                 else:
@@ -357,7 +358,7 @@ class Minidsp(Bridge):
         target_slot_idx = self.__as_idx(slot)
         self.__validate_slot_idx(target_slot_idx)
         cmds = MinidspBeqCommandGenerator.filt(None, target_slot_idx)
-        cmds.extend(MinidspBeqCommandGenerator.mute(True, target_slot_idx, None, target_slot_idx))
+        cmds.extend(MinidspBeqCommandGenerator.mute(False, target_slot_idx, None, target_slot_idx))
         cmds.extend(MinidspBeqCommandGenerator.gain(0.0, target_slot_idx, None, target_slot_idx))
         self.__send_cmds(target_slot_idx, cmds)
 
