@@ -5,7 +5,7 @@ from flask import request
 from flask_restx import Resource, Namespace
 
 from ezbeq.catalogue import CatalogueProvider, Catalogue
-from ezbeq.device import DeviceState, DeviceBridge
+from ezbeq.device import DeviceState, DeviceBridge, InvalidRequestError
 
 logger = logging.getLogger('ezbeq.devices')
 
@@ -44,11 +44,14 @@ def load_filter(catalogue: List[Catalogue], bridge: DeviceBridge, state: DeviceS
     match: Catalogue = next((c for c in catalogue if c.idx == entry_id), None)
     if not match:
         logger.warning(f"No title with ID {entry_id} in catalogue")
-        return {'message': 'Title not found, please refresh.'}, 400
+        return {'message': 'Title not found, please refresh.'}, 404
     try:
         bridge.load_filter(slot, match)
         state.put(slot, match)
         return state.get(), 200
+    except InvalidRequestError as e:
+        logger.exception(f"Invalid request {entry_id} to Slot {slot}")
+        return state.get(), 400
     except Exception as e:
         logger.exception(f"Failed to write {entry_id} to Slot {slot}")
         state.error(slot)
@@ -68,6 +71,9 @@ def activate_slot(bridge: DeviceBridge, state: DeviceState, slot: str):
         bridge.activate(slot)
         state.activate(slot)
         return state.get(), 200
+    except InvalidRequestError as e:
+        logger.exception(f"Invalid slot {slot}")
+        return state.get(), 400
     except Exception as e:
         logger.exception(f"Failed to activate Slot {slot}")
         state.error(slot)
@@ -89,11 +95,20 @@ def mute_device(bridge: DeviceBridge, state: DeviceState, device_name: str, slot
     try:
         if value:
             bridge.mute(slot, channel)
-            state.mute(slot, channel)
+            if slot is None:
+                state.master_mute = value
+            else:
+                state.mute_slot(slot, channel)
         else:
             bridge.unmute(slot, channel)
-            state.unmute(slot, channel)
+            if slot is None:
+                state.master_mute = value
+            else:
+                state.unmute_slot(slot, channel)
         return state.get(), 200
+    except InvalidRequestError as e:
+        logger.exception(f"Invalid mute request {slot} {channel} {value}")
+        return state.get(), 400
     except Exception as e:
         logger.exception(f"Failed mute channel {slot}")
         return state.get(), 500
@@ -113,8 +128,14 @@ def set_gain(bridge: DeviceBridge, state: DeviceState, device_name: str, slot: O
     '''
     try:
         bridge.set_gain(slot, channel, value)
-        state.gain(slot, channel, value)
+        if slot is None:
+            state.master_volume = value
+        else:
+            state.set_slot_gain(slot, channel, value)
         return state.get(), 200
+    except InvalidRequestError as e:
+        logger.exception(f"Unable to set gain for {slot} {channel} {value}")
+        return state.get(), 400
     except Exception as e:
         logger.exception(f"Failed mute channel {slot}")
         return state.get(), 500
@@ -132,17 +153,7 @@ class Devices(Resource):
         self.__bridge: DeviceBridge = kwargs['device_bridge']
 
     def get(self):
-        state = self.__bridge.state()
-        if self.__bridge.supports_gain():
-            if 'active_slot' in state:
-                self.__state.activate(state['active_slot'])
-            if 'mute' in state:
-                if state['mute'] is True:
-                    self.__state.mute(None, None)
-                else:
-                    self.__state.unmute(None, None)
-            if 'volume' in state:
-                self.__state.gain('0', '0', state['volume'])
+        self.__state.initialise(self.__bridge)
         return self.__state.get()
 
 
