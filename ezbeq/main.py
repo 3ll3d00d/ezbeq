@@ -19,27 +19,13 @@ if hasattr(faulthandler, 'register'):
     faulthandler.register(signal.SIGUSR2, all_threads=True)
 
 
-def load_version():
-    if getattr(sys, 'frozen', False):
-        # pyinstaller lets you copy files to arbitrary locations under the _MEIPASS root dir
-        root = os.path.join(sys._MEIPASS)
-    else:
-        root = os.path.dirname(__file__)
-    v_name = os.path.join(root, 'VERSION')
-    v = 'UNKNOWN'
-    if os.path.exists(v_name):
-        with open(v_name, 'r') as f:
-            v = f.read()
-    return v
-
-
 def create_app(config: Config) -> Flask:
     resource_args = {
         'config': config,
         'device_state': DeviceState(config),
         'device_bridge': DeviceBridge(config),
         'catalogue': CatalogueProvider(config),
-        'version': load_version()
+        'version': config.version
     }
     app = Flask(__name__)
     app.config['APP_CONFIG'] = config

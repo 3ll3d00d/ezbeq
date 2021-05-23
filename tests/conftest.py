@@ -109,3 +109,7 @@ class MinidspSpyConfig(Config):
     @property
     def config_path(self):
         return self.__tmp_path
+
+    @property
+    def version(self):
+        return '1.2.3'

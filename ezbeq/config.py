@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from logging import handlers
 from os import environ
 from os import path
@@ -172,3 +173,17 @@ class Config:
         from plumbum import local
         cmd = local[self.minidsp_exe]
         return cmd[self.minidsp_options.split(' ')] if self.minidsp_options else cmd
+
+    @property
+    def version(self):
+        if getattr(sys, 'frozen', False):
+            # pyinstaller lets you copy files to arbitrary locations under the _MEIPASS root dir
+            root = os.path.join(sys._MEIPASS)
+        else:
+            root = os.path.dirname(__file__)
+        v_name = os.path.join(root, 'VERSION')
+        v = 'UNKNOWN'
+        if os.path.exists(v_name):
+            with open(v_name, 'r') as f:
+                v = f.read()
+        return v

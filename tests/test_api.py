@@ -361,6 +361,14 @@ def test_metadata(minidsp_client):
     assert data['count'] == 1
 
 
+def test_version(minidsp_client):
+    r = minidsp_client.get(f"/api/1/version")
+    assert r.status_code == 200
+    data = r.json
+    assert data
+    assert data['version'] == '1.2.3'
+
+
 @pytest.mark.parametrize("slot,is_valid", [(0, False), (1, True), (2, True), (3, True), (4, True), (5, False)])
 def test_legacy_load_known_entry(minidsp_client, minidsp_app, slot, is_valid):
     config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
