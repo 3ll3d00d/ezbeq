@@ -50,7 +50,7 @@ class DeviceState:
             device_state = bridge.state()
             if device_state:
                 if 'active_slot' in device_state:
-                    self.activate(device_state['active_slot'])
+                    self.activate(str(device_state['active_slot'] + 1))
                 if 'mute' in device_state:
                     self.master_mute = device_state['mute'] is True
                 if 'volume' in device_state:
@@ -207,18 +207,14 @@ def create_bridge(cfg: Config) -> Bridge:
 class MinidspBeqCommandGenerator:
 
     @staticmethod
-    def activate(slot: int):
-        return [f"config {slot}"]
+    def activate(slot: int) -> str:
+        return f"config {slot}"
 
     @staticmethod
-    def filt(entry: Optional[Catalogue], slot: int, active_slot: Optional[int] = None):
-        # config <slot>
+    def filt(entry: Optional[Catalogue]):
         # input <channel> peq <index> set -- <b0> <b1> <b2> <a1> <a2>
         # input <channel> peq <index> bypass [on|off]
-        if active_slot is None or active_slot != slot:
-            cmds = MinidspBeqCommandGenerator.activate(slot)
-        else:
-            cmds = []
+        cmds = []
         for c in range(2):
             idx = 0
             if entry:
@@ -244,21 +240,17 @@ class MinidspBeqCommandGenerator:
         return f"input {channel} peq {idx} bypass {'on' if bypass else 'off'}"
 
     @staticmethod
-    def mute(state: bool, slot: Optional[int], channel: Optional[int], active_slot: Optional[int] = None):
+    def mute(state: bool, slot: Optional[int], channel: Optional[int]):
         '''
         Generates commands to mute the configuration.
         :param state: mute if true otherwise unmute.
         :param slot: the target slot, if not set apply to the master control.
         :param channel: the channel, applicable only if slot is set, if not set apply to both input channels.
-        :param active_slot: if not set or if it does not match the requested slot, activate the slot first.
         :return: the commands.
         '''
         state_cmd = 'on' if state else 'off'
         if slot is not None:
-            if active_slot is None or active_slot != slot:
-                cmds = MinidspBeqCommandGenerator.activate(slot)
-            else:
-                cmds = []
+            cmds = []
             if channel is None:
                 cmds.append(f"input 0 mute {state_cmd}")
                 cmds.append(f"input 1 mute {state_cmd}")
@@ -269,22 +261,18 @@ class MinidspBeqCommandGenerator:
             return [f"mute {state_cmd}"]
 
     @staticmethod
-    def gain(gain: float, slot: Optional[int], channel: Optional[int], active_slot: Optional[int] = None):
+    def gain(gain: float, slot: Optional[int], channel: Optional[int]):
         '''
         Generates commands to set gain.
         :param gain: the gain to set.
         :param slot: the target slot, if not set apply to the master control.
         :param channel: the channel, applicable only if slot is set, if not set apply to both input channels.
-        :param active_slot: if not set or if it does not match the requested slot, activate the slot first.
         :return: the commands.
         '''
         if slot is not None:
             if not -72.0 <= gain <= 12.0:
                 raise InvalidRequestError(f"Input gain {gain:.2f} out of range (>= -72.0 and <= 12.0)")
-            if active_slot is None or active_slot != slot:
-                cmds = MinidspBeqCommandGenerator.activate(slot)
-            else:
-                cmds = []
+            cmds = []
             if channel is None:
                 cmds.append(f"input 0 gain -- {gain:.2f}")
                 cmds.append(f"input 1 gain -- {gain:.2f}")
@@ -301,18 +289,19 @@ class Minidsp(Bridge):
 
     def __init__(self, cfg: Config):
         self.__executor = ThreadPoolExecutor(max_workers=1)
+        self.__cmd_timeout = cfg.minidsp_cmd_timeout
         self.__ignore_retcode = cfg.ignore_retcode
         self.__runner = cfg.create_minidsp_runner()
 
     def state(self) -> Optional[dict]:
-        return self.__executor.submit(self.__get_state).result(timeout=60)
+        return self.__executor.submit(self.__get_state).result(timeout=self.__cmd_timeout)
 
     def __get_state(self) -> Optional[dict]:
         values = {}
         lines = None
         try:
             kwargs = {'retcode': None} if self.__ignore_retcode else {}
-            lines = self.__runner(timeout=5, **kwargs)
+            lines = self.__runner(timeout=self.__cmd_timeout, **kwargs)
             for line in lines.split('\n'):
                 if line.startswith('MasterStatus'):
                     idx = line.find('{ ')
@@ -320,7 +309,7 @@ class Minidsp(Bridge):
                         vals = line[idx + 2:-2].split(', ')
                         for v in vals:
                             if v.startswith('preset: '):
-                                values['active_slot'] = str(int(v[8:]) + 1)
+                                values['active_slot'] = int(v[8:])
                             elif v.startswith('mute: '):
                                 values['mute'] = v[6:] == 'true'
                             elif v.startswith('volume: Gain('):
@@ -333,15 +322,13 @@ class Minidsp(Bridge):
     def __as_idx(idx: str):
         return int(idx) - 1
 
-    def __send_cmds(self, target_slot_idx: int, cmds: List[str]):
-        with tmp_file(cmds) as file_name:
-            return self.__executor.submit(self.__do_run, self.__runner['-f', file_name], cmds,
-                                          target_slot_idx).result(timeout=60)
+    def __send_cmds(self, target_slot_idx: Optional[int], cmds: List[str]):
+        return self.__executor.submit(self.__do_run, cmds, target_slot_idx).result(timeout=self.__cmd_timeout)
 
     def activate(self, slot: str) -> None:
         target_slot_idx = self.__as_idx(slot)
         self.__validate_slot_idx(target_slot_idx)
-        self.__send_cmds(target_slot_idx, MinidspBeqCommandGenerator.activate(target_slot_idx))
+        self.__send_cmds(target_slot_idx, [])
 
     @staticmethod
     def __validate_slot_idx(target_slot_idx):
@@ -351,15 +338,15 @@ class Minidsp(Bridge):
     def load_filter(self, slot: str, entry: Catalogue) -> None:
         target_slot_idx = self.__as_idx(slot)
         self.__validate_slot_idx(target_slot_idx)
-        cmds = MinidspBeqCommandGenerator.filt(entry, target_slot_idx)
+        cmds = MinidspBeqCommandGenerator.filt(entry)
         self.__send_cmds(target_slot_idx, cmds)
 
     def clear_filter(self, slot: str) -> None:
         target_slot_idx = self.__as_idx(slot)
         self.__validate_slot_idx(target_slot_idx)
-        cmds = MinidspBeqCommandGenerator.filt(None, target_slot_idx)
-        cmds.extend(MinidspBeqCommandGenerator.mute(False, target_slot_idx, None, target_slot_idx))
-        cmds.extend(MinidspBeqCommandGenerator.gain(0.0, target_slot_idx, None, target_slot_idx))
+        cmds = MinidspBeqCommandGenerator.filt(None)
+        cmds.extend(MinidspBeqCommandGenerator.mute(False, target_slot_idx, None))
+        cmds.extend(MinidspBeqCommandGenerator.gain(0.0, target_slot_idx, None))
         self.__send_cmds(target_slot_idx, cmds)
 
     def mute(self, slot: Optional[str], channel: Optional[str]) -> None:
@@ -385,15 +372,24 @@ class Minidsp(Bridge):
         target_channel_idx = self.__as_idx(channel) if channel else None
         return target_channel_idx, target_slot_idx
 
-    def __do_run(self, cmd, config_cmds: List[str], slot: int):
-        kwargs = {'retcode': None} if self.__ignore_retcode else {}
-        logger.info(f"Sending {len(config_cmds)} commands to slot {slot} via {cmd} {kwargs if kwargs else ''}")
+    def __do_run(self, config_cmds: List[str], slot: Optional[int]):
+        if slot is not None:
+            change_slot = True
+            current_state = self.__get_state()
+            if current_state and 'active_slot' in current_state and current_state['active_slot'] == slot:
+                change_slot = False
+            if change_slot is True:
+                logger.info(f"Activating slot {slot}, current is {current_state['active_slot']}")
+                config_cmds.insert(0, MinidspBeqCommandGenerator.activate(slot))
         formatted = '\n'.join(config_cmds)
         logger.info(f"\n{formatted}")
-        start = time.time()
-        code, stdout, stderr = cmd.run(timeout=5, **kwargs)
-        end = time.time()
-        logger.info(f"Sent {len(config_cmds)} commands to slot {slot} in {to_millis(start, end)}ms - result is {code}")
+        with tmp_file(config_cmds) as file_name:
+            kwargs = {'retcode': None} if self.__ignore_retcode else {}
+            logger.info(f"Sending {len(config_cmds)} commands to slot {slot} via {file_name} {kwargs if kwargs else ''}")
+            start = time.time()
+            code, stdout, stderr = self.__runner['-f', file_name].run(timeout=self.__cmd_timeout, **kwargs)
+            end = time.time()
+            logger.info(f"Sent {len(config_cmds)} commands to slot {slot} in {to_millis(start, end)}ms - result is {code}")
 
 
 def to_millis(start, end, precision=1):

@@ -23,6 +23,7 @@ class Config:
         self.htp1_options = self.config.get('htp1', None)
         self.webapp_path = self.config.get('webappPath', None)
         self.use_twisted = self.config.get('useTwisted', True)
+        self.minidsp_cmd_timeout = self.config.get('minidspCmdTimeout', 10)
 
     @staticmethod
     def ensure_dir_exists(d) -> None:
@@ -127,7 +128,8 @@ class Config:
             'host': self.default_hostname,
             'useTwisted': True,
             'iconPath': str(Path.home()),
-            'minidspExe': 'minidsp'
+            'minidspExe': 'minidsp',
+            'minidspCmdTimeout': 10
         }
 
     @property

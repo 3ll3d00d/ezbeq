@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -46,15 +47,25 @@ def minidsp_client(minidsp_app):
     return minidsp_app.test_client()
 
 
+CONFIG_PATTERN = re.compile(r'config ([0-3])')
+GAIN_PATTERN = re.compile(r'gain -- ([-+]?\d*\.\d+|\d+)')
+
+
 class MinidspSpy:
 
     def __init__(self):
         self.history = []
         self.pending = []
-        self.status = 'MasterStatus { preset: 0, source: Usb, volume: Gain(-0.0), mute: false }\n' \
-                      'Input levels: -131.5, -131.5\n' \
-                      'Output levels: -131.5, -131.5, -120.0, -131.5'
+        self.__slot = 1
+        self.__gain = 0.0
+        self.__mute = False
         self.commands = []
+
+    def __make_status(self) -> str:
+        mute_str = f"{self.__mute}".lower()
+        return f'MasterStatus {{ preset: {self.__slot - 1}, source: Usb, volume: Gain({self.__gain:.1f}), mute: {mute_str} }}\n' \
+               'Input levels: -131.5, -131.5\n' \
+               'Output levels: -131.5, -131.5, -120.0, -131.5'
 
     def take_commands(self):
         cmds = self.commands
@@ -70,12 +81,25 @@ class MinidspSpy:
             self.history.append(self.pending)
             if len(self.pending[-1]) == 2 and self.pending[-1][0] == '-f':
                 with open(self.pending[-1][1]) as f:
-                    cmds = f.read().split('\n')
-                    self.commands.extend([c for c in cmds if c])
+                    new_cmds = [c for c in f.read().split('\n') if c]
+                for c in new_cmds:
+                    if c == 'mute on':
+                        self.__mute = True
+                    elif c == 'mute off':
+                        self.__mute = False
+                    else:
+                        m = GAIN_PATTERN.match(c)
+                        if m:
+                            self.__gain = float(m.group(1))
+                        else:
+                            m = CONFIG_PATTERN.match(c)
+                            if m:
+                                self.__slot = int(m.group(1)) + 1
+                self.commands.extend(new_cmds)
             self.pending = []
             return 0, '', ''
         else:
-            return self.status
+            return self.__make_status()
 
     def run(self, *args, **kwargs):
         return self(*args, **kwargs)
