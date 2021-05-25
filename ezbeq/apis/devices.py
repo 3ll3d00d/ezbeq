@@ -259,9 +259,14 @@ class ActiveSlot(Resource):
         return activate_slot(self.__bridge, self.__state, slot)
 
 
-@api.route('/<string:device_name>/gain')
+gain_model = api.model('Gain', {
+    'gain': fields.Float
+})
+
+
+@api.route('/<string:device_name>/gain/<string:slot>/<int:channel>')
 @api.route('/<string:device_name>/gain/<string:slot>')
-@api.route('/<string:device_name>/gain/<string:slot>/<string:channel>')
+@api.route('/<string:device_name>/gain')
 @api.doc(params={
     'device_name': 'The dsp device name',
     'slot': 'The dsp configuration to set the gain on, available values depend on the DSP device (1-4 for MiniDSP'
@@ -275,18 +280,22 @@ class SetGain(Resource):
         self.__bridge: DeviceBridge = kwargs['device_bridge']
         self.__state: DeviceStateHolder = kwargs['device_state']
 
-    def put(self, device_name: str, slot: Optional[str], channel: Optional[int] = None) -> Tuple[dict, int]:
-        return set_gain(self.__bridge, self.__state, device_name, slot, True, channel)
+    @api.expect(gain_model, validate=True)
+    def put(self, device_name: str, slot: Optional[str] = None, channel: Optional[int] = None) -> Tuple[dict, int]:
+        return set_gain(self.__bridge, self.__state, device_name, slot, request.get_json()['gain'], channel)
+
+    def delete(self, device_name: str, slot: Optional[str] = None, channel: Optional[int] = None) -> Tuple[dict, int]:
+        return set_gain(self.__bridge, self.__state, device_name, slot, 0.0, channel)
 
 
-@api.route('/<string:device_name>/mute')
+@api.route('/<string:device_name>/mute/<string:slot>/<int:channel>')
 @api.route('/<string:device_name>/mute/<string:slot>')
-@api.route('/<string:device_name>/mute/<string:slot>/<string:channel>')
+@api.route('/<string:device_name>/mute')
 @api.doc(params={
     'device_name': 'The dsp device name',
     'slot': 'The dsp configuration to mute, available values depend on the DSP device (1-4 for MiniDSP 2x4HD). '
             'If unset, the entire device is muted.',
-    'channel': 'mutes the specified input channel or all inputs if not set'
+    'channel': 'mutes or unmutes the specified input channel or all inputs if not set'
 })
 class Mute(Resource):
 
@@ -295,27 +304,10 @@ class Mute(Resource):
         self.__bridge: DeviceBridge = kwargs['device_bridge']
         self.__state: DeviceStateHolder = kwargs['device_state']
 
-    def put(self, device_name: str, slot: Optional[str], channel: Optional[int] = None) -> Tuple[dict, int]:
+    def put(self, device_name: str, slot: Optional[str] = None, channel: Optional[int] = None) -> Tuple[dict, int]:
         return mute_device(self.__bridge, self.__state, device_name, slot, True, channel)
 
-
-@api.route('/<string:device_name>/unmute')
-@api.route('/<string:device_name>/unmute/<string:slot>')
-@api.route('/<string:device_name>/unmute/<string:slot>/<string:channel>')
-@api.doc(params={
-    'device_name': 'The dsp device name',
-    'slot': 'The dsp configuration to unmute, available values depend on the DSP device (1-4 for MiniDSP 2x4HD). '
-            'If unset, the entire device is unmuted.',
-    'channel': 'unmutes the specified input channel or all inputs if not set'
-})
-class Unmute(Resource):
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.__bridge: DeviceBridge = kwargs['device_bridge']
-        self.__state: DeviceStateHolder = kwargs['device_state']
-
-    def put(self, device_name: str, slot: Optional[str], channel: Optional[int] = None) -> Tuple[dict, int]:
+    def delete(self, device_name: str, slot: Optional[str] = None, channel: Optional[int] = None) -> Tuple[dict, int]:
         return mute_device(self.__bridge, self.__state, device_name, slot, False, channel)
 
 
@@ -331,7 +323,7 @@ class ClearFilter(Resource):
         self.__bridge: DeviceBridge = kwargs['device_bridge']
         self.__state: DeviceStateHolder = kwargs['device_state']
 
-    def delete(self, slot: str) -> Tuple[dict, int]:
+    def delete(self, device_name: str, slot: str) -> Tuple[dict, int]:
         return delete_filter(self.__bridge, self.__state, slot)
 
 
@@ -357,7 +349,8 @@ class LoadFilter(Resource):
 device_api = Namespace('device')
 
 
-@device_api.route('/<string:slot>', doc=False)
+@device_api.route('/<string:slot>')
+@device_api.deprecated
 class DeviceSender(Resource):
 
     def __init__(self, *args, **kwargs):

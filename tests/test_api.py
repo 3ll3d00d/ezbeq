@@ -53,6 +53,20 @@ def test_legacy_mute_both_inputs(minidsp_client, minidsp_app, slot, mute_op):
         'command': 'mute'
     }
     r = minidsp_client.put(f"/api/1/device/{slot}", data=json.dumps(payload), content_type='application/json')
+    verify_mute_both_inputs(config, mute_op, r, slot)
+
+
+@pytest.mark.parametrize("slot", [1, 2, 3, 4])
+@pytest.mark.parametrize("mute_op", ['on', 'off'])
+def test_mute_both_inputs(minidsp_client, minidsp_app, slot, mute_op):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+    call = minidsp_client.put if mute_op == 'on' else minidsp_client.delete
+    r = call(f"/api/1/devices/master/mute/{slot}")
+    verify_mute_both_inputs(config, mute_op, r, slot)
+
+
+def verify_mute_both_inputs(config, mute_op, r, slot):
     assert r
     assert r.status_code == 200
     cmds = verify_cmd_count(config.spy, slot, 2)
@@ -89,6 +103,21 @@ def test_legacy_mute_single_input(minidsp_client, minidsp_app, slot, channel, mu
         'command': 'mute'
     }
     r = minidsp_client.put(f"/api/1/device/{slot}", data=json.dumps(payload), content_type='application/json')
+    verify_mute_single_input(channel, config, mute_op, r, slot)
+
+
+@pytest.mark.parametrize("slot", [1, 2, 3, 4])
+@pytest.mark.parametrize("channel", [1, 2])
+@pytest.mark.parametrize("mute_op", ['on', 'off'])
+def test_mute_single_input(minidsp_client, minidsp_app, slot, channel, mute_op):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+    call = minidsp_client.put if mute_op == 'on' else minidsp_client.delete
+    r = call(f"/api/1/devices/master/mute/{slot}/{channel}")
+    verify_mute_single_input(channel, config, mute_op, r, slot)
+
+
+def verify_mute_single_input(channel, config, mute_op, r, slot):
     assert r
     assert r.status_code == 200
     cmds = verify_cmd_count(config.spy, slot, 1)
@@ -115,6 +144,19 @@ def test_legacy_mute_master(minidsp_client, minidsp_app, mute_op):
         'command': 'mute'
     }
     r = minidsp_client.put(f"/api/1/device/0", data=json.dumps(payload), content_type='application/json')
+    verify_mute_master(config, mute_op, r)
+
+
+@pytest.mark.parametrize("mute_op", ['on', 'off'])
+def test_mute_master(minidsp_client, minidsp_app, mute_op):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+    call = minidsp_client.put if mute_op == 'on' else minidsp_client.delete
+    r = call(f"/api/1/devices/master/mute")
+    verify_mute_master(config, mute_op, r)
+
+
+def verify_mute_master(config, mute_op, r):
     assert r
     assert r.status_code == 200
     cmds = config.spy.take_commands()
@@ -136,6 +178,20 @@ def test_legacy_set_input_gain(minidsp_client, minidsp_app, slot, gain, is_valid
         'command': 'gain'
     }
     r = minidsp_client.put(f"/api/1/device/{slot}", data=json.dumps(payload), content_type='application/json')
+    verify_set_input_gain(config, gain, is_valid, r, slot)
+
+
+@pytest.mark.parametrize("slot", [1, 2, 3, 4])
+@pytest.mark.parametrize("gain,is_valid", [(-14.2, True), (-49.1, True), (-72.1, False), (0.5, True), (12.4, False)])
+def test_set_input_gain(minidsp_client, minidsp_app, slot, gain, is_valid):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+    payload = {'gain': gain}
+    r = minidsp_client.put(f"/api/1/devices/master/gain/{slot}", data=json.dumps(payload), content_type='application/json')
+    verify_set_input_gain(config, gain, is_valid, r, slot)
+
+
+def verify_set_input_gain(config, gain, is_valid, r, slot):
     assert r
     if is_valid:
         expected_gain = (gain, gain)
@@ -168,6 +224,21 @@ def test_legacy_set_input_gain_single_input(minidsp_client, minidsp_app, slot, c
         'command': 'gain'
     }
     r = minidsp_client.put(f"/api/1/device/{slot}", data=json.dumps(payload), content_type='application/json')
+    verify_set_input_gain_single_input(channel, config, gain, is_valid, r, slot)
+
+
+@pytest.mark.parametrize("slot", [1, 2, 3, 4])
+@pytest.mark.parametrize("channel", [1, 2])
+@pytest.mark.parametrize("gain,is_valid", [(-14.2, True), (-49.1, True), (-72.1, False), (0.5, True), (12.4, False)])
+def test_set_input_gain_single_input(minidsp_client, minidsp_app, slot, channel, gain, is_valid):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+    payload = {'gain': gain}
+    r = minidsp_client.put(f"/api/1/devices/master/gain/{slot}/{channel}", data=json.dumps(payload), content_type='application/json')
+    verify_set_input_gain_single_input(channel, config, gain, is_valid, r, slot)
+
+
+def verify_set_input_gain_single_input(channel, config, gain, is_valid, r, slot):
     assert r
     if is_valid:
         expected_gain = (gain, 0.0) if channel == 1 else (0.0, gain)
@@ -197,6 +268,19 @@ def test_legacy_set_master_gain(minidsp_client, minidsp_app, gain, is_valid):
         'command': 'gain'
     }
     r = minidsp_client.put(f"/api/1/device/0", data=json.dumps(payload), content_type='application/json')
+    verify_set_master_gain(config, gain, is_valid, r)
+
+
+@pytest.mark.parametrize("gain,is_valid", [(-14.2, True), (-49.1, True), (-72.1, True), (0.5, False), (-128.0, False)])
+def test_set_master_gain(minidsp_client, minidsp_app, gain, is_valid):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+    payload = {'gain': gain}
+    r = minidsp_client.put(f"/api/1/devices/master/gain", data=json.dumps(payload), content_type='application/json')
+    verify_set_master_gain(config, gain, is_valid, r)
+
+
+def verify_set_master_gain(config, gain, is_valid, r):
     assert r
     if is_valid:
         assert r.status_code == 200
@@ -220,6 +304,18 @@ def test_legacy_activate_slot(minidsp_client, minidsp_app, slot, is_valid):
         'command': 'activate'
     }
     r = minidsp_client.put(f"/api/1/device/{slot}", data=json.dumps(payload), content_type='application/json')
+    verify_activate_slot(config, is_valid, r, slot)
+
+
+@pytest.mark.parametrize("slot,is_valid", [(0, False), (1, True), (2, True), (3, True), (4, True), (5, False)])
+def test_activate_slot(minidsp_client, minidsp_app, slot, is_valid):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+    r = minidsp_client.put(f"/api/1/devices/master/config/{slot}/active")
+    verify_activate_slot(config, is_valid, r, slot)
+
+
+def verify_activate_slot(config, is_valid, r, slot):
     assert r
     if is_valid:
         assert r.status_code == 200
@@ -338,6 +434,15 @@ def test_legacy_load_unknown_entry(minidsp_client, minidsp_app):
 
     r = minidsp_client.put(f"/api/1/device/1", data=json.dumps({'command': 'load', 'id': 'super'}),
                            content_type='application/json')
+    assert r.status_code == 404
+    cmds = config.spy.take_commands()
+    assert len(cmds) == 0
+
+
+def test_load_unknown_entry(minidsp_client, minidsp_app):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+    r = minidsp_client.put(f"/api/1/devices/master/filter/1/super")
     assert r.status_code == 404
     cmds = config.spy.take_commands()
     assert len(cmds) == 0
@@ -469,6 +574,95 @@ input 1 peq 9 bypass on"""
 
     if is_valid:
         r = minidsp_client.delete(f"/api/1/device/{slot}")
+        assert r.status_code == 200
+        cmds = config.spy.take_commands()
+        assert len(cmds) == 24
+        expected_commands = f"""input 0 peq 0 bypass on
+input 0 peq 1 bypass on
+input 0 peq 2 bypass on
+input 0 peq 3 bypass on
+input 0 peq 4 bypass on
+input 0 peq 5 bypass on
+input 0 peq 6 bypass on
+input 0 peq 7 bypass on
+input 0 peq 8 bypass on
+input 0 peq 9 bypass on
+input 1 peq 0 bypass on
+input 1 peq 1 bypass on
+input 1 peq 2 bypass on
+input 1 peq 3 bypass on
+input 1 peq 4 bypass on
+input 1 peq 5 bypass on
+input 1 peq 6 bypass on
+input 1 peq 7 bypass on
+input 1 peq 8 bypass on
+input 1 peq 9 bypass on
+input 0 mute off
+input 1 mute off
+input 0 gain -- 0.00
+input 1 gain -- 0.00"""
+        assert '\n'.join(cmds) == expected_commands
+        slots = verify_master_device_state(r.json)
+        for idx, s in enumerate(slots):
+            if is_valid and idx + 1 == slot:
+                verify_slot(s, idx + 1, active=True)
+            else:
+                verify_slot(s, idx + 1)
+
+
+@pytest.mark.parametrize("slot,is_valid", [(0, False), (1, True), (2, True), (3, True), (4, True), (5, False)])
+def test_load_known_entry_and_then_clear(minidsp_client, minidsp_app, slot, is_valid):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+
+    r = minidsp_client.put(f"/api/1/devices/master/filter/{slot}/123456_0")
+    if is_valid:
+        assert r.status_code == 200
+        cmds = verify_cmd_count(config.spy, slot, 30)
+        expected_commands = f"""input 0 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 0 bypass off
+input 0 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 1 bypass off
+input 0 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 2 bypass off
+input 0 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 3 bypass off
+input 0 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 4 bypass off
+input 0 peq 5 bypass on
+input 0 peq 6 bypass on
+input 0 peq 7 bypass on
+input 0 peq 8 bypass on
+input 0 peq 9 bypass on
+input 1 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 1 peq 0 bypass off
+input 1 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 1 peq 1 bypass off
+input 1 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 1 peq 2 bypass off
+input 1 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 1 peq 3 bypass off
+input 1 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 1 peq 4 bypass off
+input 1 peq 5 bypass on
+input 1 peq 6 bypass on
+input 1 peq 7 bypass on
+input 1 peq 8 bypass on
+input 1 peq 9 bypass on"""
+        assert '\n'.join(cmds) == expected_commands
+    else:
+        assert r.status_code == 400
+        cmds = config.spy.take_commands()
+        assert not cmds
+    slots = verify_master_device_state(r.json)
+    for idx, s in enumerate(slots):
+        if is_valid and idx + 1 == slot:
+            verify_slot(s, idx + 1, active=True, last='Alien Resurrection')
+        else:
+            verify_slot(s, idx + 1)
+
+    if is_valid:
+        r = minidsp_client.delete(f"/api/1/devices/master/filter/{slot}")
         assert r.status_code == 200
         cmds = config.spy.take_commands()
         assert len(cmds) == 24
