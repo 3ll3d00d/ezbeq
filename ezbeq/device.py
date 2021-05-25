@@ -22,28 +22,171 @@ def get_channels(cfg: Config) -> List[str]:
         return ['HTP1']
 
 
+class SlotState:
+
+    def __init__(self, slot_id: str):
+        self.__slot_id = slot_id
+        self.last = 'Empty'
+        self.active = False
+
+    @property
+    def slot_id(self) -> str:
+        return self.__slot_id
+
+    def merge_with(self, state: dict) -> bool:
+        if 'last' in state:
+            self.last = state['last']
+        return True
+
+    def as_dict(self) -> dict:
+        return {'id': self.slot_id, 'last': self.last, 'active': self.active}
+
+    def __repr__(self):
+        return f"{'*' if self.active else ''} {self.slot_id} - {self.last}"
+
+    def clear(self):
+        self.last = 'Empty'
+
+    def set_gain(self, channel: Optional[int], value: float):
+        pass
+
+    def mute(self, channel: Optional[int]):
+        pass
+
+    def unmute(self, channel: Optional[int]):
+        pass
+
+
+class MinidspSlotState(SlotState):
+
+    def __init__(self, slot_id: str):
+        super().__init__(slot_id)
+        self.gain1 = 0.0
+        self.mute1 = False
+        self.gain2 = 0.0
+        self.mute2 = False
+
+    def clear(self):
+        super().clear()
+        self.gain1 = 0.0
+        self.gain2 = 0.0
+        self.mute1 = False
+        self.mute2 = False
+
+    def set_gain(self, channel: Optional[int], value: float):
+        if channel is None:
+            self.gain1 = value
+            self.gain2 = value
+        else:
+            if channel == 1:
+                self.gain1 = value
+            elif channel == 2:
+                self.gain2 = value
+            else:
+                raise ValueError(f'Unknown channel {channel} for slot {self.slot_id}')
+
+    def mute(self, channel: Optional[int]):
+        self.__do_mute(channel, True)
+
+    def __do_mute(self, channel: Optional[int], value: bool):
+        if channel is None:
+            self.mute1 = value
+            self.mute2 = value
+        else:
+            if channel == 1:
+                self.mute1 = value
+            elif channel == 2:
+                self.mute2 = value
+            else:
+                raise ValueError(f'Unknown channel {channel} for slot {self.slot_id}')
+
+    def unmute(self, channel: Optional[int]):
+        self.__do_mute(channel, False)
+
+    def merge_with(self, state: dict) -> bool:
+        super().merge_with(state)
+        if 'gain1' in state:
+            self.gain1 = float(state['gain1'])
+        if 'gain2' in state:
+            self.gain2 = float(state['gain2'])
+        if 'mute1' in state:
+            self.mute1 = bool(state['mute1'])
+        if 'mute2' in state:
+            self.mute2 = bool(state['mute2'])
+        return True
+
+    def as_dict(self) -> dict:
+        sup = super().as_dict()
+        return {
+            **sup,
+            'gain1': self.gain1,
+            'gain2': self.gain2,
+            'mute1': self.mute1,
+            'mute2': self.mute2,
+            'canActivate': True
+        }
+
+    def __repr__(self):
+        return f"{super().__repr__()} - 1: {self.gain1:.2f}/{self.mute1} 2: {self.gain1:.2f}/{self.mute2}"
+
+
 class DeviceState:
 
+    def __init__(self, name: str, channel_ids: List[str], has_gain: bool):
+        self.__name: str = name
+        self.__slots: List[SlotState] = [MinidspSlotState(c_id) if has_gain else SlotState(c_id)
+                                         for c_id in channel_ids]
+        self.mute: bool = False
+        self.master_volume: float = 0.0
+
+    @property
+    def name(self):
+        return self.__name
+
+    def __repr__(self):
+        return f"{self.name} MV: {self.master_volume:.2f} Mute: {self.mute} [Slots: {self.__slots}]"
+
+    def merge_with(self, serialised_state: dict) -> bool:
+        saved_slots_by_id = {v['id']: v for v in serialised_state}
+        current_slots_by_id = {s.slot_id: s for s in self.__slots}
+        if saved_slots_by_id.keys() == current_slots_by_id.keys():
+            for slot_id, state in saved_slots_by_id.items():
+                current_slots_by_id[slot_id].merge_with(state)
+            return True
+        else:
+            return False
+
+    def get_slot(self, slot_id) -> SlotState:
+        return next(s for s in self.__slots if s.slot_id == slot_id)
+
+    def serialise(self):
+        return [s.as_dict() for s in self.__slots]
+
+    def as_dict(self) -> dict:
+        return {
+            'mute': self.mute,
+            'masterVolume': self.master_volume,
+            'slots': [s.as_dict() for s in self.__slots]
+        }
+
+    def activate(self, slot_id: str):
+        for s in self.__slots:
+            s.active = s.slot_id == slot_id
+
+
+class DeviceStateHolder:
+
     def __init__(self, cfg: Config):
-        self.__can_activate = cfg.minidsp_exe is not None
-        default_gain = {'gain1': 0.0, 'gain2': 0.0, 'mute1': False, 'mute2': False} if self.__can_activate else {}
-        self.__state = [{**default_gain, 'id': c_id, 'last': 'Empty'} for c_id in get_channels(cfg)]
+        self.__state = DeviceState('master', get_channels(cfg), cfg.minidsp_exe is not None)
         self.__file_name = os.path.join(cfg.config_path, 'device.json')
-        self.__active_slot: Optional[str] = None
-        self.__master_volume: Optional[float] = None
-        self.__mute: Optional[bool] = None
         self.__initialised = False
         if os.path.exists(self.__file_name):
             with open(self.__file_name, 'r') as f:
                 j = json.load(f)
-                saved = {v['id']: v for v in j}
-                current = {v['id']: v for v in self.__state}
-                if saved.keys() == current.keys():
-                    # TODO convert str to float and bool
-                    self.__state = [{**current[k], **v} for k, v in saved.items()]
-                    logger.info(f"Loaded {self.__state} from {self.__file_name}")
-                else:
-                    logger.warning(f"Discarded {j} from {self.__file_name}, does not match {self.__state}")
+            if self.__state.merge_with(j):
+                logger.info(f"Loaded {self.__state} from {self.__file_name}")
+            else:
+                logger.warning(f"Discarded {j} from {self.__file_name}, does not match {self.__state}")
 
     def initialise(self, bridge: 'DeviceBridge') -> None:
         if not self.__initialised:
@@ -57,81 +200,72 @@ class DeviceState:
                     self.master_volume = device_state['volume']
 
     def activate(self, slot: str):
-        self.__active_slot = slot
+        self.__state.activate(slot)
 
-    def put(self, slot: str, entry: Catalogue):
-        self.__update(slot, 'last', entry.formatted_title)
+    def set_loaded_entry(self, slot: str, entry: Catalogue):
+        self.__set_last(slot, entry.formatted_title)
 
-    def __update(self, slot: str, key: str, value: Union[str, bool, float]):
-        logger.info(f"Storing Slot {slot} {key} -> {value}")
-        for s in self.__state:
-            if s['id'] == slot:
-                s[key] = value
-        with open(self.__file_name, 'w') as f:
-            json.dump(self.__state, f, sort_keys=True)
+    def __set_last(self, slot: str, title: str):
+        self.__state.get_slot(slot).last = title
+        self.__activate_and_cache(slot)
+
+    def __activate_and_cache(self, slot: str):
         self.activate(slot)
+        with open(self.__file_name, 'w') as f:
+            json.dump(self.__state.serialise(), f, sort_keys=True)
 
     def error(self, slot: str):
-        self.__update(slot, 'last', 'ERROR')
+        self.__set_last(slot, 'ERROR')
+        self.__activate_and_cache(slot)
 
     def clear(self, slot: str):
-        self.__update(slot, 'last', 'Empty')
-        self.__update(slot, f'gain1', 0.0)
-        self.__update(slot, f'gain2', 0.0)
-        self.__update(slot, f'mute1', False)
-        self.__update(slot, f'mute2', False)
+        self.__state.get_slot(slot).clear()
 
     @property
     def master_volume(self):
-        return self.__master_volume
+        return self.__state.master_volume
 
     @master_volume.setter
     def master_volume(self, value: float):
-        self.__master_volume = value
-
-    def set_slot_gain(self, slot: str, channel: Optional[str], value: float):
-        if channel is not None:
-            self.__update(slot, f'gain{channel}', value)
-        else:
-            self.__update(slot, f"gain1", value)
-            self.__update(slot, f"gain2", value)
+        self.__state.master_volume = value
 
     @property
-    def master_mute(self) -> bool:
-        return self.__mute
+    def master_mute(self):
+        return self.__state.mute
 
     @master_mute.setter
-    def master_mute(self, val: bool):
-        self.__mute = val
+    def master_mute(self, value: bool):
+        self.__state.mute = value
 
-    def mute_slot(self, slot: str, channel: Optional[str]):
-        self.__apply_mute(slot, channel, True)
+    def set_slot_gain(self, slot: str, channel: Optional[int], value: float):
+        self.__state.get_slot(slot).set_gain(channel, value)
+        self.__activate_and_cache(slot)
 
-    def __apply_mute(self, slot: Optional[str], channel: Optional[str], op: bool):
-        if channel is not None:
-            self.__update(slot, f'mute{channel}', op)
-        else:
-            self.__update(slot, f"mute1", op)
-            self.__update(slot, f"mute2", op)
+    def mute_slot(self, slot: str, channel: Optional[int]):
+        self.__state.get_slot(slot).mute(channel)
+        self.__activate_and_cache(slot)
 
-    def unmute_slot(self, slot: str, channel: Optional[str]):
-        self.__apply_mute(slot, channel, False)
+    def unmute_slot(self, slot: str, channel: Optional[int]):
+        self.__state.get_slot(slot).unmute(channel)
+        self.__activate_and_cache(slot)
 
-    def get(self) -> dict:
-        values = {'slots': [{
-            **s,
-            'canActivate': self.__can_activate,
-            'active': True if self.__active_slot is not None and s['id'] == self.__active_slot else False
-        } for s in self.__state]}
-        if self.__mute is not None:
-            values['mute'] = self.__mute
-        elif self.__can_activate:
-            values['mute'] = False
-        if self.__master_volume is not None:
-            values['masterVolume'] = self.__master_volume
-        elif self.__can_activate:
-            values['masterVolume'] = 0.0
-        return values
+    def get(self) -> DeviceState:
+        return self.__state
+        # TODO render
+        # values = {'slots': [{
+        #     **s,
+        #     'canActivate': self.__can_activate,
+        #     'active': True if self.__active_slot is not None and s['id'] == self.__active_slot else False
+        # } for s in self.__state]}
+        # if self.__mute is not None:
+        #     values['mute'] = self.__mute
+        # elif self.__can_activate:
+        #     values['mute'] = False
+        # if self.__master_volume is not None:
+        #     values['masterVolume'] = self.__master_volume
+        # elif self.__can_activate:
+        #     values['masterVolume'] = 0.0
+        # return values
 
 
 class Bridge(ABC):
@@ -153,15 +287,15 @@ class Bridge(ABC):
         pass
 
     @abstractmethod
-    def mute(self, slot: Optional[str], channel: Optional[str]) -> None:
+    def mute(self, slot: Optional[str], channel: Optional[int]) -> None:
         pass
 
     @abstractmethod
-    def unmute(self, slot: Optional[str], channel: Optional[str]) -> None:
+    def unmute(self, slot: Optional[str], channel: Optional[int]) -> None:
         pass
 
     @abstractmethod
-    def set_gain(self, slot: Optional[str], channel: Optional[str], gain: float) -> None:
+    def set_gain(self, slot: Optional[str], channel: Optional[int], gain: float) -> None:
         pass
 
 
@@ -185,13 +319,13 @@ class DeviceBridge(Bridge):
     def clear_filter(self, slot: str):
         return self.__bridge.clear_filter(slot)
 
-    def mute(self, slot: Optional[str], channel: Optional[str]) -> None:
+    def mute(self, slot: Optional[str], channel: Optional[int]) -> None:
         return self.__bridge.mute(slot, channel)
 
-    def unmute(self, slot: Optional[str], channel: Optional[str]) -> None:
+    def unmute(self, slot: Optional[str], channel: Optional[int]) -> None:
         return self.__bridge.unmute(slot, channel)
 
-    def set_gain(self, slot: Optional[str], channel: Optional[str], gain: float) -> None:
+    def set_gain(self, slot: Optional[str], channel: Optional[int], gain: float) -> None:
         return self.__bridge.set_gain(slot, channel, gain)
 
 
@@ -319,7 +453,7 @@ class Minidsp(Bridge):
         return values
 
     @staticmethod
-    def __as_idx(idx: str):
+    def __as_idx(idx: Union[int, str]):
         return int(idx) - 1
 
     def __send_cmds(self, target_slot_idx: Optional[int], cmds: List[str]):
@@ -349,20 +483,20 @@ class Minidsp(Bridge):
         cmds.extend(MinidspBeqCommandGenerator.gain(0.0, target_slot_idx, None))
         self.__send_cmds(target_slot_idx, cmds)
 
-    def mute(self, slot: Optional[str], channel: Optional[str]) -> None:
+    def mute(self, slot: Optional[str], channel: Optional[int]) -> None:
         self.__do_mute_op(slot, channel, True)
 
-    def __do_mute_op(self, slot: Optional[str], channel: Optional[str], state: bool):
+    def __do_mute_op(self, slot: Optional[str], channel: Optional[int], state: bool):
         target_channel_idx, target_slot_idx = self.__as_idxes(channel, slot)
         if target_slot_idx:
             self.__validate_slot_idx(target_slot_idx)
         cmds = MinidspBeqCommandGenerator.mute(state, target_slot_idx, target_channel_idx)
         self.__send_cmds(target_slot_idx, cmds)
 
-    def unmute(self, slot: Optional[str], channel: Optional[str]) -> None:
+    def unmute(self, slot: Optional[str], channel: Optional[int]) -> None:
         self.__do_mute_op(slot, channel, False)
 
-    def set_gain(self, slot: Optional[str], channel: Optional[str], gain: float) -> None:
+    def set_gain(self, slot: Optional[str], channel: Optional[int], gain: float) -> None:
         target_channel_idx, target_slot_idx = self.__as_idxes(channel, slot)
         cmds = MinidspBeqCommandGenerator.gain(gain, target_slot_idx, target_channel_idx)
         self.__send_cmds(target_slot_idx, cmds)
@@ -509,13 +643,13 @@ class Htp1(Bridge):
     def clear_filter(self, slot: str) -> None:
         self.__send([])
 
-    def mute(self, slot: Optional[str], channel: Optional[str]) -> None:
+    def mute(self, slot: Optional[str], channel: Optional[int]) -> None:
         raise NotImplementedError()
 
-    def unmute(self, slot: Optional[str], channel: Optional[str]) -> None:
+    def unmute(self, slot: Optional[str], channel: Optional[int]) -> None:
         raise NotImplementedError()
 
-    def set_gain(self, slot: Optional[str], channel: Optional[str], gain: float) -> None:
+    def set_gain(self, slot: Optional[str], channel: Optional[int], gain: float) -> None:
         raise NotImplementedError()
 
     def on_mso(self, mso: dict):

@@ -1,16 +1,17 @@
 import logging
 from typing import List, Tuple, Optional
 
+import math
 from flask import request
-from flask_restx import Resource, Namespace
+from flask_restx import Resource, Namespace, fields
 
 from ezbeq.catalogue import CatalogueProvider, Catalogue
-from ezbeq.device import DeviceState, DeviceBridge, InvalidRequestError
+from ezbeq.device import DeviceStateHolder, DeviceBridge, InvalidRequestError, DeviceState
 
 logger = logging.getLogger('ezbeq.devices')
 
 
-def delete_filter(bridge: DeviceBridge, state: DeviceState, slot: str):
+def delete_filter(bridge: DeviceBridge, state: DeviceStateHolder, slot: str):
     '''
     Clears the slot.
     :param bridge: the bridge to the device.
@@ -22,14 +23,14 @@ def delete_filter(bridge: DeviceBridge, state: DeviceState, slot: str):
     try:
         bridge.clear_filter(slot)
         state.clear(slot)
-        return state.get(), 200
+        return state.get().as_dict(), 200
     except Exception as e:
         logger.exception(f"Failed to clear Slot {slot}")
         state.error(slot)
-        return state.get(), 500
+        return state.get().as_dict(), 500
 
 
-def load_filter(catalogue: List[Catalogue], bridge: DeviceBridge, state: DeviceState, entry_id: str,
+def load_filter(catalogue: List[Catalogue], bridge: DeviceBridge, state: DeviceStateHolder, entry_id: str,
                 slot: str) -> Tuple[dict, int]:
     '''
     Attempts to find the supplied entry in the catalogue and load it into the given slot.
@@ -47,18 +48,18 @@ def load_filter(catalogue: List[Catalogue], bridge: DeviceBridge, state: DeviceS
         return {'message': 'Title not found, please refresh.'}, 404
     try:
         bridge.load_filter(slot, match)
-        state.put(slot, match)
-        return state.get(), 200
+        state.set_loaded_entry(slot, match)
+        return state.get().as_dict(), 200
     except InvalidRequestError as e:
         logger.exception(f"Invalid request {entry_id} to Slot {slot}")
-        return state.get(), 400
+        return state.get().as_dict(), 400
     except Exception as e:
         logger.exception(f"Failed to write {entry_id} to Slot {slot}")
         state.error(slot)
-        return state.get(), 500
+        return state.get().as_dict(), 500
 
 
-def activate_slot(bridge: DeviceBridge, state: DeviceState, slot: str):
+def activate_slot(bridge: DeviceBridge, state: DeviceStateHolder, slot: str):
     '''
     Activates the slot.
     :param bridge: the bridge to the device.
@@ -70,18 +71,18 @@ def activate_slot(bridge: DeviceBridge, state: DeviceState, slot: str):
     try:
         bridge.activate(slot)
         state.activate(slot)
-        return state.get(), 200
+        return state.get().as_dict(), 200
     except InvalidRequestError as e:
         logger.exception(f"Invalid slot {slot}")
-        return state.get(), 400
+        return state.get().as_dict(), 400
     except Exception as e:
         logger.exception(f"Failed to activate Slot {slot}")
         state.error(slot)
-        return state.get(), 500
+        return state.get().as_dict(), 500
 
 
-def mute_device(bridge: DeviceBridge, state: DeviceState, device_name: str, slot: Optional[str], value: bool,
-                channel: Optional[str] = None):
+def mute_device(bridge: DeviceBridge, state: DeviceStateHolder, device_name: str, slot: Optional[str], value: bool,
+                channel: Optional[int] = None):
     '''
     Mutes or unmutes a particular aspect of the device.
     :param bridge: the bridge to the device.
@@ -105,17 +106,17 @@ def mute_device(bridge: DeviceBridge, state: DeviceState, device_name: str, slot
                 state.master_mute = value
             else:
                 state.unmute_slot(slot, channel)
-        return state.get(), 200
+        return state.get().as_dict(), 200
     except InvalidRequestError as e:
         logger.exception(f"Invalid mute request {slot} {channel} {value}")
-        return state.get(), 400
+        return state.get().as_dict(), 400
     except Exception as e:
         logger.exception(f"Failed mute channel {slot}")
-        return state.get(), 500
+        return state.get().as_dict(), 500
 
 
-def set_gain(bridge: DeviceBridge, state: DeviceState, device_name: str, slot: Optional[str], value: float,
-             channel: Optional[str] = None):
+def set_gain(bridge: DeviceBridge, state: DeviceStateHolder, device_name: str, slot: Optional[str], value: float,
+             channel: Optional[int] = None):
     '''
     Sets gain on a particular aspect of the device.
     :param bridge: the bridge to the device.
@@ -132,13 +133,13 @@ def set_gain(bridge: DeviceBridge, state: DeviceState, device_name: str, slot: O
             state.master_volume = value
         else:
             state.set_slot_gain(slot, channel, value)
-        return state.get(), 200
+        return state.get().as_dict(), 200
     except InvalidRequestError as e:
         logger.exception(f"Unable to set gain for {slot} {channel} {value}")
-        return state.get(), 400
+        return state.get().as_dict(), 400
     except Exception as e:
         logger.exception(f"Failed mute channel {slot}")
-        return state.get(), 500
+        return state.get().as_dict(), 500
 
 
 api = Namespace('devices', description='Device related operations')
@@ -149,12 +150,97 @@ class Devices(Resource):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__state: DeviceState = kwargs['device_state']
+        self.__state: DeviceStateHolder = kwargs['device_state']
         self.__bridge: DeviceBridge = kwargs['device_bridge']
 
     def get(self):
         self.__state.initialise(self.__bridge)
-        return self.__state.get()
+        return self.__state.get().as_dict()
+
+
+slot_model = api.model('Slot', {
+    'id': fields.String(required=True),
+    'active': fields.Boolean,
+    'gain1': fields.Float,
+    'gain2': fields.Float,
+    'mute1': fields.Boolean,
+    'mute2': fields.Boolean,
+    'entry': fields.String
+})
+
+device_model = api.model('Device', {
+    'mute': fields.Boolean,
+    'masterVolume': fields.Float,
+    'slots': fields.List(fields.Nested(slot_model))
+})
+
+
+@api.route('/<string:device_name>', defaults={'device_name': 'master'})
+class Device(Resource):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__state: DeviceStateHolder = kwargs['device_state']
+        self.__bridge: DeviceBridge = kwargs['device_bridge']
+        self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
+
+    @api.expect(device_model, validate=True)
+    def patch(self, device_name: str):
+        current_state: DeviceState = self.__state.get()
+        if current_state:
+            payload = request.get_json()
+            logger.info(f"Processing PATCH for {device_name} {payload}")
+            if 'slots' in payload:
+                for slot in payload['slots']:
+                    state, cmd_code = self.__update_slot(slot, current_state, device_name)
+                    if cmd_code != 200:
+                        return state, cmd_code
+            if 'mute' in payload and payload['mute'] != current_state.mute:
+                state, cmd_code = mute_device(self.__bridge, self.__state, device_name, None, payload['mute'], None)
+                if cmd_code != 200:
+                    return state, cmd_code
+            if 'masterVolume' in payload and not math.isclose(payload['masterVolume'], current_state.master_volume):
+                state, cmd_code = set_gain(self.__bridge, self.__state, device_name, None, payload['masterVolume'],
+                                           None)
+                if cmd_code != 200:
+                    return state, cmd_code
+            return self.__state.get().as_dict(), 200
+        else:
+            return f"Unknown device {device_name}", 404
+
+    def __update_slot(self, slot: dict, current_state: DeviceState, device_name: str) -> Tuple[dict, int]:
+        state = {}
+        cmd_code = 400
+        try:
+            current_state.get_slot(slot['id'])
+        except StopIteration as e:
+            return {'msg': f"Unknown slot {slot['id']} in device {device_name}"}, 400
+        if 'gain1' in slot:
+            state, cmd_code = set_gain(self.__bridge, self.__state, device_name, slot['id'], slot['gain1'], 1)
+            if cmd_code != 200:
+                return state, cmd_code
+        if 'gain2' in slot:
+            state, cmd_code = set_gain(self.__bridge, self.__state, device_name, slot['id'], slot['gain2'], 2)
+            if cmd_code != 200:
+                return state, cmd_code
+        if 'mute1' in slot:
+            state, cmd_code = mute_device(self.__bridge, self.__state, device_name, slot['id'], slot['mute1'], 1)
+            if cmd_code != 200:
+                return state, cmd_code
+        if 'mute2' in slot:
+            state, cmd_code = mute_device(self.__bridge, self.__state, device_name, slot['id'], slot['mute1'], 2)
+            if cmd_code != 200:
+                return state, cmd_code
+        if 'entry' in slot:
+            state, cmd_code = load_filter(self.__catalogue_provider.catalogue, self.__bridge, self.__state,
+                                          slot['entry'], slot['id'])
+            if cmd_code != 200:
+                return state, cmd_code
+        if 'active' in slot:
+            state, cmd_code = activate_slot(self.__bridge, self.__state, slot['id'])
+            if cmd_code != 200:
+                return state, cmd_code
+        return state, cmd_code
 
 
 @api.route('/<string:device_name>/config/<string:slot>/active')
@@ -167,7 +253,7 @@ class ActiveSlot(Resource):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__bridge: DeviceBridge = kwargs['device_bridge']
-        self.__state: DeviceState = kwargs['device_state']
+        self.__state: DeviceStateHolder = kwargs['device_state']
 
     def put(self, device_name: str, slot: str) -> Tuple[dict, int]:
         return activate_slot(self.__bridge, self.__state, slot)
@@ -187,9 +273,9 @@ class SetGain(Resource):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__bridge: DeviceBridge = kwargs['device_bridge']
-        self.__state: DeviceState = kwargs['device_state']
+        self.__state: DeviceStateHolder = kwargs['device_state']
 
-    def put(self, device_name: str, slot: Optional[str], channel: Optional[str] = None) -> Tuple[dict, int]:
+    def put(self, device_name: str, slot: Optional[str], channel: Optional[int] = None) -> Tuple[dict, int]:
         return set_gain(self.__bridge, self.__state, device_name, slot, True, channel)
 
 
@@ -207,9 +293,9 @@ class Mute(Resource):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__bridge: DeviceBridge = kwargs['device_bridge']
-        self.__state: DeviceState = kwargs['device_state']
+        self.__state: DeviceStateHolder = kwargs['device_state']
 
-    def put(self, device_name: str, slot: Optional[str], channel: Optional[str] = None) -> Tuple[dict, int]:
+    def put(self, device_name: str, slot: Optional[str], channel: Optional[int] = None) -> Tuple[dict, int]:
         return mute_device(self.__bridge, self.__state, device_name, slot, True, channel)
 
 
@@ -227,9 +313,9 @@ class Unmute(Resource):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__bridge: DeviceBridge = kwargs['device_bridge']
-        self.__state: DeviceState = kwargs['device_state']
+        self.__state: DeviceStateHolder = kwargs['device_state']
 
-    def put(self, device_name: str, slot: Optional[str], channel: Optional[str] = None) -> Tuple[dict, int]:
+    def put(self, device_name: str, slot: Optional[str], channel: Optional[int] = None) -> Tuple[dict, int]:
         return mute_device(self.__bridge, self.__state, device_name, slot, False, channel)
 
 
@@ -243,7 +329,7 @@ class ClearFilter(Resource):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__bridge: DeviceBridge = kwargs['device_bridge']
-        self.__state: DeviceState = kwargs['device_state']
+        self.__state: DeviceStateHolder = kwargs['device_state']
 
     def delete(self, slot: str) -> Tuple[dict, int]:
         return delete_filter(self.__bridge, self.__state, slot)
@@ -261,7 +347,7 @@ class LoadFilter(Resource):
         super().__init__(*args, **kwargs)
         self.__bridge: DeviceBridge = kwargs['device_bridge']
         self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
-        self.__state: DeviceState = kwargs['device_state']
+        self.__state: DeviceStateHolder = kwargs['device_state']
 
     def put(self, device_name: str, slot: str, entry_id: str) -> Tuple[dict, int]:
         return load_filter(self.__catalogue_provider.catalogue, self.__bridge, self.__state, entry_id, slot)
@@ -278,7 +364,7 @@ class DeviceSender(Resource):
         super().__init__(*args, **kwargs)
         self.__bridge: DeviceBridge = kwargs['device_bridge']
         self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
-        self.__state: DeviceState = kwargs['device_state']
+        self.__state: DeviceStateHolder = kwargs['device_state']
 
     def put(self, slot: str):
         '''
@@ -299,10 +385,10 @@ class DeviceSender(Resource):
             result = None
             for p in payload:
                 result, _ = self.__handle_command(slot, p)
-            return self.__state.get(), 200 if result else 500
+            return self.__state.get().as_dict(), 200 if result else 500
         elif isinstance(payload, dict):
             return self.__handle_command(slot, payload)
-        return self.__state.get(), 404
+        return self.__state.get().as_dict(), 404
 
     def __handle_command(self, slot: str, payload: dict):
         if 'command' in payload:
@@ -321,6 +407,7 @@ class DeviceSender(Resource):
                         channel = None
                     elif channel == '0':
                         channel = None
+                    channel = int(channel) if channel is not None else None
                     if cmd == 'mute':
                         return mute_device(self.__bridge, self.__state, 'NOP', slot,
                                            False if payload['value'] == 'off' else True, channel)

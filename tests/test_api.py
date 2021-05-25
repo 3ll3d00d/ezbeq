@@ -503,3 +503,117 @@ input 1 gain -- 0.00"""
                 verify_slot(s, idx + 1, active=True)
             else:
                 verify_slot(s, idx + 1)
+
+
+def test_patch_multiple_fields(minidsp_client, minidsp_app):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+    # when: set master gain
+    # and: set input gains
+    payload = {
+        'masterVolume': -10.2,
+        'mute': True,
+        'slots': [
+            {
+                'id': '2',
+                'gain1': 5.1,
+                'gain2': 6.1
+            }
+        ]
+    }
+    r = minidsp_client.patch(f"/api/1/devices/master", data=json.dumps(payload), content_type='application/json')
+    assert r.status_code == 200
+
+    # then: expected commands are sent
+    cmds = verify_cmd_count(config.spy, 2, 4)
+    assert cmds[0] == "input 0 gain -- 5.10"
+    assert cmds[1] == "input 1 gain -- 6.10"
+    assert cmds[2] == "mute on"
+    assert cmds[3] == "gain -- -10.20"
+
+    # and: device state is accurate
+    slots = verify_master_device_state(r.json, gain=-10.2)
+    for idx, s in enumerate(slots):
+        if idx+1 == 2:
+            verify_slot(s, idx+1, active=True, gain=(5.10, 6.10))
+        else:
+            verify_slot(s, idx+1)
+
+
+def test_patch_multiple_slots(minidsp_client, minidsp_app):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+    # when: set master gain
+    # and: set input gains
+    payload = {
+        'masterVolume': -10.2,
+        'slots': [
+            {
+                'id': '2',
+                'gain1': 5.1,
+                'gain2': 6.1
+            },
+            {
+                'id': '3',
+                'gain1': -1.1,
+                'gain2': -1.1,
+                'entry': '123456_0',
+                'mute1': False,
+                'mute2': False
+            }
+        ]
+    }
+    r = minidsp_client.patch(f"/api/1/devices/master", data=json.dumps(payload), content_type='application/json')
+    assert r.status_code == 200
+
+    # then: expected commands are sent
+    cmds = verify_cmd_count(config.spy, 2, 38)
+    expected_commands = f"""input 0 gain -- 5.10
+input 1 gain -- 6.10
+config 2
+input 0 gain -- -1.10
+input 1 gain -- -1.10
+input 0 mute off
+input 1 mute off
+input 0 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 0 bypass off
+input 0 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 1 bypass off
+input 0 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 2 bypass off
+input 0 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 3 bypass off
+input 0 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 4 bypass off
+input 0 peq 5 bypass on
+input 0 peq 6 bypass on
+input 0 peq 7 bypass on
+input 0 peq 8 bypass on
+input 0 peq 9 bypass on
+input 1 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 1 peq 0 bypass off
+input 1 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 1 peq 1 bypass off
+input 1 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 1 peq 2 bypass off
+input 1 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 1 peq 3 bypass off
+input 1 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 1 peq 4 bypass off
+input 1 peq 5 bypass on
+input 1 peq 6 bypass on
+input 1 peq 7 bypass on
+input 1 peq 8 bypass on
+input 1 peq 9 bypass on
+gain -- -10.20"""
+    assert '\n'.join(cmds) == expected_commands
+
+    # and: device state is accurate
+    slots = verify_master_device_state(r.json, gain=-10.2)
+    for idx, s in enumerate(slots):
+        if idx == 1:
+            verify_slot(s, idx+1, gain=(5.10, 6.10))
+        elif idx == 2:
+            verify_slot(s, idx+1, active=True, gain=(-1.1, -1.1), last='Alien Resurrection')
+        else:
+            verify_slot(s, idx+1)

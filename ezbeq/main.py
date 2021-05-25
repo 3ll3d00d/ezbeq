@@ -7,10 +7,10 @@ from flask import Flask
 from flask_compress import Compress
 from flask_restx import Api
 
-from ezbeq.apis import catalogue, version, devices
+from ezbeq.apis import search, version, devices, authors, audiotypes, years, contenttypes, meta
 from ezbeq.catalogue import CatalogueProvider
 from ezbeq.config import Config
-from ezbeq.device import DeviceState, DeviceBridge
+from ezbeq.device import DeviceStateHolder, DeviceBridge
 
 faulthandler.enable()
 if hasattr(faulthandler, 'register'):
@@ -22,7 +22,7 @@ if hasattr(faulthandler, 'register'):
 def create_app(config: Config) -> Flask:
     resource_args = {
         'config': config,
-        'device_state': DeviceState(config),
+        'device_state': DeviceStateHolder(config),
         'device_bridge': DeviceBridge(config),
         'catalogue': CatalogueProvider(config),
         'version': config.version
@@ -40,8 +40,13 @@ def create_app(config: Config) -> Flask:
 
     decorate_ns(devices.device_api)
     decorate_ns(devices.api)
-    decorate_ns(catalogue.api)
+    decorate_ns(search.api)
     decorate_ns(version.api)
+    decorate_ns(authors.api)
+    decorate_ns(audiotypes.api)
+    decorate_ns(years.api)
+    decorate_ns(contenttypes.api)
+    decorate_ns(meta.api)
     return app
 
 
