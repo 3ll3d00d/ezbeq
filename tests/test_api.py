@@ -532,7 +532,7 @@ def test_patch_multiple_fields(minidsp_client, minidsp_app):
     assert cmds[3] == "gain -- -10.20"
 
     # and: device state is accurate
-    slots = verify_master_device_state(r.json, gain=-10.2)
+    slots = verify_master_device_state(r.json, mute=True, gain=-10.2)
     for idx, s in enumerate(slots):
         if idx+1 == 2:
             verify_slot(s, idx+1, active=True, gain=(5.10, 6.10))
