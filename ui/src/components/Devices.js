@@ -58,10 +58,10 @@ const Device = ({selected, slot, onSelect, isPending, onClear}) => {
                     <Typography component="p" variant="body2">{slot.id}: {slot.last}</Typography>
                 </Grid>
                 <Grid item xs={4}>
-                    <IconButton onClick={onClear}>
+                    <IconButton onClick={onClear} disabled={isPending}>
                         {
                             isPending
-                                ? <CircularProgress size={24}/>
+                                ? <CircularProgress size={32}/>
                                 : <ClearIcon fontSize="large"/>
                         }
                     </IconButton>
@@ -125,6 +125,10 @@ const Devices = ({selectedSlotId, useWide, device, setDevice}) => {
         trackDeviceUpdate('activate', slotId, () => ezbeq.activateSlot(slotId));
     };
 
+    const isPending = (slotId) => {
+        return getCurrentState(pending, 'clear', slotId) === 1 || getCurrentState(pending, 'activate', slotId) === 1;
+    };
+
     const rows = chunk("slots" in device ? device.slots : [], 2);
     const devices = rows.map((r, i1) =>
         <Grid container key={i1} className={classes.root}>
@@ -134,7 +138,7 @@ const Devices = ({selectedSlotId, useWide, device, setDevice}) => {
                             slot={d}
                             onSelect={() => activateSlot(d.id)}
                             onClear={() => clearDeviceSlot(d.id)}
-                            isPending={getCurrentState(pending, 'clear', d.id) === 1}/>
+                            isPending={isPending(d.id)}/>
                 </Grid>
             )}
         </Grid>

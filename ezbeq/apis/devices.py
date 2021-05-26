@@ -160,18 +160,18 @@ class Devices(Resource):
 
 slot_model = api.model('Slot', {
     'id': fields.String(required=True),
-    'active': fields.Boolean,
-    'gain1': fields.Float,
-    'gain2': fields.Float,
-    'mute1': fields.Boolean,
-    'mute2': fields.Boolean,
-    'entry': fields.String
+    'active': fields.Boolean(required=False),
+    'gain1': fields.Float(required=False),
+    'gain2': fields.Float(required=False),
+    'mute1': fields.Boolean(required=False),
+    'mute2': fields.Boolean(required=False),
+    'entry': fields.String(required=False)
 })
 
 device_model = api.model('Device', {
-    'mute': fields.Boolean,
-    'masterVolume': fields.Float,
-    'slots': fields.List(fields.Nested(slot_model))
+    'mute': fields.Boolean(required=False),
+    'masterVolume': fields.Float(required=False),
+    'slots': fields.List(fields.Nested(slot_model), required=False)
 })
 
 
@@ -231,7 +231,7 @@ class Device(Resource):
             state, cmd_code = mute_device(self.__bridge, self.__state, device_name, slot['id'], slot['mute1'], 2)
             if cmd_code != 200:
                 return state, cmd_code
-        if 'entry' in slot:
+        if 'entry' in slot and slot['entry']:
             state, cmd_code = load_filter(self.__catalogue_provider.catalogue, self.__bridge, self.__state,
                                           slot['entry'], slot['id'])
             if cmd_code != 200:
@@ -311,29 +311,17 @@ class Mute(Resource):
         return mute_device(self.__bridge, self.__state, device_name, slot, False, channel)
 
 
+filter_model = api.model('Filter', {
+    'entryId': fields.String
+})
+
+
 @api.route('/<string:device_name>/filter/<string:slot>')
 @api.doc(params={
     'device_name': 'The dsp device name',
-    'slot': 'The dsp configuration to clear, available values depend on the DSP device (1-4 for MiniDSP 2x4HD)'
+    'slot': 'The dsp configuration to load into, available values depend on the DSP device (1-4 for MiniDSP 2x4HD)'
 })
-class ClearFilter(Resource):
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.__bridge: DeviceBridge = kwargs['device_bridge']
-        self.__state: DeviceStateHolder = kwargs['device_state']
-
-    def delete(self, device_name: str, slot: str) -> Tuple[dict, int]:
-        return delete_filter(self.__bridge, self.__state, slot)
-
-
-@api.route('/<string:device_name>/filter/<string:slot>/<string:entry_id>')
-@api.doc(params={
-    'device_name': 'The dsp device name',
-    'slot': 'The dsp configuration to load into, available values depend on the DSP device (1-4 for MiniDSP 2x4HD)',
-    'entry_id': 'The id of a an entry in the currently available beqcatalogue'
-})
-class LoadFilter(Resource):
+class ManageFilter(Resource):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -341,8 +329,13 @@ class LoadFilter(Resource):
         self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
         self.__state: DeviceStateHolder = kwargs['device_state']
 
-    def put(self, device_name: str, slot: str, entry_id: str) -> Tuple[dict, int]:
-        return load_filter(self.__catalogue_provider.catalogue, self.__bridge, self.__state, entry_id, slot)
+    @api.expect(filter_model, validate=True)
+    def put(self, device_name: str, slot: str) -> Tuple[dict, int]:
+        return load_filter(self.__catalogue_provider.catalogue, self.__bridge, self.__state,
+                           request.get_json()['entryId'], slot)
+
+    def delete(self, device_name: str, slot: str) -> Tuple[dict, int]:
+        return delete_filter(self.__bridge, self.__state, slot)
 
 
 # legacy API, deprecated

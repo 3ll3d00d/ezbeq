@@ -51,7 +51,7 @@ const GainInput = ({fieldName, helpText, minGain, maxGain, step, savedValues, va
                         variant={'outlined'}
                         id={fieldName}
                         value={values.mv}
-                        onChange={e => setMV(e.target.value)}
+                        onChange={e => e.target.value ? setMV(parseFloat(e.target.value)) : null}
                         aria-describedby={`${fieldName}-helper-text`}
                         InputProps={{
                             endAdornment: (

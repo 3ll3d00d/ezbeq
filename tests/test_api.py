@@ -615,7 +615,8 @@ def test_load_known_entry_and_then_clear(minidsp_client, minidsp_app, slot, is_v
     config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
     assert isinstance(config, MinidspSpyConfig)
 
-    r = minidsp_client.put(f"/api/1/devices/master/filter/{slot}/123456_0")
+    r = minidsp_client.put(f"/api/1/devices/master/filter/{slot}", data=json.dumps({'entryId': '123456_0'}),
+                           content_type='application/json')
     if is_valid:
         assert r.status_code == 200
         cmds = verify_cmd_count(config.spy, slot, 30)

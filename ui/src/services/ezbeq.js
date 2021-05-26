@@ -62,26 +62,27 @@ class EzBeqService {
         return this.search();
     }
 
-    sendFilter = async (id, slot) => {
-        const response = await fetch(`${API_PREFIX}/device/${slot}`, {
-            method: 'PUT',
-            body: JSON.stringify({
-                id: id,
-                command: 'load'
-            }),
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-        });
-        if (!response.ok) {
-            throw new Error(`EzBeq.sendFilter failed, HTTP status ${response.status}`);
+    sendFilter = async (id, slot, gains = null) => {
+        if (gains) {
+            return await this.doPatch(this.createPatchPayload(gains, slot, id));
+        } else {
+            const response = await fetch(`${API_PREFIX}/devices/master/filter/${slot}`, {
+                method: 'PUT',
+                body: JSON.stringify({entryId: id}),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+            });
+            if (!response.ok) {
+                throw new Error(`EzBeq.sendFilter failed, HTTP status ${response.status}`);
+            }
+            return await response.json();
         }
-        return await response.json();
     }
 
     clearSlot = async (slot) => {
-        const response = await fetch(`${API_PREFIX}/device/${slot}`, {
+        const response = await fetch(`${API_PREFIX}/devices/master/filter/${slot}`, {
             method: 'DELETE'
         });
         if (!response.ok) {
@@ -91,15 +92,8 @@ class EzBeqService {
     }
 
     activateSlot = async (slot) => {
-        const response = await fetch(`${API_PREFIX}/device/${slot}`, {
-            method: 'PUT',
-            body: JSON.stringify({
-                command: 'activate'
-            }),
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
+        const response = await fetch(`${API_PREFIX}/devices/master/config/${slot}/active`, {
+            method: 'PUT'
         });
         if (!response.ok) {
             throw new Error(`EzBeq.activateSlot failed, HTTP status ${response.status}`);
@@ -109,28 +103,20 @@ class EzBeqService {
 
     resetInputGain = async (slot) => {
         return this.setGains(slot, {
-            'inputOne_mv': '0.0',
-            'inputTwo_mv': '0.0',
+            'inputOne_mv': 0.0,
+            'inputTwo_mv': 0.0,
             'inputOne_mute': false,
             'inputTwo_mute': false
         });
     };
 
     setGains = async (slot, gains) => {
-        const payload = [];
-        if (gains.master_mv) {
-            payload.push({"channel": "master", "value": `${gains.master_mv}`, "command": "gain"});
-        }
-        payload.push({"channel": "1", "value": `${gains.inputOne_mv}`, "command": "gain"});
-        payload.push({"channel": "2", "value": `${gains.inputTwo_mv}`, "command": "gain"});
-        if (gains.master_mute) {
-            payload.push({"channel": "master", "value": gains.master_mute ? 'on' : 'off', "command": "mute"});
-        }
-        payload.push({"channel": "1", "value": gains.inputOne_mute ? 'on' : 'off', "command": "mute"});
-        payload.push({"channel": "2", "value": gains.inputTwo_mute ? 'on' : 'off', "command": "mute"});
+        return await this.doPatch(this.createPatchPayload(gains, slot));
+    };
 
-        const response = await fetch(`${API_PREFIX}/device/${slot}`, {
-            method: 'PUT',
+    doPatch = async(payload) => {
+        const response = await fetch(`${API_PREFIX}/devices/master`, {
+            method: 'PATCH',
             body: JSON.stringify(payload),
             headers: {
                 'Content-Type': 'application/json',
@@ -141,11 +127,33 @@ class EzBeqService {
             throw new Error(`EzBeq.activateSlot failed, HTTP status ${response.status}`);
         }
         return await response.json();
+    }
+
+    createPatchPayload = (gains, slot_id, entryId = null) => {
+        const payload = {};
+        if (gains.hasOwnProperty('master_mv')) {
+            payload.masterVolume = gains.master_mv;
+        }
+        if (gains.hasOwnProperty('master_mute')) {
+            payload.mute = gains.master_mute;
+        }
+        const slot = {
+            id: String(slot_id),
+            gain1: gains.inputOne_mv,
+            gain2: gains.inputTwo_mv,
+            mute1: gains.inputOne_mute,
+            mute2: gains.inputTwo_mute
+        };
+        if (entryId) {
+            payload.slots = [Object.assign({}, slot, {entry: entryId})]
+        } else {
+            payload.slots = [slot];
+        }
+        return payload;
     };
 
     loadWithMV = async (slot, gains, id) => {
-        await this.sendFilter(id, slot);
-        return await this.setGains(slot, gains);
+        return await this.sendFilter(id, slot, gains);
     };
 
     getDeviceConfig = async () => {

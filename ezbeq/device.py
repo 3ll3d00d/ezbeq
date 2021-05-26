@@ -513,7 +513,7 @@ class Minidsp(Bridge):
             if current_state and 'active_slot' in current_state and current_state['active_slot'] == slot:
                 change_slot = False
             if change_slot is True:
-                logger.info(f"Activating slot {slot}, current is {current_state['active_slot']}")
+                logger.info(f"Activating slot {slot}, current is {current_state.get('active_slot', 'UNKNOWN')}")
                 config_cmds.insert(0, MinidspBeqCommandGenerator.activate(slot))
         formatted = '\n'.join(config_cmds)
         logger.info(f"\n{formatted}")
