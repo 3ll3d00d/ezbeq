@@ -29,7 +29,7 @@ setup(name='ezbeq',
       python_requires='>=3.7',
       entry_points={
           'console_scripts': [
-              'ezbeq = ezbeq.app:main',
+              'ezbeq = ezbeq.main:main',
           ],
       },
       install_requires=[
