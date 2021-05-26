@@ -23,7 +23,7 @@ def get_data_args():
 block_cipher = None
 spec_root = os.path.abspath(SPECPATH)
 
-a = Analysis(['ezbeq/app.py'],
+a = Analysis(['ezbeq/main.py'],
              pathex=[spec_root],
              binaries=[],
              datas=get_data_args(),
