@@ -71,7 +71,7 @@ const Device = ({selected, slot, onSelect, isPending, onClear}) => {
     );
 };
 
-const Devices = ({selectedSlotId, useWide, device, setDevice}) => {
+const Devices = ({selectedSlotId, useWide, device, setDevice, setUserDriven}) => {
     const classes = useStyles({selected: false});
     const [pending, setPending] = useState([]);
     const [currentGains, setCurrentGains] = useState(defaultGain);
@@ -95,12 +95,15 @@ const Devices = ({selectedSlotId, useWide, device, setDevice}) => {
         setCurrentGains(gain);
     }, [device, selectedSlotId]);
 
-    const trackDeviceUpdate = async (action, slotId, valProvider) => {
+    const trackDeviceUpdate = async (action, slotId, valProvider, andThen = null) => {
         setPending(u => [{slotId, action, state: 1}].concat(u));
         try {
             const vals = await valProvider();
             setPending(u => u.filter(p => !(p.slotId === slotId && p.action === action)));
             setDevice(vals);
+            if (andThen) {
+                andThen();
+            }
         } catch (e) {
             console.error(e);
             setPending(u => u.map(p => {
@@ -122,7 +125,7 @@ const Devices = ({selectedSlotId, useWide, device, setDevice}) => {
     };
 
     const activateSlot = (slotId) => {
-        trackDeviceUpdate('activate', slotId, () => ezbeq.activateSlot(slotId));
+        trackDeviceUpdate('activate', slotId, () => ezbeq.activateSlot(slotId), () => setUserDriven(true));
     };
 
     const isPending = (slotId) => {

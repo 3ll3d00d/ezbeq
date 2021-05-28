@@ -1,5 +1,4 @@
 import React, {useEffect, useState} from 'react';
-import {useValueChange} from "./components/valueState";
 import {createMuiTheme, makeStyles, ThemeProvider} from '@material-ui/core/styles';
 import ezbeq from './services/ezbeq';
 import useMediaQuery from '@material-ui/core/useMediaQuery';
@@ -47,10 +46,11 @@ const App = () => {
     const [selectedYears, setSelectedYears] = useState([]);
     const [selectedAudioTypes, setSelectedAudioTypes] = useState([]);
     const [selectedContentTypes, setSelectedContentTypes] = useState([]);
-    const [txtFilter, handleTxtFilterChange] = useValueChange('');
+    const [txtFilter, setTxtFilter] = useState('');
     const [showFilters, setShowFilters] = useState(false);
     const [selectedEntryId, setSelectedEntryId] = useState(-1);
     const [selectedSlotId, setSelectedSlotId] = useState(-1);
+    const [userDriven, setUserDriven] = useState(false);
 
     const toggleShowFilters = () => {
         setShowFilters((prev) => !prev);
@@ -104,26 +104,37 @@ const App = () => {
         }
         pushData(setFilteredEntries, () => entries.filter(isMatch));
     }, [entries, selectedAudioTypes, selectedYears, selectedAuthors, selectedContentTypes, txtFilter]);
+
+    useEffect(() => {
+        if (userDriven && device && device.hasOwnProperty('slots')) {
+            const slot = device.slots.find(s => s.id === selectedSlotId);
+            if (slot && slot.last && slot.last !== "ERROR" && slot.last !== "Empty") {
+                setTxtFilter(slot.last);
+            }
+        }
+    }, [device, selectedSlotId, setTxtFilter, userDriven]);
     const useWide = useMediaQuery('(orientation: landscape) and (min-height: 580px)');
     const devices = <Devices selectedEntryId={selectedEntryId}
                              selectedSlotId={selectedSlotId}
                              useWide={useWide}
                              setSelectedSlotId={setSelectedSlotId}
+                             setUserDriven={setUserDriven}
                              device={device}
                              setDevice={setDevice}/>;
     const catalogue = <Catalogue entries={filteredEntries}
                                  setSelectedEntryId={setSelectedEntryId}
                                  selectedEntryId={selectedEntryId}
                                  useWide={useWide}/>;
-    const entry = <Entry selectedEntry={selectedEntryId ? filteredEntries.find(e => e.id === selectedEntryId) : null}
+    const entry = <Entry selectedEntry={selectedEntryId ? entries.find(e => e.id === selectedEntryId) : null}
                          useWide={useWide}
-                         setDevice={setDevice}/>;
+                         setDevice={setDevice}
+                         selectedSlotId={selectedSlotId}/>;
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline/>
             <div className={classes.root}>
                 <Header txtFilter={txtFilter}
-                        handleTxtFilterChange={handleTxtFilterChange}
+                        setTxtFilter={setTxtFilter}
                         showFilters={showFilters}
                         toggleShowFilters={toggleShowFilters}/>
                 <Filter visible={showFilters}

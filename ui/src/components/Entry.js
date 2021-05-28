@@ -34,6 +34,7 @@ const formatExtraMeta = entry => {
     if (entry.genres) {
         extras.push(entry.genres.join(', '));
     }
+    extras.push(entry.author);
     if (extras || entry.overview) {
         return <>
             {
@@ -74,6 +75,24 @@ const formatMV = entry => {
     return null;
 };
 
+const formatNote = entry => {
+    if (entry && entry.note) {
+        return (
+            <span><br/>{entry.note}</span>
+        )
+    }
+    return null;
+};
+
+const formatWarning = entry => {
+    if (entry && entry.warning) {
+        return (
+            <span><br/><b>Warning:</b> {entry.warning}</span>
+        )
+    }
+    return null;
+};
+
 const formatTV = entry => {
     if (entry && entry.season) {
         if (entry.episodes) {
@@ -90,15 +109,19 @@ const formatTV = entry => {
     return null;
 };
 
-const Entry = ({selectedEntry, useWide, setDevice}) => {
+const Entry = ({selectedEntry, useWide, setDevice, selectedSlotId}) => {
     const classes = useStyles();
-    const [selectedSlot, setSelectedSlot] = useState(1);
+    const [selectedSlot, setSelectedSlot] = useState("1");
     const [sendGain, setSendGain] = useState(false);
     const [pending, setPending] = useState(false);
 
     useEffect(() => {
         setSendGain(false);
     }, [selectedEntry]);
+
+    useEffect(() => {
+        setSelectedSlot(selectedSlotId);
+    }, [selectedSlotId])
 
     const upload = async () => {
         const gains = {
@@ -127,8 +150,7 @@ const Entry = ({selectedEntry, useWide, setDevice}) => {
                     className={classes.media}
                     image={i}
                     title={`img${idx}`}
-                    alt={`${selectedEntry.title} - ${idx}`}
-                />
+                    alt={`${selectedEntry.title} - ${idx}`}/>
             )
             : null;
         const content =
@@ -158,24 +180,27 @@ const Entry = ({selectedEntry, useWide, setDevice}) => {
                 {
                     formatExtraMeta(selectedEntry)
                 }
+                <br/>
                 <Typography variant="body2" color="textSecondary" component="p">
                     {formatTV(selectedEntry)}
                     {formatAudioTypes(selectedEntry)}
                     {formatMV(selectedEntry)}
+                    {formatNote(selectedEntry)}
+                    {formatWarning(selectedEntry)}
                 </Typography>
             </CardContent>;
         const uploadAction =
             <CardContent>
                 <FormGroup row>
                     <RadioGroup row aria-label="slot" name="slot"
-                                onChange={e => setSelectedSlot(parseInt(e.target.value))}>
-                        <FormControlLabel value="1" control={<Radio checked={selectedSlot === 1} color={'primary'}/>}
+                                onChange={e => setSelectedSlot(e.target.value)}>
+                        <FormControlLabel value="1" control={<Radio checked={selectedSlot === "1"} color={'primary'}/>}
                                           label="One"/>
-                        <FormControlLabel value="2" control={<Radio checked={selectedSlot === 2} color={'primary'}/>}
+                        <FormControlLabel value="2" control={<Radio checked={selectedSlot === "2"} color={'primary'}/>}
                                           label="Two"/>
-                        <FormControlLabel value="3" control={<Radio checked={selectedSlot === 3} color={'primary'}/>}
+                        <FormControlLabel value="3" control={<Radio checked={selectedSlot === "3"} color={'primary'}/>}
                                           label="Three"/>
-                        <FormControlLabel value="4" control={<Radio checked={selectedSlot === 4} color={'primary'}/>}
+                        <FormControlLabel value="4" control={<Radio checked={selectedSlot === "4"} color={'primary'}/>}
                                           label="Four"/>
                     </RadioGroup>
                     <FormControlLabel

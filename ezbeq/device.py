@@ -251,21 +251,6 @@ class DeviceStateHolder:
 
     def get(self) -> DeviceState:
         return self.__state
-        # TODO render
-        # values = {'slots': [{
-        #     **s,
-        #     'canActivate': self.__can_activate,
-        #     'active': True if self.__active_slot is not None and s['id'] == self.__active_slot else False
-        # } for s in self.__state]}
-        # if self.__mute is not None:
-        #     values['mute'] = self.__mute
-        # elif self.__can_activate:
-        #     values['mute'] = False
-        # if self.__master_volume is not None:
-        #     values['masterVolume'] = self.__master_volume
-        # elif self.__can_activate:
-        #     values['masterVolume'] = 0.0
-        # return values
 
 
 class Bridge(ABC):

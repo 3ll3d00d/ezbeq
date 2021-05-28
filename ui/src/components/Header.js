@@ -1,9 +1,10 @@
 import AppBar from "@material-ui/core/AppBar";
 import Toolbar from "@material-ui/core/Toolbar";
-import {Avatar, FormControlLabel, InputBase, Switch} from "@material-ui/core";
+import {Avatar, FormControlLabel, IconButton, InputBase, Switch} from "@material-ui/core";
 import beqcIcon from "../beqc.png";
 import Typography from "@material-ui/core/Typography";
 import SearchIcon from "@material-ui/icons/Search";
+import ClearIcon from "@material-ui/icons/Clear";
 import React from "react";
 import {fade, makeStyles} from "@material-ui/core/styles";
 
@@ -65,7 +66,7 @@ const useStyles = makeStyles((theme) => ({
     }
 }));
 
-const Header = ({txtFilter, handleTxtFilterChange, showFilters, toggleShowFilters}) => {
+const Header = ({txtFilter, setTxtFilter, showFilters, toggleShowFilters}) => {
     const classes = useStyles();
     return (
         <AppBar position="static" className={classes.noLeftTop}>
@@ -87,10 +88,13 @@ const Header = ({txtFilter, handleTxtFilterChange, showFilters, toggleShowFilter
                         }}
                         inputProps={{'aria-label': 'search'}}
                         value={txtFilter}
-                        onChange={handleTxtFilterChange}
+                        onChange={e => setTxtFilter(e.target.value)}
                         size={'small'}
                     />
                 </div>
+                <IconButton onClick={e => setTxtFilter("")}>
+                    <ClearIcon/>
+                </IconButton>
                 <FormControlLabel className={classes.advancedFilter}
                                   control={
                                       <Switch checked={showFilters} onChange={toggleShowFilters} size={'small'}/>

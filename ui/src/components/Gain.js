@@ -51,7 +51,7 @@ const GainInput = ({fieldName, helpText, minGain, maxGain, step, savedValues, va
                         variant={'outlined'}
                         id={fieldName}
                         value={values.mv}
-                        onChange={e => e.target.value ? setMV(parseFloat(e.target.value)) : null}
+                        onChange={e => e.target.value ? setMV(parseFloat(e.target.value)) : setMV(0)}
                         aria-describedby={`${fieldName}-helper-text`}
                         InputProps={{
                             endAdornment: (
@@ -69,7 +69,8 @@ const GainInput = ({fieldName, helpText, minGain, maxGain, step, savedValues, va
                             'aria-label': fieldName,
                             min: minGain,
                             max: maxGain,
-                            step: step
+                            step: step,
+                            pattern: '^-?[0-9]+(\\.?[0-9]+)?$'
                         }}
                         margin={'dense'}
                         type='number'
@@ -78,7 +79,7 @@ const GainInput = ({fieldName, helpText, minGain, maxGain, step, savedValues, va
     );
 };
 
-const Gain = ({selectedSlotId, deviceGains, gains, setGains, sendGains, isActive, Progress}) => {
+const Gain = ({selectedSlotId, deviceGains, gains, setGains, sendGains, isActive}) => {
     const classes = useStyles();
     if (selectedSlotId > -1) {
         return (
@@ -100,13 +101,13 @@ const Gain = ({selectedSlotId, deviceGains, gains, setGains, sendGains, isActive
                                    values={{mv: gains.inputTwo_mv, mute: gains.inputTwo_mute}}
                                    setMV={v => setGains({...gains, ...{inputTwo_mv: v}})}
                                    setMute={v => setGains({...gains, ...{inputTwo_mute: v}})}/>
-                        <Button variant="contained"
+                        <Button variant="outlined"
                                 size="small"
-                                color="default"
+                                color="primary"
                                 className={classes.sized}
                                 onClick={() => sendGains(selectedSlotId, gains)}
                                 startIcon={isActive() ? <CircularProgress size={24}/> : <PublishIcon fontSize="small"/>}>
-                            Upload
+                            Apply
                         </Button>
                     </FormGroup>
                 </FormControl>
