@@ -13,7 +13,8 @@ const Filter = ({
                     setSelectedAuthors,
                     selectedContentTypes,
                     setSelectedContentTypes,
-                    filteredEntries
+                    filteredEntries,
+                    setError
                 }) => {
 
     const [authors, setAuthors] = useState([]);
@@ -24,25 +25,25 @@ const Filter = ({
     const [filteredAudioTypes, setFilteredAudioTypes] = useState([]);
 
     useEffect(() => {
-        pushData(setAuthors, ezbeq.getAuthors);
-    }, []);
+        pushData(setAuthors, ezbeq.getAuthors, setError);
+    }, [setError]);
 
     useEffect(() => {
-        pushData(setYears, ezbeq.getYears);
-    }, []);
+        pushData(setYears, ezbeq.getYears, setError);
+    }, [setError]);
 
     useEffect(() => {
-        pushData(setAudioTypes, ezbeq.getAudioTypes);
-    }, []);
+        pushData(setAudioTypes, ezbeq.getAudioTypes, setError);
+    }, [setError]);
 
     useEffect(() => {
-        pushData(setContentTypes, ezbeq.getContentTypes);
-    }, []);
+        pushData(setContentTypes, ezbeq.getContentTypes, setError);
+    }, [setError]);
 
     useEffect(() => {
-        pushData(setFilteredYears, () => [...new Set(filteredEntries.map(e => e.year))]);
-        pushData(setFilteredAudioTypes, () => [...new Set(filteredEntries.map(e => e.audioTypes).flat())]);
-    }, [filteredEntries]);
+        pushData(setFilteredYears, () => [...new Set(filteredEntries.map(e => e.year))], setError);
+        pushData(setFilteredAudioTypes, () => [...new Set(filteredEntries.map(e => e.audioTypes).flat())], setError);
+    }, [filteredEntries, setError]);
 
     const addSelectedAudioTypes = values => {
         const matches = audioTypes.filter(at => values.some(v => v === at || at.toLowerCase().indexOf(v.toLowerCase()) > -1));

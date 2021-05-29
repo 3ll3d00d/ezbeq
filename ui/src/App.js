@@ -11,6 +11,7 @@ import Devices from "./components/Devices";
 import Filter from "./components/Filter";
 import Entry from "./components/Entry";
 import {Grid} from "@material-ui/core";
+import ErrorSnack from "./components/ErrorSnack";
 
 const useStyles = makeStyles((theme) => ({
     root: {
@@ -36,6 +37,9 @@ const App = () => {
     );
 
     const classes = useStyles();
+    // errors
+    const [errTxt, setErrTxt] = useState();
+    const [err, setError] = useState();
     // catalogue data
     const [entries, setEntries] = useState([]);
     const [filteredEntries, setFilteredEntries] = useState([]);
@@ -67,11 +71,11 @@ const App = () => {
 
     // initial data load
     useEffect(() => {
-        pushData(setEntries, ezbeq.load);
+        pushData(setEntries, ezbeq.load, setError);
     }, []);
 
     useEffect(() => {
-        pushData(setDevice, ezbeq.getDeviceConfig);
+        pushData(setDevice, ezbeq.getDeviceConfig, setError);
     }, []);
 
     useEffect(() => {
@@ -102,7 +106,7 @@ const App = () => {
             }
             return false;
         }
-        pushData(setFilteredEntries, () => entries.filter(isMatch));
+        pushData(setFilteredEntries, () => entries.filter(isMatch), setError);
     }, [entries, selectedAudioTypes, selectedYears, selectedAuthors, selectedContentTypes, txtFilter]);
 
     useEffect(() => {
@@ -120,7 +124,8 @@ const App = () => {
                              setSelectedSlotId={setSelectedSlotId}
                              setUserDriven={setUserDriven}
                              device={device}
-                             setDevice={setDevice}/>;
+                             setDevice={setDevice}
+                             setError={setError}/>;
     const catalogue = <Catalogue entries={filteredEntries}
                                  setSelectedEntryId={setSelectedEntryId}
                                  selectedEntryId={selectedEntryId}
@@ -129,11 +134,15 @@ const App = () => {
                          useWide={useWide}
                          setDevice={setDevice}
                          selectedSlotId={selectedSlotId}
-                         device={device}/>;
+                         device={device}
+                         setError={setError}/>;
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline/>
             <div className={classes.root}>
+                <ErrorSnack errTxt={errTxt}
+                            setErrTxt={setErrTxt}
+                            err={err}/>
                 <Header txtFilter={txtFilter}
                         setTxtFilter={setTxtFilter}
                         showFilters={showFilters}
@@ -147,7 +156,8 @@ const App = () => {
                         setSelectedAuthors={setSelectedAuthors}
                         selectedContentTypes={selectedContentTypes}
                         setSelectedContentTypes={setSelectedContentTypes}
-                        filteredEntries={filteredEntries}/>
+                        filteredEntries={filteredEntries}
+                        setError={setError}/>
                 {
                     useWide
                         ?

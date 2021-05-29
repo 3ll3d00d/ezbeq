@@ -153,7 +153,7 @@ const Uploader = ({
     );
 };
 
-const Entry = ({selectedEntry, useWide, setDevice, selectedSlotId, device}) => {
+const Entry = ({selectedEntry, useWide, setDevice, selectedSlotId, device, setError}) => {
     const classes = useStyles();
     const [selectedSlot, setSelectedSlot] = useState();
     const [sendGain, setSendGain] = useState(false);
@@ -181,7 +181,7 @@ const Entry = ({selectedEntry, useWide, setDevice, selectedSlotId, device}) => {
             setPending(false);
             setDevice(device);
         } catch (e) {
-            console.error(e);
+            setError(e);
             setPending(false);
         }
     };

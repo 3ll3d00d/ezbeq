@@ -1,6 +1,10 @@
-const pushData = async (setter, getter) => {
-    const data = await getter();
-    setter(data);
+const pushData = async (setter, getter, setError) => {
+    try {
+        const data = await getter();
+        setter(data);
+    } catch (error) {
+        setError(error);
+    }
 };
 
 export {

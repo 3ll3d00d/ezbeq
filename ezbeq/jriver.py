@@ -92,7 +92,7 @@ def make_peak(channels: str, vals: dict) -> Dict[str, str]:
     return {
         'Enabled': '1',
         'Slope': '12',
-        'Q': f"{q_to_s(vals['q'], vals['gain']):.12g}",
+        'Q': f"{vals['q']}",
         'Type': '3',
         'Gain': f"{vals['gain']}",
         'Frequency': f"{vals['freq']}",
@@ -104,7 +104,7 @@ def make_shelf(channels: str, vals: dict, high: bool) -> List[Dict[str, str]]:
     filt_val = {
         'Enabled': '1',
         'Slope': '12',
-        'Q': f"{vals['q']}",
+        'Q': f"{q_to_s(vals['q'], vals['gain']):.12g}",
         'Type': '11' if high else '10',
         'Gain': f"{vals['gain']}",
         'Frequency': f"{vals['freq']}",
@@ -248,8 +248,45 @@ def include_filters_in_dsp(peq_block_name: str, config_txt: str, xml_filts: List
 
 
 def remove_beq_filter(peq_block_name: str, config_txt: str) -> str:
-    # TODO
-    return config_txt
+    root, filt_element = extract_filters(config_txt, peq_block_name, allow_empty=True)
+    # before_value, after_value, filt_section = extract_value_section(config_txt, self.__block)
+    # separate the tokens, which are in (TOKEN) blocks, from within the Value element
+    if filt_element.text:
+        filt_fragments = [v + ')' for v in filt_element.text.split(')') if v]
+        if len(filt_fragments) < 2:
+            raise ValueError('Invalid input file - Unexpected <Value> format')
+        individual_filters = [d for d in [item_to_dicts(f) for f in filt_fragments[2:]] if d]
+        start_beq_idx = -1
+        end_beq_idx = -1
+        beq_name = ''
+        for i, t in enumerate(individual_filters):
+            if start_beq_idx > -1 and end_beq_idx > -1:
+                break
+            f = t[0]
+            if f.get('Type', '') == '20':
+                txt = f.get('Text', '')
+                if txt.startswith('***BEQ_START|'):
+                    start_beq_idx = i
+                    beq_name = txt[13:]
+                if txt.startswith('***BEQ_END|'):
+                    end_beq_idx = i
+                    if txt[11:] != beq_name:
+                        raise ValueError(f'Unexpected BEQ names {beq_name} vs {txt[11:]}')
+        if start_beq_idx > -1:
+            if end_beq_idx > start_beq_idx:
+                new_filts = [f[1] for idx, f in enumerate(individual_filters) if idx < start_beq_idx or idx > end_beq_idx]
+                new_filt_count = len(new_filts)
+                filt_fragments[1] = f"({len(str(new_filt_count))}:{new_filt_count})"
+                filt_element.text = ''.join(filt_fragments[0:2]) + ''.join(new_filts)
+                config_txt = et.tostring(root, encoding='UTF-8', xml_declaration=True).decode('utf-8')
+                return config_txt
+            else:
+                raise ValueError(f'Unexpected BEQ format {end_beq_idx} <= {start_beq_idx}')
+        else:
+            return config_txt
+
+    else:
+        return config_txt
 
 
 def get_peq_key_name(block):
@@ -425,3 +462,17 @@ class MCWSError(Exception):
         self.url = url
         self.status_code = status_code
         self.resp = resp
+
+
+def item_to_dicts(frag) -> Optional[Tuple[Dict[str, str], str]]:
+    idx = frag.find(':')
+    if idx > -1:
+        peq_xml = frag[idx+1:-1]
+        vals = {i.attrib['Name']: i.text for i in et.fromstring(peq_xml).findall('./Item')}
+        if 'Enabled' in vals:
+            if vals['Enabled'] != '0' and vals['Enabled'] != '1':
+                vals['Enabled'] = '1'
+        else:
+            vals['Enabled'] = '0'
+        return vals, frag
+    return None

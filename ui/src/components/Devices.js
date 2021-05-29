@@ -71,7 +71,7 @@ const Device = ({selected, slot, onSelect, isPending, onClear}) => {
     );
 };
 
-const Devices = ({selectedSlotId, useWide, device, setDevice, setUserDriven}) => {
+const Devices = ({selectedSlotId, useWide, device, setDevice, setUserDriven, setError}) => {
     const classes = useStyles({selected: false});
     const [pending, setPending] = useState([]);
     const [currentGains, setCurrentGains] = useState(defaultGain);
@@ -105,7 +105,7 @@ const Devices = ({selectedSlotId, useWide, device, setDevice, setUserDriven}) =>
                 andThen();
             }
         } catch (e) {
-            console.error(e);
+            setError(e);
             setPending(u => u.map(p => {
                 if (p.slotId === slotId && p.action === action) {
                     return {slotId, action, state: 2};
