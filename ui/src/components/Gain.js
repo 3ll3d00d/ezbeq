@@ -47,7 +47,6 @@ const GainInput = ({fieldName, helpText, minGain, maxGain, step, dp, savedValues
     const classes = useStyles();
     const decimalSeparator = 1.1.toLocaleString().substring(1, 2);
     const oneNum = '^[0-9]$';
-    console.log(decimalSeparator);
     const sepMatcher = decimalSeparator === '.' ? /\./g : new RegExp(decimalSeparator, 'g');
     const roundFactor = 1 / step;
     const delta = (parseFloat(values.mv) !== parseFloat(savedValues.mv) || values.mute !== savedValues.mute);

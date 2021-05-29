@@ -132,15 +132,15 @@ class EzBeqService {
     createPatchPayload = (gains, slot_id, entryId = null) => {
         const payload = {};
         if (gains.hasOwnProperty('master_mv')) {
-            payload.masterVolume = gains.master_mv;
+            payload.masterVolume = parseFloat(gains.master_mv);
         }
         if (gains.hasOwnProperty('master_mute')) {
             payload.mute = gains.master_mute;
         }
         const slot = {
             id: String(slot_id),
-            gain1: gains.inputOne_mv,
-            gain2: gains.inputTwo_mv,
+            gain1: parseFloat(gains.inputOne_mv),
+            gain2: parseFloat(gains.inputTwo_mv),
             mute1: gains.inputOne_mute,
             mute2: gains.inputTwo_mute
         };
