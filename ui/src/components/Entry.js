@@ -109,11 +109,56 @@ const formatTV = entry => {
     return null;
 };
 
-const Entry = ({selectedEntry, useWide, setDevice, selectedSlotId}) => {
+const Uploader = ({
+                      setSelectedSlot,
+                      slotIds,
+                      selectedSlot,
+                      sendGain,
+                      selectedEntry,
+                      setSendGain,
+                      device,
+                      pending,
+                      upload
+                  }) => {
+    const slotControls = slotIds.map(s => <FormControlLabel value={s}
+                                                            control={<Radio checked={selectedSlot === s}
+                                                                            color={'primary'}/>}
+                                                            label={s}
+                                                            key={s}/>);
+    const slotGroup = slotIds.length > 1
+        ?
+        <RadioGroup row aria-label="slot" name="slot"
+                    onChange={e => setSelectedSlot(e.target.value)}>
+            {slotControls}
+        </RadioGroup>
+        : null;
+    const gainControl = device && device.deviceType === 'minidsp'
+        ? <FormControlLabel control={<Checkbox checked={sendGain}
+                                               name="sendMV"
+                                               color={'primary'}
+                                               disabled={!selectedEntry.mvAdjust}
+                                               onChange={e => setSendGain(e.target.checked)}/>}
+                            label="Set Input Gain"/>
+        : null;
+    return (
+        <FormGroup row>
+            {slotGroup}
+            {gainControl}
+            <Button variant="contained"
+                    startIcon={pending ? <CircularProgress size={24}/> : <PublishIcon fontSize="small"/>}
+                    onClick={upload}>
+                Upload
+            </Button>
+        </FormGroup>
+    );
+};
+
+const Entry = ({selectedEntry, useWide, setDevice, selectedSlotId, device}) => {
     const classes = useStyles();
-    const [selectedSlot, setSelectedSlot] = useState("1");
+    const [selectedSlot, setSelectedSlot] = useState();
     const [sendGain, setSendGain] = useState(false);
     const [pending, setPending] = useState(false);
+    const slotIds = device && device.hasOwnProperty('slots') ? device.slots.map(s => s.id) : [];
 
     useEffect(() => {
         setSendGain(false);
@@ -191,31 +236,15 @@ const Entry = ({selectedEntry, useWide, setDevice, selectedSlotId}) => {
             </CardContent>;
         const uploadAction =
             <CardContent>
-                <FormGroup row>
-                    <RadioGroup row aria-label="slot" name="slot"
-                                onChange={e => setSelectedSlot(e.target.value)}>
-                        <FormControlLabel value="1" control={<Radio checked={selectedSlot === "1"} color={'primary'}/>}
-                                          label="One"/>
-                        <FormControlLabel value="2" control={<Radio checked={selectedSlot === "2"} color={'primary'}/>}
-                                          label="Two"/>
-                        <FormControlLabel value="3" control={<Radio checked={selectedSlot === "3"} color={'primary'}/>}
-                                          label="Three"/>
-                        <FormControlLabel value="4" control={<Radio checked={selectedSlot === "4"} color={'primary'}/>}
-                                          label="Four"/>
-                    </RadioGroup>
-                    <FormControlLabel
-                        control={<Checkbox checked={sendGain}
-                                           name="sendMV"
-                                           color={'primary'}
-                                           disabled={!selectedEntry.mvAdjust}
-                                           onChange={e => setSendGain(e.target.checked)}/>}
-                        label="Set Input Gain"/>
-                    <Button variant="contained"
-                            startIcon={pending ? <CircularProgress size={24}/> : <PublishIcon fontSize="small"/>}
-                            onClick={upload}>
-                        Upload
-                    </Button>
-                </FormGroup>
+                <Uploader setSelectedSlot={setSelectedSlot}
+                          selectedSlot={selectedSlot}
+                          sendGain={sendGain}
+                          slotIds={slotIds}
+                          selectedEntry={selectedEntry}
+                          setSendGain={setSendGain}
+                          pending={pending}
+                          device={device}
+                          upload={upload}/>
             </CardContent>;
         const links =
             <FormGroup row>

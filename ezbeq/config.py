@@ -21,6 +21,7 @@ class Config:
         self.minidsp_exe = self.config.get('minidspExe', None)
         self.minidsp_options = self.config.get('minidspOptions', None)
         self.htp1_options = self.config.get('htp1', None)
+        self.jriver_options = self.config.get('jriver', None)
         self.webapp_path = self.config.get('webappPath', None)
         self.use_twisted = self.config.get('useTwisted', True)
         self.minidsp_cmd_timeout = self.config.get('minidspCmdTimeout', 10)
@@ -95,7 +96,7 @@ class Config:
             self.logger.warning("Loading config from " + config_path)
             with open(config_path, 'r') as yml:
                 cfg = yaml.load(yml, Loader=yaml.FullLoader)
-                if not cfg.get('minidspExe', None) and not cfg.get('htp1', None):
+                if not cfg.get('minidspExe', None) and not cfg.get('htp1', None) and not cfg.get('jriver', None):
                     cfg['minidspExe'] = 'minidsp'
                     self.__store_config(cfg, config_path)
                 return cfg

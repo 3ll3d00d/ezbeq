@@ -76,6 +76,32 @@ htp1:
     - sub1
 ```
 
+  * if using jriver, add the following to enable an MCWS connection (i.e. Media Network must be enabled)
+
+```
+jriver:
+  address: 192.168.1.181:52199
+  zone: Player
+  auth:
+    user: foo
+    pass: thisismypass
+  secure: true  
+  channels:
+    - SW
+    - C9
+    - C10
+  block: 2
+```
+
+Note that
+
+  * auth is optional, leave this out if MCWS is not secured
+  * secure is optional, leave this out if SSL is not used
+  * supported channels are L R C SW SL SR RL RR and C9 upto C32 (if more than 8 channel output is used)
+  * block is 1 or 2 and refers to the dsp slots Parametric Equalizer and Parametric Equalizer 2 respectively 
+
+This information is **not** validated, it is left to the user to configure the output format on the zone to match the supplied configuration.
+
 ## Starting ezbeq on bootup
 
 This is optional but recommended, it ensures the app starts automatically whenever the rpi boots up and makes

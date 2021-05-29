@@ -128,7 +128,8 @@ const App = () => {
     const entry = <Entry selectedEntry={selectedEntryId ? entries.find(e => e.id === selectedEntryId) : null}
                          useWide={useWide}
                          setDevice={setDevice}
-                         selectedSlotId={selectedSlotId}/>;
+                         selectedSlotId={selectedSlotId}
+                         device={device}/>;
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline/>

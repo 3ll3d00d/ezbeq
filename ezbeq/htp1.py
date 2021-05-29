@@ -1,10 +1,109 @@
 import json
 import logging
+from typing import Optional, List
 
+import semver
 from autobahn.twisted.websocket import WebSocketClientFactory, connectWS, WebSocketClientProtocol
 from twisted.internet.protocol import ReconnectingClientFactory
 
+from ezbeq.catalogue import Catalogue
+from ezbeq.config import Config
+from ezbeq.device import Bridge
+
 logger = logging.getLogger('ezbeq.htp1')
+
+
+class Htp1(Bridge):
+
+    def __init__(self, cfg: Config):
+        self.__ip = cfg.htp1_options['ip']
+        self.__channels = cfg.htp1_options['channels']
+        self.__peq = {}
+        self.__supports_shelf = True
+        if not self.__channels:
+            raise ValueError('No channels supplied for HTP-1')
+        self.__client = Htp1Client(self.__ip, self)
+
+    def device_type(self) -> str:
+        return 'htp1'
+
+    def state(self) -> Optional[dict]:
+        pass
+
+    def __send(self, to_load: List[PEQ]):
+        while len(to_load) < 16:
+            peq = PEQ(len(to_load), fc=100, q=1, gain=0, filter_type_name='PeakingEQ')
+            to_load.append(peq)
+        ops = [peq.as_ops(c, use_shelf=self.__supports_shelf) for peq in to_load for c in self.__peq.keys()]
+        ops = [op for slot_ops in ops for op in slot_ops if op]
+        if ops:
+            self.__client.send(f"changemso {json.dumps(ops)}")
+        else:
+            logger.warning(f"Nothing to send")
+
+    def activate(self, slot: str) -> None:
+        raise NotImplementedError()
+
+    def load_filter(self, slot: str, entry: Catalogue) -> None:
+        to_load = [PEQ(idx, fc=f['freq'], q=f['q'], gain=f['gain'], filter_type_name=f['type'])
+                   for idx, f in enumerate(entry.filters)]
+        self.__send(to_load)
+
+    def clear_filter(self, slot: str) -> None:
+        self.__send([])
+
+    def mute(self, slot: Optional[str], channel: Optional[int]) -> None:
+        raise NotImplementedError()
+
+    def unmute(self, slot: Optional[str], channel: Optional[int]) -> None:
+        raise NotImplementedError()
+
+    def set_gain(self, slot: Optional[str], channel: Optional[int], gain: float) -> None:
+        raise NotImplementedError()
+
+    def on_mso(self, mso: dict):
+        logger.info(f"Received {mso}")
+        version = mso['versions']['swVer']
+        version = version[1:] if version[0] == 'v' or version[0] == 'V' else version
+        try:
+            self.__supports_shelf = semver.parse_version_info(version) > semver.parse_version_info('1.4.0')
+        except:
+            logger.error(f"Unable to parse version {mso['versions']['swVer']}, will not send shelf filters")
+            self.__supports_shelf = False
+        if not self.__supports_shelf:
+            logger.error(f"Device version {mso['versions']['swVer']} too old, lacks shelf filter support")
+
+        speakers = mso['speakers']['groups']
+        channels = ['lf', 'rf']
+        for group in [s for s, v in speakers.items() if 'present' in v and v['present'] is True]:
+            if group[0:2] == 'lr' and len(group) > 2:
+                channels.append('l' + group[2:])
+                channels.append('r' + group[2:])
+            else:
+                channels.append(group)
+
+        peq_slots = mso['peq']['slots']
+
+        filters = {c: [] for c in channels}
+        unknown_channels = set()
+        for idx, s in enumerate(peq_slots):
+            for c in channels:
+                if c in s['channels']:
+                    filters[c].append(PEQ(idx, s['channels'][c]))
+                else:
+                    unknown_channels.add(c)
+        if unknown_channels:
+            peq_channels = peq_slots[0]['channels'].keys()
+            logger.error(f"Unknown channels encountered [peq channels: {peq_channels}, unknown: {unknown_channels}]")
+        for c in filters.keys():
+            if c in self.__channels:
+                logger.info(f"Updating PEQ channel {c} with {filters[c]}")
+                self.__peq[c] = filters[c]
+            else:
+                logger.info(f"Discarding filter channel {c} - {filters[c]}")
+
+    def on_msoupdate(self, msoupdate: dict):
+        logger.info(f"Received {msoupdate}")
 
 
 class Htp1Client:
@@ -90,3 +189,56 @@ class Htp1ClientFactory(WebSocketClientFactory, ReconnectingClientFactory):
                 c.sendMessage(msg.encode('utf8'))
         else:
             raise ValueError(f"No devices connected, ignoring {msg}")
+
+
+class PEQ:
+
+    def __init__(self, slot, params=None, fc=None, q=None, gain=None, filter_type_name=None):
+        self.slot = slot
+        if params is not None:
+            self.fc = params['Fc']
+            self.q = params['Q']
+            self.gain = params['gaindB']
+            self.filter_type = params.get('FilterType', 0)
+            self.filter_type_name = 'PeakingEQ' if self.filter_type == 0 else 'LowShelf' if self.filter_type == 1 else 'HighShelf'
+        else:
+            self.fc = fc
+            self.q = q
+            self.gain = gain
+            self.filter_type = 0 if filter_type_name == 'PeakingEQ' else 1 if filter_type_name == 'LowShelf' else 2
+            self.filter_type_name = filter_type_name
+
+    def as_ops(self, channel: str, use_shelf: bool = True):
+        if self.filter_type == 0 or use_shelf:
+            prefix = f"/peq/slots/{self.slot}/channels/{channel}"
+            ops = [
+                {
+                    'op': 'replace',
+                    'path': f"{prefix}/Fc",
+                    'value': self.fc
+                },
+                {
+                    'op': 'replace',
+                    'path': f"{prefix}/Q",
+                    'value': self.q
+                },
+                {
+                    'op': 'replace',
+                    'path': f"{prefix}/gaindB",
+                    'value': self.gain
+                }
+            ]
+            if use_shelf:
+                ops.append(
+                    {
+                        'op': 'replace',
+                        'path': f"{prefix}/FilterType",
+                        'value': self.filter_type
+                    }
+                )
+            return ops
+        else:
+            return []
+
+    def __repr__(self):
+        return f"{self.slot}: {self.filter_type_name} {self.fc} Hz {self.gain} dB {self.q}"
