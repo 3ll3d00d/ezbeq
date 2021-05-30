@@ -152,7 +152,7 @@ class EzBeqService {
         return payload;
     };
 
-    loadWithMV = async (slot, gains, id) => {
+    loadWithMV = async (id, slot, gains) => {
         return await this.sendFilter(id, slot, gains);
     };
 

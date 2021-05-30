@@ -32,9 +32,10 @@ class Htp1(Bridge):
         return [SlotState('HTP1')]
 
     def state(self) -> Optional[dict]:
-        pass
+        return {'active_slot': 'HTP1'}
 
     def __send(self, to_load: List['PEQ']):
+        logger.info(f"Sending {len(to_load)} filters")
         while len(to_load) < 16:
             peq = PEQ(len(to_load), fc=100, q=1, gain=0, filter_type_name='PeakingEQ')
             to_load.append(peq)

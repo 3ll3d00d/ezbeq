@@ -159,6 +159,7 @@ const Entry = ({selectedEntry, useWide, setDevice, selectedSlotId, device, setEr
     const [sendGain, setSendGain] = useState(false);
     const [pending, setPending] = useState(false);
     const slotIds = device && device.hasOwnProperty('slots') ? device.slots.map(s => s.id) : [];
+    const canActivate = device.hasOwnProperty('canActivate') && device.canActivate;
 
     useEffect(() => {
         setSendGain(false);
@@ -177,7 +178,8 @@ const Entry = ({selectedEntry, useWide, setDevice, selectedSlotId, device, setEr
         }
         setPending(true);
         try {
-            const device = await ezbeq.loadWithMV(selectedSlot, gains, selectedEntry.id);
+            const call = canActivate ? () => ezbeq.loadWithMV(selectedEntry.id, selectedSlot, gains) : () => ezbeq.sendFilter(selectedEntry.id, selectedSlot);
+            const device = await call();
             setPending(false);
             setDevice(device);
         } catch (e) {

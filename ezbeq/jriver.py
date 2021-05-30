@@ -45,7 +45,7 @@ class JRiver(Bridge):
         return {'active_slot': self.__zone_name}
 
     def activate(self, slot: str) -> None:
-        pass
+        raise NotImplementedError()
 
     def load_filter(self, slot: str, entry: Catalogue) -> None:
         mc_filts = [make_meta(entry.title, True)] \
@@ -65,13 +65,13 @@ class JRiver(Bridge):
         self.__mcws.set_dsp(zone_id, new_config_txt)
 
     def mute(self, slot: Optional[str], channel: Optional[int]) -> None:
-        pass
+        raise NotImplementedError()
 
     def unmute(self, slot: Optional[str], channel: Optional[int]) -> None:
-        pass
+        raise NotImplementedError()
 
     def set_gain(self, slot: Optional[str], channel: Optional[int], gain: float) -> None:
-        pass
+        raise NotImplementedError()
 
 
 def convert_filter_to_mc_dsp(filt: dict, target_channels: str) -> List[Dict[str, str]]:
