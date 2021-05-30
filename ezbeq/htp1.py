@@ -42,6 +42,7 @@ class Htp1(Bridge):
         ops = [peq.as_ops(c, use_shelf=self.__supports_shelf) for peq in to_load for c in self.__peq.keys()]
         ops = [op for slot_ops in ops for op in slot_ops if op]
         if ops:
+            self.__client.send('changemso [{"op":"replace","path":"/peq/peqsw","value":true}]')
             self.__client.send(f"changemso {json.dumps(ops)}")
         else:
             logger.warning(f"Nothing to send")
