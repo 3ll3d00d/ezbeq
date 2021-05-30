@@ -4,7 +4,7 @@ from typing import Optional, List, Dict, Tuple
 
 import requests
 
-from device import SlotState
+from ezbeq.device import SlotState
 from ezbeq.catalogue import Catalogue
 from ezbeq.config import Config
 from ezbeq.device import Bridge

@@ -6,7 +6,7 @@ import semver
 from autobahn.twisted.websocket import WebSocketClientFactory, connectWS, WebSocketClientProtocol
 from twisted.internet.protocol import ReconnectingClientFactory
 
-from device import SlotState
+from ezbeq.device import SlotState
 from ezbeq.catalogue import Catalogue
 from ezbeq.config import Config
 from ezbeq.device import Bridge
