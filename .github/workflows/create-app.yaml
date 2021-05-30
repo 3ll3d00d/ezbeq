@@ -14,6 +14,9 @@ jobs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - uses: actions/checkout@v2
+      - name: pytest
+        run: |
+          PYTHONPATH=. pipenv run pytest --cov=./ezbeq --cov-report=xml
       - name: Generate changelog
         id: changelog
         uses: metcalfc/changelog-generator@v0.4.4

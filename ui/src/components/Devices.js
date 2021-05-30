@@ -139,7 +139,11 @@ const Devices = ({selectedSlotId, useWide, device, setDevice, setUserDriven, set
                 <Grid key={i2} container item xs={r.length === 1 ? 12 : 6} className={classes.container}>
                     <Device selected={d.id === selectedSlotId}
                             slot={d}
-                            onSelect={() => activateSlot(d.id)}
+                            onSelect={() => {
+                                if (d.hasOwnProperty('canActivate') && d.canActivate) {
+                                    activateSlot(d.id)
+                                }
+                            }}
                             onClear={() => clearDeviceSlot(d.id)}
                             isPending={isPending(d.id)}/>
                 </Grid>

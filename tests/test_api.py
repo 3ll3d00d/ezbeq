@@ -164,7 +164,7 @@ def verify_mute_master(config, mute_op, r):
     assert cmds[0] == f"mute {mute_op}"
     slots = verify_master_device_state(r.json, mute=True if mute_op == 'on' else False)
     for idx, s in enumerate(slots):
-        verify_slot(s, idx + 1)
+        verify_slot(s, idx + 1, active=idx == 0)
 
 
 @pytest.mark.parametrize("slot", [1, 2, 3, 4])
@@ -206,10 +206,11 @@ def verify_set_input_gain(config, gain, is_valid, r, slot):
         assert len(cmds) == 0
     slots = verify_master_device_state(r.json)
     for idx, s in enumerate(slots):
+        slot_is_active = idx == slot - 1 if is_valid else idx == 0
         if idx == slot - 1:
-            verify_slot(s, idx + 1, active=is_valid, gain=expected_gain)
+            verify_slot(s, idx + 1, active=slot_is_active, gain=expected_gain)
         else:
-            verify_slot(s, idx + 1)
+            verify_slot(s, idx + 1, active=slot_is_active)
 
 
 @pytest.mark.parametrize("slot", [1, 2, 3, 4])
@@ -252,10 +253,11 @@ def verify_set_input_gain_single_input(channel, config, gain, is_valid, r, slot)
         assert len(cmds) == 0
     slots = verify_master_device_state(r.json)
     for idx, s in enumerate(slots):
+        slot_is_active = idx == slot - 1 if is_valid else idx == 0
         if idx == slot - 1:
-            verify_slot(s, idx + 1, active=is_valid, gain=expected_gain)
+            verify_slot(s, idx + 1, active=slot_is_active, gain=expected_gain)
         else:
-            verify_slot(s, idx + 1)
+            verify_slot(s, idx + 1, active=slot_is_active)
 
 
 @pytest.mark.parametrize("gain,is_valid", [(-14.2, True), (-49.1, True), (-72.1, True), (0.5, False), (-128.0, False)])
@@ -293,7 +295,7 @@ def verify_set_master_gain(config, gain, is_valid, r):
         assert len(cmds) == 0
     slots = verify_master_device_state(r.json, gain=gain if is_valid else 0.0)
     for idx, s in enumerate(slots):
-        verify_slot(s, idx + 1)
+        verify_slot(s, idx + 1, active=idx == 0)
 
 
 @pytest.mark.parametrize("slot,is_valid", [(0, False), (1, True), (2, True), (3, True), (4, True), (5, False)])
@@ -329,7 +331,7 @@ def verify_activate_slot(config, is_valid, r, slot):
         if is_valid:
             verify_slot(s, idx + 1, active=idx + 1 == slot)
         else:
-            verify_slot(s, idx + 1)
+            verify_slot(s, idx + 1, active=idx == 0)
 
 
 def test_legacy_state_maintained_over_multiple_updates(minidsp_client, minidsp_app):
@@ -567,10 +569,11 @@ input 1 peq 9 bypass on"""
         assert not cmds
     slots = verify_master_device_state(r.json)
     for idx, s in enumerate(slots):
+        slot_is_active = idx + 1 == slot if is_valid else idx == 0
         if is_valid and idx + 1 == slot:
-            verify_slot(s, idx + 1, active=True, last='Alien Resurrection')
+            verify_slot(s, idx + 1, active=slot_is_active, last='Alien Resurrection')
         else:
-            verify_slot(s, idx + 1)
+            verify_slot(s, idx + 1, active=slot_is_active)
 
     if is_valid:
         r = minidsp_client.delete(f"/api/1/device/{slot}")
@@ -604,10 +607,8 @@ input 1 gain -- 0.00"""
         assert '\n'.join(cmds) == expected_commands
         slots = verify_master_device_state(r.json)
         for idx, s in enumerate(slots):
-            if is_valid and idx + 1 == slot:
-                verify_slot(s, idx + 1, active=True)
-            else:
-                verify_slot(s, idx + 1)
+            slot_is_active = idx + 1 == slot if is_valid else idx == 0
+            verify_slot(s, idx + 1, active=slot_is_active)
 
 
 @pytest.mark.parametrize("slot,is_valid", [(0, False), (1, True), (2, True), (3, True), (4, True), (5, False)])
@@ -657,10 +658,11 @@ input 1 peq 9 bypass on"""
         assert not cmds
     slots = verify_master_device_state(r.json)
     for idx, s in enumerate(slots):
+        slot_is_active = idx + 1 == slot if is_valid else idx == 0
         if is_valid and idx + 1 == slot:
-            verify_slot(s, idx + 1, active=True, last='Alien Resurrection')
+            verify_slot(s, idx + 1, active=slot_is_active, last='Alien Resurrection')
         else:
-            verify_slot(s, idx + 1)
+            verify_slot(s, idx + 1, active=slot_is_active)
 
     if is_valid:
         r = minidsp_client.delete(f"/api/1/devices/master/filter/{slot}")
@@ -694,10 +696,8 @@ input 1 gain -- 0.00"""
         assert '\n'.join(cmds) == expected_commands
         slots = verify_master_device_state(r.json)
         for idx, s in enumerate(slots):
-            if is_valid and idx + 1 == slot:
-                verify_slot(s, idx + 1, active=True)
-            else:
-                verify_slot(s, idx + 1)
+            slot_is_active = idx + 1 == slot if is_valid else idx == 0
+            verify_slot(s, idx + 1, active=slot_is_active)
 
 
 def test_patch_multiple_fields(minidsp_client, minidsp_app):
