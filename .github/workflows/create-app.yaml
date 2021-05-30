@@ -16,6 +16,9 @@ jobs:
       - uses: actions/checkout@v2
       - name: pytest
         run: |
+          python -m pip install --upgrade pip
+          pip install pipenv
+          pipenv install -d
           PYTHONPATH=. pipenv run pytest --cov=./ezbeq --cov-report=xml
       - name: Generate changelog
         id: changelog
