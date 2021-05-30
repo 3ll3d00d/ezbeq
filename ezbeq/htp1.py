@@ -6,6 +6,7 @@ import semver
 from autobahn.twisted.websocket import WebSocketClientFactory, connectWS, WebSocketClientProtocol
 from twisted.internet.protocol import ReconnectingClientFactory
 
+from device import SlotState
 from ezbeq.catalogue import Catalogue
 from ezbeq.config import Config
 from ezbeq.device import Bridge
@@ -27,10 +28,13 @@ class Htp1(Bridge):
     def device_type(self) -> str:
         return 'htp1'
 
+    def slot_state(self) -> List[SlotState]:
+        return [SlotState('HTP1')]
+
     def state(self) -> Optional[dict]:
         pass
 
-    def __send(self, to_load: List[PEQ]):
+    def __send(self, to_load: List['PEQ']):
         while len(to_load) < 16:
             peq = PEQ(len(to_load), fc=100, q=1, gain=0, filter_type_name='PeakingEQ')
             to_load.append(peq)

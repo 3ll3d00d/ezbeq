@@ -155,7 +155,7 @@ class Devices(Resource):
 
     def get(self):
         self.__state.initialise(self.__bridge)
-        return {**self.__state.get().as_dict(), 'type': self.__bridge.device_type()}
+        return self.__state.get().as_dict()
 
 
 slot_model = api.model('Slot', {

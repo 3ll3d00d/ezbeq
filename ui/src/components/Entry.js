@@ -155,7 +155,7 @@ const Uploader = ({
 
 const Entry = ({selectedEntry, useWide, setDevice, selectedSlotId, device, setError}) => {
     const classes = useStyles();
-    const [selectedSlot, setSelectedSlot] = useState();
+    const [selectedSlot, setSelectedSlot] = useState(null);
     const [sendGain, setSendGain] = useState(false);
     const [pending, setPending] = useState(false);
     const slotIds = device && device.hasOwnProperty('slots') ? device.slots.map(s => s.id) : [];

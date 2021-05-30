@@ -38,8 +38,7 @@ const App = () => {
 
     const classes = useStyles();
     // errors
-    const [errTxt, setErrTxt] = useState();
-    const [err, setError] = useState();
+    const [err, setErr] = useState(null);
     // catalogue data
     const [entries, setEntries] = useState([]);
     const [filteredEntries, setFilteredEntries] = useState([]);
@@ -53,7 +52,7 @@ const App = () => {
     const [txtFilter, setTxtFilter] = useState('');
     const [showFilters, setShowFilters] = useState(false);
     const [selectedEntryId, setSelectedEntryId] = useState(-1);
-    const [selectedSlotId, setSelectedSlotId] = useState(-1);
+    const [selectedSlotId, setSelectedSlotId] = useState(null);
     const [userDriven, setUserDriven] = useState(false);
 
     const toggleShowFilters = () => {
@@ -71,11 +70,11 @@ const App = () => {
 
     // initial data load
     useEffect(() => {
-        pushData(setEntries, ezbeq.load, setError);
+        pushData(setEntries, ezbeq.load, setErr);
     }, []);
 
     useEffect(() => {
-        pushData(setDevice, ezbeq.getDeviceConfig, setError);
+        pushData(setDevice, ezbeq.getDeviceConfig, setErr);
     }, []);
 
     useEffect(() => {
@@ -106,7 +105,7 @@ const App = () => {
             }
             return false;
         }
-        pushData(setFilteredEntries, () => entries.filter(isMatch), setError);
+        pushData(setFilteredEntries, () => entries.filter(isMatch), setErr);
     }, [entries, selectedAudioTypes, selectedYears, selectedAuthors, selectedContentTypes, txtFilter]);
 
     useEffect(() => {
@@ -125,7 +124,7 @@ const App = () => {
                              setUserDriven={setUserDriven}
                              device={device}
                              setDevice={setDevice}
-                             setError={setError}/>;
+                             setError={setErr}/>;
     const catalogue = <Catalogue entries={filteredEntries}
                                  setSelectedEntryId={setSelectedEntryId}
                                  selectedEntryId={selectedEntryId}
@@ -135,14 +134,12 @@ const App = () => {
                          setDevice={setDevice}
                          selectedSlotId={selectedSlotId}
                          device={device}
-                         setError={setError}/>;
+                         setError={setErr}/>;
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline/>
             <div className={classes.root}>
-                <ErrorSnack errTxt={errTxt}
-                            setErrTxt={setErrTxt}
-                            err={err}/>
+                <ErrorSnack err={err} setErr={setErr}/>
                 <Header txtFilter={txtFilter}
                         setTxtFilter={setTxtFilter}
                         showFilters={showFilters}
@@ -157,7 +154,7 @@ const App = () => {
                         selectedContentTypes={selectedContentTypes}
                         setSelectedContentTypes={setSelectedContentTypes}
                         filteredEntries={filteredEntries}
-                        setError={setError}/>
+                        setError={setErr}/>
                 {
                     useWide
                         ?

@@ -10,16 +10,6 @@ from ezbeq.config import Config
 logger = logging.getLogger('ezbeq.device')
 
 
-def get_channels(cfg: Config) -> List[str]:
-    if cfg.minidsp_exe:
-        return [str(i + 1) for i in range(4)]
-    elif cfg.jriver_options:
-        # TODO discover zones
-        return [f"{cfg.jriver_options['zone']}"]
-    else:
-        return ['HTP1']
-
-
 class SlotState:
 
     def __init__(self, slot_id: str):
@@ -55,22 +45,67 @@ class SlotState:
         pass
 
 
-class DeviceState:
+class DeviceControls:
 
-    def __init__(self, name: str, channel_ids: List[str], has_gain: bool):
-        self.__name: str = name
-        from ezbeq.minidsp import MinidspSlotState
-        self.__slots: List[SlotState] = [MinidspSlotState(c_id) if has_gain else SlotState(c_id)
-                                         for c_id in channel_ids]
+    def __init__(self):
         self.mute: bool = False
         self.master_volume: float = 0.0
+
+    def as_dict(self) -> dict:
+        return {
+            'mute': self.mute,
+            'masterVolume': self.master_volume
+        }
+
+    def __repr__(self):
+        return f"MV: {self.master_volume:.2f} Mute: {self.mute}"
+
+
+class DeviceState:
+
+    def __init__(self, name: str):
+        self.__name: str = name
+        self.__slots: List[SlotState] = []
+        self.__device_controls: Optional[DeviceControls] = None
 
     @property
     def name(self):
         return self.__name
 
     def __repr__(self):
-        return f"{self.name} MV: {self.master_volume:.2f} Mute: {self.mute} [Slots: {self.__slots}]"
+        return f"{self.name} {self.__device_controls if self.__device_controls else ''} [Slots: {self.__slots}]"
+
+    @property
+    def slots(self) -> List[SlotState]:
+        return self.__slots
+
+    @slots.setter
+    def slots(self, slots: List[SlotState]):
+        assert self.__slots == [], 'can only initialise slots once'
+        assert slots != [], 'must have slots'
+        self.__slots = slots
+        # TODO fix
+        from ezbeq.minidsp import MinidspSlotState
+        if isinstance(slots[0], MinidspSlotState):
+            self.__device_controls = DeviceControls()
+
+    @property
+    def master_volume(self) -> Optional[float]:
+        return self.__device_controls.master_volume if self.__device_controls else None
+
+    @master_volume.setter
+    def master_volume(self, mv: float):
+        if self.__device_controls:
+            self.__device_controls.master_volume = mv
+
+    @property
+    def mute(self) -> Optional[bool]:
+        return self.__device_controls.mute if self.__device_controls else None
+
+    @mute.setter
+    def mute(self, mute: bool):
+        if self.__device_controls:
+            self.__device_controls.mute = mute
 
     def merge_with(self, serialised_state: dict) -> bool:
         saved_slots_by_id = {v['id']: v for v in serialised_state}
@@ -89,9 +124,9 @@ class DeviceState:
         return [s.as_dict() for s in self.__slots]
 
     def as_dict(self) -> dict:
+        d_dict = self.__device_controls.as_dict() if self.__device_controls else {}
         return {
-            'mute': self.mute,
-            'masterVolume': self.master_volume,
+            **d_dict,
             'slots': [s.as_dict() for s in self.__slots]
         }
 
@@ -103,27 +138,34 @@ class DeviceState:
 class DeviceStateHolder:
 
     def __init__(self, cfg: Config):
-        self.__state = DeviceState('master', get_channels(cfg), cfg.minidsp_exe is not None)
+        self.__state = DeviceState('master')
+        self.__cached_state = {}
+        self.__device_type = None
         self.__file_name = os.path.join(cfg.config_path, 'device.json')
         self.__initialised = False
         if os.path.exists(self.__file_name):
             with open(self.__file_name, 'r') as f:
-                j = json.load(f)
-            if self.__state.merge_with(j):
-                logger.info(f"Loaded {self.__state} from {self.__file_name}")
-            else:
-                logger.warning(f"Discarded {j} from {self.__file_name}, does not match {self.__state}")
+                self.__cached_state = json.load(f)
+            logger.info(f"Loaded {self.__cached_state} from {self.__file_name}")
+        else:
+            logger.info(f"No cached state found at {self.__file_name}")
 
     def initialise(self, bridge: 'DeviceBridge') -> None:
         if not self.__initialised:
+            self.__device_type = bridge.device_type()
+            self.__state.slots = bridge.slot_state()
+            if self.__cached_state:
+                if not self.__state.merge_with(self.__cached_state):
+                    logger.warning(f"Discarded {self.__cached_state} from {self.__file_name}, does not match {self.__state}")
             device_state = bridge.state()
             if device_state:
                 if 'active_slot' in device_state:
-                    self.activate(str(device_state['active_slot'] + 1))
+                    self.activate(device_state['active_slot'])
                 if 'mute' in device_state:
                     self.master_mute = device_state['mute'] is True
                 if 'volume' in device_state:
                     self.master_volume = device_state['volume']
+            self.__initialised = True
 
     def activate(self, slot: str):
         self.__state.activate(slot)
@@ -146,6 +188,7 @@ class DeviceStateHolder:
 
     def clear(self, slot: str):
         self.__state.get_slot(slot).clear()
+        self.__activate_and_cache(slot)
 
     @property
     def master_volume(self):
@@ -186,6 +229,10 @@ class Bridge(ABC):
         pass
 
     @abstractmethod
+    def slot_state(self) -> List[SlotState]:
+        pass
+
+    @abstractmethod
     def state(self) -> Optional[dict]:
         pass
 
@@ -221,6 +268,9 @@ class DeviceBridge(Bridge):
 
     def device_type(self):
         return self.__bridge.device_type()
+
+    def slot_state(self) -> List[SlotState]:
+        return self.__bridge.slot_state()
 
     def supports_gain(self):
         from ezbeq.minidsp import Minidsp

@@ -82,7 +82,7 @@ const Devices = ({selectedSlotId, useWide, device, setDevice, setUserDriven, set
         const gain = {...defaultGain};
         gain.master_mv = device.masterVolume;
         gain.master_mute = device.mute;
-        if (selectedSlotId > 0 && device && device.hasOwnProperty('slots')) {
+        if (selectedSlotId && device && device.hasOwnProperty('slots')) {
             const slot = device.slots.find(s => s.id === selectedSlotId);
             if (slot) {
                 gain.inputOne_mute = slot.mute1;

@@ -24,6 +24,9 @@ class Minidsp(Bridge):
     def device_type(self) -> str:
         return 'minidsp'
 
+    def slot_state(self) -> List[SlotState]:
+        return [MinidspSlotState(c_id) for c_id in [str(i + 1) for i in range(4)]]
+
     def state(self) -> Optional[dict]:
         return self.__executor.submit(self.__get_state).result(timeout=self.__cmd_timeout)
 
@@ -40,7 +43,7 @@ class Minidsp(Bridge):
                         vals = line[idx + 2:-2].split(', ')
                         for v in vals:
                             if v.startswith('preset: '):
-                                values['active_slot'] = int(v[8:])
+                                values['active_slot'] = str(int(v[8:]) + 1)
                             elif v.startswith('mute: '):
                                 values['mute'] = v[6:] == 'true'
                             elif v.startswith('volume: Gain('):
@@ -107,7 +110,7 @@ class Minidsp(Bridge):
         if slot is not None:
             change_slot = True
             current_state = self.__get_state()
-            if current_state and 'active_slot' in current_state and current_state['active_slot'] == slot:
+            if current_state and 'active_slot' in current_state and int(current_state['active_slot']) == slot + 1:
                 change_slot = False
             if change_slot is True:
                 logger.info(f"Activating slot {slot}, current is {current_state.get('active_slot', 'UNKNOWN')}")

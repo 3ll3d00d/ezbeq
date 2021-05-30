@@ -4,6 +4,7 @@ from typing import Optional, List, Dict, Tuple
 
 import requests
 
+from device import SlotState
 from ezbeq.catalogue import Catalogue
 from ezbeq.config import Config
 from ezbeq.device import Bridge
@@ -37,8 +38,11 @@ class JRiver(Bridge):
     def device_type(self) -> str:
         return 'jriver'
 
+    def slot_state(self) -> List[SlotState]:
+        return [SlotState(self.__zone_name)]
+
     def state(self) -> Optional[dict]:
-        return {}
+        return {'active_slot': self.__zone_name}
 
     def activate(self, slot: str) -> None:
         pass

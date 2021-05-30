@@ -134,7 +134,7 @@ const Gain = ({selectedSlotId, deviceGains, gains, setGains, sendGains, isActive
     useEffect(() => {
         setValid(isNaN(gains.master_mv) || isNaN(gains.inputOne_mv) || isNaN(gains.inputTwo_mv));
     }, [gains]);
-    if (selectedSlotId > -1) {
+    if (selectedSlotId !== null) {
         return (
             <div className={classes.padTop}>
                 <FormControl component="fieldset">

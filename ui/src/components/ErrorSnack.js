@@ -1,29 +1,28 @@
-import React, {useEffect} from 'react';
+import React, {useEffect, useState} from 'react';
 import Snackbar from '@material-ui/core/Snackbar';
 import IconButton from '@material-ui/core/IconButton';
 import CloseIcon from '@material-ui/icons/Close';
 
-const ErrorSnack = ({err, errTxt, setErrTxt}) => {
+const ErrorSnack = ({err, setErr}) => {
+    const [errTxt, setErrTxt] = useState(null);
 
     useEffect(() => {
         if (err) {
             console.error(err);
             setErrTxt(err.message);
+        } else {
+            setErrTxt(null);
         }
     }, [err, setErrTxt]);
 
     const handleClose = (event, reason) => {
-        setErrTxt(null);
+        setErr(null);
     };
 
     return (
         <Snackbar
-            anchorOrigin={{
-                vertical: 'bottom',
-                horizontal: 'left',
-            }}
             open={errTxt !== null}
-            autoHideDuration={6000}
+            autoHideDuration={10000}
             onClose={handleClose}
             message={err ? err.message : null}
             action={
