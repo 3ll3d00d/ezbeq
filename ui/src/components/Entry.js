@@ -132,7 +132,7 @@ const Uploader = ({
             {slotControls}
         </RadioGroup>
         : null;
-    const gainControl = device && device.deviceType === 'minidsp'
+    const gainControl = device && device.hasOwnProperty('masterVolume')
         ? <FormControlLabel control={<Checkbox checked={sendGain}
                                                name="sendMV"
                                                color={'primary'}
@@ -159,7 +159,7 @@ const Entry = ({selectedEntry, useWide, setDevice, selectedSlotId, device, setEr
     const [sendGain, setSendGain] = useState(false);
     const [pending, setPending] = useState(false);
     const slotIds = device && device.hasOwnProperty('slots') ? device.slots.map(s => s.id) : [];
-    const canActivate = device.hasOwnProperty('canActivate') && device.canActivate;
+    const canAcceptGain = device.hasOwnProperty('masterVolume');
 
     useEffect(() => {
         setSendGain(false);
@@ -178,7 +178,7 @@ const Entry = ({selectedEntry, useWide, setDevice, selectedSlotId, device, setEr
         }
         setPending(true);
         try {
-            const call = canActivate ? () => ezbeq.loadWithMV(selectedEntry.id, selectedSlot, gains) : () => ezbeq.sendFilter(selectedEntry.id, selectedSlot);
+            const call = canAcceptGain ? () => ezbeq.loadWithMV(selectedEntry.id, selectedSlot, gains) : () => ezbeq.sendFilter(selectedEntry.id, selectedSlot);
             const device = await call();
             setPending(false);
             setDevice(device);
