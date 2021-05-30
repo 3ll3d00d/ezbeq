@@ -3,6 +3,7 @@ import logging
 from typing import Optional, List
 
 import semver
+from autobahn.exception import Disconnected
 from autobahn.twisted.websocket import WebSocketClientFactory, connectWS, WebSocketClientProtocol
 from twisted.internet.protocol import ReconnectingClientFactory
 
@@ -159,29 +160,31 @@ class Htp1Protocol(WebSocketClientProtocol):
 class Htp1ClientFactory(WebSocketClientFactory, ReconnectingClientFactory):
 
     protocol = Htp1Protocol
+    maxDelay = 5
+    initialDelay = 0.5
 
     def __init__(self, listener, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.__clients = []
+        super(Htp1ClientFactory, self).__init__(*args, **kwargs)
+        self.__clients: List[Htp1Protocol] = []
         self.listener = listener
         self.setProtocolOptions(version=13)
 
     def clientConnectionFailed(self, connector, reason):
         logger.warning(f"Client connection failed {reason} .. retrying ..")
-        self.retry(connector)
+        super().clientConnectionFailed(connector, reason)
 
     def clientConnectionLost(self, connector, reason):
         logger.warning(f"Client connection failed {reason} .. retrying ..")
-        self.retry(connector)
+        super().clientConnectionLost(connector, reason)
 
-    def register(self, client):
+    def register(self, client: Htp1Protocol):
         if client not in self.__clients:
             logger.info(f"Registered device {client.peer}")
             self.__clients.append(client)
         else:
             logger.info(f"Ignoring duplicate device {client.peer}")
 
-    def unregister(self, client):
+    def unregister(self, client: Htp1Protocol):
         if client in self.__clients:
             logger.info(f"Unregistering device {client.peer}")
             self.__clients.remove(client)
@@ -190,9 +193,16 @@ class Htp1ClientFactory(WebSocketClientFactory, ReconnectingClientFactory):
 
     def broadcast(self, msg):
         if self.__clients:
+            disconnected_clients = []
             for c in self.__clients:
                 logger.info(f"Sending to {c.peer} - {msg}")
-                c.sendMessage(msg.encode('utf8'))
+                try:
+                    c.sendMessage(msg.encode('utf8'))
+                except Disconnected as e:
+                    logger.exception(f"Failed to send to {c.peer}, discarding")
+                    disconnected_clients.append(c)
+            for c in disconnected_clients:
+                self.unregister(c)
         else:
             raise ValueError(f"No devices connected, ignoring {msg}")
 

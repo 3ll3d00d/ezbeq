@@ -21,6 +21,7 @@ def delete_filter(bridge: DeviceBridge, state: DeviceStateHolder, slot: str):
     '''
     logger.info(f"Clearing Slot {slot}")
     try:
+        state.initialise(bridge)
         bridge.clear_filter(slot)
         state.clear(slot)
         return state.get().as_dict(), 200
@@ -47,6 +48,7 @@ def load_filter(catalogue: List[Catalogue], bridge: DeviceBridge, state: DeviceS
         logger.warning(f"No title with ID {entry_id} in catalogue")
         return {'message': 'Title not found, please refresh.'}, 404
     try:
+        state.initialise(bridge)
         bridge.load_filter(slot, match)
         state.set_loaded_entry(slot, match)
         return state.get().as_dict(), 200
@@ -69,6 +71,7 @@ def activate_slot(bridge: DeviceBridge, state: DeviceStateHolder, slot: str):
     '''
     logger.info(f"Activating Slot {slot}")
     try:
+        state.initialise(bridge)
         bridge.activate(slot)
         state.activate(slot)
         return state.get().as_dict(), 200
@@ -94,6 +97,7 @@ def mute_device(bridge: DeviceBridge, state: DeviceStateHolder, device_name: str
     :return: current state after making changes, 200 if updated or 500 if unable to update
     '''
     try:
+        state.initialise(bridge)
         if value:
             bridge.mute(slot, channel)
             if slot is None:
@@ -128,6 +132,7 @@ def set_gain(bridge: DeviceBridge, state: DeviceStateHolder, device_name: str, s
     :return: current state after making changes, 200 if updated or 500 if unable to update
     '''
     try:
+        state.initialise(bridge)
         bridge.set_gain(slot, channel, value)
         if slot is None:
             state.master_volume = value

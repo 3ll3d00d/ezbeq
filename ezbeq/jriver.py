@@ -54,15 +54,28 @@ class JRiver(Bridge):
         xml_filts = [filts_to_xml(f) for f in mc_filts]
         zone_id = self.__mcws.get_zone_id(self.__zone_name)
         current_config_txt = self.__mcws.get_dsp(zone_id)
-        new_config_txt = include_filters_in_dsp(self.__peq_block, current_config_txt, xml_filts, replace=False)
+        new_config_txt = self.__remove_all_beq(current_config_txt)
+        new_config_txt = include_filters_in_dsp(self.__peq_block, new_config_txt, xml_filts, replace=False)
         logger.info(new_config_txt)
         self.__mcws.set_dsp(zone_id, new_config_txt)
+
+    def __remove_all_beq(self, current_config_txt) -> str:
+        tries = 0
+        final_config_txt = current_config_txt
+        while tries < 100:
+            tmp_txt = remove_beq_filter(self.__peq_block, final_config_txt)
+            if tmp_txt and tmp_txt != final_config_txt:
+                final_config_txt = tmp_txt
+            else:
+                break
+        return final_config_txt
 
     def clear_filter(self, slot: str) -> None:
         zone_id = self.__mcws.get_zone_id(self.__zone_name)
         current_config_txt = self.__mcws.get_dsp(zone_id)
-        new_config_txt = remove_beq_filter(self.__peq_block, current_config_txt)
-        self.__mcws.set_dsp(zone_id, new_config_txt)
+        new_config_txt = self.__remove_all_beq(current_config_txt)
+        if new_config_txt != current_config_txt:
+            self.__mcws.set_dsp(zone_id, new_config_txt)
 
     def mute(self, slot: Optional[str], channel: Optional[int]) -> None:
         raise NotImplementedError()
@@ -251,7 +264,7 @@ def include_filters_in_dsp(peq_block_name: str, config_txt: str, xml_filts: List
         return config_txt
 
 
-def remove_beq_filter(peq_block_name: str, config_txt: str) -> str:
+def remove_beq_filter(peq_block_name: str, config_txt: str) -> Optional[str]:
     root, filt_element = extract_filters(config_txt, peq_block_name, allow_empty=True)
     # before_value, after_value, filt_section = extract_value_section(config_txt, self.__block)
     # separate the tokens, which are in (TOKEN) blocks, from within the Value element
@@ -287,10 +300,12 @@ def remove_beq_filter(peq_block_name: str, config_txt: str) -> str:
             else:
                 raise ValueError(f'Unexpected BEQ format {end_beq_idx} <= {start_beq_idx}')
         else:
-            return config_txt
+            logger.info("No BEQ filter found")
+            return None
 
     else:
-        return config_txt
+        logger.warning("No filter txt found in DSP config")
+        return None
 
 
 def get_peq_key_name(block):
