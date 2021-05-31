@@ -24,6 +24,8 @@ const useStyles = makeStyles((theme) => ({
     }
 }));
 
+const ws = new WebSocket("ws://" + window.location.host + "/ws");
+
 const App = () => {
     const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
     const theme = React.useMemo(
@@ -35,6 +37,10 @@ const App = () => {
             }),
         [prefersDarkMode],
     );
+    ws.onmessage = event => {
+        console.debug("Received ws message");
+        setDevice(JSON.parse(event.data));
+    };
 
     const classes = useStyles();
     // errors

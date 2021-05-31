@@ -12,9 +12,10 @@
     "@testing-library/react": "^11.1.0",
     "@testing-library/user-event": "^12.1.10",
     "clsx": "^1.1.1",
+    "http-proxy-middleware": "^2.0.0",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
-    "react-scripts": "4.0.1",
+    "react-scripts": "4.0.3",
     "web-vitals": "^0.2.4"
   },
   "scripts": {
@@ -40,6 +41,5 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "proxy": "http://localhost:8080"
+  }
 }

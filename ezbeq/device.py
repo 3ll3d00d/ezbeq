@@ -4,6 +4,7 @@ import os
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
+from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import Catalogue
 from ezbeq.config import Config
 
@@ -137,7 +138,8 @@ class DeviceState:
 
 class DeviceStateHolder:
 
-    def __init__(self, cfg: Config):
+    def __init__(self, cfg: Config, ws_server: WsServer):
+        self.__ws_server = ws_server
         self.__state = DeviceState('master')
         self.__cached_state = {}
         self.__device_type = None
@@ -149,6 +151,7 @@ class DeviceStateHolder:
             logger.info(f"Loaded {self.__cached_state} from {self.__file_name}")
         else:
             logger.info(f"No cached state found at {self.__file_name}")
+        self.__ws_server.factory.init(self.__get_state_msg)
 
     def initialise(self, bridge: 'DeviceBridge') -> None:
         if not self.__initialised:
@@ -166,8 +169,18 @@ class DeviceStateHolder:
                 if 'volume' in device_state:
                     self.master_volume = device_state['volume']
             self.__initialised = True
+            self.__broadcast_state()
+
+    def __broadcast_state(self):
+        self.__ws_server.broadcast(self.__get_state_msg())
+
+    def __get_state_msg(self):
+        return json.dumps(self.__state.as_dict(), ensure_ascii=False)
 
     def activate(self, slot: str):
+        self.__activate_cache_broadcast(slot)
+
+    def __do_activate(self, slot):
         self.__state.activate(slot)
 
     def set_loaded_entry(self, slot: str, entry: Catalogue):
@@ -175,20 +188,20 @@ class DeviceStateHolder:
 
     def __set_last(self, slot: str, title: str):
         self.__state.get_slot(slot).last = title
-        self.__activate_and_cache(slot)
+        self.__activate_cache_broadcast(slot)
 
-    def __activate_and_cache(self, slot: str):
-        self.activate(slot)
+    def __activate_cache_broadcast(self, slot: str):
+        self.__do_activate(slot)
         with open(self.__file_name, 'w') as f:
             json.dump(self.__state.serialise(), f, sort_keys=True)
+        self.__broadcast_state()
 
     def error(self, slot: str):
         self.__set_last(slot, 'ERROR')
-        self.__activate_and_cache(slot)
 
     def clear(self, slot: str):
         self.__state.get_slot(slot).clear()
-        self.__activate_and_cache(slot)
+        self.__activate_cache_broadcast(slot)
 
     @property
     def master_volume(self):
@@ -197,6 +210,7 @@ class DeviceStateHolder:
     @master_volume.setter
     def master_volume(self, value: float):
         self.__state.master_volume = value
+        self.__broadcast_state()
 
     @property
     def master_mute(self):
@@ -205,18 +219,19 @@ class DeviceStateHolder:
     @master_mute.setter
     def master_mute(self, value: bool):
         self.__state.mute = value
+        self.__broadcast_state()
 
     def set_slot_gain(self, slot: str, channel: Optional[int], value: float):
         self.__state.get_slot(slot).set_gain(channel, value)
-        self.__activate_and_cache(slot)
+        self.__activate_cache_broadcast(slot)
 
     def mute_slot(self, slot: str, channel: Optional[int]):
         self.__state.get_slot(slot).mute(channel)
-        self.__activate_and_cache(slot)
+        self.__activate_cache_broadcast(slot)
 
     def unmute_slot(self, slot: str, channel: Optional[int]):
         self.__state.get_slot(slot).unmute(channel)
-        self.__activate_and_cache(slot)
+        self.__activate_cache_broadcast(slot)
 
     def get(self) -> DeviceState:
         return self.__state

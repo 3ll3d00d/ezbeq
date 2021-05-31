@@ -3,6 +3,7 @@ from os import path
 
 import faulthandler
 import sys
+from autobahn.twisted.resource import WebSocketResource
 from flask import Flask
 from flask_compress import Compress
 from flask_restx import Api
@@ -20,9 +21,12 @@ if hasattr(faulthandler, 'register'):
 
 
 def create_app(config: Config) -> Flask:
+    from ezbeq.apis.ws import WsServer
+    ws_server = WsServer()
     resource_args = {
         'config': config,
-        'device_state': DeviceStateHolder(config),
+        'ws_server': ws_server,
+        'device_state': DeviceStateHolder(config, ws_server),
         'device_bridge': DeviceBridge(config),
         'catalogue': CatalogueProvider(config),
         'version': config.version
@@ -47,13 +51,13 @@ def create_app(config: Config) -> Flask:
     decorate_ns(years.api)
     decorate_ns(contenttypes.api)
     decorate_ns(meta.api)
-    return app
+    return app, ws_server
 
 
 def main(args=None):
     """ The main routine. """
     cfg = Config('ezbeq')
-    app = create_app(cfg)
+    app, ws_server = create_app(cfg)
     logger = cfg.configure_logger()
 
     if cfg.use_twisted:
@@ -116,6 +120,8 @@ def main(args=None):
                 self.react = ReactApp(uiRoot)
                 self.static = static.File(os.path.join(uiRoot, 'static'))
                 self.icons = static.File(cfg.icon_path)
+                ws_server.factory.startFactory()
+                self.ws_resource = WebSocketResource(ws_server.factory)
 
             def getChild(self, path, request):
                 """
@@ -132,6 +138,8 @@ def main(args=None):
                 request.setHeader('Access-Control-Allow-Headers', 'x-prototype-version,x-requested-with')
                 request.setHeader('Access-Control-Max-Age', '2520')  # 42 hours
                 logger.debug(f"Handling {path}")
+                if path == b'ws':
+                    return self.ws_resource
                 if path == b'api' or path == b'doc' or path == b'swaggerui':
                     request.prepath.pop()
                     request.postpath.insert(0, path)
