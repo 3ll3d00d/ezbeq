@@ -43,7 +43,8 @@ def logger():
 @pytest.fixture
 def minidsp_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new app instance for each test."""
-    yield main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path))
+    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path))
+    yield app
 
 
 @pytest.fixture
