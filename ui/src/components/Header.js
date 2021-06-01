@@ -33,6 +33,9 @@ const useStyles = makeStyles((theme) => ({
             flexGrow: 0.5
         },
     },
+    white: {
+        color: theme.palette.common.white,
+    },
     search: {
         position: 'relative',
         borderRadius: theme.shape.borderRadius,
@@ -105,7 +108,11 @@ const Header = ({
                                     id="device-select"
                                     value={selectedDeviceName ? selectedDeviceName : availableDeviceNames[0]}
                                     onChange={e => setSelectedDeviceName(e.target.value)}
-                                    autoWidth={true}>
+                                    autoWidth={true}
+                                    classes={{
+                                        select: classes.white,
+                                        icon: classes.white,
+                                    }}>
                                 {
                                     availableDeviceNames.map(d => <MenuItem value={d} key={d}>{d}</MenuItem>)
                                 }
