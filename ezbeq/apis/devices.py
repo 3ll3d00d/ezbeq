@@ -125,10 +125,11 @@ def set_gain(bridge: DeviceRepository, device_name: str, slot: Optional[str], va
         return bridge.state(device_name).serialise(), 500
 
 
-api = Namespace('devices', description='Device related operations')
+v1_api = Namespace('1/devices', description='Device related operations')
+v2_api = Namespace('2/devices', description='Device related operations')
 
 
-@api.route('')
+@v1_api.route('')
 class Devices(Resource):
 
     def __init__(self, *args, **kwargs):
@@ -136,11 +137,24 @@ class Devices(Resource):
         self.__bridge: DeviceRepository = kwargs['device_bridge']
 
     def get(self):
-        # TODO return all
-        return [d.serialise() for d in self.__bridge.all_devices()][0]
+        all_devices = self.__bridge.all_devices()
+        for k, v in all_devices.items():
+            return v.serialise()
+        return None, 404
 
 
-slot_model = api.model('Slot', {
+@v2_api.route('')
+class Devices(Resource):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__bridge: DeviceRepository = kwargs['device_bridge']
+
+    def get(self):
+        return {n: d.serialise() for n, d in self.__bridge.all_devices().items()}
+
+
+slot_model = v1_api.model('Slot', {
     'id': fields.String(required=True),
     'active': fields.Boolean(required=False),
     'gain1': fields.Float(required=False),
@@ -150,14 +164,14 @@ slot_model = api.model('Slot', {
     'entry': fields.String(required=False)
 })
 
-device_model = api.model('Device', {
+device_model = v1_api.model('Device', {
     'mute': fields.Boolean(required=False),
     'masterVolume': fields.Float(required=False),
     'slots': fields.List(fields.Nested(slot_model), required=False)
 })
 
 
-@api.route('/<string:device_name>', defaults={'device_name': 'master'})
+@v1_api.route('/<string:device_name>')
 class Device(Resource):
 
     def __init__(self, *args, **kwargs):
@@ -165,7 +179,7 @@ class Device(Resource):
         self.__bridge: DeviceRepository = kwargs['device_bridge']
         self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
 
-    @api.expect(device_model, validate=True)
+    @v1_api.expect(device_model, validate=True)
     def patch(self, device_name: str):
         payload = request.get_json()
         logger.info(f"PATCHing {device_name} with {payload}")
@@ -174,8 +188,8 @@ class Device(Resource):
         return self.__bridge.state(device_name).serialise()
 
 
-@api.route('/<string:device_name>/config/<string:slot>/active')
-@api.doc(params={
+@v1_api.route('/<string:device_name>/config/<string:slot>/active')
+@v1_api.doc(params={
     'device_name': 'The dsp device name',
     'slot': 'The dsp configuration to activate, available values depend on the DSP device (1-4 for MiniDSP 2x4HD)'
 })
@@ -189,15 +203,15 @@ class ActiveSlot(Resource):
         return activate_slot(self.__bridge, device_name, slot)
 
 
-gain_model = api.model('Gain', {
+gain_model = v1_api.model('Gain', {
     'gain': fields.Float
 })
 
 
-@api.route('/<string:device_name>/gain/<string:slot>/<int:channel>')
-@api.route('/<string:device_name>/gain/<string:slot>')
-@api.route('/<string:device_name>/gain')
-@api.doc(params={
+@v1_api.route('/<string:device_name>/gain/<string:slot>/<int:channel>')
+@v1_api.route('/<string:device_name>/gain/<string:slot>')
+@v1_api.route('/<string:device_name>/gain')
+@v1_api.doc(params={
     'device_name': 'The dsp device name',
     'slot': 'The dsp configuration to set the gain on, available values depend on the DSP device (1-4 for MiniDSP'
             '2x4HD). If unset, the master gain is changed.',
@@ -209,7 +223,7 @@ class SetGain(Resource):
         super().__init__(*args, **kwargs)
         self.__bridge: DeviceRepository = kwargs['device_bridge']
 
-    @api.expect(gain_model, validate=True)
+    @v1_api.expect(gain_model, validate=True)
     def put(self, device_name: str, slot: Optional[str] = None, channel: Optional[int] = None) -> Tuple[dict, int]:
         return set_gain(self.__bridge, device_name, slot, request.get_json()['gain'], channel)
 
@@ -217,10 +231,10 @@ class SetGain(Resource):
         return set_gain(self.__bridge, device_name, slot, 0.0, channel)
 
 
-@api.route('/<string:device_name>/mute/<string:slot>/<int:channel>')
-@api.route('/<string:device_name>/mute/<string:slot>')
-@api.route('/<string:device_name>/mute')
-@api.doc(params={
+@v1_api.route('/<string:device_name>/mute/<string:slot>/<int:channel>')
+@v1_api.route('/<string:device_name>/mute/<string:slot>')
+@v1_api.route('/<string:device_name>/mute')
+@v1_api.doc(params={
     'device_name': 'The dsp device name',
     'slot': 'The dsp configuration to mute, available values depend on the DSP device (1-4 for MiniDSP 2x4HD). '
             'If unset, the entire device is muted.',
@@ -239,13 +253,13 @@ class Mute(Resource):
         return mute_device(self.__bridge, device_name, slot, False, channel)
 
 
-filter_model = api.model('Filter', {
+filter_model = v1_api.model('Filter', {
     'entryId': fields.String
 })
 
 
-@api.route('/<string:device_name>/filter/<string:slot>')
-@api.doc(params={
+@v1_api.route('/<string:device_name>/filter/<string:slot>')
+@v1_api.doc(params={
     'device_name': 'The dsp device name',
     'slot': 'The dsp configuration to load into, available values depend on the DSP device (1-4 for MiniDSP 2x4HD)'
 })
@@ -256,7 +270,7 @@ class ManageFilter(Resource):
         self.__bridge: DeviceRepository = kwargs['device_bridge']
         self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
 
-    @api.expect(filter_model, validate=True)
+    @v1_api.expect(filter_model, validate=True)
     def put(self, device_name: str, slot: str) -> Tuple[dict, int]:
         return load_filter(self.__catalogue_provider.catalogue, self.__bridge, device_name, slot,
                            request.get_json()['entryId'])
@@ -266,7 +280,7 @@ class ManageFilter(Resource):
 
 
 # legacy API, deprecated
-device_api = Namespace('device')
+device_api = Namespace('1/device')
 
 
 @device_api.route('/<string:slot>')

@@ -125,10 +125,17 @@ class MinidspSpyConfig(Config):
             'host': self.default_hostname,
             'useTwisted': False,
             'iconPath': str(Path.home()),
-            'minidspExe': 'minidsp'
+            'devices': {
+                'master': {
+                    'type': 'minidsp',
+                    'exe': 'minidsp',
+                    'cmdTimeout': 10,
+                    'make_runner': lambda: self.create_minidsp_runner(None)
+                }
+            }
         }
 
-    def create_minidsp_runner(self):
+    def create_minidsp_runner(self, cfg):
         return self.spy
 
     @property

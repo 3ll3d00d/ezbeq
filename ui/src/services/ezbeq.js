@@ -1,4 +1,4 @@
-const API_PREFIX = '/api/1';
+const API_PREFIX = '/api';
 
 /**
  * Encapsulates any calls to the ezbeq server.
@@ -29,8 +29,8 @@ class EzBeqService {
         return this.doGet('version');
     }
 
-    doGet = async (payload) => {
-        const response = await fetch(`${API_PREFIX}/${payload}`, {
+    doGet = async (payload, api_version = 1) => {
+        const response = await fetch(`${API_PREFIX}/${api_version}/${payload}`, {
             method: 'GET'
         });
         if (!response.ok) {
@@ -48,7 +48,7 @@ class EzBeqService {
     }
 
     search = async (authors = null, years = null, audioTypes = null) => {
-        const searchUrl = this.appendTo(this.appendTo(this.appendTo(`${API_PREFIX}/search`, 'authors', authors), 'years', years), 'audioTypes', audioTypes);
+        const searchUrl = this.appendTo(this.appendTo(this.appendTo(`${API_PREFIX}/1/search`, 'authors', authors), 'years', years), 'audioTypes', audioTypes);
         const response = await fetch(searchUrl, {
             method: 'GET',
         });
@@ -62,11 +62,11 @@ class EzBeqService {
         return this.search();
     }
 
-    sendFilter = async (id, slot, gains = null) => {
+    sendFilter = async (device, id, slot, gains = null) => {
         if (gains) {
-            return await this.doPatch(this.createPatchPayload(gains, slot, id));
+            return await this.doPatch(device, this.createPatchPayload(slot, gains, id));
         } else {
-            const response = await fetch(`${API_PREFIX}/devices/master/filter/${slot}`, {
+            const response = await fetch(`${API_PREFIX}/1/devices/${device}/filter/${slot}`, {
                 method: 'PUT',
                 body: JSON.stringify({entryId: id}),
                 headers: {
@@ -81,8 +81,8 @@ class EzBeqService {
         }
     }
 
-    clearSlot = async (slot) => {
-        const response = await fetch(`${API_PREFIX}/devices/master/filter/${slot}`, {
+    clearSlot = async (device, slot) => {
+        const response = await fetch(`${API_PREFIX}/1/devices/${device}/filter/${slot}`, {
             method: 'DELETE'
         });
         if (!response.ok) {
@@ -91,8 +91,8 @@ class EzBeqService {
         return await response.json();
     }
 
-    activateSlot = async (slot) => {
-        const response = await fetch(`${API_PREFIX}/devices/master/config/${slot}/active`, {
+    activateSlot = async (device, slot) => {
+        const response = await fetch(`${API_PREFIX}/1/devices/${device}/config/${slot}/active`, {
             method: 'PUT'
         });
         if (!response.ok) {
@@ -101,21 +101,12 @@ class EzBeqService {
         return await response.json();
     }
 
-    resetInputGain = async (slot) => {
-        return this.setGains(slot, {
-            'inputOne_mv': 0.0,
-            'inputTwo_mv': 0.0,
-            'inputOne_mute': false,
-            'inputTwo_mute': false
-        });
+    setGains = async (device, slot, gains) => {
+        return await this.doPatch(device, this.createPatchPayload(slot, gains));
     };
 
-    setGains = async (slot, gains) => {
-        return await this.doPatch(this.createPatchPayload(gains, slot));
-    };
-
-    doPatch = async(payload) => {
-        const response = await fetch(`${API_PREFIX}/devices/master`, {
+    doPatch = async(device, payload) => {
+        const response = await fetch(`${API_PREFIX}/1/devices/${device}`, {
             method: 'PATCH',
             body: JSON.stringify(payload),
             headers: {
@@ -129,7 +120,7 @@ class EzBeqService {
         return await response.json();
     }
 
-    createPatchPayload = (gains, slot_id, entryId = null) => {
+    createPatchPayload = (slot_id, gains, entryId = null) => {
         const payload = {};
         if (gains.hasOwnProperty('master_mv')) {
             payload.masterVolume = parseFloat(gains.master_mv);
@@ -152,12 +143,12 @@ class EzBeqService {
         return payload;
     };
 
-    loadWithMV = async (id, slot, gains) => {
-        return await this.sendFilter(id, slot, gains);
+    loadWithMV = async (device, id, slot, gains) => {
+        return await this.sendFilter(device, id, slot, gains);
     };
 
-    getDeviceConfig = async () => {
-        return this.doGet('devices');
+    getDevices = async () => {
+        return this.doGet('devices', 2);
     }
 }
 

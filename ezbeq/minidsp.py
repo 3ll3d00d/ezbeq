@@ -9,7 +9,6 @@ import time
 
 from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
-from ezbeq.config import Config
 from ezbeq.device import InvalidRequestError, SlotState, PersistentDevice, DeviceState
 
 logger = logging.getLogger('ezbeq.minidsp')
@@ -17,7 +16,8 @@ logger = logging.getLogger('ezbeq.minidsp')
 
 class MinidspState(DeviceState):
 
-    def __init__(self, **kwargs):
+    def __init__(self, name: str, **kwargs):
+        self.__name = name
         self.master_volume: float = kwargs['mv'] if 'mv' in kwargs else 0.0
         self.__mute: bool = kwargs['mute'] if 'mute' in kwargs else False
         self.__active_slot: str = kwargs['active_slot'] if 'active_slot' in kwargs else ''
@@ -72,6 +72,7 @@ class MinidspState(DeviceState):
 
     def serialise(self) -> dict:
         return {
+            'name': self.__name,
             'masterVolume': self.master_volume,
             'mute': self.__mute,
             'slots': [s.as_dict() for s in self.__slots]
@@ -150,7 +151,8 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
             'gain1': self.gain1,
             'gain2': self.gain2,
             'mute1': self.mute1,
-            'mute2': self.mute2
+            'mute2': self.mute2,
+            'canActivate': True
         }
 
     def __repr__(self):
@@ -159,13 +161,13 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
 
 class Minidsp(PersistentDevice[MinidspState]):
 
-    def __init__(self, name: str, cfg: Config, ws_server: WsServer, catalogue: CatalogueProvider):
-        super().__init__(cfg.config_path, name, ws_server)
+    def __init__(self, name: str, config_path: str, cfg: dict, ws_server: WsServer, catalogue: CatalogueProvider):
+        super().__init__(config_path, name, ws_server)
         self.__catalogue = catalogue
         self.__executor = ThreadPoolExecutor(max_workers=1)
-        self.__cmd_timeout = cfg.minidsp_cmd_timeout
-        self.__ignore_retcode = cfg.ignore_retcode
-        self.__runner = cfg.create_minidsp_runner()
+        self.__cmd_timeout = cfg.get('cmdTimeout', 10)
+        self.__ignore_retcode = cfg.get('ignoreRetcode', False)
+        self.__runner = cfg['make_runner']()
 
     @property
     def device_type(self) -> str:
@@ -177,7 +179,7 @@ class Minidsp(PersistentDevice[MinidspState]):
 
     def __load_state(self) -> MinidspState:
         result = self.__executor.submit(self.__read_state_from_device).result(timeout=self.__cmd_timeout)
-        return result if result else MinidspState()
+        return result if result else MinidspState(self.name)
 
     def __read_state_from_device(self) -> Optional[MinidspState]:
         values = {}
@@ -197,7 +199,7 @@ class Minidsp(PersistentDevice[MinidspState]):
                                 values['mute'] = v[6:] == 'true'
                             elif v.startswith('volume: Gain('):
                                 values['mv'] = float(v[13:-1])
-            return MinidspState(**values)
+            return MinidspState(self.name, **values)
         except:
             logger.exception(f"Unable to parse device state {lines}")
             return None

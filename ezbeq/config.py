@@ -9,6 +9,7 @@ import yaml
 
 
 class Config:
+
     def __init__(self, name, default_port=8080, beqcatalogue_url='http://beqcatalogue.readthedocs.io/en/latest/'):
         self._name = name
         self.logger = logging.getLogger(name + '.config')
@@ -18,13 +19,9 @@ class Config:
         self.__port = self.config.get('port', default_port)
         self.__service_url = f"http://{self.hostname}:{self.port}"
         self.__beqcatalogue_url = beqcatalogue_url
-        self.minidsp_exe = self.config.get('minidspExe', None)
-        self.minidsp_options = self.config.get('minidspOptions', None)
-        self.htp1_options = self.config.get('htp1', None)
-        self.jriver_options = self.config.get('jriver', None)
+        self.devices = self.config['devices']
         self.webapp_path = self.config.get('webappPath', None)
         self.use_twisted = self.config.get('useTwisted', True)
-        self.minidsp_cmd_timeout = self.config.get('minidspCmdTimeout', 10)
 
     @staticmethod
     def ensure_dir_exists(d) -> None:
@@ -92,17 +89,20 @@ class Config:
         :return: the config.
         """
         config_path = path.join(self.config_path, self._name + ".yml")
+        cfg = None
         if os.path.exists(config_path):
             self.logger.warning("Loading config from " + config_path)
             with open(config_path, 'r') as yml:
                 cfg = yaml.load(yml, Loader=yaml.FullLoader)
-                if not cfg.get('minidspExe', None) and not cfg.get('htp1', None) and not cfg.get('jriver', None):
-                    cfg['minidspExe'] = 'minidsp'
-                    self.__store_config(cfg, config_path)
-                return cfg
-        default_config = self.load_default_config()
-        self.__store_config(default_config, config_path)
-        return default_config
+                cfg = self.__migrate(cfg)
+                self.__store_config(cfg, config_path)
+        if cfg is None:
+            cfg = self.load_default_config()
+            self.__store_config(cfg, config_path)
+        for name, device in cfg['devices'].items():
+            if device['type'] == 'minidsp':
+                device['make_runner'] = lambda: self.create_minidsp_runner(device)
+        return cfg
 
     def __store_config(self, config, config_path):
         """
@@ -118,7 +118,7 @@ class Config:
     def load_default_config(self):
         """
         Creates a default config bundle.
-        :return:
+        :return: the bundle.
         """
         from pathlib import Path
         return {
@@ -129,8 +129,14 @@ class Config:
             'host': self.default_hostname,
             'useTwisted': True,
             'iconPath': str(Path.home()),
-            'minidspExe': 'minidsp',
-            'minidspCmdTimeout': 10
+            'devices': {
+                'master': {
+                    'type': 'minidsp',
+                    'exe': 'minidsp',
+                    'cmdTimeout': 10,
+                    'ignoreRetcode': False
+                }
+            }
         }
 
     @property
@@ -172,10 +178,10 @@ class Config:
         logger.addHandler(ch)
         return logger
 
-    def create_minidsp_runner(self):
+    def create_minidsp_runner(self, device: dict):
         from plumbum import local
-        cmd = local[self.minidsp_exe]
-        return cmd[self.minidsp_options.split(' ')] if self.minidsp_options else cmd
+        cmd = local[device['exe']]
+        return cmd[device['options'].split(' ')] if device['options'] else cmd
 
     @property
     def version(self):
@@ -190,3 +196,39 @@ class Config:
             with open(v_name, 'r') as f:
                 v = f.read()
         return v
+
+    @staticmethod
+    def __migrate(cfg):
+        if 'devices' not in cfg:
+            if not cfg.get('minidspExe', None) and not cfg.get('htp1', None) and not cfg.get('jriver', None):
+                cfg['minidspExe'] = 'minidsp'
+            cfg['devices'] = {}
+            if 'minidspExe' in cfg:
+                cfg['devices'] = {
+                    'master': {
+                        'type': 'minidsp',
+                        'exe': cfg['minidspExe'],
+                        'cmdTimeout': cfg.get('minidspCmdTimeout', 10),
+                        'options': cfg.get('minidspOptions', ''),
+                        'ignoreRetcode': cfg.get('ignoreRetcode', False)
+                    }
+                }
+                excluded = ['minidspExe', 'minidspCmdTimeout', 'minidspOptions', 'ignoreRetcode']
+                cfg = {k: v for k, v in cfg.items() if k not in excluded}
+            elif 'htp1' in cfg:
+                cfg['devices'] = {
+                    'master': {
+                        **cfg['htp1'],
+                        'type': 'htp1'
+                    }
+                }
+                del cfg['htp1']
+            elif 'jriver' in cfg:
+                cfg['devices'] = {
+                    'master': {
+                        **cfg['jriver'],
+                        'type': 'jriver'
+                    }
+                }
+                del cfg['jriver']
+        return cfg

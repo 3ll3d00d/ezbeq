@@ -153,7 +153,7 @@ const Uploader = ({
     );
 };
 
-const Entry = ({selectedEntry, useWide, setDevice, selectedSlotId, device, setError}) => {
+const Entry = ({selectedDeviceName, selectedEntry, useWide, setDevice, selectedSlotId, device, setError}) => {
     const classes = useStyles();
     const [selectedSlot, setSelectedSlot] = useState(null);
     const [sendGain, setSendGain] = useState(false);
@@ -178,7 +178,9 @@ const Entry = ({selectedEntry, useWide, setDevice, selectedSlotId, device, setEr
         }
         setPending(true);
         try {
-            const call = canAcceptGain ? () => ezbeq.loadWithMV(selectedEntry.id, selectedSlot, gains) : () => ezbeq.sendFilter(selectedEntry.id, selectedSlot);
+            const call = canAcceptGain
+                ? () => ezbeq.loadWithMV(selectedDeviceName, selectedEntry.id, selectedSlot, gains)
+                : () => ezbeq.sendFilter(selectedDeviceName, selectedEntry.id, selectedSlot);
             const device = await call();
             setPending(false);
             setDevice(device);

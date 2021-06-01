@@ -1,6 +1,15 @@
 import AppBar from "@material-ui/core/AppBar";
 import Toolbar from "@material-ui/core/Toolbar";
-import {Avatar, FormControlLabel, IconButton, InputBase, Switch} from "@material-ui/core";
+import {
+    Avatar,
+    FormControl,
+    FormControlLabel,
+    IconButton,
+    InputBase,
+    MenuItem,
+    Select,
+    Switch
+} from "@material-ui/core";
 import beqcIcon from "../beqc.png";
 import Typography from "@material-ui/core/Typography";
 import SearchIcon from "@material-ui/icons/Search";
@@ -17,6 +26,13 @@ const useStyles = makeStyles((theme) => ({
         flexGrow: 1,
         marginLeft: theme.spacing(1)
     },
+    device: {
+        flexGrow: 1,
+        margin: theme.spacing(1),
+        [theme.breakpoints.down('sm')]: {
+            flexGrow: 0.5
+        },
+    },
     search: {
         position: 'relative',
         borderRadius: theme.shape.borderRadius,
@@ -24,11 +40,9 @@ const useStyles = makeStyles((theme) => ({
         '&:hover': {
             backgroundColor: fade(theme.palette.common.white, 0.25),
         },
-        marginLeft: 0,
-        width: '50%',
-        [theme.breakpoints.up('sm')]: {
-            marginLeft: theme.spacing(1),
-            width: 'auto',
+        width: '40%',
+        [theme.breakpoints.up('md')]: {
+            flexGrow: 1
         },
     },
     searchIcon: {
@@ -66,7 +80,15 @@ const useStyles = makeStyles((theme) => ({
     }
 }));
 
-const Header = ({txtFilter, setTxtFilter, showFilters, toggleShowFilters}) => {
+const Header = ({
+                    txtFilter,
+                    setTxtFilter,
+                    showFilters,
+                    toggleShowFilters,
+                    availableDeviceNames,
+                    setSelectedDeviceName,
+                    selectedDeviceName
+                }) => {
     const classes = useStyles();
     return (
         <AppBar position="static" className={classes.noLeftTop}>
@@ -75,7 +97,29 @@ const Header = ({txtFilter, setTxtFilter, showFilters, toggleShowFilters}) => {
                         variant="rounded"
                         src={beqcIcon}
                         className={classes.smallAvatar}/>
-                <Typography className={classes.title} variant="h6" noWrap>ezbeq</Typography>
+                {
+                    availableDeviceNames.length > 1
+                        ?
+                        <FormControl className={classes.device}>
+                            <Select labelId="device-select-label"
+                                    id="device-select"
+                                    value={selectedDeviceName ? selectedDeviceName : availableDeviceNames[0]}
+                                    onChange={e => setSelectedDeviceName(e.target.value)}
+                                    autoWidth={true}>
+                                {
+                                    availableDeviceNames.map(d => <MenuItem value={d} key={d}>{d}</MenuItem>)
+                                }
+                            </Select>
+                        </FormControl>
+                        :
+                        (
+                            !availableDeviceNames || availableDeviceNames.length === 0
+                                ?
+                                null
+                                :
+                                <Typography className={classes.title} variant="h6" noWrap>ezbeq</Typography>
+                        )
+                }
                 <div className={classes.search}>
                     <div className={classes.searchIcon}>
                         <SearchIcon/>

@@ -6,7 +6,7 @@ from ezbeq.catalogue import CatalogueProvider
 
 logger = logging.getLogger('ezbeq.catalogue')
 
-api = Namespace('search', description='Provides abilty to search the beq catalogue')
+api = Namespace('1/search', description='Provides abilty to search the beq catalogue')
 
 
 @api.route('')

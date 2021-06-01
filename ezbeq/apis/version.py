@@ -1,6 +1,6 @@
 from flask_restx import Namespace, Resource
 
-api = Namespace('version', description='Provides access to the ezbeq version')
+api = Namespace('1/version', description='Provides access to the ezbeq version')
 
 
 @api.route('')

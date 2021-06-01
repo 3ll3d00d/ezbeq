@@ -34,7 +34,7 @@ def create_app(config: Config) -> Tuple[Flask, 'WsServer']:
     app = Flask(__name__)
     app.config['APP_CONFIG'] = config
     Compress(app)
-    api = Api(app, prefix='/api/1', doc='/api/doc/', version=resource_args['version'], title='ezbeq',
+    api = Api(app, prefix='/api', doc='/api/doc/', version=resource_args['version'], title='ezbeq',
               description='Backend api for ezbeq')
 
     def decorate_ns(ns, p=None):
@@ -43,7 +43,8 @@ def create_app(config: Config) -> Tuple[Flask, 'WsServer']:
         api.add_namespace(ns, path=p)
 
     decorate_ns(devices.device_api)
-    decorate_ns(devices.api)
+    decorate_ns(devices.v1_api)
+    decorate_ns(devices.v2_api)
     decorate_ns(search.api)
     decorate_ns(version.api)
     decorate_ns(authors.api)

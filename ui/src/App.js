@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {createMuiTheme, makeStyles, ThemeProvider} from '@material-ui/core/styles';
 import ezbeq from './services/ezbeq';
 import useMediaQuery from '@material-ui/core/useMediaQuery';
@@ -7,7 +7,7 @@ import Header from "./components/Header";
 import {pushData} from "./services/util";
 import Footer from "./components/Footer";
 import Catalogue from "./components/Catalogue";
-import Devices from "./components/Devices";
+import Slots from "./components/Slots";
 import Filter from "./components/Filter";
 import Entry from "./components/Entry";
 import {Grid} from "@material-ui/core";
@@ -37,9 +37,13 @@ const App = () => {
             }),
         [prefersDarkMode],
     );
+
+    const replaceDevice = replacement => {
+        setAvailableDevices(Object.assign({}, availableDevices, {[replacement.name]: replacement}));
+    };
+
     ws.onmessage = event => {
-        console.debug("Received ws message");
-        setDevice(JSON.parse(event.data));
+        replaceDevice(JSON.parse(event.data));
     };
 
     const classes = useStyles();
@@ -49,7 +53,8 @@ const App = () => {
     const [entries, setEntries] = useState([]);
     const [filteredEntries, setFilteredEntries] = useState([]);
     // device state
-    const [device, setDevice] = useState({});
+    const [availableDevices, setAvailableDevices] = useState({});
+    const [selectedDeviceName, setSelectedDeviceName] = useState('');
     // user selections
     const [selectedAuthors, setSelectedAuthors] = useState([]);
     const [selectedYears, setSelectedYears] = useState([]);
@@ -65,14 +70,23 @@ const App = () => {
         setShowFilters((prev) => !prev);
     };
 
+    const getSelectedDevice = useCallback(() => {
+            if (selectedDeviceName && availableDevices.hasOwnProperty(selectedDeviceName)) {
+                return availableDevices[selectedDeviceName];
+            }
+            return {};
+        }, [selectedDeviceName, availableDevices]
+    );
+
     useEffect(() => {
-        if (device && device.hasOwnProperty('slots')) {
-            const slot = device.slots.find(s => s.active === true);
+        const d = getSelectedDevice();
+        if (d && d.hasOwnProperty('slots')) {
+            const slot = d.slots.find(s => s.active === true);
             if (slot) {
                 setSelectedSlotId(slot.id);
             }
         }
-    }, [device]);
+    }, [getSelectedDevice, selectedDeviceName, availableDevices]);
 
     // initial data load
     useEffect(() => {
@@ -80,8 +94,17 @@ const App = () => {
     }, []);
 
     useEffect(() => {
-        pushData(setDevice, ezbeq.getDeviceConfig, setErr);
+        pushData(setAvailableDevices, ezbeq.getDevices, setErr);
     }, []);
+
+    useEffect(() => {
+        if (availableDevices && !selectedDeviceName) {
+            const deviceNames = Object.keys(availableDevices);
+            if (deviceNames.length > 0) {
+                setSelectedDeviceName(deviceNames[0]);
+            }
+        }
+    }, [availableDevices, selectedDeviceName]);
 
     useEffect(() => {
         const txtMatch = e => {
@@ -115,31 +138,35 @@ const App = () => {
     }, [entries, selectedAudioTypes, selectedYears, selectedAuthors, selectedContentTypes, txtFilter]);
 
     useEffect(() => {
-        if (userDriven && device && device.hasOwnProperty('slots')) {
-            const slot = device.slots.find(s => s.id === selectedSlotId);
+        const d = getSelectedDevice();
+        if (d && userDriven && d.hasOwnProperty('slots')) {
+            const slot = d.slots.find(s => s.id === selectedSlotId);
             if (slot && slot.last && slot.last !== "ERROR" && slot.last !== "Empty") {
                 setTxtFilter(slot.last);
             }
         }
-    }, [device, selectedSlotId, setTxtFilter, userDriven]);
+    }, [getSelectedDevice, selectedSlotId, setTxtFilter, userDriven]);
+
     const useWide = useMediaQuery('(orientation: landscape) and (min-height: 580px)');
-    const devices = <Devices selectedEntryId={selectedEntryId}
-                             selectedSlotId={selectedSlotId}
-                             useWide={useWide}
-                             setSelectedSlotId={setSelectedSlotId}
-                             setUserDriven={setUserDriven}
-                             device={device}
-                             setDevice={setDevice}
-                             setError={setErr}/>;
+    const devices = <Slots selectedDeviceName={selectedDeviceName}
+                           selectedEntryId={selectedEntryId}
+                           selectedSlotId={selectedSlotId}
+                           useWide={useWide}
+                           setSelectedSlotId={setSelectedSlotId}
+                           setUserDriven={setUserDriven}
+                           device={getSelectedDevice()}
+                           setDevice={d => replaceDevice(d)}
+                           setError={setErr}/>;
     const catalogue = <Catalogue entries={filteredEntries}
                                  setSelectedEntryId={setSelectedEntryId}
                                  selectedEntryId={selectedEntryId}
                                  useWide={useWide}/>;
-    const entry = <Entry selectedEntry={selectedEntryId ? entries.find(e => e.id === selectedEntryId) : null}
+    const entry = <Entry selectedDeviceName={selectedDeviceName}
+                         selectedEntry={selectedEntryId ? entries.find(e => e.id === selectedEntryId) : null}
                          useWide={useWide}
-                         setDevice={setDevice}
+                         setDevice={d => replaceDevice(d)}
                          selectedSlotId={selectedSlotId}
-                         device={device}
+                         device={getSelectedDevice()}
                          setError={setErr}/>;
     return (
         <ThemeProvider theme={theme}>
@@ -148,6 +175,9 @@ const App = () => {
                 <ErrorSnack err={err} setErr={setErr}/>
                 <Header txtFilter={txtFilter}
                         setTxtFilter={setTxtFilter}
+                        availableDeviceNames={Object.keys(availableDevices)}
+                        setSelectedDeviceName={setSelectedDeviceName}
+                        selectedDeviceName={selectedDeviceName}
                         showFilters={showFilters}
                         toggleShowFilters={toggleShowFilters}/>
                 <Filter visible={showFilters}

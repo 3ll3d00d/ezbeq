@@ -2,7 +2,7 @@ from flask_restx import Resource, Namespace
 
 from ezbeq.catalogue import CatalogueProvider
 
-api = Namespace('audiotypes', description='Provides access to the audiotypes found in the beq catalogue')
+api = Namespace('1/audiotypes', description='Provides access to the audiotypes found in the beq catalogue')
 
 
 @api.route('')

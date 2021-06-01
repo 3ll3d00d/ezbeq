@@ -23,24 +23,26 @@ class Htp1SlotState(SlotState):
 
 class Htp1State(DeviceState):
 
-    def __init__(self):
+    def __init__(self, name: str):
+        self.__name = name
         self.slot = Htp1SlotState()
         self.slot.active = True
 
     def serialise(self) -> dict:
         return {
+            'name': self.__name,
             'slots': [self.slot.as_dict()]
         }
 
 
 class Htp1(PersistentDevice[Htp1State]):
 
-    def __init__(self, name: str, cfg: Config, ws_server: WsServer, catalogue: CatalogueProvider):
-        super().__init__(cfg.config_path, name, ws_server)
+    def __init__(self, name: str, config_path: str, cfg: dict, ws_server: WsServer, catalogue: CatalogueProvider):
+        super().__init__(config_path, name, ws_server)
         self.__name = name
         self.__catalogue = catalogue
-        self.__ip = cfg.htp1_options['ip']
-        self.__channels = cfg.htp1_options['channels']
+        self.__ip = cfg['ip']
+        self.__channels = cfg['channels']
         self.__peq = {}
         self.__supports_shelf = True
         if not self.__channels:
@@ -48,7 +50,7 @@ class Htp1(PersistentDevice[Htp1State]):
         self.__client = Htp1Client(self.__ip, self)
 
     def _load_initial_state(self) -> Htp1State:
-        return Htp1State()
+        return Htp1State(self.name)
 
     def _merge_state(self, loaded: Htp1State, cached: dict) -> Htp1State:
         if 'slots' in cached:

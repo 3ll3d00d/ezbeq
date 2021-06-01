@@ -2,7 +2,7 @@ from flask_restx import Resource, Namespace
 
 from ezbeq.catalogue import CatalogueProvider
 
-api = Namespace('meta', description='Provides access to metadata about the beq catalogue')
+api = Namespace('1/meta', description='Provides access to metadata about the beq catalogue')
 
 
 @api.route('')

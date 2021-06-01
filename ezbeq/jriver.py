@@ -23,34 +23,36 @@ class JRiverSlotState(SlotState):
 
 class JRiverState(DeviceState):
 
-    def __init__(self, zone_name: str):
+    def __init__(self, name: str, zone_name: str):
+        self.__name = name
         self.slot = JRiverSlotState(zone_name)
         self.slot.active = True
 
     def serialise(self) -> dict:
         return {
+            'name': self.__name,
             'slots': [self.slot.as_dict()]
         }
 
 
 class JRiver(PersistentDevice[JRiverState]):
 
-    def __init__(self, name: str, cfg: Config, ws_server: WsServer, catalogue: CatalogueProvider):
-        super().__init__(cfg.config_path, name, ws_server)
+    def __init__(self, name: str, config_path: str, cfg: dict, ws_server: WsServer, catalogue: CatalogueProvider):
+        super().__init__(config_path, name, ws_server)
         self.__catalogue = catalogue
-        address: str = cfg.jriver_options['address']
+        address: str = cfg['address']
         if not address:
             raise ValueError('No MCWS address for jriver')
-        self.__zone_name: str = cfg.jriver_options['zone']
-        cfg_auth = cfg.jriver_options.get('auth', None)
+        self.__zone_name: str = cfg['zone']
+        cfg_auth = cfg.get('auth', None)
         auth = (cfg_auth['user'], cfg_auth['pass']) if cfg_auth else None
-        secure = bool(cfg.jriver_options.get('secure', False))
+        secure = bool(cfg.get('secure', False))
         if not self.__zone_name:
             raise ValueError('No zone for jriver')
-        self.__channels: str = ';'.join([str(JRIVER_CHANNELS.index(c)) for c in cfg.jriver_options['channels']])
+        self.__channels: str = ';'.join([str(JRIVER_CHANNELS.index(c)) for c in cfg['channels']])
         if not self.__channels:
             raise ValueError('No target channels for jriver')
-        self.__peq_block: str = get_peq_key_name(int(cfg.jriver_options['block']) - 1)
+        self.__peq_block: str = get_peq_key_name(int(cfg['block']) - 1)
         if not self.__peq_block:
             raise ValueError('No peq block for jriver')
         self.__mcws = MediaServer(address, auth, secure)
@@ -59,7 +61,7 @@ class JRiver(PersistentDevice[JRiverState]):
         return self.__class__.__name__.lower()
 
     def _load_initial_state(self) -> JRiverState:
-        return JRiverState(self.__zone_name)
+        return JRiverState(self.name, self.__zone_name)
 
     def _merge_state(self, loaded: JRiverState, cached: dict) -> JRiverState:
         if 'slots' in cached:

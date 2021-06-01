@@ -49,7 +49,7 @@ const defaultGain = {
     inputTwo_mv: 0.0, inputTwo_mute: false
 };
 
-const Device = ({selected, slot, onSelect, isPending, onClear}) => {
+const Slot = ({selected, slot, onSelect, isPending, onClear}) => {
     const classes = deviceStyles({selected});
     return (
         <Paper className={`${classes.paper}`}>
@@ -71,7 +71,7 @@ const Device = ({selected, slot, onSelect, isPending, onClear}) => {
     );
 };
 
-const Devices = ({selectedSlotId, useWide, device, setDevice, setUserDriven, setError}) => {
+const Slots = ({selectedDeviceName, selectedSlotId, useWide, device, setDevice, setUserDriven, setError}) => {
     const classes = useStyles({selected: false});
     const [pending, setPending] = useState([]);
     const [currentGains, setCurrentGains] = useState(defaultGain);
@@ -117,15 +117,15 @@ const Devices = ({selectedSlotId, useWide, device, setDevice, setUserDriven, set
     };
 
     const sendGainToDevice = (slotId, gains) => {
-        trackDeviceUpdate('gain', slotId, () => ezbeq.setGains(slotId, gains));
+        trackDeviceUpdate('gain', slotId, () => ezbeq.setGains(selectedDeviceName, slotId, gains));
     };
 
     const clearDeviceSlot = (slotId) => {
-        trackDeviceUpdate('clear', slotId, () => ezbeq.clearSlot(slotId));
+        trackDeviceUpdate('clear', slotId, () => ezbeq.clearSlot(selectedDeviceName, slotId));
     };
 
     const activateSlot = (slotId) => {
-        trackDeviceUpdate('activate', slotId, () => ezbeq.activateSlot(slotId), () => setUserDriven(true));
+        trackDeviceUpdate('activate', slotId, () => ezbeq.activateSlot(selectedDeviceName, slotId), () => setUserDriven(true));
     };
 
     const isPending = (slotId) => {
@@ -137,7 +137,7 @@ const Devices = ({selectedSlotId, useWide, device, setDevice, setUserDriven, set
         <Grid container key={i1} className={classes.root}>
             {r.map((d, i2) =>
                 <Grid key={i2} container item xs={r.length === 1 ? 12 : 6} className={classes.container}>
-                    <Device selected={d.id === selectedSlotId}
+                    <Slot selected={d.id === selectedSlotId}
                             slot={d}
                             onSelect={() => {
                                 if (d.hasOwnProperty('canActivate') && d.canActivate) {
@@ -184,4 +184,4 @@ const Devices = ({selectedSlotId, useWide, device, setDevice, setUserDriven, set
     }
 }
 
-export default Devices;
+export default Slots;

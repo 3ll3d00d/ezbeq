@@ -49,6 +49,9 @@ class DeviceState(ABC):
     def serialise(self) -> dict:
         pass
 
+    def __repr__(self):
+        return f"{self.__class__.__name__} : {self.serialise()}"
+
 
 class Device(ABC, Generic[T]):
 
@@ -103,8 +106,8 @@ class DeviceRepository:
 
     def __init__(self, cfg: Config, ws_server: WsServer, catalogue: CatalogueProvider):
         self.__devices: Dict[str, Device] = {}
-        device = create_device(cfg, ws_server, catalogue)
-        self.__devices[device.name] = device
+        for device in create_devices(cfg, ws_server, catalogue):
+            self.__devices[device.name] = device
 
     def device_type(self, name: str) -> str:
         return self.__get_device(name).device_type
@@ -121,8 +124,8 @@ class DeviceRepository:
     def state(self, name: str) -> DeviceState:
         return self.__get_device(name).state()
 
-    def all_devices(self) -> List[DeviceState]:
-        return [d.state() for d in self.__devices.values()]
+    def all_devices(self) -> Dict[str, DeviceState]:
+        return {n: d.state() for n, d in self.__devices.items()}
 
     def activate(self, name: str, slot: str) -> None:
         self.__get_device(name).activate(slot)
@@ -146,18 +149,23 @@ class DeviceRepository:
         return self.__get_device(device_name).update(params)
 
 
-def create_device(cfg: Config, ws_server: WsServer, catalogue: CatalogueProvider) -> Device:
-    if cfg.minidsp_exe:
-        from ezbeq.minidsp import Minidsp
-        return Minidsp('master', cfg, ws_server, catalogue)
-    elif cfg.htp1_options:
-        from ezbeq.htp1 import Htp1
-        return Htp1('master', cfg, ws_server, catalogue)
-    elif cfg.jriver_options:
-        from ezbeq.jriver import JRiver
-        return JRiver('master', cfg, ws_server, catalogue)
-    else:
+def create_devices(cfg: Config, ws_server: WsServer, catalogue: CatalogueProvider) -> List[Device]:
+    devices = []
+    for name, values in cfg.devices.items():
+        d_type = values['type']
+        if d_type == 'minidsp':
+            from ezbeq.minidsp import Minidsp
+            devices.append(Minidsp(name, cfg.config_path, values, ws_server, catalogue))
+        elif d_type == 'htp1':
+            from ezbeq.htp1 import Htp1
+            devices.append(Htp1(name, cfg.config_path, values, ws_server, catalogue))
+        elif d_type == 'jriver':
+            from ezbeq.jriver import JRiver
+            devices.append(JRiver(name, cfg.config_path, values, ws_server, catalogue))
+    if not devices:
         raise ValueError('No device configured')
+    else:
+        return devices
 
 
 class InvalidRequestError(Exception):
