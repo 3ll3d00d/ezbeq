@@ -5,9 +5,9 @@ from typing import Optional, List, Dict, Tuple
 import requests
 
 from ezbeq.device import SlotState
-from ezbeq.catalogue import Catalogue
+from ezbeq.catalogue import CatalogueEntry
 from ezbeq.config import Config
-from ezbeq.device import Bridge
+from ezbeq.device import Device
 
 logger = logging.getLogger('ezbeq.jriver')
 
@@ -15,9 +15,10 @@ JRIVER_CHANNELS = [None, None, 'L', 'R', 'C', 'SW', 'SL', 'SR', 'RL', 'RR', None
                                                                                                  range(24)]
 
 
-class JRiver(Bridge):
+class JRiver(Device):
 
-    def __init__(self, cfg: Config):
+    def __init__(self, name: str, cfg: Config):
+        self.__name = name
         address: str = cfg.jriver_options['address']
         if not address:
             raise ValueError('No MCWS address for jriver')
@@ -35,8 +36,12 @@ class JRiver(Bridge):
             raise ValueError('No peq block for jriver')
         self.__mcws = MediaServer(address, auth, secure)
 
+    @property
+    def name(self) -> str:
+        return self.__name
+
     def device_type(self) -> str:
-        return 'jriver'
+        return self.__class__.__name__.lower()
 
     def slot_state(self) -> List[SlotState]:
         return [SlotState(self.__zone_name)]
@@ -47,7 +52,7 @@ class JRiver(Bridge):
     def activate(self, slot: str) -> None:
         raise NotImplementedError()
 
-    def load_filter(self, slot: str, entry: Catalogue) -> None:
+    def load_filter(self, slot: str, entry: CatalogueEntry) -> None:
         mc_filts = [make_meta(entry.title, True)] \
                    + [convert_filter_to_mc_dsp(f, self.__channels) for f in entry.filters] \
                    + [make_meta(entry.title, False)]

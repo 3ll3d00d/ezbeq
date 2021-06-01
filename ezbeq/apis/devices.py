@@ -1,95 +1,88 @@
 import logging
 from typing import List, Tuple, Optional
 
-import math
 from flask import request
 from flask_restx import Resource, Namespace, fields
 
-from ezbeq.catalogue import CatalogueProvider, Catalogue
-from ezbeq.device import DeviceStateHolder, DeviceBridge, InvalidRequestError, DeviceState
+from ezbeq.catalogue import CatalogueProvider, CatalogueEntry
+from ezbeq.device import DeviceRepository, InvalidRequestError
 
 logger = logging.getLogger('ezbeq.devices')
 
 
-def delete_filter(bridge: DeviceBridge, state: DeviceStateHolder, slot: str):
+def delete_filter(bridge: DeviceRepository, device_name: str, slot: str):
     '''
     Clears the slot.
     :param bridge: the bridge to the device.
-    :param state: state of the bridge.
+    :param device_name: the device name.
     :param slot: the slot.
     :return: current state after clearing, 200 if cleared or 500 if unable to load
     '''
     logger.info(f"Clearing Slot {slot}")
     try:
-        state.initialise(bridge)
-        bridge.clear_filter(slot)
-        state.clear(slot)
-        return state.get().as_dict(), 200
+        bridge.clear_filter(device_name, slot)
+        return bridge.state(device_name).serialise(), 200
     except Exception as e:
         logger.exception(f"Failed to clear Slot {slot}")
-        state.error(slot)
-        return state.get().as_dict(), 500
+        # TODO error
+        # bridge.error(device_name, slot)
+        return bridge.state(device_name).serialise(), 500
 
 
-def load_filter(catalogue: List[Catalogue], bridge: DeviceBridge, state: DeviceStateHolder, entry_id: str,
-                slot: str) -> Tuple[dict, int]:
+def load_filter(catalogue: List[CatalogueEntry], bridge: DeviceRepository, device_name: str,
+                slot: str, entry_id: str) -> Tuple[dict, int]:
     '''
     Attempts to find the supplied entry in the catalogue and load it into the given slot.
     :param catalogue: the catalogue.
     :param bridge: the bridge to the device.
-    :param state: state of the bridge.
-    :param entry_id: the catalogue entry id.
+    :param device_name: the device name.
     :param slot: the slot.
+    :param entry_id: the catalogue entry id.
     :return: current state after load, 200 if loaded, 400 if no such entry, 500 if unable to load
     '''
     logger.info(f"Sending {entry_id} to Slot {slot}")
-    match: Catalogue = next((c for c in catalogue if c.idx == entry_id), None)
+    match: CatalogueEntry = next((c for c in catalogue if c.idx == entry_id), None)
     if not match:
         logger.warning(f"No title with ID {entry_id} in catalogue")
         return {'message': 'Title not found, please refresh.'}, 404
     try:
-        state.initialise(bridge)
-        bridge.load_filter(slot, match)
-        state.set_loaded_entry(slot, match)
-        return state.get().as_dict(), 200
+        bridge.load_filter(device_name, slot, match)
+        return bridge.state(device_name).serialise(), 200
     except InvalidRequestError as e:
         logger.exception(f"Invalid request {entry_id} to Slot {slot}")
-        return state.get().as_dict(), 400
+        return bridge.state(device_name).serialise(), 400
     except Exception as e:
         logger.exception(f"Failed to write {entry_id} to Slot {slot}")
-        state.error(slot)
-        return state.get().as_dict(), 500
+        # TODO ERROR
+        return bridge.state(device_name).serialise(), 500
 
 
-def activate_slot(bridge: DeviceBridge, state: DeviceStateHolder, slot: str):
+def activate_slot(bridge: DeviceRepository, device_name: str, slot: str):
     '''
     Activates the slot.
     :param bridge: the bridge to the device.
-    :param state: state of the bridge.
+    :param device_name: the device name.
     :param slot: the slot.
     :return: current state after activation, 200 if activated or 500 if unable to activate
     '''
     logger.info(f"Activating Slot {slot}")
     try:
-        state.initialise(bridge)
-        bridge.activate(slot)
-        state.activate(slot)
-        return state.get().as_dict(), 200
+        bridge.activate(device_name, slot)
+        return bridge.state(device_name).serialise(), 200
     except InvalidRequestError as e:
         logger.exception(f"Invalid slot {slot}")
-        return state.get().as_dict(), 400
+        return bridge.state(device_name).serialise(), 400
     except Exception as e:
         logger.exception(f"Failed to activate Slot {slot}")
-        state.error(slot)
-        return state.get().as_dict(), 500
+        # TODO ERROR
+        return bridge.state(device_name).serialise(), 500
 
 
-def mute_device(bridge: DeviceBridge, state: DeviceStateHolder, device_name: str, slot: Optional[str], value: bool,
+def mute_device(bridge: DeviceRepository, device_name: str, slot: Optional[str], value: bool,
                 channel: Optional[int] = None):
     '''
     Mutes or unmutes a particular aspect of the device.
     :param bridge: the bridge to the device.
-    :param state: state of the bridge.
     :param device_name: device to affect.
     :param slot: optional slot id.
     :param value: whether to mute (true) or unmute (false)
@@ -97,34 +90,24 @@ def mute_device(bridge: DeviceBridge, state: DeviceStateHolder, device_name: str
     :return: current state after making changes, 200 if updated or 500 if unable to update
     '''
     try:
-        state.initialise(bridge)
         if value:
-            bridge.mute(slot, channel)
-            if slot is None:
-                state.master_mute = value
-            else:
-                state.mute_slot(slot, channel)
+            bridge.mute(device_name, slot, channel)
         else:
-            bridge.unmute(slot, channel)
-            if slot is None:
-                state.master_mute = value
-            else:
-                state.unmute_slot(slot, channel)
-        return state.get().as_dict(), 200
+            bridge.unmute(device_name, slot, channel)
+        return bridge.state(device_name).serialise(), 200
     except InvalidRequestError as e:
         logger.exception(f"Invalid mute request {slot} {channel} {value}")
-        return state.get().as_dict(), 400
+        return bridge.state(device_name).serialise(), 400
     except Exception as e:
         logger.exception(f"Failed mute channel {slot}")
-        return state.get().as_dict(), 500
+        return bridge.state(device_name).serialise(), 500
 
 
-def set_gain(bridge: DeviceBridge, state: DeviceStateHolder, device_name: str, slot: Optional[str], value: float,
+def set_gain(bridge: DeviceRepository, device_name: str, slot: Optional[str], value: float,
              channel: Optional[int] = None):
     '''
     Sets gain on a particular aspect of the device.
     :param bridge: the bridge to the device.
-    :param state: state of the bridge.
     :param device_name: device to affect.
     :param slot: optional slot id.
     :param value: the gain level to set.
@@ -132,19 +115,14 @@ def set_gain(bridge: DeviceBridge, state: DeviceStateHolder, device_name: str, s
     :return: current state after making changes, 200 if updated or 500 if unable to update
     '''
     try:
-        state.initialise(bridge)
-        bridge.set_gain(slot, channel, value)
-        if slot is None:
-            state.master_volume = value
-        else:
-            state.set_slot_gain(slot, channel, value)
-        return state.get().as_dict(), 200
+        bridge.set_gain(device_name, slot, channel, value)
+        return bridge.state(device_name).serialise(), 200
     except InvalidRequestError as e:
         logger.exception(f"Unable to set gain for {slot} {channel} {value}")
-        return state.get().as_dict(), 400
+        return bridge.state(device_name).serialise(), 400
     except Exception as e:
         logger.exception(f"Failed mute channel {slot}")
-        return state.get().as_dict(), 500
+        return bridge.state(device_name).serialise(), 500
 
 
 api = Namespace('devices', description='Device related operations')
@@ -155,12 +133,11 @@ class Devices(Resource):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__state: DeviceStateHolder = kwargs['device_state']
-        self.__bridge: DeviceBridge = kwargs['device_bridge']
+        self.__bridge: DeviceRepository = kwargs['device_bridge']
 
     def get(self):
-        self.__state.initialise(self.__bridge)
-        return self.__state.get().as_dict()
+        # TODO return all
+        return [d.serialise() for d in self.__bridge.all_devices()][0]
 
 
 slot_model = api.model('Slot', {
@@ -185,67 +162,16 @@ class Device(Resource):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__state: DeviceStateHolder = kwargs['device_state']
-        self.__bridge: DeviceBridge = kwargs['device_bridge']
+        self.__bridge: DeviceRepository = kwargs['device_bridge']
         self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
 
     @api.expect(device_model, validate=True)
     def patch(self, device_name: str):
-        current_state: DeviceState = self.__state.get()
-        if current_state:
-            payload = request.get_json()
-            logger.info(f"Processing PATCH for {device_name} {payload}")
-            if 'slots' in payload:
-                for slot in payload['slots']:
-                    state, cmd_code = self.__update_slot(slot, current_state, device_name)
-                    if cmd_code != 200:
-                        return state, cmd_code
-            if 'mute' in payload and payload['mute'] != current_state.mute:
-                state, cmd_code = mute_device(self.__bridge, self.__state, device_name, None, payload['mute'], None)
-                if cmd_code != 200:
-                    return state, cmd_code
-            if 'masterVolume' in payload and not math.isclose(payload['masterVolume'], current_state.master_volume):
-                state, cmd_code = set_gain(self.__bridge, self.__state, device_name, None, payload['masterVolume'],
-                                           None)
-                if cmd_code != 200:
-                    return state, cmd_code
-            return self.__state.get().as_dict(), 200
-        else:
-            return f"Unknown device {device_name}", 404
-
-    def __update_slot(self, slot: dict, current_state: DeviceState, device_name: str) -> Tuple[dict, int]:
-        state = {}
-        cmd_code = 400
-        try:
-            current_state.get_slot(slot['id'])
-        except StopIteration as e:
-            return {'msg': f"Unknown slot {slot['id']} in device {device_name}"}, 400
-        if 'gain1' in slot:
-            state, cmd_code = set_gain(self.__bridge, self.__state, device_name, slot['id'], slot['gain1'], 1)
-            if cmd_code != 200:
-                return state, cmd_code
-        if 'gain2' in slot:
-            state, cmd_code = set_gain(self.__bridge, self.__state, device_name, slot['id'], slot['gain2'], 2)
-            if cmd_code != 200:
-                return state, cmd_code
-        if 'mute1' in slot:
-            state, cmd_code = mute_device(self.__bridge, self.__state, device_name, slot['id'], slot['mute1'], 1)
-            if cmd_code != 200:
-                return state, cmd_code
-        if 'mute2' in slot:
-            state, cmd_code = mute_device(self.__bridge, self.__state, device_name, slot['id'], slot['mute1'], 2)
-            if cmd_code != 200:
-                return state, cmd_code
-        if 'entry' in slot and slot['entry']:
-            state, cmd_code = load_filter(self.__catalogue_provider.catalogue, self.__bridge, self.__state,
-                                          slot['entry'], slot['id'])
-            if cmd_code != 200:
-                return state, cmd_code
-        if 'active' in slot:
-            state, cmd_code = activate_slot(self.__bridge, self.__state, slot['id'])
-            if cmd_code != 200:
-                return state, cmd_code
-        return state, cmd_code
+        payload = request.get_json()
+        logger.info(f"PATCHing {device_name} with {payload}")
+        if not self.__bridge.update(device_name, payload):
+            logger.info(f"PATCH {device_name} was a nop")
+        return self.__bridge.state(device_name).serialise()
 
 
 @api.route('/<string:device_name>/config/<string:slot>/active')
@@ -257,11 +183,10 @@ class ActiveSlot(Resource):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__bridge: DeviceBridge = kwargs['device_bridge']
-        self.__state: DeviceStateHolder = kwargs['device_state']
+        self.__bridge: DeviceRepository = kwargs['device_bridge']
 
     def put(self, device_name: str, slot: str) -> Tuple[dict, int]:
-        return activate_slot(self.__bridge, self.__state, slot)
+        return activate_slot(self.__bridge, device_name, slot)
 
 
 gain_model = api.model('Gain', {
@@ -282,15 +207,14 @@ class SetGain(Resource):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__bridge: DeviceBridge = kwargs['device_bridge']
-        self.__state: DeviceStateHolder = kwargs['device_state']
+        self.__bridge: DeviceRepository = kwargs['device_bridge']
 
     @api.expect(gain_model, validate=True)
     def put(self, device_name: str, slot: Optional[str] = None, channel: Optional[int] = None) -> Tuple[dict, int]:
-        return set_gain(self.__bridge, self.__state, device_name, slot, request.get_json()['gain'], channel)
+        return set_gain(self.__bridge, device_name, slot, request.get_json()['gain'], channel)
 
     def delete(self, device_name: str, slot: Optional[str] = None, channel: Optional[int] = None) -> Tuple[dict, int]:
-        return set_gain(self.__bridge, self.__state, device_name, slot, 0.0, channel)
+        return set_gain(self.__bridge, device_name, slot, 0.0, channel)
 
 
 @api.route('/<string:device_name>/mute/<string:slot>/<int:channel>')
@@ -306,14 +230,13 @@ class Mute(Resource):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__bridge: DeviceBridge = kwargs['device_bridge']
-        self.__state: DeviceStateHolder = kwargs['device_state']
+        self.__bridge: DeviceRepository = kwargs['device_bridge']
 
     def put(self, device_name: str, slot: Optional[str] = None, channel: Optional[int] = None) -> Tuple[dict, int]:
-        return mute_device(self.__bridge, self.__state, device_name, slot, True, channel)
+        return mute_device(self.__bridge, device_name, slot, True, channel)
 
     def delete(self, device_name: str, slot: Optional[str] = None, channel: Optional[int] = None) -> Tuple[dict, int]:
-        return mute_device(self.__bridge, self.__state, device_name, slot, False, channel)
+        return mute_device(self.__bridge, device_name, slot, False, channel)
 
 
 filter_model = api.model('Filter', {
@@ -330,17 +253,16 @@ class ManageFilter(Resource):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__bridge: DeviceBridge = kwargs['device_bridge']
+        self.__bridge: DeviceRepository = kwargs['device_bridge']
         self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
-        self.__state: DeviceStateHolder = kwargs['device_state']
 
     @api.expect(filter_model, validate=True)
     def put(self, device_name: str, slot: str) -> Tuple[dict, int]:
-        return load_filter(self.__catalogue_provider.catalogue, self.__bridge, self.__state,
-                           request.get_json()['entryId'], slot)
+        return load_filter(self.__catalogue_provider.catalogue, self.__bridge, device_name, slot,
+                           request.get_json()['entryId'])
 
     def delete(self, device_name: str, slot: str) -> Tuple[dict, int]:
-        return delete_filter(self.__bridge, self.__state, slot)
+        return delete_filter(self.__bridge, device_name, slot)
 
 
 # legacy API, deprecated
@@ -353,9 +275,8 @@ class DeviceSender(Resource):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__bridge: DeviceBridge = kwargs['device_bridge']
+        self.__bridge: DeviceRepository = kwargs['device_bridge']
         self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
-        self.__state: DeviceStateHolder = kwargs['device_state']
 
     def put(self, slot: str):
         '''
@@ -376,20 +297,20 @@ class DeviceSender(Resource):
             result = None
             for p in payload:
                 result, _ = self.__handle_command(slot, p)
-            return self.__state.get().as_dict(), 200 if result else 500
+            return self.__bridge.state('master').serialise(), 200 if result else 500
         elif isinstance(payload, dict):
             return self.__handle_command(slot, payload)
-        return self.__state.get().as_dict(), 404
+        return self.__bridge.state('master').serialise(), 404
 
     def __handle_command(self, slot: str, payload: dict):
         if 'command' in payload:
             cmd = payload['command']
             if cmd == 'load':
                 if 'id' in payload:
-                    return load_filter(self.__catalogue_provider.catalogue, self.__bridge, self.__state, payload['id'],
-                                       slot)
+                    return load_filter(self.__catalogue_provider.catalogue, self.__bridge, 'master', slot,
+                                       payload['id'])
             elif cmd == 'activate':
-                return activate_slot(self.__bridge, self.__state, slot)
+                return activate_slot(self.__bridge, 'master', slot)
             elif cmd == 'mute' or cmd == 'gain':
                 if 'value' in payload:
                     channel = payload['channel'] if 'channel' in payload else None
@@ -400,12 +321,12 @@ class DeviceSender(Resource):
                         channel = None
                     channel = int(channel) if channel is not None else None
                     if cmd == 'mute':
-                        return mute_device(self.__bridge, self.__state, 'NOP', slot,
+                        return mute_device(self.__bridge, 'master', slot,
                                            False if payload['value'] == 'off' else True, channel)
                     else:
-                        return set_gain(self.__bridge, self.__state, 'NOP', slot, round(float(payload['value']), 2),
+                        return set_gain(self.__bridge, 'master', slot, round(float(payload['value']), 2),
                                         channel)
         return None, 400
 
     def delete(self, slot):
-        return delete_filter(self.__bridge, self.__state, slot)
+        return delete_filter(self.__bridge, 'master', slot)

@@ -12,7 +12,7 @@ from ezbeq.config import Config
 logger = logging.getLogger('ezbeq.catalogue')
 
 
-class Catalogue:
+class CatalogueEntry:
 
     def __init__(self, idx: str, vals: dict):
         self.idx = idx
@@ -174,6 +174,9 @@ class CatalogueProvider:
         self.__catalogue = []
         self.__executor.submit(self.__reload).result(timeout=60)
 
+    def find(self, entry_id: str) -> Optional[CatalogueEntry]:
+        return next((c for c in self.catalogue if c.idx == entry_id), None)
+
     def __reload(self):
         logger.info('Reloading catalogue')
         downloader = DatabaseDownloader(self.__config.beqcatalogue_url, self.__catalogue_file, self.__catalogue_version_file)
@@ -181,7 +184,7 @@ class CatalogueProvider:
         if reload_required or not self.__catalogue:
             if os.path.exists(self.__catalogue_file):
                 with open(self.__catalogue_file, 'r') as infile:
-                    self.__catalogue = [Catalogue(f"{downloader.version}_{idx}", c)
+                    self.__catalogue = [CatalogueEntry(f"{downloader.version}_{idx}", c)
                                         for idx, c in enumerate(json.load(infile))]
                     self.__loaded_at = datetime.now()
                     self.__version = downloader.version
@@ -199,7 +202,7 @@ class CatalogueProvider:
         return self.__version
 
     @property
-    def catalogue(self) -> List[Catalogue]:
+    def catalogue(self) -> List[CatalogueEntry]:
         self.__executor.submit(self.__refresh_catalogue_if_stale).result(timeout=60)
         return self.__catalogue
 

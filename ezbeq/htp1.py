@@ -8,16 +8,17 @@ from autobahn.twisted.websocket import WebSocketClientFactory, connectWS, WebSoc
 from twisted.internet.protocol import ReconnectingClientFactory
 
 from ezbeq.device import SlotState
-from ezbeq.catalogue import Catalogue
+from ezbeq.catalogue import CatalogueEntry
 from ezbeq.config import Config
-from ezbeq.device import Bridge
+from ezbeq.device import Device
 
 logger = logging.getLogger('ezbeq.htp1')
 
 
-class Htp1(Bridge):
+class Htp1(Device):
 
-    def __init__(self, cfg: Config):
+    def __init__(self, name: str, cfg: Config):
+        self.__name = name
         self.__ip = cfg.htp1_options['ip']
         self.__channels = cfg.htp1_options['channels']
         self.__peq = {}
@@ -26,9 +27,15 @@ class Htp1(Bridge):
             raise ValueError('No channels supplied for HTP-1')
         self.__client = Htp1Client(self.__ip, self)
 
-    def device_type(self) -> str:
-        return 'htp1'
+    @property
+    def name(self) -> str:
+        return self.__name
 
+    @property
+    def device_type(self) -> str:
+        return self.__class__.__name__.lower()
+
+    # FIXFIX
     def slot_state(self) -> List[SlotState]:
         return [SlotState('HTP1')]
 
@@ -51,7 +58,7 @@ class Htp1(Bridge):
     def activate(self, slot: str) -> None:
         raise NotImplementedError()
 
-    def load_filter(self, slot: str, entry: Catalogue) -> None:
+    def load_filter(self, slot: str, entry: CatalogueEntry) -> None:
         to_load = [PEQ(idx, fc=f['freq'], q=f['q'], gain=f['gain'], filter_type_name=f['type'])
                    for idx, f in enumerate(entry.filters)]
         self.__send(to_load)

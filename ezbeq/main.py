@@ -1,17 +1,18 @@
 import os
 from os import path
+from typing import Tuple
 
 import faulthandler
-import sys
 from autobahn.twisted.resource import WebSocketResource
 from flask import Flask
 from flask_compress import Compress
 from flask_restx import Api
 
 from ezbeq.apis import search, version, devices, authors, audiotypes, years, contenttypes, meta
+from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueProvider
 from ezbeq.config import Config
-from ezbeq.device import DeviceStateHolder, DeviceBridge
+from ezbeq.device import DeviceRepository
 
 faulthandler.enable()
 if hasattr(faulthandler, 'register'):
@@ -20,15 +21,14 @@ if hasattr(faulthandler, 'register'):
     faulthandler.register(signal.SIGUSR2, all_threads=True)
 
 
-def create_app(config: Config) -> Flask:
-    from ezbeq.apis.ws import WsServer
+def create_app(config: Config) -> Tuple[Flask, 'WsServer']:
     ws_server = WsServer()
+    catalogue = CatalogueProvider(config)
     resource_args = {
         'config': config,
         'ws_server': ws_server,
-        'device_state': DeviceStateHolder(config, ws_server),
-        'device_bridge': DeviceBridge(config),
-        'catalogue': CatalogueProvider(config),
+        'device_bridge': DeviceRepository(config, ws_server, catalogue),
+        'catalogue': catalogue,
         'version': config.version
     }
     app = Flask(__name__)

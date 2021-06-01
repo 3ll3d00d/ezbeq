@@ -15,7 +15,6 @@ def verify_slot(slot: dict, idx: int, active: bool = False, gain: Tuple[float, f
     assert slot['mute1'] == mute[0]
     assert slot['mute2'] == mute[1]
     assert slot['last'] == last
-    assert slot['canActivate'] == can_activate
 
 
 def verify_default_device_state(devices: dict):
