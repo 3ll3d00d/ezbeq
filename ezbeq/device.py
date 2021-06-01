@@ -155,7 +155,7 @@ def create_device(cfg: Config, ws_server: WsServer, catalogue: CatalogueProvider
         return Htp1('master', cfg, ws_server, catalogue)
     elif cfg.jriver_options:
         from ezbeq.jriver import JRiver
-        return JRiver('master', cfg)
+        return JRiver('master', cfg, ws_server, catalogue)
     else:
         raise ValueError('No device configured')
 

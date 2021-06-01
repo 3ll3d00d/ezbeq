@@ -4,10 +4,10 @@ from typing import Optional, List, Dict, Tuple
 
 import requests
 
-from ezbeq.device import SlotState
-from ezbeq.catalogue import CatalogueEntry
+from ezbeq.apis.ws import WsServer
+from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
 from ezbeq.config import Config
-from ezbeq.device import Device
+from ezbeq.device import SlotState, DeviceState, PersistentDevice
 
 logger = logging.getLogger('ezbeq.jriver')
 
@@ -15,10 +15,29 @@ JRIVER_CHANNELS = [None, None, 'L', 'R', 'C', 'SW', 'SL', 'SR', 'RL', 'RR', None
                                                                                                  range(24)]
 
 
-class JRiver(Device):
+class JRiverSlotState(SlotState):
 
-    def __init__(self, name: str, cfg: Config):
-        self.__name = name
+    def __init__(self, zone_name: str):
+        super().__init__(zone_name)
+
+
+class JRiverState(DeviceState):
+
+    def __init__(self, zone_name: str):
+        self.slot = JRiverSlotState(zone_name)
+        self.slot.active = True
+
+    def serialise(self) -> dict:
+        return {
+            'slots': [self.slot.as_dict()]
+        }
+
+
+class JRiver(PersistentDevice[JRiverState]):
+
+    def __init__(self, name: str, cfg: Config, ws_server: WsServer, catalogue: CatalogueProvider):
+        super().__init__(cfg.config_path, name, ws_server)
+        self.__catalogue = catalogue
         address: str = cfg.jriver_options['address']
         if not address:
             raise ValueError('No MCWS address for jriver')
@@ -36,33 +55,54 @@ class JRiver(Device):
             raise ValueError('No peq block for jriver')
         self.__mcws = MediaServer(address, auth, secure)
 
-    @property
-    def name(self) -> str:
-        return self.__name
-
     def device_type(self) -> str:
         return self.__class__.__name__.lower()
 
-    def slot_state(self) -> List[SlotState]:
-        return [SlotState(self.__zone_name)]
+    def _load_initial_state(self) -> JRiverState:
+        return JRiverState(self.__zone_name)
 
-    def state(self) -> Optional[dict]:
-        return {'active_slot': self.__zone_name}
+    def _merge_state(self, loaded: JRiverState, cached: dict) -> JRiverState:
+        if 'slots' in cached:
+            for slot in cached['slots']:
+                if 'id' in slot:
+                    if slot['id'] == self.__zone_name:
+                        if slot['last']:
+                            loaded.slot.last = slot['last']
+        return loaded
 
     def activate(self, slot: str) -> None:
         raise NotImplementedError()
 
+    def update(self, params: dict) -> bool:
+        any_update = False
+        if 'slots' in params:
+            for slot in params['slots']:
+                if slot['id'] == self.__zone_name:
+                    if 'entry' in slot:
+                        if slot['entry']:
+                            match = self.__catalogue.find(slot['entry'])
+                            if match:
+                                self.load_filter(self.__zone_name, match)
+                                any_update = True
+                        else:
+                            self.clear_filter(self.__zone_name)
+                            any_update = True
+        return any_update
+
     def load_filter(self, slot: str, entry: CatalogueEntry) -> None:
-        mc_filts = [make_meta(entry.title, True)] \
-                   + [convert_filter_to_mc_dsp(f, self.__channels) for f in entry.filters] \
-                   + [make_meta(entry.title, False)]
-        xml_filts = [filts_to_xml(f) for f in mc_filts]
-        zone_id = self.__mcws.get_zone_id(self.__zone_name)
-        current_config_txt = self.__mcws.get_dsp(zone_id)
-        new_config_txt = self.__remove_all_beq(current_config_txt)
-        new_config_txt = include_filters_in_dsp(self.__peq_block, new_config_txt, xml_filts, replace=False)
-        logger.info(new_config_txt)
-        self.__mcws.set_dsp(zone_id, new_config_txt)
+        def __do_it():
+            mc_filts = [make_meta(entry.title, True)] \
+                       + [convert_filter_to_mc_dsp(f, self.__channels) for f in entry.filters] \
+                       + [make_meta(entry.title, False)]
+            xml_filts = [filts_to_xml(f) for f in mc_filts]
+            zone_id = self.__mcws.get_zone_id(self.__zone_name)
+            current_config_txt = self.__mcws.get_dsp(zone_id)
+            new_config_txt = self.__remove_all_beq(current_config_txt)
+            new_config_txt = include_filters_in_dsp(self.__peq_block, new_config_txt, xml_filts, replace=False)
+            logger.info(new_config_txt)
+            self.__mcws.set_dsp(zone_id, new_config_txt)
+            self._current_state.slot.last = entry.formatted_title
+        self._hydrate_cache_broadcast(__do_it)
 
     def __remove_all_beq(self, current_config_txt) -> str:
         tries = 0
@@ -76,11 +116,14 @@ class JRiver(Device):
         return final_config_txt
 
     def clear_filter(self, slot: str) -> None:
-        zone_id = self.__mcws.get_zone_id(self.__zone_name)
-        current_config_txt = self.__mcws.get_dsp(zone_id)
-        new_config_txt = self.__remove_all_beq(current_config_txt)
-        if new_config_txt != current_config_txt:
-            self.__mcws.set_dsp(zone_id, new_config_txt)
+        def __do_it():
+            zone_id = self.__mcws.get_zone_id(self.__zone_name)
+            current_config_txt = self.__mcws.get_dsp(zone_id)
+            new_config_txt = self.__remove_all_beq(current_config_txt)
+            if new_config_txt != current_config_txt:
+                self.__mcws.set_dsp(zone_id, new_config_txt)
+            self._current_state.slot.last = 'Empty'
+        self._hydrate_cache_broadcast(__do_it)
 
     def mute(self, slot: Optional[str], channel: Optional[int]) -> None:
         raise NotImplementedError()

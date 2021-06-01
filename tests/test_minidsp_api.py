@@ -815,7 +815,7 @@ gain -- -10.20"""
 
 
 def test_reload_from_cache(minidsp_client, tmp_path):
-    from minidsp import MinidspState
+    from ezbeq.minidsp import MinidspState
     expected = MinidspState()
     expected.update_master_state(True, -5.4)
     slot = expected.get_slot('2')
