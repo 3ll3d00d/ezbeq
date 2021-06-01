@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Tuple, List
 
 import pytest
@@ -7,7 +8,7 @@ from conftest import MinidspSpyConfig, MinidspSpy
 
 
 def verify_slot(slot: dict, idx: int, active: bool = False, gain: Tuple[float, float] = (0.0, 0.0),
-                mute: Tuple[bool, bool] = (False, False), last: str = 'Empty', can_activate: bool = True):
+                mute: Tuple[bool, bool] = (False, False), last: str = 'Empty'):
     assert slot['id'] == str(idx)
     assert slot['active'] == active
     assert slot['gain1'] == gain[0]
@@ -811,3 +812,27 @@ gain -- -10.20"""
             verify_slot(s, idx+1, active=True, gain=(-1.1, -1.1), last='Alien Resurrection')
         else:
             verify_slot(s, idx+1)
+
+
+def test_reload_from_cache(minidsp_client, tmp_path):
+    from minidsp import MinidspState
+    expected = MinidspState()
+    expected.update_master_state(True, -5.4)
+    slot = expected.get_slot('2')
+    slot.mute(None)
+    slot.gain1 = 4.8
+    slot.active = True
+    slot.last = 'Testing'
+    with open(os.path.join(tmp_path, 'master.json'), 'w') as f:
+        json.dump(expected.serialise(), f, sort_keys=True)
+
+    r = minidsp_client.get("/api/1/devices")
+    assert r.status_code == 200
+    # master state is not restored
+    slots = verify_master_device_state(r.json)
+    for idx, s in enumerate(slots):
+        if idx == 1:
+            verify_slot(s, idx+1, active=True, gain=(4.8, 0.0), mute=(True, True), last='Testing')
+        else:
+            verify_slot(s, idx+1)
+

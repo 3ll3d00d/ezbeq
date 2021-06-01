@@ -2,7 +2,7 @@ import json
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import List, Optional, Dict, TypeVar, Generic
+from typing import List, Optional, Dict, TypeVar, Generic, Callable
 
 from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
@@ -11,7 +11,7 @@ from ezbeq.config import Config
 logger = logging.getLogger('ezbeq.device')
 
 S = TypeVar("S", bound='SlotState')
-T = TypeVar("T", bound='SerialisableState')
+T = TypeVar("T", bound='DeviceState')
 
 
 class SlotState(Generic[S]):
@@ -25,8 +25,13 @@ class SlotState(Generic[S]):
     def slot_id(self) -> str:
         return self.__slot_id
 
-    def merge_with(self, state: S) -> None:
-        self.last = state.last
+    def merge_with(self, state: dict) -> None:
+        if 'last' in state:
+            self.last = state['last']
+        if 'active' in state:
+            self.active = bool(state['active'])
+        else:
+            self.active = False
 
     def as_dict(self) -> dict:
         return {'id': self.slot_id, 'last': self.last, 'active': self.active}
@@ -147,7 +152,7 @@ def create_device(cfg: Config, ws_server: WsServer, catalogue: CatalogueProvider
         return Minidsp('master', cfg, ws_server, catalogue)
     elif cfg.htp1_options:
         from ezbeq.htp1 import Htp1
-        return Htp1('master', cfg)
+        return Htp1('master', cfg, ws_server, catalogue)
     elif cfg.jriver_options:
         from ezbeq.jriver import JRiver
         return JRiver('master', cfg)
@@ -176,6 +181,10 @@ class PersistentDevice(Device, ABC, Generic[T]):
     def name(self) -> str:
         return self.__name
 
+    def state(self) -> T:
+        self._hydrate()
+        return self._current_state
+
     def _hydrate(self) -> bool:
         if not self.__hydrated:
             self._current_state = self._load_initial_state()
@@ -196,7 +205,7 @@ class PersistentDevice(Device, ABC, Generic[T]):
         pass
 
     @abstractmethod
-    def _merge_state(self, loaded: T, cached: dict) -> None:
+    def _merge_state(self, loaded: T, cached: dict) -> T:
         return loaded
 
     def _persist(self):
@@ -211,3 +220,10 @@ class PersistentDevice(Device, ABC, Generic[T]):
     def __get_state_msg(self):
         assert self._current_state, 'hydrate cannot return None'
         return json.dumps(self._current_state.serialise(), ensure_ascii=False)
+
+    def _hydrate_cache_broadcast(self, func: callable):
+        self._hydrate()
+        ret = func()
+        self._persist()
+        self._broadcast()
+        return ret

@@ -20,7 +20,7 @@ class MinidspState(DeviceState):
     def __init__(self, **kwargs):
         self.master_volume: float = kwargs['mv'] if 'mv' in kwargs else 0.0
         self.__mute: bool = kwargs['mute'] if 'mute' in kwargs else False
-        self.__active_slot: str = kwargs['active_slot'] if 'active_slot' in kwargs else '1'
+        self.__active_slot: str = kwargs['active_slot'] if 'active_slot' in kwargs else ''
         slot_ids = [str(i + 1) for i in range(4)]
         self.__slots: List[MinidspSlotState] = [MinidspSlotState(c_id, c_id == self.active_slot) for c_id in slot_ids]
 
@@ -132,12 +132,16 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
     def unmute(self, channel: Optional[int]):
         self.__do_mute(channel, False)
 
-    def merge_with(self, state: 'MinidspSlotState') -> None:
+    def merge_with(self, state: dict) -> None:
         super().merge_with(state)
-        self.gain1 = state.gain1
-        self.gain2 = state.gain2
-        self.mute1 = state.mute1
-        self.mute2 = state.mute2
+        if 'gain1' in state:
+            self.gain1 = float(state['gain1'])
+        if 'gain2' in state:
+            self.gain2 = float(state['gain2'])
+        if 'mute1' in state:
+            self.mute1 = bool(state['mute1'])
+        if 'mute2' in state:
+            self.mute2 = bool(state['mute2'])
 
     def as_dict(self) -> dict:
         sup = super().as_dict()
@@ -150,7 +154,7 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
         }
 
     def __repr__(self):
-        return f"{super().__repr__()} - 1: {self.gain1:.2f}/{self.mute1} 2: {self.gain1:.2f}/{self.mute2}"
+        return f"{super().__repr__()} - 1: {self.gain1:.2f}/{self.mute1} 2: {self.gain2:.2f}/{self.mute2}"
 
 
 class Minidsp(PersistentDevice[MinidspState]):
@@ -205,19 +209,13 @@ class Minidsp(PersistentDevice[MinidspState]):
     def __send_cmds(self, target_slot_idx: Optional[int], cmds: List[str]):
         return self.__executor.submit(self.__do_run, cmds, target_slot_idx).result(timeout=self.__cmd_timeout)
 
-    def hydrate_cache_broadcast(self, func):
-        self._hydrate()
-        func()
-        self._persist()
-        self._broadcast()
-
     def activate(self, slot: str):
         def __do_it():
             target_slot_idx = self.__as_idx(slot)
             self.__validate_slot_idx(target_slot_idx)
             self.__send_cmds(target_slot_idx, [])
             self._current_state.activate(slot)
-        self.hydrate_cache_broadcast(__do_it)
+        self._hydrate_cache_broadcast(__do_it)
 
     @staticmethod
     def __validate_slot_idx(target_slot_idx):
@@ -231,7 +229,7 @@ class Minidsp(PersistentDevice[MinidspState]):
             cmds = MinidspBeqCommandGenerator.filt(entry)
             self.__send_cmds(target_slot_idx, cmds)
             self._current_state.load(slot, entry)
-        self.hydrate_cache_broadcast(__do_it)
+        self._hydrate_cache_broadcast(__do_it)
 
     def clear_filter(self, slot: str) -> None:
         def __do_it():
@@ -242,7 +240,7 @@ class Minidsp(PersistentDevice[MinidspState]):
             cmds.extend(MinidspBeqCommandGenerator.gain(0.0, target_slot_idx, None))
             self.__send_cmds(target_slot_idx, cmds)
             self._current_state.clear(slot)
-        self.hydrate_cache_broadcast(__do_it)
+        self._hydrate_cache_broadcast(__do_it)
 
     def mute(self, slot: Optional[str], channel: Optional[int]) -> None:
         self.__do_mute_op(slot, channel, True)
@@ -255,7 +253,7 @@ class Minidsp(PersistentDevice[MinidspState]):
             cmds = MinidspBeqCommandGenerator.mute(state, target_slot_idx, target_channel_idx)
             self.__send_cmds(target_slot_idx, cmds)
             self._current_state.toggle_mute(slot, channel, state)
-        self.hydrate_cache_broadcast(__do_it)
+        self._hydrate_cache_broadcast(__do_it)
 
     def unmute(self, slot: Optional[str], channel: Optional[int]) -> None:
         self.__do_mute_op(slot, channel, False)
@@ -266,7 +264,7 @@ class Minidsp(PersistentDevice[MinidspState]):
             cmds = MinidspBeqCommandGenerator.gain(gain, target_slot_idx, target_channel_idx)
             self.__send_cmds(target_slot_idx, cmds)
             self._current_state.gain(slot, channel, gain)
-        self.hydrate_cache_broadcast(__do_it)
+        self._hydrate_cache_broadcast(__do_it)
 
     def __as_idxes(self, channel, slot):
         target_slot_idx = self.__as_idx(slot) if slot else None
@@ -306,20 +304,22 @@ class Minidsp(PersistentDevice[MinidspState]):
         return loaded
 
     def update(self, params: dict) -> bool:
-        any_update = False
-        if 'slots' in params:
-            for slot in params['slots']:
-                any_update |= self.__update_slot(slot)
-        if 'mute' in params and params['mute'] != self._current_state.mute:
-            if self._current_state.mute:
-                self.unmute(None, None)
-            else:
-                self.mute(None, None)
-            any_update = True
-        if 'masterVolume' in params and not math.isclose(params['masterVolume'], self._current_state.master_volume):
-            self.set_gain(None, None, params['masterVolume'])
-            any_update = True
-        return any_update
+        def __do_it() -> bool:
+            any_update = False
+            if 'slots' in params:
+                for slot in params['slots']:
+                    any_update |= self.__update_slot(slot)
+            if 'mute' in params and params['mute'] != self._current_state.mute:
+                if self._current_state.mute:
+                    self.unmute(None, None)
+                else:
+                    self.mute(None, None)
+                any_update = True
+            if 'masterVolume' in params and not math.isclose(params['masterVolume'], self._current_state.master_volume):
+                self.set_gain(None, None, params['masterVolume'])
+                any_update = True
+            return any_update
+        return self._hydrate_cache_broadcast(__do_it)
 
     def __update_slot(self, slot: dict) -> bool:
         any_update = False
@@ -342,11 +342,14 @@ class Minidsp(PersistentDevice[MinidspState]):
             else:
                 self.unmute(current_slot.slot_id, 2)
             any_update = True
-        if 'entry' in slot and slot['entry']:
-            match = self.__catalogue.find(slot['entry'])
-            if match:
-                self.load_filter(current_slot.slot_id, match)
-                any_update = True
+        if 'entry' in slot:
+            if slot['entry']:
+                match = self.__catalogue.find(slot['entry'])
+                if match:
+                    self.load_filter(current_slot.slot_id, match)
+                    any_update = True
+            else:
+                self.clear_filter(current_slot.slot_id)
         if 'active' in slot:
             self.activate(current_slot.slot_id)
             any_update = True

@@ -25,11 +25,6 @@ def configure_downloader(httpserver: HTTPServer, beqc: dict):
     httpserver.expect_request("/database.json").respond_with_json(beqc)
 
 
-@pytest.fixture(autouse=True)
-def init_devices(minidsp_client):
-    minidsp_client.get("/api/1/devices")
-
-
 @pytest.fixture(scope="session", autouse=True)
 def logger():
     logger = logging.getLogger()

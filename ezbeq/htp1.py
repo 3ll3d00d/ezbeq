@@ -7,18 +7,38 @@ from autobahn.exception import Disconnected
 from autobahn.twisted.websocket import WebSocketClientFactory, connectWS, WebSocketClientProtocol
 from twisted.internet.protocol import ReconnectingClientFactory
 
-from ezbeq.device import SlotState
-from ezbeq.catalogue import CatalogueEntry
+from ezbeq.apis.ws import WsServer
+from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
 from ezbeq.config import Config
-from ezbeq.device import Device
+from ezbeq.device import DeviceState, SlotState, PersistentDevice
 
 logger = logging.getLogger('ezbeq.htp1')
 
 
-class Htp1(Device):
+class Htp1SlotState(SlotState):
 
-    def __init__(self, name: str, cfg: Config):
+    def __init__(self):
+        super().__init__('HTP1')
+
+
+class Htp1State(DeviceState):
+
+    def __init__(self):
+        self.slot = Htp1SlotState()
+        self.slot.active = True
+
+    def serialise(self) -> dict:
+        return {
+            'slots': [self.slot.as_dict()]
+        }
+
+
+class Htp1(PersistentDevice[Htp1State]):
+
+    def __init__(self, name: str, cfg: Config, ws_server: WsServer, catalogue: CatalogueProvider):
+        super().__init__(cfg.config_path, name, ws_server)
         self.__name = name
+        self.__catalogue = catalogue
         self.__ip = cfg.htp1_options['ip']
         self.__channels = cfg.htp1_options['channels']
         self.__peq = {}
@@ -27,20 +47,37 @@ class Htp1(Device):
             raise ValueError('No channels supplied for HTP-1')
         self.__client = Htp1Client(self.__ip, self)
 
-    @property
-    def name(self) -> str:
-        return self.__name
+    def _load_initial_state(self) -> Htp1State:
+        return Htp1State()
+
+    def _merge_state(self, loaded: Htp1State, cached: dict) -> Htp1State:
+        if 'slots' in cached:
+            for slot in cached['slots']:
+                if 'id' in slot:
+                    if slot['id'] == 'HTP1':
+                        if slot['last']:
+                            loaded.slot.last = slot['last']
+        return loaded
 
     @property
     def device_type(self) -> str:
         return self.__class__.__name__.lower()
 
-    # FIXFIX
-    def slot_state(self) -> List[SlotState]:
-        return [SlotState('HTP1')]
-
-    def state(self) -> Optional[dict]:
-        return {'active_slot': 'HTP1'}
+    def update(self, params: dict) -> bool:
+        any_update = False
+        if 'slots' in params:
+            for slot in params['slots']:
+                if slot['id'] == 'HTP1':
+                    if 'entry' in slot:
+                        if slot['entry']:
+                            match = self.__catalogue.find(slot['entry'])
+                            if match:
+                                self.load_filter('HTP1', match)
+                                any_update = True
+                        else:
+                            self.clear_filter('HTP1')
+                            any_update = True
+        return any_update
 
     def __send(self, to_load: List['PEQ']):
         logger.info(f"Sending {len(to_load)} filters")
@@ -61,10 +98,14 @@ class Htp1(Device):
     def load_filter(self, slot: str, entry: CatalogueEntry) -> None:
         to_load = [PEQ(idx, fc=f['freq'], q=f['q'], gain=f['gain'], filter_type_name=f['type'])
                    for idx, f in enumerate(entry.filters)]
+        self._hydrate_cache_broadcast(lambda: self.__do_it(to_load, entry.formatted_title))
+
+    def __do_it(self, to_load: List['PEQ'], title: str):
         self.__send(to_load)
+        self._current_state.slot.last = title
 
     def clear_filter(self, slot: str) -> None:
-        self.__send([])
+        self._hydrate_cache_broadcast(lambda: self.__do_it([], 'Empty'))
 
     def mute(self, slot: Optional[str], channel: Optional[int]) -> None:
         raise NotImplementedError()
