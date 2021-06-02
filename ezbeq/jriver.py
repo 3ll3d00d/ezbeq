@@ -47,6 +47,10 @@ class JRiverState(DeviceState):
         elif not ignore:
             raise KeyError(f"No zone {zone}")
 
+    def activate(self, zone: str):
+        for s in self.__slots.values():
+            s.active = s.slot_id == zone
+
     def serialise(self) -> dict:
         return {
             'name': self.__name,
@@ -87,7 +91,7 @@ class JRiver(PersistentDevice[JRiverState]):
         return loaded
 
     def activate(self, slot: str) -> None:
-        raise NotImplementedError()
+        self._hydrate_cache_broadcast(lambda: self._current_state.activate(slot))
 
     def update(self, params: dict) -> bool:
         any_update = False

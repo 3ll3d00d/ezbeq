@@ -95,7 +95,9 @@ class Htp1(PersistentDevice[Htp1State]):
             logger.warning(f"Nothing to send")
 
     def activate(self, slot: str) -> None:
-        raise NotImplementedError()
+        def __do_it():
+            self._current_state.slot.active = True
+        self._hydrate_cache_broadcast(__do_it)
 
     def load_filter(self, slot: str, entry: CatalogueEntry) -> None:
         to_load = [PEQ(idx, fc=f['freq'], q=f['q'], gain=f['gain'], filter_type_name=f['type'])
