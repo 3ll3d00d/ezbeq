@@ -24,8 +24,6 @@ def delete_filter(bridge: DeviceRepository, device_name: str, slot: str):
         return bridge.state(device_name).serialise(), 200
     except Exception as e:
         logger.exception(f"Failed to clear Slot {slot}")
-        # TODO error
-        # bridge.error(device_name, slot)
         return bridge.state(device_name).serialise(), 500
 
 
@@ -53,7 +51,6 @@ def load_filter(catalogue: List[CatalogueEntry], bridge: DeviceRepository, devic
         return bridge.state(device_name).serialise(), 400
     except Exception as e:
         logger.exception(f"Failed to write {entry_id} to Slot {slot}")
-        # TODO ERROR
         return bridge.state(device_name).serialise(), 500
 
 
@@ -74,7 +71,6 @@ def activate_slot(bridge: DeviceRepository, device_name: str, slot: str):
         return bridge.state(device_name).serialise(), 400
     except Exception as e:
         logger.exception(f"Failed to activate Slot {slot}")
-        # TODO ERROR
         return bridge.state(device_name).serialise(), 500
 
 

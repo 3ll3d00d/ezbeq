@@ -51,6 +51,9 @@ class JRiverState(DeviceState):
         for s in self.__slots.values():
             s.active = s.slot_id == zone
 
+    def error(self, zone: str):
+        self.__slots[zone].last = 'ERROR'
+
     def serialise(self) -> dict:
         return {
             'name': self.__name,
@@ -120,8 +123,12 @@ class JRiver(PersistentDevice[JRiverState]):
             new_config_txt = self.__remove_all_beq(current_config_txt)
             new_config_txt = include_filters_in_dsp(self.__peq_block, new_config_txt, xml_filts, replace=False)
             logger.info(new_config_txt)
-            self.__mcws.set_dsp(zone_id, new_config_txt)
-            self._current_state.set_title(slot, entry.formatted_title)
+            try:
+                self.__mcws.set_dsp(zone_id, new_config_txt)
+                self._current_state.set_title(slot, entry.formatted_title)
+            except Exception as e:
+                self._current_state.slot.last = 'ERRUR'
+                raise e
         self._hydrate_cache_broadcast(__do_it)
 
     def __remove_all_beq(self, current_config_txt) -> str:
@@ -140,9 +147,13 @@ class JRiver(PersistentDevice[JRiverState]):
             zone_id = self._current_state.get_zone_id(slot)
             current_config_txt = self.__mcws.get_dsp(zone_id)
             new_config_txt = self.__remove_all_beq(current_config_txt)
-            if new_config_txt != current_config_txt:
-                self.__mcws.set_dsp(zone_id, new_config_txt)
-            self._current_state.set_title(slot, 'Empty')
+            try:
+                if new_config_txt != current_config_txt:
+                    self.__mcws.set_dsp(zone_id, new_config_txt)
+                self._current_state.set_title(slot, 'Empty')
+            except Exception as e:
+                self._current_state.error(slot)
+                raise e
         self._hydrate_cache_broadcast(__do_it)
 
     def mute(self, slot: Optional[str], channel: Optional[int]) -> None:

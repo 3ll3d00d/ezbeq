@@ -105,8 +105,12 @@ class Htp1(PersistentDevice[Htp1State]):
         self._hydrate_cache_broadcast(lambda: self.__do_it(to_load, entry.formatted_title))
 
     def __do_it(self, to_load: List['PEQ'], title: str):
-        self.__send(to_load)
-        self._current_state.slot.last = title
+        try:
+            self.__send(to_load)
+            self._current_state.slot.last = title
+        except Exception as e:
+            self._current_state.slot.last = 'ERRUR'
+            raise e
 
     def clear_filter(self, slot: str) -> None:
         self._hydrate_cache_broadcast(lambda: self.__do_it([], 'Empty'))

@@ -52,6 +52,10 @@ class MinidspState(DeviceState):
         self.get_slot(slot_id).last = 'Empty'
         self.activate(slot_id)
 
+    def error(self, slot_id):
+        self.get_slot(slot_id).last = 'ERROR'
+        self.activate(slot_id)
+
     def gain(self, slot_id: Optional[str], channel: Optional[int], gain: float):
         if slot_id is None:
             self.master_volume = gain
@@ -229,8 +233,12 @@ class Minidsp(PersistentDevice[MinidspState]):
             target_slot_idx = self.__as_idx(slot)
             self.__validate_slot_idx(target_slot_idx)
             cmds = MinidspBeqCommandGenerator.filt(entry)
-            self.__send_cmds(target_slot_idx, cmds)
-            self._current_state.load(slot, entry)
+            try:
+                self.__send_cmds(target_slot_idx, cmds)
+                self._current_state.load(slot, entry)
+            except Exception as e:
+                self._current_state.error(slot)
+                raise e
         self._hydrate_cache_broadcast(__do_it)
 
     def clear_filter(self, slot: str) -> None:
@@ -240,8 +248,12 @@ class Minidsp(PersistentDevice[MinidspState]):
             cmds = MinidspBeqCommandGenerator.filt(None)
             cmds.extend(MinidspBeqCommandGenerator.mute(False, target_slot_idx, None))
             cmds.extend(MinidspBeqCommandGenerator.gain(0.0, target_slot_idx, None))
-            self.__send_cmds(target_slot_idx, cmds)
-            self._current_state.clear(slot)
+            try:
+                self.__send_cmds(target_slot_idx, cmds)
+                self._current_state.clear(slot)
+            except Exception as e:
+                self._current_state.error(slot)
+                raise e
         self._hydrate_cache_broadcast(__do_it)
 
     def mute(self, slot: Optional[str], channel: Optional[int]) -> None:
