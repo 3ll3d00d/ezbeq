@@ -33,7 +33,10 @@ const deviceStyles = makeStyles(theme => ({
         '&:last-child': {
             paddingBottom: 4,
         },
-    })
+    }),
+    right: {
+        float: 'right'
+    }
 }));
 
 const getCurrentState = (active, label, slotId) => {
@@ -53,12 +56,12 @@ const Slot = ({selected, slot, onSelect, isPending, onClear}) => {
     const classes = deviceStyles({selected});
     return (
         <Paper className={`${classes.paper}`}>
-            <Grid container wrap="nowrap" justify="space-between" alignItems="center">
+            <Grid container justify="space-between" alignItems="center">
                 <Grid item onClick={onSelect} xs={8} className={`${classes.content}`}>
                     <Typography component="p" variant="body2">{slot.id}: {slot.last}</Typography>
                 </Grid>
                 <Grid item xs={4}>
-                    <IconButton onClick={onClear} disabled={isPending}>
+                    <IconButton onClick={onClear} disabled={isPending} className={classes.right}>
                         {
                             isPending
                                 ? <CircularProgress size={32}/>

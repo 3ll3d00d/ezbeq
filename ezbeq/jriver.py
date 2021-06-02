@@ -6,7 +6,6 @@ import requests
 
 from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
-from ezbeq.config import Config
 from ezbeq.device import SlotState, DeviceState, PersistentDevice
 
 logger = logging.getLogger('ezbeq.jriver')
@@ -17,21 +16,41 @@ JRIVER_CHANNELS = [None, None, 'L', 'R', 'C', 'SW', 'SL', 'SR', 'RL', 'RR', None
 
 class JRiverSlotState(SlotState):
 
-    def __init__(self, zone_name: str):
+    def __init__(self, zone_id: str, zone_name: str):
         super().__init__(zone_name)
+        self.__zone_id = zone_id
+
+    @property
+    def zone_id(self) -> str:
+        return self.__zone_id
 
 
 class JRiverState(DeviceState):
 
-    def __init__(self, name: str, zone_name: str):
+    def __init__(self, name: str, zones: Dict[str, dict]):
         self.__name = name
-        self.slot = JRiverSlotState(zone_name)
-        self.slot.active = True
+        self.__slots: Dict[str, JRiverSlotState] = {z['name']: JRiverSlotState(z_id, z['name'])
+                                                    for z_id, z in zones.items()}
+
+    def has_zone(self, zone: str) -> bool:
+        slot = self.__slots.get(zone, None)
+        return slot is not None
+
+    def get_zone_id(self, zone: str) -> Optional[str]:
+        slot = self.__slots.get(zone, None)
+        return slot.zone_id if slot else None
+
+    def set_title(self, zone: str, title: str, ignore: bool = False):
+        slot = self.__slots.get(zone, None)
+        if slot:
+            slot.last = title
+        elif not ignore:
+            raise KeyError(f"No zone {zone}")
 
     def serialise(self) -> dict:
         return {
             'name': self.__name,
-            'slots': [self.slot.as_dict()]
+            'slots': [s.as_dict() for s in self.__slots.values()]
         }
 
 
@@ -43,12 +62,9 @@ class JRiver(PersistentDevice[JRiverState]):
         address: str = cfg['address']
         if not address:
             raise ValueError('No MCWS address for jriver')
-        self.__zone_name: str = cfg['zone']
         cfg_auth = cfg.get('auth', None)
         auth = (cfg_auth['user'], cfg_auth['pass']) if cfg_auth else None
         secure = bool(cfg.get('secure', False))
-        if not self.__zone_name:
-            raise ValueError('No zone for jriver')
         self.__channels: str = ';'.join([str(JRIVER_CHANNELS.index(c)) for c in cfg['channels']])
         if not self.__channels:
             raise ValueError('No target channels for jriver')
@@ -61,15 +77,13 @@ class JRiver(PersistentDevice[JRiverState]):
         return self.__class__.__name__.lower()
 
     def _load_initial_state(self) -> JRiverState:
-        return JRiverState(self.name, self.__zone_name)
+        return JRiverState(self.name, self.__mcws.get_zones())
 
     def _merge_state(self, loaded: JRiverState, cached: dict) -> JRiverState:
         if 'slots' in cached:
             for slot in cached['slots']:
-                if 'id' in slot:
-                    if slot['id'] == self.__zone_name:
-                        if slot['last']:
-                            loaded.slot.last = slot['last']
+                if 'id' in slot and 'last' in slot:
+                    loaded.set_title(slot['id'], slot['last'], ignore=True)
         return loaded
 
     def activate(self, slot: str) -> None:
@@ -79,15 +93,15 @@ class JRiver(PersistentDevice[JRiverState]):
         any_update = False
         if 'slots' in params:
             for slot in params['slots']:
-                if slot['id'] == self.__zone_name:
+                if self._current_state.has_zone(slot['id']):
                     if 'entry' in slot:
                         if slot['entry']:
                             match = self.__catalogue.find(slot['entry'])
                             if match:
-                                self.load_filter(self.__zone_name, match)
+                                self.load_filter(slot['id'], match)
                                 any_update = True
                         else:
-                            self.clear_filter(self.__zone_name)
+                            self.clear_filter(slot['id'])
                             any_update = True
         return any_update
 
@@ -97,13 +111,13 @@ class JRiver(PersistentDevice[JRiverState]):
                        + [convert_filter_to_mc_dsp(f, self.__channels) for f in entry.filters] \
                        + [make_meta(entry.title, False)]
             xml_filts = [filts_to_xml(f) for f in mc_filts]
-            zone_id = self.__mcws.get_zone_id(self.__zone_name)
+            zone_id = self._current_state.get_zone_id(slot)
             current_config_txt = self.__mcws.get_dsp(zone_id)
             new_config_txt = self.__remove_all_beq(current_config_txt)
             new_config_txt = include_filters_in_dsp(self.__peq_block, new_config_txt, xml_filts, replace=False)
             logger.info(new_config_txt)
             self.__mcws.set_dsp(zone_id, new_config_txt)
-            self._current_state.slot.last = entry.formatted_title
+            self._current_state.set_title(slot, entry.formatted_title)
         self._hydrate_cache_broadcast(__do_it)
 
     def __remove_all_beq(self, current_config_txt) -> str:
@@ -119,12 +133,12 @@ class JRiver(PersistentDevice[JRiverState]):
 
     def clear_filter(self, slot: str) -> None:
         def __do_it():
-            zone_id = self.__mcws.get_zone_id(self.__zone_name)
+            zone_id = self._current_state.get_zone_id(slot)
             current_config_txt = self.__mcws.get_dsp(zone_id)
             new_config_txt = self.__remove_all_beq(current_config_txt)
             if new_config_txt != current_config_txt:
                 self.__mcws.set_dsp(zone_id, new_config_txt)
-            self._current_state.slot.last = 'Empty'
+            self._current_state.set_title(slot, 'Empty')
         self._hydrate_cache_broadcast(__do_it)
 
     def mute(self, slot: Optional[str], channel: Optional[int]) -> None:
@@ -408,7 +422,7 @@ class MediaServer:
     def connected(self) -> bool:
         return self.__token is not None
 
-    def get_zone_id(self, zone_name: str) -> str:
+    def get_zones(self) -> Dict[str, dict]:
         self.__auth_if_required()
         r = requests.get(f"{self.__base_url}/Playback/Zones", params={'Token': self.__token}, timeout=(1, 5))
         if r.status_code == 200:
@@ -416,7 +430,7 @@ class MediaServer:
             if response:
                 r_status = response.attrib.get('Status', None)
                 if r_status == 'OK':
-                    zones = {}
+                    zones: Dict[str, dict] = {}
                     remote_zones = []
                     for child in response:
                         if child.tag == 'Item' and 'Name' in child.attrib:
@@ -436,8 +450,12 @@ class MediaServer:
                             elif attrib.startswith('ZoneDLNA'):
                                 if child.text == '1':
                                     remote_zones.append(attrib[8:])
-                    return next(v['id'] for k, v in zones.items() if k not in remote_zones and v['name'] == zone_name)
+                    return {v['id']: v for k, v in zones.items() if k not in remote_zones}
         raise MCWSError('No zones loaded', r.url, r.status_code, r.text)
+
+    def get_zone_id(self, zone_name: str) -> str:
+        zones = self.get_zones()
+        return next(k for k, v in zones.items() if v['name'] == zone_name)
 
     def __auth_if_required(self):
         if not self.connected:

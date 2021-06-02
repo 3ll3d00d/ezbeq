@@ -18,9 +18,6 @@ const useStyles = makeStyles((theme) => ({
         flexGrow: 1,
         width: '100vw',
         height: '100vh',
-        '& > *': {
-            margin: theme.spacing(1),
-        }
     }
 }));
 
