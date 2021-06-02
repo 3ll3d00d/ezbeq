@@ -231,7 +231,8 @@ class PersistentDevice(Device, ABC, Generic[T]):
 
     def _hydrate_cache_broadcast(self, func: callable):
         self._hydrate()
-        ret = func()
-        self._persist()
-        self._broadcast()
-        return ret
+        try:
+            return func()
+        finally:
+            self._persist()
+            self._broadcast()

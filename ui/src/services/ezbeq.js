@@ -36,7 +36,7 @@ class EzBeqService {
         if (!response.ok) {
             throw new Error(`EzBeq.get${payload} failed, HTTP status ${response.status}`);
         }
-        return await response.json();
+        return response.json();
     }
 
     appendTo = (url, name, values) => {
@@ -55,7 +55,7 @@ class EzBeqService {
         if (!response.ok) {
             throw new Error(`EzBeq.search failed, HTTP status ${response.status}`);
         }
-        return await response.json();
+        return response.json();
     }
 
     load = async () => {
@@ -77,7 +77,7 @@ class EzBeqService {
             if (!response.ok) {
                 throw new Error(`EzBeq.sendFilter failed, HTTP status ${response.status}`);
             }
-            return await response.json();
+            return response.json();
         }
     }
 
@@ -88,7 +88,7 @@ class EzBeqService {
         if (!response.ok) {
             throw new Error(`EzBeq.clearSlot failed, HTTP status ${response.status}`);
         }
-        return await response.json();
+        return response.json();
     }
 
     activateSlot = async (device, slot) => {
@@ -98,7 +98,7 @@ class EzBeqService {
         if (!response.ok) {
             throw new Error(`EzBeq.activateSlot failed, HTTP status ${response.status}`);
         }
-        return await response.json();
+        return response.json();
     }
 
     setGains = async (device, slot, gains) => {
@@ -117,7 +117,7 @@ class EzBeqService {
         if (!response.ok) {
             throw new Error(`EzBeq.activateSlot failed, HTTP status ${response.status}`);
         }
-        return await response.json();
+        return response.json();
     }
 
     createPatchPayload = (slot_id, gains, entryId = null) => {
