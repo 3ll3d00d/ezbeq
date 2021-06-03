@@ -93,9 +93,11 @@ class Config:
         if os.path.exists(config_path):
             self.logger.warning("Loading config from " + config_path)
             with open(config_path, 'r') as yml:
-                cfg = yaml.load(yml, Loader=yaml.FullLoader)
-                cfg = self.__migrate(cfg)
-                self.__store_config(cfg, config_path)
+                cfg, changed = self.__migrate(yaml.load(yml, Loader=yaml.FullLoader))
+                if changed:
+                    import shutil
+                    shutil.copyfile(config_path, path.join(self.config_path, self._name + ".yml.bak"))
+                    self.__store_config(cfg, config_path)
         if cfg is None:
             cfg = self.load_default_config()
             self.__store_config(cfg, config_path)
@@ -199,6 +201,7 @@ class Config:
 
     @staticmethod
     def __migrate(cfg):
+        changed = False
         if 'devices' not in cfg:
             if not cfg.get('minidspExe', None) and not cfg.get('htp1', None) and not cfg.get('jriver', None):
                 cfg['minidspExe'] = 'minidsp'
@@ -231,4 +234,5 @@ class Config:
                     }
                 }
                 del cfg['jriver']
-        return cfg
+            changed = True
+        return cfg, changed
