@@ -6,6 +6,9 @@ from typing import List, Optional, Union
 
 import math
 import time
+from autobahn.exception import Disconnected
+from autobahn.twisted import WebSocketClientFactory, WebSocketClientProtocol
+from twisted.internet.protocol import ReconnectingClientFactory
 
 from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
@@ -49,7 +52,10 @@ class MinidspState(DeviceState):
         return next(s for s in self.__slots if s.slot_id == slot_id)
 
     def clear(self, slot_id):
-        self.get_slot(slot_id).last = 'Empty'
+        slot = self.get_slot(slot_id)
+        slot.mute(None)
+        slot.set_gain(None, 0.0)
+        slot.last = 'Empty'
         self.activate(slot_id)
 
     def error(self, slot_id):
@@ -172,6 +178,7 @@ class Minidsp(PersistentDevice[MinidspState]):
         self.__cmd_timeout = cfg.get('cmdTimeout', 10)
         self.__ignore_retcode = cfg.get('ignoreRetcode', False)
         self.__runner = cfg['make_runner']()
+        self.__client = MinidspRsClient(self) if cfg.get('useWs', False) else None
 
     @property
     def device_type(self) -> str:
@@ -476,3 +483,94 @@ def to_millis(start, end, precision=1):
     :return: delta in millis.
     '''
     return round((end - start) * 1000, precision)
+
+
+class MinidspRsClient:
+
+    def __init__(self, listener):
+        # TODO which device
+        self.__factory = MinidspRsClientFactory(listener, url='ws://localhost/devices/0?levels=true')
+        from twisted.internet.endpoints import clientFromString
+        from twisted.internet import reactor
+        wsclient = clientFromString(reactor, 'unix:path=/tmp/minidsp.sock:timeout=5')
+        self.__connector = wsclient.connect(self.__factory)
+
+    def send(self, msg: str):
+        self.__factory.broadcast(msg)
+
+
+class MinidspRsProtocol(WebSocketClientProtocol):
+
+    def onConnecting(self, transport_details):
+        logger.info(f"Connecting to {transport_details}")
+
+    def onConnect(self, response):
+        logger.info(f"Connected to {response.peer}")
+        self.sendMessage('getmso'.encode('utf-8'), isBinary=False)
+
+    def onOpen(self):
+        logger.info("Connected to Minidsp")
+        self.factory.register(self)
+
+    def onClose(self, was_clean, code, reason):
+        if was_clean:
+            logger.info(f"Disconnected code: {code} reason: {reason}")
+        else:
+            logger.warning(f"UNCLEAN! Disconnected code: {code} reason: {reason}")
+
+    def onMessage(self, payload, is_binary):
+        if is_binary:
+            logger.warning(f"Received {len(payload)} bytes in binary payload, ignoring")
+        else:
+            msg = payload.decode('utf8')
+            logger.info(f"Received {msg}")
+            # self.factory.listener.on_msoupdate(json.loads(msg[10:]))
+
+
+class MinidspRsClientFactory(WebSocketClientFactory, ReconnectingClientFactory):
+
+    protocol = MinidspRsProtocol
+    maxDelay = 5
+    initialDelay = 0.5
+
+    def __init__(self, listener, *args, **kwargs):
+        super(MinidspRsClientFactory, self).__init__(*args, **kwargs)
+        self.__clients: List[MinidspRsProtocol] = []
+        self.listener = listener
+
+    def clientConnectionFailed(self, connector, reason):
+        logger.warning(f"Client connection failed {reason} .. retrying ..")
+        super().clientConnectionFailed(connector, reason)
+
+    def clientConnectionLost(self, connector, reason):
+        logger.warning(f"Client connection failed {reason} .. retrying ..")
+        super().clientConnectionLost(connector, reason)
+
+    def register(self, client: MinidspRsProtocol):
+        if client not in self.__clients:
+            logger.info(f"Registered device {client.peer}")
+            self.__clients.append(client)
+        else:
+            logger.info(f"Ignoring duplicate device {client.peer}")
+
+    def unregister(self, client: MinidspRsProtocol):
+        if client in self.__clients:
+            logger.info(f"Unregistering device {client.peer}")
+            self.__clients.remove(client)
+        else:
+            logger.info(f"Ignoring unregistered device {client.peer}")
+
+    def broadcast(self, msg):
+        if self.__clients:
+            disconnected_clients = []
+            for c in self.__clients:
+                logger.info(f"Sending to {c.peer} - {msg}")
+                try:
+                    c.sendMessage(msg.encode('utf8'))
+                except Disconnected as e:
+                    logger.exception(f"Failed to send to {c.peer}, discarding")
+                    disconnected_clients.append(c)
+            for c in disconnected_clients:
+                self.unregister(c)
+        else:
+            raise ValueError(f"No devices connected, ignoring {msg}")

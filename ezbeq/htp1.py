@@ -9,7 +9,6 @@ from twisted.internet.protocol import ReconnectingClientFactory
 
 from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
-from ezbeq.config import Config
 from ezbeq.device import DeviceState, SlotState, PersistentDevice
 
 logger = logging.getLogger('ezbeq.htp1')
