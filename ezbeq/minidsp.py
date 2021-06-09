@@ -53,7 +53,7 @@ class MinidspState(DeviceState):
 
     def clear(self, slot_id):
         slot = self.get_slot(slot_id)
-        slot.mute(None)
+        slot.unmute(None)
         slot.set_gain(None, 0.0)
         slot.last = 'Empty'
         self.activate(slot_id)
