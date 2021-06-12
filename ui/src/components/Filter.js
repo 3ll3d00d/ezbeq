@@ -19,10 +19,10 @@ const Filter = ({
                     setError
                 }) => {
 
+    const freshness = ['Fresh', 'Updated', 'Stale'];
     const [authors, setAuthors] = useState([]);
     const [years, setYears] = useState([]);
     const [audioTypes, setAudioTypes] = useState([]);
-    const [freshness, setFreshness] = useState(['Fresh', 'Updated', 'Stale']);
     const [contentTypes, setContentTypes] = useState([]);
     const [filteredYears, setFilteredYears] = useState([]);
     const [filteredAudioTypes, setFilteredAudioTypes] = useState([]);
@@ -93,7 +93,7 @@ const Filter = ({
                              onCreateOption={value => addSelectedAudioTypes(value)}
                              onClearOptions={() => setSelectedAudioTypes([])}
                              isInView={v => filteredAudioTypes.length === 0 || filteredAudioTypes.indexOf(v) > -1}/>
-                <MultiSelect items={['Fresh', 'Updated', 'Stale']}
+                <MultiSelect items={freshness}
                              selectedValues={selectedFreshness}
                              label="Fresh"
                              onToggleOption={selected => setSelectedFreshness(selected)}
