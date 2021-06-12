@@ -7,6 +7,8 @@ const Filter = ({
                     visible,
                     selectedAudioTypes,
                     setSelectedAudioTypes,
+                    selectedFreshness,
+                    setSelectedFreshness,
                     selectedYears,
                     setSelectedYears,
                     selectedAuthors,
@@ -20,9 +22,11 @@ const Filter = ({
     const [authors, setAuthors] = useState([]);
     const [years, setYears] = useState([]);
     const [audioTypes, setAudioTypes] = useState([]);
+    const [freshness, setFreshness] = useState(['Fresh', 'Updated', 'Stale']);
     const [contentTypes, setContentTypes] = useState([]);
     const [filteredYears, setFilteredYears] = useState([]);
     const [filteredAudioTypes, setFilteredAudioTypes] = useState([]);
+    const [filteredFreshness, setFilteredFreshness] = useState([]);
 
     useEffect(() => {
         pushData(setAuthors, ezbeq.getAuthors, setError);
@@ -43,11 +47,17 @@ const Filter = ({
     useEffect(() => {
         pushData(setFilteredYears, () => [...new Set(filteredEntries.map(e => e.year))], setError);
         pushData(setFilteredAudioTypes, () => [...new Set(filteredEntries.map(e => e.audioTypes).flat())], setError);
+        pushData(setFilteredFreshness, () => [...new Set(filteredEntries.map(e => e.freshness).flat())], setError);
     }, [filteredEntries, setError]);
 
     const addSelectedAudioTypes = values => {
         const matches = audioTypes.filter(at => values.some(v => v === at || at.toLowerCase().indexOf(v.toLowerCase()) > -1));
         setSelectedAudioTypes(matches);
+    };
+
+    const addSelectedFreshness = values => {
+        const matches = freshness.filter(at => values.some(v => v === at || at.toLowerCase().indexOf(v.toLowerCase()) > -1));
+        setSelectedFreshness(matches);
     };
 
     const addSelectedYears = values => {
@@ -83,6 +93,13 @@ const Filter = ({
                              onCreateOption={value => addSelectedAudioTypes(value)}
                              onClearOptions={() => setSelectedAudioTypes([])}
                              isInView={v => filteredAudioTypes.length === 0 || filteredAudioTypes.indexOf(v) > -1}/>
+                <MultiSelect items={['Fresh', 'Updated', 'Stale']}
+                             selectedValues={selectedFreshness}
+                             label="Fresh"
+                             onToggleOption={selected => setSelectedFreshness(selected)}
+                             onCreateOption={value => addSelectedFreshness(value)}
+                             onClearOptions={() => setSelectedFreshness([])}
+                             isInView={v => filteredFreshness.length === 0 || filteredFreshness.indexOf(v) > -1}/>
             </>
         )
     } else {

@@ -57,6 +57,7 @@ const App = () => {
     const [selectedYears, setSelectedYears] = useState([]);
     const [selectedAudioTypes, setSelectedAudioTypes] = useState([]);
     const [selectedContentTypes, setSelectedContentTypes] = useState([]);
+    const [selectedFreshness, setSelectedFreshness] = useState([]);
     const [txtFilter, setTxtFilter] = useState('');
     const [showFilters, setShowFilters] = useState(false);
     const [selectedEntryId, setSelectedEntryId] = useState(-1);
@@ -122,8 +123,10 @@ const App = () => {
                 if (!selectedYears.length || selectedYears.indexOf(entry.year) > -1) {
                     if (!selectedAudioTypes.length || entry.audioTypes.some(at => selectedAudioTypes.indexOf(at) > -1)) {
                         if (!selectedContentTypes.length || selectedContentTypes.indexOf(entry.contentType) > -1) {
-                            if (!txtFilter || txtMatch(entry)) {
-                                return true;
+                            if (!selectedFreshness.length || selectedFreshness.indexOf(entry.freshness) > -1) {
+                                if (!txtFilter || txtMatch(entry)) {
+                                    return true;
+                                }
                             }
                         }
                     }
@@ -132,7 +135,7 @@ const App = () => {
             return false;
         }
         pushData(setFilteredEntries, () => entries.filter(isMatch), setErr);
-    }, [entries, selectedAudioTypes, selectedYears, selectedAuthors, selectedContentTypes, txtFilter]);
+    }, [entries, selectedAudioTypes, selectedYears, selectedAuthors, selectedContentTypes, selectedFreshness, txtFilter]);
 
     useEffect(() => {
         const d = getSelectedDevice();
@@ -180,6 +183,8 @@ const App = () => {
                 <Filter visible={showFilters}
                         selectedAudioTypes={selectedAudioTypes}
                         setSelectedAudioTypes={setSelectedAudioTypes}
+                        selectedFreshness={selectedFreshness}
+                        setSelectedFreshness={setSelectedFreshness}
                         selectedYears={selectedYears}
                         setSelectedYears={setSelectedYears}
                         selectedAuthors={selectedAuthors}

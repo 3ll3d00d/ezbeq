@@ -115,7 +115,7 @@
       "https://i.imgur.com/cUkWCE8.png"
     ],
     "warning": "",
-    "mv": "0",
+    "mv": "+3",
     "avs": "https://www.avsforum.com/threads/bass-eq-for-filtered-movies.2995212/post-56869036",
     "sortTitle": "alien resurrection",
     "edition": "",
@@ -135,6 +135,8 @@
     "collection": {
       "id": "8091",
       "name": "Alien Collection"
-    }
+    },
+    "updated_at": 1543898641,
+    "created_at": 1611984156
   }
 ]

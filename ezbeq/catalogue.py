@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import Optional, List
@@ -8,6 +9,8 @@ from typing import Optional, List
 import requests
 
 from ezbeq.config import Config
+
+TWO_WEEKS_AGO_SECONDS = 2 * 7 * 24 * 60 * 60
 
 logger = logging.getLogger('ezbeq.catalogue')
 
@@ -43,6 +46,15 @@ class CatalogueEntry:
         self.rating = vals.get('rating', '')
         self.genres = vals.get('genres', [])
         self.altTitle = vals.get('altTitle', '')
+        self.created_at = vals.get('created_at', 0)
+        self.updated_at = vals.get('updated_at', 0)
+        now = time.time()
+        if self.created_at >= (now - TWO_WEEKS_AGO_SECONDS):
+            self.freshness = 'Fresh'
+        elif self.updated_at >= (now - TWO_WEEKS_AGO_SECONDS):
+            self.freshness = 'Updated'
+        else:
+            self.freshness = 'Stale'
         try:
             r = int(vals.get('runtime', 0))
         except:
@@ -65,6 +77,9 @@ class CatalogueEntry:
             'audioTypes': self.audio_types,
             'contentType': self.content_type,
             'author': self.author,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at,
+            'freshness': self.freshness
         }
         if self.beqc_url:
             self.for_search['beqcUrl'] = self.beqc_url
