@@ -104,9 +104,9 @@ This title does not have input gain settings available, and therefore is grayed 
 ### Main Volume
 
 The main volume (MV) of the MiniDSP can be controlled via ezbeq.
-- 0 is the highest MV can go. Entries can only be negative.
-- 0.5 steps, (example: -0.5, -1.0, -1.5)
-- -127 is the lowest value MiniDSP supports.
+* 0 is the highest MV can go. Entries can only be negative.
+* 0.5 steps, (example: -0.5, -1.0, -1.5)
+* -127 is the lowest value MiniDSP supports.
 
 To change the volume, enter a new value and press the APPLY button. 
 
@@ -115,9 +115,9 @@ To change the volume, enter a new value and press the APPLY button.
 ### Input 1 and Input 2 Gain
 
 The gain on Input 1 and Input 2 may be set separately (and may be different)
-- 12 is the maximum gain supported on the inputs
-- -72 is the minimum gain supported on the inputs
-- 0.25 step values (examples: 1.25, 1.5, -12.5)
+* 12 is the maximum gain supported on the inputs
+* -72 is the minimum gain supported on the inputs
+* 0.25 step values (examples: 1.25, 1.5, -12.5)
 
 To change the gain, enter a new value in Input 1 and/or Input 2 box, and press the APPLY button.
 
