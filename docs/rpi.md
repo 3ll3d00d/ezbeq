@@ -107,6 +107,7 @@ Open a browser window to `http://<ip address of Rpi>:8080`
 ![Figure 12 – Example of selecting a title and uploading to config slot 2](./img/rpi11.png)
 
 7\. If the update is successful, the title will be displayed in the corresponding configuration slot at the top of the page. Otherwise, &quot;ERROR&quot; will be displayed.
+
 ![Figure 13 – Example of successful title load](./img/rpi12.png)
 
 ### Automatically launch ezbeq on boot
