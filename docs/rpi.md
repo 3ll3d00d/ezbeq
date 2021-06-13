@@ -8,10 +8,11 @@ ezbeq and minidsp-rs run on Linux, Windows, or Mac operating systems, but this d
 
 - MiniDSP 2x4HD
 - Raspberry Pi (RPi) – device should be accessible on the network, and already have Raspbian installed and updated. Raspbian Buster is used for this document.
+- TV/Monitor/AVR with HDMI input and keyboard OR SSH connection to the Raspberry Pi
 - USB cable connecting the Raspberry Pi and MiniDSP 2x4HD
 - Internet connection
 - Backup copy of all MiniDSP 2x4HD settings.
-- Static IP configured on the RPi (DHCP can be used, but the IP address of the RPi may change at some point)
+- Static IP or DHCP reservation for the RPi (DHCP can be used, but the IP address of the RPi may change at some point)
 
 NOTE – ezbeq and minidsp-rs will be modifying the INPUT settings of the MiniDSP 2x4HD, but please take appropriate backups.
 
@@ -21,18 +22,20 @@ NOTE – ezbeq and minidsp-rs will be modifying the INPUT settings of the MiniDS
 
 minidsp-rs is a utility, written by mrene on avsforum.com, which allows the system to communicate with the MiniDSP 2x4HD, without using the proprietary minidsp plugin. Pre-compiled binaries are available for most operating systems, and there is an available Debian package.
 
+This document is based on minidsp-rs v0.1.1.
+
 1\. Open a shell on the RPi, or SSH to the RPi.
 
-2\. Download the latest version of minidsp-rs for Arm from [here](https://github.com/mrene/minidsp-rs/releases)
+2\. Download the latest stable version (not a "pre" release) of minidsp-rs for Arm from [here](https://github.com/mrene/minidsp-rs/releases). Use the file URL with the "wget" command below to download the file. The filename will be in the form of "minidsp_version_armhf.deb".
 ``` 
-wget https://github.com/mrene/minidsp-rs/releases/download/v0.0.5/minidsp_0.0.5_armhf.deb
+wget https://github.com/mrene/minidsp-rs/releases/download/<version>/<filename>
 ```
-Note that the filename above is current as of 2/2/2021. Please use the current version.
-![Figure 1 – Example downloading of v0.0.5](./img/rpi01.png)
+
+![Figure 1 – Example downloading of minidsp-rs](./img/rpi01.png)
 
 3\. Install the downloaded .deb file via `sudo apt install </path/to/file>`
 ```
-sudo apt install ./minidsp_0.0.5_armhf.deb
+sudo apt install ./<filename>
 ```
 ![Figure 2 – Example installation of the .deb package](./img/rpi02.png)
 
@@ -44,6 +47,18 @@ sudo apt install ./minidsp_0.0.5_armhf.deb
 6\. If the MiniDSP 2x4HD is not detected, or is not connected, the following error will appear.
 ![Figure 4 – Example of minidsp error message](./img/rpi04.png)
 
+7\. v0.1.0 and greater of minidsp-rs for Debian is automatically configured to run as a daemon (service) and will start automatically after installation and upon bootup. This is a change from the older versions.
+
+8\. IMPORTANT - If you want to use the official MiniDSP plugin for Windows, Mac, iOS, or Android, you will need to edit the configuration file for minidsp-rs to allow it to be accessed from other devices. If you have no desire to do this, you may skip this step and go to the ezbeq installation portion.
+
+Edit the configuration file (/etc/minidsp/config.toml), find the line `bind_address = "127.0.0.1:5333"`, and change it to `bind_address = "0.0.0.0:5333"`. Save the file and restart minidsp-rs. Below is a single command to edit the file. You may also use a text editor like Nano or Pico to do the same thing.
+
+```
+sudo sed -i 's/^bind_address = "127\.0\.0\.1:5333"/bind_address = "0\.0\.0\.0:5333"/' /etc/minidsp/config.toml
+sudo systemctl restart minidsp
+```
+![Figure 5 - Example of sed command](./img/rpi04a.png)
+
 ### Install and verify ezbeq
 
 ezbeq is a web application which uses minisdsp-rs installed earlier to send the BEQ filters to an attached MiniDSP 2x4HD. The following steps walk through installing ezbeq.
@@ -53,7 +68,7 @@ Install the pre-requisite python packages. Raspbian Buster had all but one neede
 ```
 sudo apt install python3 python3-venv python3-pip libyaml-dev
 ```
-![Figure 5 – Example of installing python pre-requisites](./img/rpi05.png)
+![Figure 6 – Example of installing python pre-requisites](./img/rpi05.png)
 
 2\. Setup the python environment by running the follow commands:
 ```
@@ -62,35 +77,37 @@ cd python
 python3 -m venv ezbeq
 cd ezbeq
 ```
-![Figure 6 – Example of preparing environment](./img/rpi06.png)
+![Figure 7 – Example of preparing environment](./img/rpi06.png)
 
 3\. Start the install of the ezbeq application. The required python modules will be installed. Run the following commands:
 ```
 . bin/activate
 pip install ezbeq
 ```  
-![Figure 7 – Example of launching the installer](./img/rpi07.png)
+![Figure 8 – Example of launching the installer](./img/rpi07.png)
 
 The installer will download and install the required modules. This may take quite a while, depending on the speed of your RPi and internet connection. The information below is truncated.
 
-![Figure 8 – Example of successful installation of ezbeq](./img/rpi08.png)
+![Figure 9 – Example of successful installation of ezbeq](./img/rpi08.png)
 
 4\. Launch ezbeq manually, to verify functionality. Type the following:
 ```
     cd bin
     ./ezbeq
 ```
-![Figure 9 – Example of launching ezbeq](./img/rpi09.png)
+![Figure 10 – Example of launching ezbeq](./img/rpi09.png)
 
-5\. ezbeq runs on port 8080 of the RPi by default. On another device connected to the local network, open a web browser and connect to the RPi port 8080. Note that the web server is not encrypted, so the URL must be entered as http, otherwise most current browsers will automatically try to connect using HTTPS (secured) and fail.
+5\. ezbeq runs on port 8080 of the RPi by default. On another device connected to the local network, open a web browser and connect to the RPi port 8080. Note that the web server is not encrypted, so the URL must be entered as http, otherwise most current browsers will automatically try to connect using HTTPS (secured) and fail. If everything is working properly, the page will load, and one of the 4 boxes at the top will be highlighted in gray. This is the "active" configuration slot on the MiniDSP 2x4HD.
+
 Open a browser window to `http://<ip address of Rpi>:8080`
-![Figure 10 – Example of ezbeq interface](./img/rpi10.png)
+![Figure 11 – Example of ezbeq interface](./img/rpi10.png)
 
-6\. To load a BEQ onto the MiniDSP 2x4HD, select a title (search is available in the upper right corner), then click on the &quot;up arrow&quot; on the corresponding config slot to be used.
-![Figure 11 – Example of selecting a title and uploading to config slot 2](./img/rpi11.png)
+6\. To load a BEQ onto the MiniDSP 2x4HD, select a title (search is available in the upper right corner). Then in the lower portion of the screen, select the config slot to upload the BEQ into, and then click the UPLOAD button. To clear a BEQ from a slot, click on the "X" in the corresponding slot.
 
-7\. If the update is successful, the title will be display in the &quot;Loaded&quot; column. Otherwise, &quot;ERROR&quot; will be displayed.
-![Figure 12 – Example of successful title load](./img/rpi12.png)
+![Figure 12 – Example of selecting a title and uploading to config slot 2](./img/rpi11.png)
+
+7\. If the update is successful, the title will be displayed in the corresponding configuration slot at the top of the page. Otherwise, &quot;ERROR&quot; will be displayed.
+![Figure 13 – Example of successful title load](./img/rpi12.png)
 
 ### Automatically launch ezbeq on boot
 
@@ -102,7 +119,7 @@ These steps are optional but are highly recommended. If these steps are not foll
 ```
 sudo nano /etc/systemd/system/ezbeq.service
 ```
-![Figure 13 – Example editing the service file](./img/rpi13.png)
+![Figure 14 – Example editing the service file](./img/rpi13.png)
 
 3\. Add the information below to the file. When complete, save the file and exit. To save, press Ctrl-O, which will prompt for a name of the file, press enter to accept the default, then Ctrl-X to exit the editor.
 
@@ -123,20 +140,20 @@ RestartSec=1
 [Install]
 WantedBy=multi-user.target
 ```
-![Figure 14 – Example service file](./img/rpi14.png)
+![Figure 15 – Example service file](./img/rpi14.png)
 
 4\. Register and start the service. Note that if ezbeq is still running from the earlier steps, it needs to be stopped (Ctrl-C), otherwise the service will not start.
 ```
 sudo systemctl enable ezbeq.service
 sudo service ezbeq start
 ```
-![Figure 15 – Register and start the ezbeq service](./img/rpi15.png)
+![Figure 16 – Register and start the ezbeq service](./img/rpi15.png)
 
 5\. Verify the service started by issuing this command:
 ```
 sudo journalctl -u ezbeq.service
 ```
-![Figure 16 – Log messages showing the service is running](./img/rpi16.png)
+![Figure 17 – Log messages showing the service is running](./img/rpi16.png)
 
 6\. Reboot the RPi, and then check the website again.
 ```
@@ -155,15 +172,17 @@ Updating minidsp-rs is the same process outline in section I above.
 
 Example:
 ```
-wget https://github.com/mrene/minidsp-rs/releases/download/v0.0.5/minidsp_0.0.5_armhf.deb
+wget https://github.com/mrene/minidsp-rs/releases/download/<version>/<filename>
 ```
 
 3\. Install the .deb package using the following command: `sudo apt install ./<filename>`
 
 Example: 
 ```
-sudo apt install ./minidsp_0.0.5_armhf.deb
+sudo apt install ./minidsp_<version>_armhf.deb
 ```
+
+4\. NOTE - If upgrading from a version of minidsp-rs prior to v0.1.0, please visit the beginning of this document to edit the configuration file if you want to access the MiniDSP from the MiniDSP official plugins, as a change was made to the way minidsp-rs operates in server mode.
 
 ### Updating ezbeq
 
@@ -191,64 +210,9 @@ pip install -U ezbeq
 sudo systemctl start ezbeq.service
 ```
 
-## Advanced Configuration Option
+## Using the Official MiniDSP App(s)
 
-minidsp-rs can be run in "server mode", which makes it run all of the time in the background. In this configuration, it allows the proprietary MiniDSP application, the MiniDSP Android/iOS Apps, and ezbeq to all connect to the MiniDSP hardware. It can basically act like a Wi-Dg and provide access to the MiniDSP hardware over the network.
-
-When run in this mode, the ezbeq configuration file must be modified as well. These advanced instructions assume that ezbeq is running as a service, per the earlier sections of the guide.
-
-### Configure minidsp-rs to run as a service
-
-If minidsp-rs was installed using the provided Debian packages found in this guide, two commands needed to be run.
-
-1\. Enable the service.
-```
-sudo systemctl enable minidsp.service
-```
-
-2\. Start the service (which will now also start on server restart).
-```
-sudo systemctl start minidsp.service
-```
-
-3\. minidsp-rs commands must now use the --tcp flag to connect to the already running server instance. To test, execute the following:
-```
-minidsp --tcp 127.0.0.1
-```
-
-This should result in the standard results showing the volume levels and current configuration slot.
-
-### Modify ezbeq configuration for minidsp-rs service
-
-The ezbeq configuration file must be updated to use the --tcp flag as well.
-
-1\. Stop the ezbeq service.
-```
-sudo systemctl stop ezbeq.service
-```
-
-2\. Open the ezbeq configuration file in a text editor (nano is used below, can also use pico, vi, etc).
-```
-nano ~/.ezbeq/ezbeq.yml
-```
-
-3\. Add the following line to the config, and save (To save in nano, press Ctrl-O, which will prompt for a name of the file, press enter to accept the default, then Ctrl-X to exit the editor.)
-```
-minidspOptions: --tcp 127.0.0.1
-```
-
-Please note that there are two dashes before tcp.
-
-4\. Restart the ezbeq service.
-```
-sudo systemctl start ezbeq.service
-```
-
-5\. Connect to the ezbeq web interface and validate functionality.
-
-### Using the Official MiniDSP App(s)
-
-At this point, with minidsp-rs running in server mode, the official MiniDSP plugin (app) can also be used. Assuming it is being run from a different machine, enter the IP address of the minidsp-rs server in the IP field of the application. Note that the automatic detection of the IP does not usually work, so the IP needs to be entered manually.
+When using minidsp-rs v0.1.0 or greater, and step #8 of the minidsp-rs install guide was completed, the official MiniDSP plugin (app) can also be used. Assuming it is being run from a different machine, enter the IP address of the minidsp-rs server in the IP field of the application. Note that the automatic detection of the IP does not usually work, so the IP needs to be entered manually.
 
 The official MiniDSP Android and iOS applications will also work in this manner (manually entering the IP address of the minidsp-rs server instance).
 
