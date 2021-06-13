@@ -183,7 +183,7 @@ class Config:
     def create_minidsp_runner(self, device: dict):
         from plumbum import local
         cmd = local[device['exe']]
-        return cmd[device['options'].split(' ')] if device['options'] else cmd
+        return cmd[device['options'].split(' ')] if device.get('options', None) else cmd
 
     @property
     def version(self):
