@@ -16,7 +16,7 @@ As of 4/22/2021, the installation steps have been simplified greatly. The steps 
 
 minidsp-rs is a utility, written by mrene on avsforum.com, which allows the system to communicate with the MiniDSP 2x4HD, without using the proprietary minidsp plugin. Pre-compiled binaries are available for most operating systems, and there is an available Windows executable.
 
-1\. Open a browser and go to [https://github.com/mrene/minidsp-rs/releases](https://github.com/mrene/minidsp-rs/releases). Download file minidsp.x86_64-pc-windows-msvc.zip, saving it in the Downloads folder of the currently logged in user (this should be the default).
+1\. Open a browser and go to [https://github.com/mrene/minidsp-rs/releases](https://github.com/mrene/minidsp-rs/releases). Download file minidsp.x86_64-pc-windows-msvc.zip, saving it in the Downloads folder of the currently logged in user (this should be the default). Please download v0.1 or greater.
 
 ![minidsp-rs site](./img/win01.png)
 
@@ -110,7 +110,7 @@ Run the installer. When complete, re-launch ezbeq, which should now open a Comma
 
 ![Example of config file](./img/win21.png)
 
-13\. Host will be the name of the system. Change the "minidspExe" line to the location where the minidsp.exe was placed initially. Save the file.
+13\. Host will be the name of the system. Change the "exe:" line to the location where the minidsp.exe was placed initially. Save the file.
 
 NOTE: Ensure that .exe is added to the end as well, or it won't work correctly.
 
@@ -128,7 +128,7 @@ Open a browser window to `http://127.0.0.1:8080`
 
 ![Example of ezbeq interface](./img/win24.png)
 
-16\. Verify that an asterisk (\*) is next to one of the slot numbers (1-4). This indicates that ezbeq was able to read the active config slot from the MiniDSP, and that everything is ready to go.
+16\. Verify that one of the four configuration slots is highlighted (slot 1 in the example above). This indicates that ezbeq was able to read the active config slot from the MiniDSP, and that everything is ready to go. If all four boxes are the same color, then ezbeq is not able to communicate with minidsp-rs, or minidsp-rs cannot communicate with the MiniDSP 2x4HD hardware.
 
 Once ezbeq is installed, it can be run manually from a Command Prompt or Powershell (`C:\Users\<userid>\ezbeq.exe`), double-click on the executable, or continue to the next section to start ezbeq automatically upon system boot.
 
@@ -260,10 +260,10 @@ Now that minidsp-rs is running in server mode, the ezbeq configuration needs to 
 
 ![Example of config file](./img/win38.png)
 
-3\. Add the following line and then Save the file.
+3\. Add the following line and then Save the file. Note there are 4 spaces, then the word "options".
 
 ```
-minidspOptions: --tcp 127.0.0.1
+    options: '--tcp 127.0.0.1:5333'
 ```
 
 NOTE: This configuration assumes that minidsp-rs and ezbeq are running on the same system. If minidsp-rs is running in server mode on a separate device, then enter the IP address of the remote system.
