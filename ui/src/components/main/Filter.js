@@ -1,7 +1,7 @@
 import MultiSelect from "./MultiSelect";
 import React, {useEffect, useState} from "react";
-import {pushData} from "../services/util";
-import ezbeq from "../services/ezbeq";
+import {pushData} from "../../services/util";
+import ezbeq from "../../services/ezbeq";
 
 const Filter = ({
                     visible,

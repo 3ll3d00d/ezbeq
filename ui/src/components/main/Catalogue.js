@@ -61,7 +61,7 @@ const formatTitle = entry => {
     }
 };
 
-const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide}) => {
+const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, showBottomNav}) => {
     const classes = useStyles();
     const catalogueGridColumns = [
         {
@@ -90,9 +90,10 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide}) => {
         }
     ];
     if (entries.length > 0) {
+        const bottomNavHeight = showBottomNav ? 40 : 0;
         const grid =
             <Grid item style={{
-                height: `${Math.max(260, (window.innerHeight - 310) / (selectedEntryId === -1 || useWide ? 1 : 2))}px`,
+                height: `${Math.max(260, (window.innerHeight - 310 - bottomNavHeight) / (selectedEntryId === -1 || useWide ? 1 : 2))}px`,
                 width: '100%'
             }}>
                 <DataGrid rows={entries}

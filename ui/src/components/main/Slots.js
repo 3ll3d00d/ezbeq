@@ -1,6 +1,6 @@
 import {makeStyles} from "@material-ui/core/styles";
 import React, {useEffect, useState} from "react";
-import ezbeq from "../services/ezbeq";
+import ezbeq from "../../services/ezbeq";
 import {CircularProgress, Grid, IconButton, Paper} from "@material-ui/core";
 import ClearIcon from "@material-ui/icons/Clear";
 import Typography from "@material-ui/core/Typography";

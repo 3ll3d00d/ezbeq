@@ -150,6 +150,10 @@ class EzBeqService {
     getDevices = async () => {
         return this.doGet('devices', 2);
     }
+
+    getLevels = async (device) => {
+        return this.doGet(`devices/${device}/levels`);
+    }
 }
 
 export default new EzBeqService();

@@ -101,6 +101,10 @@ class Device(ABC, Generic[T]):
     def update(self, params: dict) -> bool:
         pass
 
+    @abstractmethod
+    def levels(self) -> dict:
+        pass
+
 
 class DeviceRepository:
 
@@ -147,6 +151,9 @@ class DeviceRepository:
 
     def update(self, device_name: str, params: dict) -> bool:
         return self.__get_device(device_name).update(params)
+
+    def levels(self, device_name: str) -> dict:
+        return self.__get_device(device_name).levels()
 
 
 def create_devices(cfg: Config, ws_server: WsServer, catalogue: CatalogueProvider) -> List[Device]:

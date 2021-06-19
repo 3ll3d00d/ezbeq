@@ -39,12 +39,12 @@ def load_filter(catalogue: List[CatalogueEntry], bridge: DeviceRepository, devic
     :return: current state after load, 200 if loaded, 400 if no such entry, 500 if unable to load
     '''
     logger.info(f"Sending {entry_id} to Slot {slot}")
-    match: CatalogueEntry = next((c for c in catalogue if c.idx == entry_id), None)
-    if not match:
+    matching_entry: CatalogueEntry = next((c for c in catalogue if c.idx == entry_id), None)
+    if not matching_entry:
         logger.warning(f"No title with ID {entry_id} in catalogue")
         return {'message': 'Title not found, please refresh.'}, 404
     try:
-        bridge.load_filter(device_name, slot, match)
+        bridge.load_filter(device_name, slot, matching_entry)
         return bridge.state(device_name).serialise(), 200
     except InvalidRequestError as e:
         logger.exception(f"Invalid request {entry_id} to Slot {slot}")
@@ -182,6 +182,24 @@ class Device(Resource):
         if not self.__bridge.update(device_name, payload):
             logger.info(f"PATCH {device_name} was a nop")
         return self.__bridge.state(device_name).serialise()
+
+
+@v1_api.route('/<string:device_name>/levels')
+class DeviceLevels(Resource):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__bridge: DeviceRepository = kwargs['device_bridge']
+
+    def get(self, device_name: str) -> Tuple[dict, int]:
+        try:
+            return self.__bridge.levels(device_name), 200
+        except InvalidRequestError as e:
+            logger.exception(f"Invalid device {device_name}")
+            return {}, 400
+        except Exception as e:
+            logger.exception(f"Failed to get levels for {device_name}")
+            return {}, 500
 
 
 @v1_api.route('/<string:device_name>/config/<string:slot>/active')

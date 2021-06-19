@@ -165,6 +165,10 @@ class JRiver(PersistentDevice[JRiverState]):
     def set_gain(self, slot: Optional[str], channel: Optional[int], gain: float) -> None:
         raise NotImplementedError()
 
+    def levels(self) -> dict:
+        # TODO implement
+        return {}
+
 
 def convert_filter_to_mc_dsp(filt: dict, target_channels: str) -> List[Dict[str, str]]:
     '''

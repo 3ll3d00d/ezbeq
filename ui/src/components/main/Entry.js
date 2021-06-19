@@ -14,7 +14,7 @@ import {
 import Typography from "@material-ui/core/Typography";
 import PublishIcon from "@material-ui/icons/Publish";
 import React, {useEffect, useState} from "react";
-import ezbeq from "../services/ezbeq";
+import ezbeq from "../../services/ezbeq";
 
 const useStyles = makeStyles({
     root: {}

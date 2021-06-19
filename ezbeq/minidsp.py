@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from concurrent.futures.thread import ThreadPoolExecutor
@@ -193,23 +194,15 @@ class Minidsp(PersistentDevice[MinidspState]):
         return result if result else MinidspState(self.name)
 
     def __read_state_from_device(self) -> Optional[MinidspState]:
-        values = {}
         lines = None
         try:
             kwargs = {'retcode': None} if self.__ignore_retcode else {}
-            lines = self.__runner(timeout=self.__cmd_timeout, **kwargs)
-            for line in lines.split('\n'):
-                if line.startswith('MasterStatus'):
-                    idx = line.find('{ ')
-                    if idx > -1:
-                        vals = line[idx + 2:-2].split(', ')
-                        for v in vals:
-                            if v.startswith('preset: '):
-                                values['active_slot'] = str(int(v[8:]) + 1)
-                            elif v.startswith('mute: '):
-                                values['mute'] = v[6:] == 'true'
-                            elif v.startswith('volume: Gain('):
-                                values['mv'] = float(v[13:-1])
+            status = json.loads(self.__runner['-o', 'jsonline'](timeout=self.__cmd_timeout, **kwargs))
+            values = {
+                'active_slot': status['master']['preset'],
+                'mute': status['master']['mute'],
+                'mv': status['master']['volume']
+            }
             return MinidspState(self.name, **values)
         except:
             logger.exception(f"Unable to parse device state {lines}")
@@ -375,6 +368,23 @@ class Minidsp(PersistentDevice[MinidspState]):
             self.activate(current_slot.slot_id)
             any_update = True
         return any_update
+
+    def levels(self) -> dict:
+        return self.__executor.submit(self.__read_levels_from_device).result(timeout=self.__cmd_timeout)
+
+    def __read_levels_from_device(self) -> dict:
+        lines = None
+        try:
+            kwargs = {'retcode': None} if self.__ignore_retcode else {}
+            lines = self.__runner['-o', 'jsonline'](timeout=self.__cmd_timeout, **kwargs)
+            levels = json.loads(lines)
+            return {
+                'input': levels['input_levels'],
+                'output': levels['output_levels']
+            }
+        except:
+            logger.exception(f"Unable to load levels {lines}")
+            return {}
 
 
 class MinidspBeqCommandGenerator:

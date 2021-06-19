@@ -123,6 +123,10 @@ class Htp1(PersistentDevice[Htp1State]):
     def set_gain(self, slot: Optional[str], channel: Optional[int], gain: float) -> None:
         raise NotImplementedError()
 
+    def levels(self) -> dict:
+        # TODO implement
+        return {}
+
     def on_mso(self, mso: dict):
         logger.info(f"Received {mso}")
         version = mso['versions']['swVer']
