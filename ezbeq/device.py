@@ -243,3 +243,7 @@ class PersistentDevice(Device, ABC, Generic[T]):
         finally:
             self._persist()
             self._broadcast()
+
+    @property
+    def ws_server(self) -> WsServer:
+        return self.__ws_server

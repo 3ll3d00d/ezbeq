@@ -180,6 +180,7 @@ class Minidsp(PersistentDevice[MinidspState]):
         self.__ignore_retcode = cfg.get('ignoreRetcode', False)
         self.__runner = cfg['make_runner']()
         self.__client = MinidspRsClient(self) if cfg.get('useWs', False) else None
+        ws_server.factory.set_levels_provider(name, self.start_broadcast_levels)
 
     @property
     def device_type(self) -> str:
@@ -197,9 +198,10 @@ class Minidsp(PersistentDevice[MinidspState]):
         lines = None
         try:
             kwargs = {'retcode': None} if self.__ignore_retcode else {}
-            status = json.loads(self.__runner['-o', 'jsonline'](timeout=self.__cmd_timeout, **kwargs))
+            output = self.__runner['-o', 'jsonline'](timeout=self.__cmd_timeout, **kwargs)
+            status = json.loads(output)
             values = {
-                'active_slot': status['master']['preset'],
+                'active_slot': str(status['master']['preset'] + 1),
                 'mute': status['master']['mute'],
                 'mv': status['master']['volume']
             }
@@ -376,15 +378,31 @@ class Minidsp(PersistentDevice[MinidspState]):
         lines = None
         try:
             kwargs = {'retcode': None} if self.__ignore_retcode else {}
+            start = time.time()
             lines = self.__runner['-o', 'jsonline'](timeout=self.__cmd_timeout, **kwargs)
+            end = time.time()
             levels = json.loads(lines)
+            ts = time.time()
+            logger.info(f"readlevels,{ts},{to_millis(start, end)}")
             return {
+                'ts': ts,
                 'input': levels['input_levels'],
                 'output': levels['output_levels']
             }
         except:
             logger.exception(f"Unable to load levels {lines}")
             return {}
+
+    def start_broadcast_levels(self) -> None:
+        from twisted.internet import reactor
+        sched = lambda: reactor.callLater(0.1, __send)
+
+        def __send():
+            msg = json.dumps(self.levels())
+            if self.ws_server.levels(self.name, msg):
+                sched()
+
+        sched()
 
 
 class MinidspBeqCommandGenerator:

@@ -64,9 +64,10 @@ class MinidspSpy:
 
     def __make_status(self) -> str:
         mute_str = f"{self.__mute}".lower()
-        return f'MasterStatus {{ preset: {self.__slot - 1}, source: Usb, volume: Gain({self.__gain:.1f}), mute: {mute_str} }}\n' \
-               'Input levels: -131.5, -131.5\n' \
-               'Output levels: -131.5, -131.5, -120.0, -131.5'
+        return '{"master":{"preset":' + str(self.__slot - 1) + \
+               ',"source":"Usb","volume":' + f"{self.__gain:.1f}" + \
+               ',"mute":' + mute_str + \
+               '},"input_levels":[-15.814797,-15.652734],"output_levels":[-120.0,-15.861839,-15.661137,-15.661137]}'
 
     def take_commands(self):
         cmds = self.commands
@@ -74,8 +75,11 @@ class MinidspSpy:
         return cmds
 
     def __getitem__(self, item):
-        self.pending.append(item)
-        return self
+        if item == ('-o', 'jsonline'):
+            return self
+        else:
+            self.pending.append(item)
+            return self
 
     def __call__(self, *args, **kwargs):
         if self.pending:
