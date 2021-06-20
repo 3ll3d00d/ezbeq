@@ -178,6 +178,7 @@ class Minidsp(PersistentDevice[MinidspState]):
         self.__executor = ThreadPoolExecutor(max_workers=1)
         self.__cmd_timeout = cfg.get('cmdTimeout', 10)
         self.__ignore_retcode = cfg.get('ignoreRetcode', False)
+        self.__levels_interval = 1.0 / float(cfg.get('levelsFps', 10))
         self.__runner = cfg['make_runner']()
         self.__client = MinidspRsClient(self) if cfg.get('useWs', False) else None
         ws_server.factory.set_levels_provider(name, self.start_broadcast_levels)
@@ -395,7 +396,7 @@ class Minidsp(PersistentDevice[MinidspState]):
 
     def start_broadcast_levels(self) -> None:
         from twisted.internet import reactor
-        sched = lambda: reactor.callLater(0.1, __send)
+        sched = lambda: reactor.callLater(self.__levels_interval, __send)
 
         def __send():
             msg = json.dumps(self.levels())
