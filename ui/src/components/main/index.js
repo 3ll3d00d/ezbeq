@@ -1,7 +1,7 @@
 import Header from "../Header";
 import Filter from "./Filter";
 import {Grid} from "@material-ui/core";
-import React, {useCallback, useEffect, useState} from "react";
+import React, {useEffect, useState} from "react";
 import {pushData} from "../../services/util";
 import useMediaQuery from "@material-ui/core/useMediaQuery";
 import Slots from "./Slots";
@@ -16,7 +16,10 @@ const MainView = ({
                       replaceDevice,
                       selectedDeviceName,
                       setSelectedDeviceName,
-                      showBottomNav
+                      showBottomNav,
+                      selectedSlotId,
+                      setSelectedSlotId,
+                      getSelectedDevice
                   }) => {
     const [selectedAuthors, setSelectedAuthors] = useState([]);
     const [selectedYears, setSelectedYears] = useState([]);
@@ -26,7 +29,6 @@ const MainView = ({
     const [txtFilter, setTxtFilter] = useState('');
     const [showFilters, setShowFilters] = useState(false);
     const [selectedEntryId, setSelectedEntryId] = useState(-1);
-    const [selectedSlotId, setSelectedSlotId] = useState(null);
     const [userDriven, setUserDriven] = useState(false);
     const [filteredEntries, setFilteredEntries] = useState([]);
 
@@ -42,24 +44,6 @@ const MainView = ({
             }
         }
     }, [availableDevices, selectedDeviceName, setSelectedDeviceName]);
-
-    const getSelectedDevice = useCallback(() => {
-            if (selectedDeviceName && availableDevices.hasOwnProperty(selectedDeviceName)) {
-                return availableDevices[selectedDeviceName];
-            }
-            return {};
-        }, [selectedDeviceName, availableDevices]
-    );
-
-    useEffect(() => {
-        const d = getSelectedDevice();
-        if (d && d.hasOwnProperty('slots')) {
-            const slot = d.slots.find(s => s.active === true);
-            if (slot) {
-                setSelectedSlotId(slot.id);
-            }
-        }
-    }, [getSelectedDevice, selectedDeviceName, availableDevices]);
 
     useEffect(() => {
         const txtMatch = e => {

@@ -98,6 +98,9 @@ class Htp1(PersistentDevice[Htp1State]):
             self._current_state.slot.active = True
         self._hydrate_cache_broadcast(__do_it)
 
+    def load_biquads(self, slot: str, overwrite: bool, inputs: List[int], outputs: List[int], biquads: List[dict]) -> None:
+        raise NotImplementedError()
+
     def load_filter(self, slot: str, entry: CatalogueEntry) -> None:
         to_load = [PEQ(idx, fc=f['freq'], q=f['q'], gain=f['gain'], filter_type_name=f['type'])
                    for idx, f in enumerate(entry.filters)]

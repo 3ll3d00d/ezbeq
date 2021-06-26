@@ -27,6 +27,51 @@ def delete_filter(bridge: DeviceRepository, device_name: str, slot: str):
         return bridge.state(device_name).serialise(), 500
 
 
+def load_biquads(bridge: DeviceRepository, device_name: str, slot: str, overwrite: bool, inputs: List[int],
+                 outputs: List[int], biquads: str):
+    '''
+    Attempts to load the provided biquads into the device. Expects minidsp format only.
+    :param bridge:
+    :param device_name:
+    :param slot:
+    :param overwrite:
+    :param inputs:
+    :param outputs:
+    :param biquads:
+    :return:
+    '''
+    bqs: List[dict] = []
+    tmp = {}
+
+    def append():
+        if tmp:
+            keys = list(tmp.keys())
+            if 'b0' in keys and 'b1' in keys and 'b2' in keys and 'a1' in keys and 'a2' in keys:
+                bqs.append(tmp)
+            else:
+                raise InvalidRequestError()
+
+    for line in biquads.splitlines():
+        if line:
+            if line.startswith('biquad'):
+                append()
+                tmp = {}
+            else:
+                tokens = line.split('=')
+                tmp[tokens[0]] = tokens[1][:-1] if tokens[1][-1] == ',' else tokens[1]
+    if tmp:
+        append()
+    try:
+        bridge.load_biquads(device_name, slot, overwrite, inputs, outputs, bqs)
+        return bridge.state(device_name).serialise(), 200
+    except InvalidRequestError as e:
+        logger.exception(f"Invalid biquad request to {device_name} {slot}")
+        return bridge.state(device_name).serialise(), 400
+    except Exception as e:
+        logger.exception(f"Failed to write biquads to {device_name} {slot}")
+        return bridge.state(device_name).serialise(), 500
+
+
 def load_filter(catalogue: List[CatalogueEntry], bridge: DeviceRepository, device_name: str,
                 slot: str, entry_id: str) -> Tuple[dict, int]:
     '''
@@ -265,6 +310,35 @@ class Mute(Resource):
 
     def delete(self, device_name: str, slot: Optional[str] = None, channel: Optional[int] = None) -> Tuple[dict, int]:
         return mute_device(self.__bridge, device_name, slot, False, channel)
+
+
+biquad_model = v1_api.model('Biquad', {
+    'overwrite': fields.Boolean,
+    'slot': fields.String,
+    'inputs': fields.List(fields.Integer),
+    'outputs': fields.List(fields.Integer),
+    'biquads': fields.String
+})
+
+
+@v1_api.route('/<string:device_name>/biquads')
+@v1_api.doc(params={
+    'device_name': 'The dsp device name',
+})
+class LoadBiquads(Resource):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__bridge: DeviceRepository = kwargs['device_bridge']
+
+    @v1_api.expect(biquad_model, validate=True)
+    def put(self, device_name: str) -> Tuple[dict, int]:
+        overwrite = request.get_json()['overwrite']
+        slot = request.get_json()['slot']
+        inputs = request.get_json()['inputs']
+        outputs = request.get_json()['outputs']
+        biquads = request.get_json()['biquads']
+        return load_biquads(self.__bridge, device_name, str(slot), overwrite, inputs, outputs, biquads)
 
 
 filter_model = v1_api.model('Filter', {

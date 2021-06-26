@@ -81,6 +81,27 @@ class EzBeqService {
         }
     }
 
+    sendBiquads = async (device, slot, inputs, outputs, biquads, overwrite) => {
+        const response = await fetch(`${API_PREFIX}/1/devices/${device}/biquads`, {
+            method: 'PUT',
+            body: JSON.stringify({
+                overwrite,
+                slot: `${slot}`,
+                inputs,
+                outputs,
+                biquads
+            }),
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+        });
+        if (!response.ok) {
+            throw new Error(`EzBeq.sendBiquads failed, HTTP status ${response.status}`);
+        }
+        return response.json();
+    };
+
     clearSlot = async (device, slot) => {
         const response = await fetch(`${API_PREFIX}/1/devices/${device}/filter/${slot}`, {
             method: 'DELETE'

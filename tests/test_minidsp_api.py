@@ -188,7 +188,8 @@ def test_set_input_gain(minidsp_client, minidsp_app, slot, gain, is_valid):
     config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
     assert isinstance(config, MinidspSpyConfig)
     payload = {'gain': gain}
-    r = minidsp_client.put(f"/api/1/devices/master/gain/{slot}", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.put(f"/api/1/devices/master/gain/{slot}", data=json.dumps(payload),
+                           content_type='application/json')
     verify_set_input_gain(config, gain, is_valid, r, slot)
 
 
@@ -236,7 +237,8 @@ def test_set_input_gain_single_input(minidsp_client, minidsp_app, slot, channel,
     config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
     assert isinstance(config, MinidspSpyConfig)
     payload = {'gain': gain}
-    r = minidsp_client.put(f"/api/1/devices/master/gain/{slot}/{channel}", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.put(f"/api/1/devices/master/gain/{slot}/{channel}", data=json.dumps(payload),
+                           content_type='application/json')
     verify_set_input_gain_single_input(channel, config, gain, is_valid, r, slot)
 
 
@@ -425,10 +427,10 @@ def test_legacy_multiple_updates_in_one_payload(minidsp_client, minidsp_app, slo
     # and: device state is accurate
     slots = verify_master_device_state(r.json, gain=-10.2)
     for idx, s in enumerate(slots):
-        if idx+1 == slot:
-            verify_slot(s, idx+1, active=True, gain=(5.10, 6.10))
+        if idx + 1 == slot:
+            verify_slot(s, idx + 1, active=True, gain=(5.10, 6.10))
         else:
-            verify_slot(s, idx+1)
+            verify_slot(s, idx + 1)
 
 
 def test_legacy_load_unknown_entry(minidsp_client, minidsp_app):
@@ -730,10 +732,10 @@ def test_patch_multiple_fields(minidsp_client, minidsp_app):
     # and: device state is accurate
     slots = verify_master_device_state(r.json, mute=True, gain=-10.2)
     for idx, s in enumerate(slots):
-        if idx+1 == 2:
-            verify_slot(s, idx+1, active=True, gain=(5.10, 6.10))
+        if idx + 1 == 2:
+            verify_slot(s, idx + 1, active=True, gain=(5.10, 6.10))
         else:
-            verify_slot(s, idx+1)
+            verify_slot(s, idx + 1)
 
 
 def test_patch_multiple_slots(minidsp_client, minidsp_app):
@@ -808,11 +810,11 @@ gain -- -10.20"""
     slots = verify_master_device_state(r.json, gain=-10.2)
     for idx, s in enumerate(slots):
         if idx == 1:
-            verify_slot(s, idx+1, gain=(5.10, 6.10))
+            verify_slot(s, idx + 1, gain=(5.10, 6.10))
         elif idx == 2:
-            verify_slot(s, idx+1, active=True, gain=(-1.1, -1.1), last='Alien Resurrection')
+            verify_slot(s, idx + 1, active=True, gain=(-1.1, -1.1), last='Alien Resurrection')
         else:
-            verify_slot(s, idx+1)
+            verify_slot(s, idx + 1)
 
 
 def test_reload_from_cache(minidsp_client, tmp_path):
@@ -833,7 +835,186 @@ def test_reload_from_cache(minidsp_client, tmp_path):
     slots = verify_master_device_state(r.json)
     for idx, s in enumerate(slots):
         if idx == 1:
-            verify_slot(s, idx+1, active=True, gain=(4.8, 0.0), mute=(True, True), last='Testing')
+            verify_slot(s, idx + 1, active=True, gain=(4.8, 0.0), mute=(True, True), last='Testing')
         else:
-            verify_slot(s, idx+1)
+            verify_slot(s, idx + 1)
 
+
+@pytest.mark.parametrize("outputs",
+                         [[], [1], [2], [3], [4], [1, 2], [1, 3], [1, 4], [2, 3], [2, 4], [3, 4], [1, 2, 3], [1, 2, 4],
+                          [1, 3, 4], [2, 3, 4], [1, 2, 3, 4]], ids=str)
+@pytest.mark.parametrize("inputs", [[], [1], [2], [1, 2]], ids=str)
+@pytest.mark.parametrize("slot,is_valid", [(0, False), (1, True), (2, True), (3, True), (4, True), (5, False)])
+def test_load_custom_biquads(minidsp_client, minidsp_app, slot, is_valid, inputs, outputs):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+    # when: load biquads
+    biquads = """
+biquad1,
+b0=1.0002465879245352,
+b1=-1.9989127232747768,
+b2=0.9986691478494831,
+a1=1.9989135168404932,
+a2=-0.998914942208302,
+biquad2,
+b0=1.0002465879245352,
+b1=-1.9989127232747768,
+b2=0.9986691478494831,
+a1=1.9989135168404932,
+a2=-0.998914942208302,
+biquad3,
+b0=1.0002465879245352,
+b1=-1.9989127232747768,
+b2=0.9986691478494831,
+a1=1.9989135168404932,
+a2=-0.998914942208302,
+biquad4,
+b0=1.0002465879245352,
+b1=-1.9989127232747768,
+b2=0.9986691478494831,
+a1=1.9989135168404932,
+a2=-0.998914942208302,
+biquad5,
+b0=1.0002465879245352,
+b1=-1.9989127232747768,
+b2=0.9986691478494831,
+a1=1.9989135168404932,
+a2=-0.998914942208302,
+biquad6,
+b0=1.0005426820797225,
+b1=-1.9979198828450513,
+b2=0.9973892456913641,
+a1=1.9979233065003874,
+a2=-0.9979285041157505,
+biquad7,
+b0=1.0005426820797225,
+b1=-1.9979198828450513,
+b2=0.9973892456913641,
+a1=1.9979233065003874,
+a2=-0.9979285041157505,
+biquad8,
+b0=1.0008712609026622,
+b1=-1.996065923472451,
+b2=0.9952168257035099,
+a1=1.996065923472451,
+a2=-0.9960880866061722,
+biquad9,
+b0=1.0,
+b1=0.0,
+b2=0.0,
+a1=-0.0,
+a2=-0.0,
+biquad10,
+b0=1.0,
+b1=0.0,
+b2=0.0,
+a1=-0.0,
+a2=-0.0"""
+    payload = {
+        'overwrite': False,
+        'inputs': inputs,
+        'outputs': outputs,
+        'slot': slot,
+        'biquads': biquads
+    }
+    r = minidsp_client.put(f"/api/1/devices/master/biquads", data=json.dumps(payload), content_type='application/json')
+    if is_valid:
+        assert r.status_code == 200
+        single_channel_cmds = [
+            'peq 0 set -- 1.0002465879245352 -1.9989127232747768 0.9986691478494831 1.9989135168404932 -0.998914942208302',
+            'peq 0 bypass off',
+            'peq 1 set -- 1.0002465879245352 -1.9989127232747768 0.9986691478494831 1.9989135168404932 -0.998914942208302',
+            'peq 1 bypass off',
+            'peq 2 set -- 1.0002465879245352 -1.9989127232747768 0.9986691478494831 1.9989135168404932 -0.998914942208302',
+            'peq 2 bypass off',
+            'peq 3 set -- 1.0002465879245352 -1.9989127232747768 0.9986691478494831 1.9989135168404932 -0.998914942208302',
+            'peq 3 bypass off',
+            'peq 4 set -- 1.0002465879245352 -1.9989127232747768 0.9986691478494831 1.9989135168404932 -0.998914942208302',
+            'peq 4 bypass off',
+            'peq 5 set -- 1.0005426820797225 -1.9979198828450513 0.9973892456913641 1.9979233065003874 -0.9979285041157505',
+            'peq 5 bypass off',
+            'peq 6 set -- 1.0005426820797225 -1.9979198828450513 0.9973892456913641 1.9979233065003874 -0.9979285041157505',
+            'peq 6 bypass off',
+            'peq 7 set -- 1.0008712609026622 -1.996065923472451 0.9952168257035099 1.996065923472451 -0.9960880866061722',
+            'peq 7 bypass off',
+            'peq 8 set -- 1.0 0.0 0.0 -0.0 -0.0',
+            'peq 8 bypass off',
+            'peq 9 set -- 1.0 0.0 0.0 -0.0 -0.0',
+            'peq 9 bypass off'
+        ]
+
+        def expand(prefix, channels):
+            return [f"{prefix} {c - 1} {l}" for c in channels for l in single_channel_cmds]
+
+        expected_commands = []
+        if inputs:
+            expected_commands += expand('input', inputs)
+        if outputs:
+            expected_commands += expand('output', outputs)
+
+        total_channel_count = len(inputs) + len(outputs)
+        # then: expected commands are sent
+        cmds = verify_cmd_count(config.spy, slot, 20 * total_channel_count)
+        assert cmds == expected_commands
+
+        # and: device state is accurate
+        slots = verify_master_device_state(r.json)
+        for idx, s in enumerate(slots):
+            if idx == slot - 1:
+                if inputs:
+                    verify_slot(s, idx + 1, active=True, last='CUSTOM')
+                else:
+                    verify_slot(s, idx + 1, active=True)
+            else:
+                verify_slot(s, idx + 1)
+    else:
+        assert r.status_code == 400
+
+
+def test_load_single_biquad(minidsp_client, minidsp_app):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+    # when: load biquads
+    biquads = """
+biquad1,
+b0=1.0002465879245352,
+b1=-1.9989127232747768,
+b2=0.9986691478494831,
+a1=1.9989135168404932,
+a2=-0.998914942208302,
+"""
+    payload = {
+        'overwrite': True,
+        'inputs': [],
+        'outputs': [1],
+        'slot': 1,
+        'biquads': biquads
+    }
+    r = minidsp_client.put(f"/api/1/devices/master/biquads", data=json.dumps(payload), content_type='application/json')
+    assert r.status_code == 200
+    single_channel_cmds = [
+        'peq 0 set -- 1.0002465879245352 -1.9989127232747768 0.9986691478494831 1.9989135168404932 -0.998914942208302',
+        'peq 0 bypass off',
+        'peq 1 bypass on',
+        'peq 2 bypass on',
+        'peq 3 bypass on',
+        'peq 4 bypass on',
+        'peq 5 bypass on',
+        'peq 6 bypass on',
+        'peq 7 bypass on',
+        'peq 8 bypass on',
+        'peq 9 bypass on'
+    ]
+
+    expected_commands = [f"output 0 {l}" for l in single_channel_cmds]
+    # then: expected commands are sent
+    cmds = verify_cmd_count(config.spy, 1, 11)
+    assert cmds == expected_commands
+
+    # and: device state is accurate
+    slots = verify_master_device_state(r.json)
+    for idx, s in enumerate(slots):
+        if idx == 0:
+            verify_slot(s, idx + 1, active=True)
+        else:
+            verify_slot(s, idx + 1)
