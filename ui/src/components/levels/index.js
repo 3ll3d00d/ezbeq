@@ -4,6 +4,7 @@ import React, {useCallback, useEffect, useRef, useState} from "react";
 import Chart from "./Chart";
 import {FormControlLabel, Switch, useTheme} from "@material-ui/core";
 import {debounce} from "lodash/function";
+import {useLocalStorage} from "../../services/util";
 
 const trimToDuration = (data, duration) => {
     const time = data.payload[0];
@@ -22,10 +23,10 @@ const NO_DATA_ERROR = new Error("No data in levels update");
 
 const Levels = ({availableDevices, selectedDeviceName, setSelectedDeviceName, setErr}) => {
     const [recording, setRecording] = useState(true);
-    const [duration, setDuration] = useState(60);
-    const [direct, setDirect] = useState(false);
+    const [duration, setDuration] = useLocalStorage('chartDuration', 60);
+    const [direct, setDirect] = useLocalStorage('chartDirect', false);
     const [activeDuration, setActiveDuration] = useState(60);
-    const [minidspRs, setMinidspRs] = useState({host: window.location.hostname, device: 0, port: 5380});
+    const [minidspRs, setMinidspRs] = useLocalStorage('chartMinidspRs', {host: window.location.hostname, device: 0, port: 5380});
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [payload, setPayload] = useState(null);
     const [data, setData] = useState({

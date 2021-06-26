@@ -18,6 +18,7 @@ import {
 } from "@material-ui/core";
 import PublishIcon from "@material-ui/icons/Publish";
 import ezbeq from "../../services/ezbeq";
+import {useLocalStorage} from "../../services/util";
 
 const useStyles = makeStyles((theme) => ({
     formControl: {
@@ -94,8 +95,8 @@ const SelectableSlots = ({name, values, availableValues, onChange}) => {
 
 const Minidsp = ({availableDevices, setSelectedDeviceName, selectedDeviceName, selectedSlotId, setErr}) => {
     const classes = useStyles();
-    const [inputs, setInputs] = useState([]);
-    const [outputs, setOutputs] = useState([1, 2, 3, 4]);
+    const [inputs, setInputs] = useLocalStorage('minidspInputs', []);
+    const [outputs, setOutputs] = useLocalStorage('minidspOutputs', [1, 2, 3, 4]);
     const [config, setConfig] = useState(selectedSlotId);
     const [biquads, setBiquads] = useState('');
     const [overwrite, setOverwrite] = useState(true);
