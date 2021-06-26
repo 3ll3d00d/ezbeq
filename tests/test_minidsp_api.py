@@ -914,7 +914,7 @@ a2=-0.0"""
         'overwrite': False,
         'inputs': inputs,
         'outputs': outputs,
-        'slot': slot,
+        'slot': str(slot),
         'biquads': biquads
     }
     r = minidsp_client.put(f"/api/1/devices/master/biquads", data=json.dumps(payload), content_type='application/json')
@@ -987,7 +987,7 @@ a2=-0.998914942208302,
         'overwrite': True,
         'inputs': [],
         'outputs': [1],
-        'slot': 1,
+        'slot': '1',
         'biquads': biquads
     }
     r = minidsp_client.put(f"/api/1/devices/master/biquads", data=json.dumps(payload), content_type='application/json')
