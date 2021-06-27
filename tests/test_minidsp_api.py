@@ -1020,15 +1020,17 @@ a2=-0.998914942208302,
             verify_slot(s, idx + 1)
 
 
-def test_get_by_digest(minidsp_client, minidsp_app):
-    r = minidsp_client.get(f"/api/1/catalogue/abcdefghijklm")
+@pytest.mark.parametrize('endpoint', ['details', 'filters'])
+def test_get_by_digest(minidsp_client, minidsp_app, endpoint):
+    r = minidsp_client.get(f"/api/1/catalogue/abcdefghijklm/{endpoint}")
     assert r.status_code == 200
     entry = r.json
     assert entry
-    assert entry['id'] == '123456_0'
+    assert entry['digest'] == 'abcdefghijklm'
     assert entry['title'] == 'Alien Resurrection'
 
 
-def test_get_by_digest_404(minidsp_client, minidsp_app):
-    r = minidsp_client.get(f"/api/1/catalogue/abcdefghijkl")
+@pytest.mark.parametrize('endpoint', ['details', 'filters'])
+def test_get_by_digest_404(minidsp_client, minidsp_app, endpoint):
+    r = minidsp_client.get(f"/api/1/catalogue/abcdefghijkl/{endpoint}")
     assert r.status_code == 404

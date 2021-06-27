@@ -41,7 +41,7 @@ class FilterLoad(Resource):
         entry = self.__provider.find(entry_id, False)
         if entry:
             return {
-                'id': entry.digest,
+                'digest': entry.digest,
                 'title': entry.formatted_title,
                 'year': entry.year,
                 'filters': [{k: v for k, v in f.items() if k != 'biquads'} for f in entry.filters],
