@@ -1018,3 +1018,17 @@ a2=-0.998914942208302,
             verify_slot(s, idx + 1, active=True)
         else:
             verify_slot(s, idx + 1)
+
+
+def test_get_by_digest(minidsp_client, minidsp_app):
+    r = minidsp_client.get(f"/api/1/catalogue/abcdefghijklm")
+    assert r.status_code == 200
+    entry = r.json
+    assert entry
+    assert entry['id'] == '123456_0'
+    assert entry['title'] == 'Alien Resurrection'
+
+
+def test_get_by_digest_404(minidsp_client, minidsp_app):
+    r = minidsp_client.get(f"/api/1/catalogue/abcdefghijkl")
+    assert r.status_code == 404

@@ -1,12 +1,12 @@
 import json
 import logging
 import os
-import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import Optional, List
 
 import requests
+import time
 
 from ezbeq.config import Config
 
@@ -48,6 +48,7 @@ class CatalogueEntry:
         self.altTitle = vals.get('altTitle', '')
         self.created_at = vals.get('created_at', 0)
         self.updated_at = vals.get('updated_at', 0)
+        self.digest = vals.get('digest', '')
         now = time.time()
         if self.created_at >= (now - TWO_WEEKS_AGO_SECONDS):
             self.freshness = 'Fresh'
@@ -79,7 +80,8 @@ class CatalogueEntry:
             'author': self.author,
             'created_at': self.created_at,
             'updated_at': self.updated_at,
-            'freshness': self.freshness
+            'freshness': self.freshness,
+            'digest': self.digest
         }
         if self.beqc_url:
             self.for_search['beqcUrl'] = self.beqc_url
@@ -115,14 +117,12 @@ class CatalogueEntry:
             self.for_search['genres'] = self.genres
         if self.altTitle:
             self.for_search['altTitle'] = self.altTitle
-        self.short_search = {
-            'id': self.idx,
-            'title': self.title,
-            'year': self.year,
-            'contentType': self.content_type
-        }
+        if self.note:
+            self.for_search['note'] = self.note
+        if self.warning:
+            self.for_search['warning'] = self.warning
 
-    def matches(self, authors, years, audio_types, content_types):
+    def matches(self, authors: List[str], years: List[int], audio_types: List[str], content_types: List[str]):
         if not authors or self.author in authors:
             if not years or self.year in years:
                 if not audio_types or any(a_t in audio_types for a_t in self.audio_types):
@@ -157,7 +157,7 @@ class CatalogueEntry:
                         last_value = int(ep)
                     else:
                         current = int(ep)
-                        if  last_value == current - 1:
+                        if last_value == current - 1:
                             working.append(ep)
                             last_value = current
                         else:
@@ -189,12 +189,17 @@ class CatalogueProvider:
         self.__catalogue = []
         self.__executor.submit(self.__reload).result(timeout=60)
 
-    def find(self, entry_id: str) -> Optional[CatalogueEntry]:
-        return next((c for c in self.catalogue if c.idx == entry_id), None)
+    def find(self, entry_id: str, match_on_idx: bool = True) -> Optional[CatalogueEntry]:
+        if match_on_idx:
+            m = lambda ce: ce.idx == entry_id
+        else:
+            m = lambda ce: ce.digest == entry_id
+        return next((c for c in self.catalogue if m(c)), None)
 
     def __reload(self):
         logger.info('Reloading catalogue')
-        downloader = DatabaseDownloader(self.__config.beqcatalogue_url, self.__catalogue_file, self.__catalogue_version_file)
+        downloader = DatabaseDownloader(self.__config.beqcatalogue_url, self.__catalogue_file,
+                                        self.__catalogue_version_file)
         reload_required = downloader.run()
         if reload_required or not self.__catalogue:
             if os.path.exists(self.__catalogue_file):

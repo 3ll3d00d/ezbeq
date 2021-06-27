@@ -6,7 +6,7 @@ from ezbeq.catalogue import CatalogueProvider
 
 logger = logging.getLogger('ezbeq.catalogue')
 
-api = Namespace('1/search', description='Provides abilty to search the beq catalogue')
+api = Namespace('1/search', description='Provides ability to search the beq catalogue')
 
 
 @api.route('')
@@ -17,11 +17,16 @@ class CatalogueSearch(Resource):
         self.__provider: CatalogueProvider = kwargs['catalogue']
         self.__parser = reqparse.RequestParser()
         self.__parser.add_argument('authors', action='append')
-        self.__parser.add_argument('years', action='append')
+        self.__parser.add_argument('years', type=int, action='append')
         self.__parser.add_argument('audiotypes', action='append')
         self.__parser.add_argument('contenttypes', action='append')
         self.__parser.add_argument('fields', action='append')
 
+    @api.param('authors', 'The author of the BEQ filter, if multiple values provided any match will be returned')
+    @api.param('years', 'The production year of the entry, if multiple values provided any match will be returned')
+    @api.param('audiotypes', 'The audio type of the entry, if multiple values provided any match will be returned')
+    @api.param('authors', 'The content type of the entry, if multiple values provided any match will be returned')
+    @api.param('fields', 'The entry fields to return in the output')
     def get(self):
         catalogue = self.__provider.catalogue
         args = self.__parser.parse_args()
