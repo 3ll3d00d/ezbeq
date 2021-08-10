@@ -196,11 +196,11 @@ class Minidsp(PersistentDevice[MinidspState]):
         return result if result else MinidspState(self.name)
 
     def __read_state_from_device(self) -> Optional[MinidspState]:
-        lines = None
+        output = None
         try:
             kwargs = {'retcode': None} if self.__ignore_retcode else {}
             output = self.__runner['-o', 'jsonline'](timeout=self.__cmd_timeout, **kwargs)
-            status = json.loads(output)
+            status = json.loads(output.splitlines()[0])
             values = {
                 'active_slot': str(status['master']['preset'] + 1),
                 'mute': status['master']['mute'],
@@ -208,7 +208,7 @@ class Minidsp(PersistentDevice[MinidspState]):
             }
             return MinidspState(self.name, **values)
         except:
-            logger.exception(f"Unable to parse device state {lines}")
+            logger.exception(f"Unable to parse device state {output}")
             return None
 
     @staticmethod
