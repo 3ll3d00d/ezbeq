@@ -130,7 +130,7 @@ class JRiver(PersistentDevice[JRiverState]):
                 self.__mcws.set_dsp(zone_id, new_config_txt)
                 self._current_state.set_title(slot, entry.formatted_title)
             except Exception as e:
-                self._current_state.slot.last = 'ERRUR'
+                self._current_state.slot.last = 'ERROR'
                 raise e
         self._hydrate_cache_broadcast(__do_it)
 

@@ -111,7 +111,7 @@ class Htp1(PersistentDevice[Htp1State]):
             self.__send(to_load)
             self._current_state.slot.last = title
         except Exception as e:
-            self._current_state.slot.last = 'ERRUR'
+            self._current_state.slot.last = 'ERROR'
             raise e
 
     def clear_filter(self, slot: str) -> None:

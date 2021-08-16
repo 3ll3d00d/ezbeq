@@ -177,6 +177,9 @@ def create_devices(cfg: Config, ws_server: WsServer, catalogue: CatalogueProvide
         elif d_type == 'jriver':
             from ezbeq.jriver import JRiver
             devices.append(JRiver(name, cfg.config_path, values, ws_server, catalogue))
+        elif d_type == 'qsys':
+            from ezbeq.qsys import Qsys
+            devices.append(Qsys(name, cfg.config_path, values, ws_server, catalogue))
     if not devices:
         raise ValueError('No device configured')
     else:

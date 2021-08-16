@@ -123,6 +123,27 @@ NB: Media Network must be enabled
 
 This information is **not** validated, it is left to the user to configure the output format on the zone to match the supplied configuration.
 
+#### Q-Sys
+
+[Q-Sys Designer](https://www.qsc.com/resources/software-and-firmware/q-sys-designer-software/) is supported via the [QRC](https://q-syshelp.qsc.com/Content/External_Control_APIs/QRC/QRC_Overview.htm) protocol
+
+```
+  qsys:
+    ip: 192.168.1.181
+    port: 1710
+    timeout_secs: 2
+    components: 
+    - beq
+    type: qsys
+```
+
+Configuration of the audio pipeline in Q-Sys Designer is left as an exercise for the user. The component referred to in the configuration is a [Parametric Equaliser](https://q-syshelp.qsc.com/Content/Schematic_Library/equalizer_parametric.htm) which should be configured with:
+
+* at least 10 bands
+* q factor
+
+The component name should be supplied in the configuration above.
+
 ## Starting ezbeq on bootup
 
 This is optional but recommended, it ensures the app starts automatically whenever the rpi boots up and makes
