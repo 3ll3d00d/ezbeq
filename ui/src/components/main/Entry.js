@@ -256,7 +256,7 @@ const Entry = ({selectedDeviceName, selectedEntry, useWide, setDevice, selectedS
                     selectedEntry.theMovieDB
                         ? <Button size="small"
                                   color="primary"
-                                  href={`https://themoviedb.org/movie/${selectedEntry.theMovieDB}`}
+                                  href={`https://themoviedb.org/${selectedEntry.contentType === 'film' ? 'movie' : 'tv'}/${selectedEntry.theMovieDB}`}
                                   target='_avs'>TMDb</Button>
                         : null
                 }

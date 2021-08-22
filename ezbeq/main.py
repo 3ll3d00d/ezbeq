@@ -8,7 +8,7 @@ from flask import Flask
 from flask_compress import Compress
 from flask_restx import Api
 
-from ezbeq.apis import search, version, devices, authors, audiotypes, years, contenttypes, meta, catalogue as cat_api
+from ezbeq.apis import search, version, devices, authors, audiotypes, years, contenttypes, languages, meta, catalogue as cat_api
 from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueProvider
 from ezbeq.config import Config
@@ -51,6 +51,7 @@ def create_app(config: Config) -> Tuple[Flask, 'WsServer']:
     decorate_ns(audiotypes.api)
     decorate_ns(years.api)
     decorate_ns(contenttypes.api)
+    decorate_ns(languages.api)
     decorate_ns(meta.api)
     decorate_ns(cat_api.api)
     return app, ws_server

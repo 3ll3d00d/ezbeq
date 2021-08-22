@@ -22,6 +22,7 @@ const MainView = ({
                       getSelectedDevice
                   }) => {
     const [selectedAuthors, setSelectedAuthors] = useState([]);
+    const [selectedLanguages, setSelectedLanguages] = useState([]);
     const [selectedYears, setSelectedYears] = useState([]);
     const [selectedAudioTypes, setSelectedAudioTypes] = useState([]);
     const [selectedContentTypes, setSelectedContentTypes] = useState([]);
@@ -65,8 +66,10 @@ const MainView = ({
                     if (!selectedAudioTypes.length || entry.audioTypes.some(at => selectedAudioTypes.indexOf(at) > -1)) {
                         if (!selectedContentTypes.length || selectedContentTypes.indexOf(entry.contentType) > -1) {
                             if (!selectedFreshness.length || selectedFreshness.indexOf(entry.freshness) > -1) {
-                                if (!txtFilter || txtMatch(entry)) {
-                                    return true;
+                                if (!selectedLanguages.length || selectedLanguages.indexOf(entry.language) > -1) {
+                                    if (!txtFilter || txtMatch(entry)) {
+                                        return true;
+                                    }
                                 }
                             }
                         }
@@ -76,7 +79,7 @@ const MainView = ({
             return false;
         }
         pushData(setFilteredEntries, () => entries.filter(isMatch), setErr);
-    }, [entries, selectedAudioTypes, selectedYears, selectedAuthors, selectedContentTypes, selectedFreshness, txtFilter, setErr]);
+    }, [entries, selectedAudioTypes, selectedYears, selectedAuthors, selectedContentTypes, selectedFreshness, selectedLanguages, txtFilter, setErr]);
 
     useEffect(() => {
         const d = getSelectedDevice();
@@ -128,6 +131,8 @@ const MainView = ({
                     setSelectedFreshness={setSelectedFreshness}
                     selectedYears={selectedYears}
                     setSelectedYears={setSelectedYears}
+                    selectedLanguages={selectedLanguages}
+                    setSelectedLanguages={setSelectedLanguages}
                     selectedAuthors={selectedAuthors}
                     setSelectedAuthors={setSelectedAuthors}
                     selectedContentTypes={selectedContentTypes}

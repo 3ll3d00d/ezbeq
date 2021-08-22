@@ -11,6 +11,8 @@ const Filter = ({
                     setSelectedFreshness,
                     selectedYears,
                     setSelectedYears,
+                    selectedLanguages,
+                    setSelectedLanguages,
                     selectedAuthors,
                     setSelectedAuthors,
                     selectedContentTypes,
@@ -21,15 +23,21 @@ const Filter = ({
 
     const freshness = ['Fresh', 'Updated', 'Stale'];
     const [authors, setAuthors] = useState([]);
+    const [languages, setLanguages] = useState([]);
     const [years, setYears] = useState([]);
     const [audioTypes, setAudioTypes] = useState([]);
     const [contentTypes, setContentTypes] = useState([]);
     const [filteredYears, setFilteredYears] = useState([]);
     const [filteredAudioTypes, setFilteredAudioTypes] = useState([]);
+    const [filteredLanguages, setFilteredLanguages] = useState([]);
     const [filteredFreshness, setFilteredFreshness] = useState([]);
 
     useEffect(() => {
         pushData(setAuthors, ezbeq.getAuthors, setError);
+    }, [setError]);
+
+    useEffect(() => {
+        pushData(setLanguages, ezbeq.getLanguages, setError);
     }, [setError]);
 
     useEffect(() => {
@@ -48,6 +56,7 @@ const Filter = ({
         pushData(setFilteredYears, () => [...new Set(filteredEntries.map(e => e.year))], setError);
         pushData(setFilteredAudioTypes, () => [...new Set(filteredEntries.map(e => e.audioTypes).flat())], setError);
         pushData(setFilteredFreshness, () => [...new Set(filteredEntries.map(e => e.freshness).flat())], setError);
+        pushData(setFilteredLanguages, () => [...new Set(filteredEntries.map(e => e.language))], setError);
     }, [filteredEntries, setError]);
 
     const addSelectedAudioTypes = values => {
@@ -63,6 +72,11 @@ const Filter = ({
     const addSelectedYears = values => {
         const matches = years.filter(y => values.some(v => v === y || `${y}`.indexOf(v) > -1));
         setSelectedYears(matches);
+    };
+
+    const addSelectedLanguages = values => {
+        const matches = languages.filter(at => values.some(v => v === at || at.toLowerCase().indexOf(v.toLowerCase()) > -1));
+        setSelectedLanguages(matches);
     };
 
     if (visible) {
@@ -100,6 +114,13 @@ const Filter = ({
                              onCreateOption={value => addSelectedFreshness(value)}
                              onClearOptions={() => setSelectedFreshness([])}
                              isInView={v => filteredFreshness.length === 0 || filteredFreshness.indexOf(v) > -1}/>
+                <MultiSelect items={languages}
+                             selectedValues={selectedLanguages}
+                             label="Language"
+                             onToggleOption={selected => setSelectedLanguages(selected)}
+                             onCreateOption={value => addSelectedLanguages(value)}
+                             onClearOptions={() => setSelectedLanguages([])}
+                             isInView={v => filteredLanguages.length === 0 || filteredLanguages.indexOf(v) > -1}/>
             </>
         )
     } else {
