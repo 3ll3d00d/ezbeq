@@ -263,22 +263,25 @@ class DatabaseDownloader:
         remote_version = self.__get_remote_catalogue_version()
         if remote_version is None or self.__cached_version is None or remote_version != self.__cached_version:
             logger.info(f"Reloading from {self.__db_url}")
-            r = requests.get(self.__db_url, allow_redirects=True)
-            if r.status_code == 200:
-                logger.info(f"Writing database to {self.__cached_db_file}")
-                with open(self.__cached_db_file, 'wb') as f:
-                    f.write(r.content)
-                if remote_version:
-                    logger.info(f"Writing version {remote_version} to {self.__cached_version_file}")
-                    with open(self.__cached_version_file, 'w') as f:
-                        f.write(remote_version)
+            try:
+                r = requests.get(self.__db_url, allow_redirects=True)
+                if r.status_code == 200:
+                    logger.info(f"Writing database to {self.__cached_db_file}")
+                    with open(self.__cached_db_file, 'wb') as f:
+                        f.write(r.content)
+                    if remote_version:
+                        logger.info(f"Writing version {remote_version} to {self.__cached_version_file}")
+                        with open(self.__cached_version_file, 'w') as f:
+                            f.write(remote_version)
+                    else:
+                        logger.warning(f"No remote version to write")
+                    self.__cached_version = remote_version
+                    logger.info(f"Downloaded {self.__db_url} @ {remote_version}")
+                    return True
                 else:
-                    logger.warning(f"No remote version to write")
-                self.__cached_version = remote_version
-                logger.info(f"Downloaded {self.__db_url} @ {remote_version}")
-                return True
-            else:
-                logger.warning(f"Unable to download catalogue, response is {r.status_code}")
+                    logger.warning(f"Unable to download catalogue, response is {r.status_code}")
+            except:
+                logger.exception(f"Unable to download catalogue, unexpected error")
         else:
             logger.info(f"No reload required {remote_version} vs {self.__cached_version}")
         return False

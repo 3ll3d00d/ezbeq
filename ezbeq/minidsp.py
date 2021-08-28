@@ -200,16 +200,20 @@ class Minidsp(PersistentDevice[MinidspState]):
         try:
             kwargs = {'retcode': None} if self.__ignore_retcode else {}
             output = self.__runner['-o', 'jsonline'](timeout=self.__cmd_timeout, **kwargs)
-            status = json.loads(output.splitlines()[0])
-            values = {
-                'active_slot': str(status['master']['preset'] + 1),
-                'mute': status['master']['mute'],
-                'mv': status['master']['volume']
-            }
-            return MinidspState(self.name, **values)
+            lines = output.splitlines()
+            if lines:
+                status = json.loads(lines[0])
+                values = {
+                    'active_slot': str(status['master']['preset'] + 1),
+                    'mute': status['master']['mute'],
+                    'mv': status['master']['volume']
+                }
+                return MinidspState(self.name, **values)
+            else:
+                logger.error(f"No output returned from device")
         except:
             logger.exception(f"Unable to parse device state {output}")
-            return None
+        return None
 
     @staticmethod
     def __as_idx(idx: Union[int, str]):
@@ -317,7 +321,7 @@ class Minidsp(PersistentDevice[MinidspState]):
             if current_state and current_state.active_slot == str(slot + 1):
                 change_slot = False
             if change_slot is True:
-                logger.info(f"Activating slot {slot}, current is {current_state.active_slot}")
+                logger.info(f"Activating slot {slot}, current is {current_state.active_slot if current_state else 'UNKNOWN'}")
                 config_cmds.insert(0, MinidspBeqCommandGenerator.activate(slot))
         formatted = '\n'.join(config_cmds)
         logger.info(f"\n{formatted}")
