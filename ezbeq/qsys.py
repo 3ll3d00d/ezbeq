@@ -160,8 +160,11 @@ class Qsys(PersistentDevice[QsysState]):
         sock.sendall(TERMINATOR.encode('utf-8'))
         msg = self.__recvall(sock)
         if msg:
-            result = json.loads(msg)
-            logger.info(f"Received from {name}: {result}")
+            try:
+                result = json.loads(msg)
+                logger.info(f"Received from {name}: {result}")
+            except:
+                logger.exception(f"Unable to decode {msg}")
         else:
             logger.info(f"Received no data from {name}")
 
