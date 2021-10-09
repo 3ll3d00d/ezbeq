@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import socket
 from typing import Optional, List
 
@@ -42,6 +43,9 @@ class Qsys(PersistentDevice[QsysState]):
         self.__ip = cfg['ip']
         self.__port = cfg['port']
         self.__components = cfg.get('components', [])
+        self.__content_info = cfg.get('content_info', None)
+        if not self.__content_info:
+            self.__content_info = {}
         self.__timeout_srcs = cfg.get('timeout_secs', 2)
         self.__peq = {}
 
@@ -77,7 +81,7 @@ class Qsys(PersistentDevice[QsysState]):
                             any_update = True
         return any_update
 
-    def __send(self, to_load: List['PEQ']):
+    def __send(self, to_load: List['PEQ'], entry: CatalogueEntry):
         logger.info(f"Sending {len(to_load)} filters")
         while len(to_load) < 10:
             to_load.append(PEQ(100, 1, 0, 'PeakingEQ'))
@@ -85,7 +89,7 @@ class Qsys(PersistentDevice[QsysState]):
             controls = []
             for idx, peq in enumerate(to_load):
                 controls += peq.to_rpc(idx + 1)
-            self.__send_to_socket(controls)
+            self.__send_to_socket(controls, entry)
         else:
             logger.warning(f"Nothing to send")
 
@@ -107,33 +111,59 @@ class Qsys(PersistentDevice[QsysState]):
             return data.decode('utf-8').strip(TERMINATOR)
         return ''
 
-    def __send_to_socket(self, controls: list):
+    def __send_to_socket(self, controls: list, entry: CatalogueEntry):
         logger.info(f"Sending {controls} to {self.__ip}:{self.__port}")
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(self.__timeout_srcs)
         try:
             sock.connect((self.__ip, self.__port))
             for c in self.__components:
-                jsonrpc = {
-                    "jsonrpc": "2.0",
-                    "id": 1234,
-                    "method": "Component.Set",
-                    "params": {
-                        "Name": c,
-                        "Controls": controls
-                    }
-                }
-                logger.info(f"Sending to {c}")
-                sock.sendall(json.dumps(jsonrpc).encode('utf-8'))
-                sock.sendall(TERMINATOR.encode('utf-8'))
-                msg = self.__recvall(sock)
-                if msg:
-                    result = json.loads(msg)
-                    logger.info(f"Received from {c}: {result}")
-                else:
-                    logger.info(f"Received no data from {c}")
+                self.__send_component(c, controls, sock)
+            for c in self.__content_info:
+                for component_name, mappings in c.items():
+                    text_controls = []
+                    for k, v in mappings.items():
+                        m = re.match(r'(.*)\[(\d+)\]', v)
+                        if m:
+                            val = getattr(entry, m.group(1))
+                        else:
+                            val = getattr(entry, v)
+                        if isinstance(val, list):
+                            if m:
+                                idx = int(m.group(2))
+                                if len(val) > idx:
+                                    val = val[idx]
+                                else:
+                                    logger.info(f"'{entry.title} {m.group(1)} has length {len(val)}, no value to supply for {k}")
+                                    val = ''
+                            else:
+                                val = ', '.join(val)
+                        else:
+                            val = str(val)
+                        text_controls.append({'Name': k, 'Value': val})
+                    self.__send_component(component_name, text_controls, sock)
         finally:
             sock.close()
+
+    def __send_component(self, name: str, controls: list, sock):
+        jsonrpc = {
+            "jsonrpc": "2.0",
+            "id": 1234,
+            "method": "Component.Set",
+            "params": {
+                "Name": name,
+                "Controls": controls
+            }
+        }
+        logger.info(f"Sending to component {name} with {len(controls)} controls")
+        sock.sendall(json.dumps(jsonrpc).encode('utf-8'))
+        sock.sendall(TERMINATOR.encode('utf-8'))
+        msg = self.__recvall(sock)
+        if msg:
+            result = json.loads(msg)
+            logger.info(f"Received from {name}: {result}")
+        else:
+            logger.info(f"Received no data from {name}")
 
     def activate(self, slot: str) -> None:
         def __do_it():
@@ -147,12 +177,12 @@ class Qsys(PersistentDevice[QsysState]):
 
     def load_filter(self, slot: str, entry: CatalogueEntry) -> None:
         to_load = [PEQ(f['freq'], f['q'], f['gain'], f['type']) for f in entry.filters]
-        self._hydrate_cache_broadcast(lambda: self.__do_it(to_load, entry.formatted_title))
+        self._hydrate_cache_broadcast(lambda: self.__do_it(to_load, entry))
 
-    def __do_it(self, to_load: List['PEQ'], title: str):
+    def __do_it(self, to_load: List['PEQ'], entry: CatalogueEntry):
         try:
-            self.__send(to_load)
-            self._current_state.slot.last = title
+            self.__send(to_load, entry)
+            self._current_state.slot.last = entry.formatted_title
         except Exception as e:
             self._current_state.slot.last = 'ERROR'
             raise e

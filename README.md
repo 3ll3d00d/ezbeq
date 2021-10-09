@@ -134,15 +134,30 @@ This information is **not** validated, it is left to the user to configure the o
     timeout_secs: 2
     components: 
     - beq
+    content_info:
+    - beq_movie_info:
+        text.1: title
+        text.2: genres
+        text.3: audio_types
+        text.4: mv_adjust
+        text.5: overview
+        text.6: images[0]
+        text.7: images[1]
     type: qsys
 ```
 
-Configuration of the audio pipeline in Q-Sys Designer is left as an exercise for the user. The component referred to in the configuration is a [Parametric Equaliser](https://q-syshelp.qsc.com/Content/Schematic_Library/equalizer_parametric.htm) which should be configured with:
+Configuration of the audio pipeline in Q-Sys Designer is left as an exercise for the user. 
+
+The component referred to in the configuration is a [Parametric Equaliser](https://q-syshelp.qsc.com/Content/Schematic_Library/equalizer_parametric.htm) which should be configured with:
 
 * at least 10 bands
 * q factor
 
 The component name should be supplied in the configuration above.
+
+An optional `content_info` list of components can also be supplied. Each named component listed (`beq_movie_info` in the example above) is a [Custom Control](https://q-syshelp.qsc.com/Index.htm#Schematic_Library/custom_controls.htm) component which contains 1 or more text fields. The listed fields are a mapping of control key to `CatalogueEntry` field name.
+
+The images field has special treatment as there can be a variable number of images, may be multiple images
 
 ## Starting ezbeq on bootup
 
