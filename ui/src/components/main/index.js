@@ -49,7 +49,7 @@ const MainView = ({
     useEffect(() => {
         const txtMatch = e => {
             const matchOn = txtFilter.toLowerCase()
-            if (e.title.toLowerCase().includes(matchOn)) {
+            if (e.formattedTitle.toLowerCase().includes(matchOn)) {
                 return true;
             } else if (e.hasOwnProperty('altTitle')) {
                 if (e.altTitle.toLowerCase().includes(matchOn)) {

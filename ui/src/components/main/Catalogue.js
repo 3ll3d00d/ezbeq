@@ -9,56 +9,8 @@ const useStyles = makeStyles((theme) => ({
     }
 }));
 
-const formatEpisodes = (formatted, working) => {
-    let val = ''
-    if (formatted.length > 1) {
-        val += ',';
-    }
-    if (working.length === 1) {
-        val += `${working[0]}`;
-    } else {
-        val += `${working[0]}-${working[working.length-1]}`;
-    }
-    return val;
-}
-
-const formatTVMeta = entry => {
-    const season = entry.hasOwnProperty('season') ? `S${entry.season}` : '';
-    const episodes = entry.hasOwnProperty('episodes') ? entry.episodes.split(',') : '';
-    if (episodes) {
-        if (episodes.length > 1) {
-            let formatted = 'E'
-            let working = []
-            for (let i = 0; i < episodes.length; i++) {
-                if (working.length === 0) {
-                    working.push(parseInt(episodes[i]));
-                } else {
-                    if (working[working.length-1] === episodes[i]-1) {
-                        working.push(parseInt(episodes[i]));
-                    } else {
-                        formatted += formatEpisodes(formatted, working);
-                        working = [];
-                    }
-                }
-            }
-            if (working.length > 0) {
-                formatted += formatEpisodes(formatted, working);
-            }
-            return `${season}${formatted}`
-        } else {
-            return `${season}E${episodes}`
-        }
-    } else {
-        return season;
-    }
-}
-
 const formatTitle = entry => {
-    if (entry.contentType === 'TV') {
-        return `${entry.title} ${formatTVMeta(entry)}`;
-    } else {
-        return entry.title;
-    }
+    return entry.formattedTitle;
 };
 
 const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, showBottomNav}) => {

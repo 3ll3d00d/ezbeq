@@ -49,6 +49,7 @@ class CatalogueEntry:
         self.created_at = vals.get('created_at', 0)
         self.updated_at = vals.get('updated_at', 0)
         self.digest = vals.get('digest', '')
+        self.formatted_title = self.__format_title()
         now = time.time()
         if self.created_at >= (now - TWO_WEEKS_AGO_SECONDS):
             self.freshness = 'Fresh'
@@ -81,7 +82,8 @@ class CatalogueEntry:
             'created_at': self.created_at,
             'updated_at': self.updated_at,
             'freshness': self.freshness,
-            'digest': self.digest
+            'digest': self.digest,
+            'formattedTitle': self.formatted_title
         }
         if self.beqc_url:
             self.for_search['beqcUrl'] = self.beqc_url
@@ -167,11 +169,10 @@ class CatalogueEntry:
                     formatted += self.__format_episodes(formatted, working)
             else:
                 formatted += f"{self.episodes}"
-            return f"{season} {formatted}"
+            return f"{season}{formatted}"
         return season
 
-    @property
-    def formatted_title(self) -> str:
+    def __format_title(self) -> str:
         if self.content_type == 'TV':
             return f"{self.title} {self.__format_tv_meta()}"
         return self.title
