@@ -168,7 +168,7 @@ const Minidsp = ({availableDevices, setSelectedDeviceName, selectedDeviceName, s
                     </Grid>
                     <Grid container item>
                         <TextField id="biquads"
-                                   label="Biquads"
+                                   label="Biquads/Filters"
                                    multiline
                                    rows={26}
                                    fullWidth

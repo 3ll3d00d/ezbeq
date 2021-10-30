@@ -449,9 +449,13 @@ class MinidspBeqCommandGenerator:
         for side, channels in {'input': inputs, 'output': outputs}.items():
             for channel in channels:
                 for idx, bq in enumerate(biquads):
-                    coeffs = [bq['b0'], bq['b1'], bq['b2'], bq['a1'], bq['a2']]
-                    cmds.append(MinidspBeqCommandGenerator.bq(channel - 1, idx, coeffs, side=side))
-                    cmds.append(MinidspBeqCommandGenerator.bypass(channel - 1, idx, False, side=side))
+                    if bq:
+                        coeffs = [bq['b0'], bq['b1'], bq['b2'], bq['a1'], bq['a2']]
+                        cmds.append(MinidspBeqCommandGenerator.bq(channel - 1, idx, coeffs, side=side))
+                        bypass = 'BYPASS' in bq and bq['BYPASS'] is True
+                        cmds.append(MinidspBeqCommandGenerator.bypass(channel - 1, idx, bypass, side=side))
+                    elif overwrite:
+                        cmds.append(MinidspBeqCommandGenerator.bypass(channel - 1, idx, True, side=side))
                 if overwrite:
                     for idx in range(len(biquads), 10):
                         cmds.append(MinidspBeqCommandGenerator.bypass(channel - 1, idx, True, side=side))

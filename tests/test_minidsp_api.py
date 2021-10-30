@@ -1020,6 +1020,118 @@ a2=-0.998914942208302,
             verify_slot(s, idx + 1)
 
 
+@pytest.mark.parametrize('filter_idx', range(1, 11, 1))
+def test_load_single_filter(minidsp_client, minidsp_app, filter_idx):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+    # when: load filter
+    biquads = f"Filter {filter_idx}: ON PK Fc 250.0 Hz Gain -3.2 dB Q 1.4"
+    payload = {
+        'overwrite': False,
+        'inputs': [],
+        'outputs': [2],
+        'slot': '1',
+        'biquads': biquads
+    }
+    r = minidsp_client.put(f"/api/1/devices/master/biquads", data=json.dumps(payload), content_type='application/json')
+    assert r.status_code == 200
+    single_channel_cmds = [
+        f"peq {filter_idx-1} set -- 0.9978500923871526 -1.9857813617501132 0.9881971257952954 1.9857813617501132 -0.9860472181824479",
+        f"peq {filter_idx-1} bypass off"
+    ]
+
+    expected_commands = [f"output 1 {l}" for l in single_channel_cmds]
+    # then: expected commands are sent
+    cmds = verify_cmd_count(config.spy, 1, 2)
+    assert cmds == expected_commands
+
+    # and: device state is accurate
+    slots = verify_master_device_state(r.json)
+    for idx, s in enumerate(slots):
+        if idx == 0:
+            verify_slot(s, idx + 1, active=True)
+        else:
+            verify_slot(s, idx + 1)
+
+
+def test_load_multi_filter(minidsp_client, minidsp_app):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+    # when: load filter
+    payload = {
+        'overwrite': False,
+        'inputs': [],
+        'outputs': [2],
+        'slot': '1',
+        'biquads': """Filter 4: ON PK Fc 250.0 Hz Gain -3.2 dB Q 1.4
+Filter 9: OFF LS Fc 15.1 Hz Gain -3.2 dB Q 0.7
+Filter 1: ON HS Fc 25.1 Hz Gain 4.2 dB Q 0.8
+"""
+    }
+    r = minidsp_client.put(f"/api/1/devices/master/biquads", data=json.dumps(payload), content_type='application/json')
+    assert r.status_code == 200
+    single_channel_cmds = [
+        f"peq 0 set -- 1.6214064557154642 -3.2398617384986976 1.6184587156869308 1.9976818965843317 -0.997685329488029",
+        f"peq 0 bypass off",
+        f"peq 3 set -- 0.9978500923871526 -1.9857813617501132 0.9881971257952954 1.9857813617501132 -0.9860472181824479",
+        f"peq 3 bypass off",
+        f"peq 8 set -- 0.9998697905301912 -1.9984521459514417 0.9985831671951465 1.9984519651532529 -0.998453138523527",
+        f"peq 8 bypass on",
+    ]
+
+    expected_commands = [f"output 1 {l}" for l in single_channel_cmds]
+    # then: expected commands are sent
+    cmds = verify_cmd_count(config.spy, 1, 6)
+    assert cmds == expected_commands
+
+    # and: device state is accurate
+    slots = verify_master_device_state(r.json)
+    for idx, s in enumerate(slots):
+        if idx == 0:
+            verify_slot(s, idx + 1, active=True)
+        else:
+            verify_slot(s, idx + 1)
+
+
+def test_load_multi_filter_overwrite(minidsp_client, minidsp_app):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+    # when: load filter
+    payload = {
+        'overwrite': True,
+        'inputs': [],
+        'outputs': [2],
+        'slot': '1',
+        'biquads': """Filter 4: ON PK Fc 250.0 Hz Gain -3.2 dB Q 1.4
+Filter 9: ON LS Fc 15.1 Hz Gain -3.2 dB Q 0.7
+Filter 1: ON HS Fc 25.1 Hz Gain 4.2 dB Q 0.8
+"""
+    }
+    r = minidsp_client.put(f"/api/1/devices/master/biquads", data=json.dumps(payload), content_type='application/json')
+    assert r.status_code == 200
+    single_channel_cmds = [
+        f"peq 0 set -- 1.6214064557154642 -3.2398617384986976 1.6184587156869308 1.9976818965843317 -0.997685329488029",
+        f"peq 0 bypass off",
+        f"peq 3 set -- 0.9978500923871526 -1.9857813617501132 0.9881971257952954 1.9857813617501132 -0.9860472181824479",
+        f"peq 3 bypass off",
+        f"peq 8 set -- 0.9998697905301912 -1.9984521459514417 0.9985831671951465 1.9984519651532529 -0.998453138523527",
+        f"peq 8 bypass off",
+    ]
+
+    expected_commands = [f"output 1 {l}" for l in single_channel_cmds]
+    # then: expected commands are sent
+    cmds = verify_cmd_count(config.spy, 1, 6)
+    assert cmds == expected_commands
+
+    # and: device state is accurate
+    slots = verify_master_device_state(r.json)
+    for idx, s in enumerate(slots):
+        if idx == 0:
+            verify_slot(s, idx + 1, active=True)
+        else:
+            verify_slot(s, idx + 1)
+
+
 @pytest.mark.parametrize('endpoint', ['details', 'filters'])
 def test_get_by_digest(minidsp_client, minidsp_app, endpoint):
     r = minidsp_client.get(f"/api/1/catalogue/abcdefghijklm/{endpoint}")

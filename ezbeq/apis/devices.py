@@ -1,4 +1,8 @@
+import decimal
 import logging
+import math
+import re
+from abc import ABC, abstractmethod, ABCMeta
 from typing import List, Tuple, Optional
 
 from flask import request
@@ -8,6 +12,10 @@ from ezbeq.catalogue import CatalogueProvider, CatalogueEntry
 from ezbeq.device import DeviceRepository, InvalidRequestError
 
 logger = logging.getLogger('ezbeq.devices')
+
+FILTER_PATTERN = r'Filter\s+(\d+):\s+(ON|OFF)\s+(PEQ|PK|LS|HS)\s+Fc\s+(\d+\.\d+)\s+Hz\s+Gain\s+(-?\d+\.\d+)\s+dB\s+Q\s+(\d+\.\d+)'
+ctx = decimal.Context()
+ctx.prec = 17
 
 
 def delete_filter(bridge: DeviceRepository, device_name: str, slot: str):
@@ -30,7 +38,8 @@ def delete_filter(bridge: DeviceRepository, device_name: str, slot: str):
 def load_biquads(bridge: DeviceRepository, device_name: str, slot: str, overwrite: bool, inputs: List[int],
                  outputs: List[int], biquads: str):
     '''
-    Attempts to load the provided biquads into the device. Expects minidsp format only.
+    Attempts to load the provided biquads into the device. Expects minidsp format only. biquads can be raw biquad format
+    or filter text format (as per https://sourceforge.net/p/equalizerapo/wiki/Configuration%20reference/#filter)
     :param bridge:
     :param device_name:
     :param slot:
@@ -40,27 +49,61 @@ def load_biquads(bridge: DeviceRepository, device_name: str, slot: str, overwrit
     :param biquads:
     :return:
     '''
+    lines = biquads.splitlines()
     bqs: List[dict] = []
-    tmp = {}
+    if lines and lines[0][0:6].lower() == 'filter':
+        bqs = [PeakingEQ(96000, 100.0, 1.0, 0.0).format_biquads() if overwrite else {}] * 10
 
-    def append():
+        def convert_to_bq(filt_type: str, freq: float, gain: float, q: float) -> dict:
+            if filt_type == 'PK' or filt_type == 'PEQ':
+                f = PeakingEQ(96000, freq, q, gain)
+            elif filt_type == 'LS':
+                f = LowShelf(96000, freq, q, gain)
+            elif filt_type == 'HS':
+                f = HighShelf(96000, freq, q, gain)
+            else:
+                raise InvalidRequestError(f"Unknown filt_type {filt_type}")
+            return f.format_biquads()
+
+        for idx, line in enumerate(lines):
+            if line:
+                m = re.match(FILTER_PATTERN, line)
+                if m:
+                    filt_idx = int(m.group(1))
+                    if 0 < filt_idx < 11:
+                        ft = m.group(3)
+                        fc = float(m.group(4))
+                        g = float(m.group(5))
+                        q = float(m.group(6))
+                        bqs[filt_idx-1] = convert_to_bq(ft, fc, g, q)
+                        if m.group(2) == 'OFF':
+                            bqs[filt_idx-1]['BYPASS'] = True
+                    else:
+                        raise InvalidRequestError(f"Filter line {idx} specifies filter {filt_idx} which is out of range")
+                else:
+                    raise InvalidRequestError(f"Filter line {idx} does not match - {line}")
+    else:
+        tmp = {}
+
+        def append_bq():
+            if tmp:
+                keys = list(tmp.keys())
+                if 'b0' in keys and 'b1' in keys and 'b2' in keys and 'a1' in keys and 'a2' in keys:
+                    bqs.append(tmp)
+                else:
+                    raise InvalidRequestError()
+
+        for line in lines:
+            if line:
+                if line.startswith('biquad'):
+                    append_bq()
+                    tmp = {}
+                else:
+                    tokens = line.split('=')
+                    tmp[tokens[0]] = tokens[1][:-1] if tokens[1][-1] == ',' else tokens[1]
         if tmp:
-            keys = list(tmp.keys())
-            if 'b0' in keys and 'b1' in keys and 'b2' in keys and 'a1' in keys and 'a2' in keys:
-                bqs.append(tmp)
-            else:
-                raise InvalidRequestError()
+            append_bq()
 
-    for line in biquads.splitlines():
-        if line:
-            if line.startswith('biquad'):
-                append()
-                tmp = {}
-            else:
-                tokens = line.split('=')
-                tmp[tokens[0]] = tokens[1][:-1] if tokens[1][-1] == ',' else tokens[1]
-    if tmp:
-        append()
     try:
         bridge.load_biquads(device_name, slot, overwrite, inputs, outputs, bqs)
         return bridge.state(device_name).serialise(), 200
@@ -432,3 +475,129 @@ class DeviceSender(Resource):
 
     def delete(self, slot):
         return delete_filter(self.__bridge, 'master', slot)
+
+
+def float_to_str(f):
+    """
+    Convert the given float to a string without scientific notation or in the correct hex format.
+    """
+    d1 = ctx.create_decimal(repr(f))
+    return format(d1, 'f')
+
+
+class Biquad(ABC):
+
+    def __init__(self, fs, freq, q, gain):
+        self.fs = fs
+        self.gain = round(float(gain), 3)
+        self.freq = round(float(freq), 2)
+        self.q = round(float(q), 4)
+        self.w0 = 2.0 * math.pi * freq / fs
+        self.cos_w0 = math.cos(self.w0)
+        self.sin_w0 = math.sin(self.w0)
+        self.alpha = self.sin_w0 / (2.0 * self.q)
+        self.A = 10.0 ** (self.gain / 40.0)
+        self.a, self.b = self._compute_coeffs()
+
+    def __len__(self):
+        return 1
+
+    @abstractmethod
+    def _compute_coeffs(self):
+        pass
+
+    def format_biquads(self) -> dict:
+        a = {f"a{idx}": f"{float_to_str(-x)}" for idx, x in enumerate(self.a) if idx != 0}
+        b = {f"b{idx}": f"{float_to_str(x)}" for idx, x in enumerate(self.b)}
+        return {**b, **a}
+
+    def __repr__(self):
+        return f"{self.print_params()}|{'`'.join(self.format_biquads())}"
+
+    def print_params(self):
+        return f"{self.__class__.__name__}|{self.freq}|{self.gain}|{self.q}"
+
+
+class PeakingEQ(Biquad):
+    '''
+    H(s) = (s^2 + s*(A/Q) + 1) / (s^2 + s/(A*Q) + 1)
+
+            b0 =   1 + alpha*A
+            b1 =  -2*cos(w0)
+            b2 =   1 - alpha*A
+            a0 =   1 + alpha/A
+            a1 =  -2*cos(w0)
+            a2 =   1 - alpha/A
+    '''
+
+    def __init__(self, fs, freq, q, gain):
+        super().__init__(fs, freq, q, gain)
+
+    def _compute_coeffs(self):
+        A = self.A
+        a = [1.0 + self.alpha / A, -2.0 * self.cos_w0, 1.0 - self.alpha / A]
+        b = [1.0 + self.alpha * A, -2.0 * self.cos_w0, 1.0 - self.alpha * A]
+        return [a1 / a[0] for a1 in a], [b1 / a[0] for b1 in b]
+
+
+class LowShelf(Biquad):
+    '''
+    lowShelf: H(s) = A * (s^2 + (sqrt(A)/Q)*s + A)/(A*s^2 + (sqrt(A)/Q)*s + 1)
+
+            b0 =    A*( (A+1) - (A-1)*cos(w0) + 2*sqrt(A)*alpha )
+            b1 =  2*A*( (A-1) - (A+1)*cos(w0)                   )
+            b2 =    A*( (A+1) - (A-1)*cos(w0) - 2*sqrt(A)*alpha )
+            a0 =        (A+1) + (A-1)*cos(w0) + 2*sqrt(A)*alpha
+            a1 =   -2*( (A-1) + (A+1)*cos(w0)                   )
+            a2 =        (A+1) + (A-1)*cos(w0) - 2*sqrt(A)*alpha
+    '''
+
+    def __init__(self, fs, freq, q, gain):
+        super().__init__(fs, freq, q, gain)
+
+    def _compute_coeffs(self):
+        A = self.A
+        a = [
+            (A + 1) + ((A - 1) * self.cos_w0) + (2.0 * math.sqrt(A) * self.alpha),
+            -2.0 * ((A - 1) + ((A + 1) * self.cos_w0)),
+            (A + 1) + ((A - 1) * self.cos_w0) - (2.0 * math.sqrt(A) * self.alpha)
+        ]
+        b = [
+            A * ((A + 1) - ((A - 1) * self.cos_w0) + (2.0 * math.sqrt(A) * self.alpha)),
+            2.0 * A * ((A - 1) - ((A + 1) * self.cos_w0)),
+            A * ((A + 1) - ((A - 1) * self.cos_w0) - (2 * math.sqrt(A) * self.alpha))
+        ]
+        return [a1 / a[0] for a1 in a], [b1 / a[0] for b1 in b]
+
+
+class HighShelf(Biquad):
+    '''
+    highShelf: H(s) = A * (A*s^2 + (sqrt(A)/Q)*s + 1)/(s^2 + (sqrt(A)/Q)*s + A)
+
+                b0 =    A*( (A+1) + (A-1)*cos(w0) + 2*sqrt(A)*alpha )
+                b1 = -2*A*( (A-1) + (A+1)*cos(w0)                   )
+                b2 =    A*( (A+1) + (A-1)*cos(w0) - 2*sqrt(A)*alpha )
+                a0 =        (A+1) - (A-1)*cos(w0) + 2*sqrt(A)*alpha
+                a1 =    2*( (A-1) - (A+1)*cos(w0)                   )
+                a2 =        (A+1) - (A-1)*cos(w0) - 2*sqrt(A)*alpha
+
+    '''
+
+    def __init__(self, fs, freq, q, gain):
+        super().__init__(fs, freq, q, gain)
+
+    def _compute_coeffs(self):
+        A = self.A
+        cos_w0 = self.cos_w0
+        alpha = self.alpha
+        a = [
+            (A + 1) - ((A - 1) * cos_w0) + (2.0 * math.sqrt(A) * alpha),
+            2.0 * ((A - 1) - ((A + 1) * cos_w0)),
+            (A + 1) - ((A - 1) * cos_w0) - (2.0 * math.sqrt(A) * alpha)
+        ]
+        b = [
+            A * ((A + 1) + ((A - 1) * cos_w0) + (2.0 * math.sqrt(A) * alpha)),
+            -2.0 * A * ((A - 1) + ((A + 1) * cos_w0)),
+            A * ((A + 1) + ((A - 1) * cos_w0) - (2.0 * math.sqrt(A) * alpha))
+        ]
+        return [a1 / a[0] for a1 in a], [b1 / a[0] for b1 in b]
