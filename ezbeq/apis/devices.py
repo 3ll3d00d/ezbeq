@@ -52,7 +52,7 @@ def load_biquads(bridge: DeviceRepository, device_name: str, slot: str, overwrit
     lines = biquads.splitlines()
     bqs: List[dict] = []
     if lines and lines[0][0:6].lower() == 'filter':
-        bqs = [PeakingEQ(96000, 100.0, 1.0, 0.0).format_biquads() if overwrite else {}] * 10
+        bqs = [{}] * 10
 
         def convert_to_bq(filt_type: str, freq: float, gain: float, q: float) -> dict:
             if filt_type == 'PK' or filt_type == 'PEQ':

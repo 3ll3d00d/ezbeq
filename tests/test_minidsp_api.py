@@ -1112,15 +1112,22 @@ Filter 1: ON HS Fc 25.1 Hz Gain 4.2 dB Q 0.8
     single_channel_cmds = [
         f"peq 0 set -- 1.6214064557154642 -3.2398617384986976 1.6184587156869308 1.9976818965843317 -0.997685329488029",
         f"peq 0 bypass off",
+        f"peq 1 bypass on",
+        f"peq 2 bypass on",
         f"peq 3 set -- 0.9978500923871526 -1.9857813617501132 0.9881971257952954 1.9857813617501132 -0.9860472181824479",
         f"peq 3 bypass off",
+        f"peq 4 bypass on",
+        f"peq 5 bypass on",
+        f"peq 6 bypass on",
+        f"peq 7 bypass on",
         f"peq 8 set -- 0.9998697905301912 -1.9984521459514417 0.9985831671951465 1.9984519651532529 -0.998453138523527",
         f"peq 8 bypass off",
+        f"peq 9 bypass on"
     ]
 
     expected_commands = [f"output 1 {l}" for l in single_channel_cmds]
     # then: expected commands are sent
-    cmds = verify_cmd_count(config.spy, 1, 6)
+    cmds = verify_cmd_count(config.spy, 1, 13)
     assert cmds == expected_commands
 
     # and: device state is accurate
