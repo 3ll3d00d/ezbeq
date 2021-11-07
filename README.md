@@ -63,6 +63,16 @@ See `$HOME/.ezbeq/ezbeq.yml`
 
 The only intended option for override is the port option which sets the port the UI and API is accessible on. This defaults to 8080.
 
+### Using a custom catalogue
+
+If `catalogueUrl` is added to the configuration, e.g.
+
+    catalogueUrl: http://localhost:9999
+
+ezbeq will instead load the catalogue from `http://localhost:9999/database.json`
+
+This provides the ability to run ezbeq against a custom, or locally provided, catalogue.
+
 ### Configuring Devices
 
 The devices section contains a list of supported device, the format varies by the type of device and each item is a named device with the name subsequently appearing the UI (if multiple devices are listed)

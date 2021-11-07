@@ -19,6 +19,9 @@ class Config:
         self.__port = self.config.get('port', default_port)
         self.__service_url = f"http://{self.hostname}:{self.port}"
         self.__beqcatalogue_url = beqcatalogue_url
+        if 'catalogueUrl' in self.config:
+            self.__beqcatalogue_url = self.config['catalogueUrl']
+            self.logger.warning(f"Loading catalogue from custom location {self.__beqcatalogue_url}")
         self.devices = self.config['devices']
         self.webapp_path = self.config.get('webappPath', None)
         self.use_twisted = self.config.get('useTwisted', True)
