@@ -8,7 +8,7 @@ from flask_restx import Resource, Namespace, fields
 
 from ezbeq.catalogue import CatalogueProvider, CatalogueEntry
 from ezbeq.device import DeviceRepository, InvalidRequestError
-from iir import PeakingEQ, LowShelf, HighShelf
+from ezbeq.iir import PeakingEQ, LowShelf, HighShelf
 
 logger = logging.getLogger('ezbeq.devices')
 
