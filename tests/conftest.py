@@ -48,6 +48,32 @@ def minidsp_client(minidsp_app):
     return minidsp_app.test_client()
 
 
+@pytest.fixture
+def minidsp_ddrc24_app(httpserver: HTTPServer, tmp_path):
+    """Create and configure a new app instance for each test."""
+    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='DDRC24'))
+    yield app
+
+
+@pytest.fixture
+def minidsp_ddrc24_client(minidsp_ddrc24_app):
+    """A test client for the app."""
+    return minidsp_ddrc24_app.test_client()
+
+
+@pytest.fixture
+def minidsp_ddrc88_app(httpserver: HTTPServer, tmp_path):
+    """Create and configure a new app instance for each test."""
+    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='DDRC88'))
+    yield app
+
+
+@pytest.fixture
+def minidsp_ddrc88_client(minidsp_ddrc88_app):
+    """A test client for the app."""
+    return minidsp_ddrc88_app.test_client()
+
+
 CONFIG_PATTERN = re.compile(r'config ([0-3])')
 GAIN_PATTERN = re.compile(r'gain -- ([-+]?\d*\.\d+|\d+)')
 
@@ -115,13 +141,14 @@ class MinidspSpy:
 
 class MinidspSpyConfig(Config):
 
-    def __init__(self, host: str, port: int, tmp_path):
+    def __init__(self, host: str, port: int, tmp_path, device_type: str = None):
+        self.device_type = device_type
         super().__init__('spy', beqcatalogue_url=f"http://{host}:{port}/")
         self.spy = MinidspSpy()
         self.__tmp_path = tmp_path
 
     def load_config(self):
-        return {
+        vals = {
             'debug': False,
             'debugLogging': False,
             'accessLogging': False,
@@ -138,6 +165,9 @@ class MinidspSpyConfig(Config):
                 }
             }
         }
+        if self.device_type:
+            vals['devices']['master']['device_type'] = self.device_type
+        return vals
 
     def create_minidsp_runner(self, cfg):
         return self.spy

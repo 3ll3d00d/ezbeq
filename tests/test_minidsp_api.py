@@ -703,6 +703,141 @@ input 1 gain -- 0.00"""
             verify_slot(s, idx + 1, active=slot_is_active)
 
 
+@pytest.mark.parametrize("slot,is_valid", [(0, False), (1, True), (2, True), (3, True), (4, True), (5, False)])
+def test_load_known_entry_to_ddrc24_and_then_clear(minidsp_ddrc24_client, minidsp_ddrc24_app, slot, is_valid):
+    config: MinidspSpyConfig = minidsp_ddrc24_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+
+    r = minidsp_ddrc24_client.put(f"/api/1/devices/master/filter/{slot}", data=json.dumps({'entryId': '123456_0'}),
+                                  content_type='application/json')
+    if is_valid:
+        assert r.status_code == 200
+        cmds = verify_cmd_count(config.spy, slot, 60)
+        expected_commands = f"""output 0 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 0 peq 0 bypass off
+output 1 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 1 peq 0 bypass off
+output 2 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 2 peq 0 bypass off
+output 3 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 3 peq 0 bypass off
+output 0 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 0 peq 1 bypass off
+output 1 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 1 peq 1 bypass off
+output 2 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 2 peq 1 bypass off
+output 3 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 3 peq 1 bypass off
+output 0 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 0 peq 2 bypass off
+output 1 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 1 peq 2 bypass off
+output 2 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 2 peq 2 bypass off
+output 3 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 3 peq 2 bypass off
+output 0 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 0 peq 3 bypass off
+output 1 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 1 peq 3 bypass off
+output 2 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 2 peq 3 bypass off
+output 3 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 3 peq 3 bypass off
+output 0 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 0 peq 4 bypass off
+output 1 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 1 peq 4 bypass off
+output 2 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 2 peq 4 bypass off
+output 3 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 3 peq 4 bypass off
+output 0 peq 5 bypass on
+output 1 peq 5 bypass on
+output 2 peq 5 bypass on
+output 3 peq 5 bypass on
+output 0 peq 6 bypass on
+output 1 peq 6 bypass on
+output 2 peq 6 bypass on
+output 3 peq 6 bypass on
+output 0 peq 7 bypass on
+output 1 peq 7 bypass on
+output 2 peq 7 bypass on
+output 3 peq 7 bypass on
+output 0 peq 8 bypass on
+output 1 peq 8 bypass on
+output 2 peq 8 bypass on
+output 3 peq 8 bypass on
+output 0 peq 9 bypass on
+output 1 peq 9 bypass on
+output 2 peq 9 bypass on
+output 3 peq 9 bypass on"""
+        assert '\n'.join(cmds) == expected_commands
+    else:
+        assert r.status_code == 400
+        cmds = config.spy.take_commands()
+        assert not cmds
+    slots = verify_master_device_state(r.json)
+    for idx, s in enumerate(slots):
+        slot_is_active = idx + 1 == slot if is_valid else idx == 0
+        if is_valid and idx + 1 == slot:
+            verify_slot(s, idx + 1, active=slot_is_active, last='Alien Resurrection')
+        else:
+            verify_slot(s, idx + 1, active=slot_is_active)
+
+    if is_valid:
+        r = minidsp_ddrc24_client.delete(f"/api/1/devices/master/filter/{slot}")
+        assert r.status_code == 200
+        cmds = config.spy.take_commands()
+        assert len(cmds) == 40
+        expected_commands = f"""output 0 peq 0 bypass on
+output 1 peq 0 bypass on
+output 2 peq 0 bypass on
+output 3 peq 0 bypass on
+output 0 peq 1 bypass on
+output 1 peq 1 bypass on
+output 2 peq 1 bypass on
+output 3 peq 1 bypass on
+output 0 peq 2 bypass on
+output 1 peq 2 bypass on
+output 2 peq 2 bypass on
+output 3 peq 2 bypass on
+output 0 peq 3 bypass on
+output 1 peq 3 bypass on
+output 2 peq 3 bypass on
+output 3 peq 3 bypass on
+output 0 peq 4 bypass on
+output 1 peq 4 bypass on
+output 2 peq 4 bypass on
+output 3 peq 4 bypass on
+output 0 peq 5 bypass on
+output 1 peq 5 bypass on
+output 2 peq 5 bypass on
+output 3 peq 5 bypass on
+output 0 peq 6 bypass on
+output 1 peq 6 bypass on
+output 2 peq 6 bypass on
+output 3 peq 6 bypass on
+output 0 peq 7 bypass on
+output 1 peq 7 bypass on
+output 2 peq 7 bypass on
+output 3 peq 7 bypass on
+output 0 peq 8 bypass on
+output 1 peq 8 bypass on
+output 2 peq 8 bypass on
+output 3 peq 8 bypass on
+output 0 peq 9 bypass on
+output 1 peq 9 bypass on
+output 2 peq 9 bypass on
+output 3 peq 9 bypass on"""
+        assert '\n'.join(cmds) == expected_commands
+        slots = verify_master_device_state(r.json)
+        for idx, s in enumerate(slots):
+            slot_is_active = idx + 1 == slot if is_valid else idx == 0
+            verify_slot(s, idx + 1, active=slot_is_active)
+
+
 def test_patch_multiple_fields(minidsp_client, minidsp_app):
     config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
     assert isinstance(config, MinidspSpyConfig)

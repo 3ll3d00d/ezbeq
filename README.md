@@ -96,6 +96,41 @@ Default values are shown, the only required value is the type field
 * options: additional command line switches to pass to minidsp-rs (refer to minidsp-rs docs for details)
 * type: minidsp 
 
+By default, it is assumed the Minidsp 2x4HD is in use. To use a different model, specify via the device_type option. For example:
+
+```
+  minidsp:
+    cmdTimeout: 10
+    exe: minidsp
+    ignoreRetcode: false
+    options: ''
+    type: minidsp
+    device_type: 4x10
+```
+
+A full list of supported models is provided below.
+
+##### Minidsp Variants
+
+Device support largely tracks [minidsp-rs device support](https://minidsp-rs.pages.dev/devices). The following minidsp models are supported:
+
+* `device_type: 24HD`: [2x4HD](https://www.minidsp.com/products/minidsp-in-a-box/minidsp-2x4-hd)  
+* `device_type: DDRC24`: [DDRC-24](https://www.minidsp.com/products/dirac-series/ddrc-24)
+* `device_type: DDRC88`: [DDRC-88](https://www.minidsp.com/products/dirac-series/ddrc-88a)
+* `device_type: 4x10`: Devices supporting the [4x10](https://www.minidsp.com/products/plugins/4x10-plug-in-detail) plugin
+* `device_type: 10x10`: * Devices supporting the [10x10](https://www.minidsp.com/products/plugins/4x10-10x10-plug-ins/10x10-plug-in-detail) plugin
+* `device_type: SHD`: [SHD](https://www.minidsp.com/products/streaming-hd-series/shd)
+
+Filters are written to the input channel(s) if the device supports filtering on the input side. 
+For devices which support output peq only, except for the DDRC-88, filters are written to all output channels.
+For the DDRC-88, filters are written to channel 4 on the assumption this is the subwoofer channel.
+For the 2x8, the limited biquad capacity means that filters are split across input and output channels and there is no further capacity for user filters.
+For the 4x10, the limited biquad capacity means that filters are split across input and output channels and the last 2 biquads per output channel are left for the user. 
+
+##### Custom Filter Layouts
+
+TODO
+
 #### Monolith HTP1
 
 ```

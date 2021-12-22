@@ -1,12 +1,12 @@
 import json
 import logging
+import math
 import os
+import time
 from concurrent.futures.thread import ThreadPoolExecutor
 from contextlib import contextmanager
 from typing import List, Optional, Union
 
-import math
-import time
 from autobahn.exception import Disconnected
 from autobahn.twisted import WebSocketClientFactory, WebSocketClientProtocol
 from twisted.internet.protocol import ReconnectingClientFactory
@@ -170,6 +170,143 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
         return f"{super().__repr__()} - 1: {self.gain1:.2f}/{self.mute1} 2: {self.gain2:.2f}/{self.mute2}"
 
 
+class PeqRoute:
+
+    def __init__(self, side: str, channel_idx: int, biquads: int, beq: Optional[List[int]], reset_on_clear: bool = False):
+        self.side = side
+        self.channel_idx = channel_idx
+        self.biquads = biquads
+        self.beq = beq if beq is not None else list(range(biquads))
+        self.reset_on_clear = reset_on_clear
+
+    def __repr__(self):
+        return f"{self.side} {self.channel_idx} {self.biquads} {self.beq}"
+
+
+class MinidspDescriptor:
+
+    def __init__(self, name: str, fs: str, peq_routes: List[PeqRoute], split: bool = False):
+        self.name = name
+        self.fs = fs
+        self.peq_routes = peq_routes
+        self.split = split
+
+    def __repr__(self):
+        return f"{self.name}, fs:{self.fs}, routes: {self.peq_routes}"
+
+
+class Minidsp24HD(MinidspDescriptor):
+
+    def __init__(self):
+        super().__init__('2x4HD',
+                         '96000',
+                         [
+                             PeqRoute('input', 0, 10, None, reset_on_clear=True),
+                             PeqRoute('input', 1, 10, None, reset_on_clear=True),
+                             PeqRoute('output', 0, 10, []),
+                             PeqRoute('output', 1, 10, []),
+                             PeqRoute('output', 2, 10, []),
+                             PeqRoute('output', 3, 10, [])
+                         ])
+
+
+class MinidspDDRC24(MinidspDescriptor):
+
+    def __init__(self):
+        super().__init__('DDRC24',
+                         '96000',
+                         [
+                             PeqRoute('output', 0, 10, None),
+                             PeqRoute('output', 1, 10, None),
+                             PeqRoute('output', 2, 10, None),
+                             PeqRoute('output', 3, 10, None)
+                         ])
+
+
+class MinidspDDRC88(MinidspDescriptor):
+
+    def __init__(self):
+        super().__init__('DDRC88',
+                         '48000',
+                         [
+                             PeqRoute('output', 0, 10, []),
+                             PeqRoute('output', 1, 10, []),
+                             PeqRoute('output', 2, 10, []),
+                             PeqRoute('output', 3, 10, None),
+                             PeqRoute('output', 4, 10, []),
+                             PeqRoute('output', 5, 10, []),
+                             PeqRoute('output', 6, 10, []),
+                             PeqRoute('output', 7, 10, [])
+                         ])
+
+
+class Minidsp410(MinidspDescriptor):
+
+    def __init__(self):
+        super().__init__('4x10',
+                         '96000',
+                         [
+                             PeqRoute('input', 0, 5, None, reset_on_clear=True),
+                             PeqRoute('input', 1, 5, None, reset_on_clear=True),
+                             PeqRoute('output', 0, 5, None),
+                             PeqRoute('output', 1, 5, None),
+                             PeqRoute('output', 2, 5, None),
+                             PeqRoute('output', 3, 5, None),
+                             PeqRoute('output', 4, 5, None),
+                             PeqRoute('output', 5, 5, None),
+                             PeqRoute('output', 6, 5, None),
+                             PeqRoute('output', 7, 5, None)
+                         ],
+                         split=True)
+
+
+class Minidsp1010(MinidspDescriptor):
+
+    def __init__(self):
+        super().__init__('10x10',
+                         '48000',
+                         [
+                             PeqRoute('input', 0, 6, None, reset_on_clear=True),
+                             PeqRoute('input', 1, 6, None, reset_on_clear=True),
+                             PeqRoute('input', 2, 6, None, reset_on_clear=True),
+                             PeqRoute('input', 3, 6, None, reset_on_clear=True),
+                             PeqRoute('input', 4, 6, None, reset_on_clear=True),
+                             PeqRoute('input', 5, 6, None, reset_on_clear=True),
+                             PeqRoute('input', 6, 6, None, reset_on_clear=True),
+                             PeqRoute('input', 7, 6, None, reset_on_clear=True),
+                             PeqRoute('output', 0, 6, list(range(4))),
+                             PeqRoute('output', 1, 6, list(range(4))),
+                             PeqRoute('output', 2, 6, list(range(4))),
+                             PeqRoute('output', 3, 6, list(range(4))),
+                             PeqRoute('output', 4, 6, list(range(4))),
+                             PeqRoute('output', 5, 6, list(range(4))),
+                             PeqRoute('output', 6, 6, list(range(4))),
+                             PeqRoute('output', 7, 6, list(range(4)))
+                         ],
+                         split=True)
+
+
+def make_peq_layout(cfg: dict) -> MinidspDescriptor:
+    if 'device_type' in cfg:
+        device_type = cfg['device_type']
+        if device_type == '24HD':
+            return Minidsp24HD()
+        elif device_type == 'DDRC24':
+            return MinidspDDRC24()
+        elif device_type == 'DDRC88':
+            return MinidspDDRC88()
+        elif device_type == '4x10':
+            return Minidsp410()
+        elif device_type == '10x10':
+            return Minidsp1010()
+        elif device_type == 'SHD':
+            return MinidspDDRC24()
+    elif 'peq_layout' in cfg:
+        raise ValueError('custom peq_layout is not supported')
+    else:
+        return Minidsp24HD()
+
+
 class Minidsp(PersistentDevice[MinidspState]):
 
     def __init__(self, name: str, config_path: str, cfg: dict, ws_server: WsServer, catalogue: CatalogueProvider):
@@ -181,6 +318,7 @@ class Minidsp(PersistentDevice[MinidspState]):
         self.__levels_interval = 1.0 / float(cfg.get('levelsFps', 10))
         self.__runner = cfg['make_runner']()
         self.__client = MinidspRsClient(self) if cfg.get('useWs', False) else None
+        self.__descriptor: MinidspDescriptor = make_peq_layout(cfg)
         ws_server.factory.set_levels_provider(name, self.start_broadcast_levels)
 
     @property
@@ -236,7 +374,8 @@ class Minidsp(PersistentDevice[MinidspState]):
         if target_slot_idx < 0 or target_slot_idx > 3:
             raise InvalidRequestError(f"Slot must be in range 1-4")
 
-    def load_biquads(self, slot: str, overwrite: bool, inputs: List[int], outputs: List[int], biquads: List[dict]) -> None:
+    def load_biquads(self, slot: str, overwrite: bool, inputs: List[int], outputs: List[int],
+                     biquads: List[dict]) -> None:
         def __do_it():
             target_slot_idx = self.__as_idx(slot)
             self.__validate_slot_idx(target_slot_idx)
@@ -257,7 +396,7 @@ class Minidsp(PersistentDevice[MinidspState]):
         def __do_it():
             target_slot_idx = self.__as_idx(slot)
             self.__validate_slot_idx(target_slot_idx)
-            cmds = MinidspBeqCommandGenerator.filt(entry)
+            cmds = MinidspBeqCommandGenerator.filt(entry, self.__descriptor)
             try:
                 self.__send_cmds(target_slot_idx, cmds)
                 self._current_state.load(slot, entry.formatted_title)
@@ -271,9 +410,11 @@ class Minidsp(PersistentDevice[MinidspState]):
         def __do_it():
             target_slot_idx = self.__as_idx(slot)
             self.__validate_slot_idx(target_slot_idx)
-            cmds = MinidspBeqCommandGenerator.filt(None)
-            cmds.extend(MinidspBeqCommandGenerator.mute(False, target_slot_idx, None))
-            cmds.extend(MinidspBeqCommandGenerator.gain(0.0, target_slot_idx, None))
+            cmds = MinidspBeqCommandGenerator.filt(None, self.__descriptor)
+            for r in self.__descriptor.peq_routes:
+                if r.reset_on_clear:
+                    cmds.extend(MinidspBeqCommandGenerator.mute(False, target_slot_idx, r.channel_idx, side=r.side))
+                    cmds.extend(MinidspBeqCommandGenerator.gain(0.0, target_slot_idx, r.channel_idx, side=r.side))
             try:
                 self.__send_cmds(target_slot_idx, cmds)
                 self._current_state.clear(slot)
@@ -321,7 +462,8 @@ class Minidsp(PersistentDevice[MinidspState]):
             if current_state and current_state.active_slot == str(slot + 1):
                 change_slot = False
             if change_slot is True:
-                logger.info(f"Activating slot {slot}, current is {current_state.active_slot if current_state else 'UNKNOWN'}")
+                logger.info(
+                    f"Activating slot {slot}, current is {current_state.active_slot if current_state else 'UNKNOWN'}")
                 config_cmds.insert(0, MinidspBeqCommandGenerator.activate(slot))
         formatted = '\n'.join(config_cmds)
         logger.info(f"\n{formatted}")
@@ -462,24 +604,71 @@ class MinidspBeqCommandGenerator:
         return cmds
 
     @staticmethod
-    def filt(entry: Optional[CatalogueEntry]):
-        # input <channel> peq <index> set -- <b0> <b1> <b2> <a1> <a2>
-        # input <channel> peq <index> bypass [on|off]
+    def as_bq(f: dict, fs: str):
+        bq = []
+        if fs in f['biquads']:
+            bq = f['biquads'][fs]['b'] + f['biquads'][fs]['a']
+        else:
+            t = f['type']
+            freq = f['freq']
+            gain = f['gain']
+            q = f['q']
+            from iir import PeakingEQ, LowShelf, HighShelf
+            if t == 'PeakingEQ':
+                f = PeakingEQ(int(fs), freq, q, gain)
+            elif t == 'LowShelf':
+                f = LowShelf(int(fs), freq, q, gain)
+            elif t == 'HighShelf':
+                f = HighShelf(int(fs), freq, q, gain)
+            else:
+                raise InvalidRequestError(f"Unknown filt_type {t}")
+            bq = f.format_biquads()
+        if len(bq) != 5:
+            raise ValueError(f"Invalid coeff count {len(bq)}")
+        return bq
+
+    @staticmethod
+    def filt(entry: Optional[CatalogueEntry], descriptor: MinidspDescriptor):
+        # [in|out]put <channel> peq <index> set -- <b0> <b1> <b2> <a1> <a2>
+        # [in|out]put <channel> peq <index> bypass [on|off]
         cmds = []
-        for c in range(2):
-            idx = 0
-            if entry:
-                for f in entry.filters:
-                    bq: dict = f['biquads']['96000']
-                    coeffs: List[str] = bq['b'] + bq['a']
-                    if len(coeffs) != 5:
-                        raise ValueError(f"Invalid coeff count {len(coeffs)} at idx {idx}")
-                    else:
-                        cmds.append(MinidspBeqCommandGenerator.bq(c, idx, coeffs))
-                        cmds.append(MinidspBeqCommandGenerator.bypass(c, idx, False))
-                        idx += 1
-            for i in range(idx, 10):
-                cmds.append(MinidspBeqCommandGenerator.bypass(c, i, True))
+        # write filts to the inputs first then the output if it's a split deviceb
+        filters = [MinidspBeqCommandGenerator.as_bq(f, descriptor.fs) for f in entry.filters] if entry else []
+        idx = 0
+        input_beq_routes = [r for r in descriptor.peq_routes if r.side == 'input' and r.beq]
+        output_beq_routes = [r for r in descriptor.peq_routes if r.side == 'output' and r.beq]
+        input_beqs = input_beq_routes[0].biquads if input_beq_routes else 0
+        output_beqs = output_beq_routes[0].biquads if output_beq_routes else 0
+        while idx < len(filters):
+            coeffs: List[str] = filters[idx]
+            if idx < input_beqs:
+                for r in input_beq_routes:
+                    cmds.append(MinidspBeqCommandGenerator.bq(r.channel_idx, idx, coeffs, r.side))
+                    cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx, False, r.side))
+            elif input_beqs == 0 or descriptor.split:
+                if idx < (input_beqs + output_beqs):
+                    for r in output_beq_routes:
+                        cmds.append(MinidspBeqCommandGenerator.bq(r.channel_idx, idx, coeffs, r.side))
+                        cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx, False, r.side))
+                else:
+                    raise ValueError('Not enough slots')
+            else:
+                raise ValueError('Not enough slots')
+            idx += 1
+        # we assume 10 biquads max so bypass anything that is left
+        while idx < 10:
+            if idx < input_beqs:
+                for r in input_beq_routes:
+                    cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx, True, r.side))
+            elif input_beqs == 0 or descriptor.split:
+                if idx < (input_beqs + output_beqs):
+                    for r in output_beq_routes:
+                        cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx, True, r.side))
+                else:
+                    raise ValueError('Not enough slots')
+            else:
+                raise ValueError('Not enough slots')
+            idx += 1
         return cmds
 
     @staticmethod
@@ -491,44 +680,47 @@ class MinidspBeqCommandGenerator:
         return f"{side} {channel} peq {idx} bypass {'on' if bypass else 'off'}"
 
     @staticmethod
-    def mute(state: bool, slot: Optional[int], channel: Optional[int]):
+    def mute(state: bool, slot: Optional[int], channel: Optional[int], side: Optional[str] = 'input'):
         '''
         Generates commands to mute the configuration.
         :param state: mute if true otherwise unmute.
         :param slot: the target slot, if not set apply to the master control.
         :param channel: the channel, applicable only if slot is set, if not set apply to both input channels.
+        :param side: the side, input by default.
         :return: the commands.
         '''
         state_cmd = 'on' if state else 'off'
         if slot is not None:
             cmds = []
             if channel is None:
-                cmds.append(f"input 0 mute {state_cmd}")
-                cmds.append(f"input 1 mute {state_cmd}")
+                cmds.append(f"{side} 0 mute {state_cmd}")
+                cmds.append(f"{side} 1 mute {state_cmd}")
             else:
-                cmds.append(f"input {channel} mute {state_cmd}")
+                cmds.append(f"{side} {channel} mute {state_cmd}")
             return cmds
         else:
             return [f"mute {state_cmd}"]
 
     @staticmethod
-    def gain(gain: float, slot: Optional[int], channel: Optional[int]):
+    def gain(gain: float, slot: Optional[int], channel: Optional[int], side: Optional[str] = 'input'):
         '''
         Generates commands to set gain.
         :param gain: the gain to set.
         :param slot: the target slot, if not set apply to the master control.
         :param channel: the channel, applicable only if slot is set, if not set apply to both input channels.
+        :param side: the side to apply the gain to, input by default.
         :return: the commands.
         '''
         if slot is not None:
+            # TODO is this valid for other devices
             if not -72.0 <= gain <= 12.0:
-                raise InvalidRequestError(f"Input gain {gain:.2f} out of range (>= -72.0 and <= 12.0)")
+                raise InvalidRequestError(f"{side} gain {gain:.2f} out of range (>= -72.0 and <= 12.0)")
             cmds = []
             if channel is None:
-                cmds.append(f"input 0 gain -- {gain:.2f}")
-                cmds.append(f"input 1 gain -- {gain:.2f}")
+                cmds.append(f"{side} 0 gain -- {gain:.2f}")
+                cmds.append(f"{side} 1 gain -- {gain:.2f}")
             else:
-                cmds.append(f"input {channel} gain -- {gain:.2f}")
+                cmds.append(f"{side} {channel} gain -- {gain:.2f}")
             return cmds
         else:
             if not -127.0 <= gain <= 0.0:
