@@ -5,7 +5,6 @@ from typing import Tuple, List
 import pytest
 
 from conftest import MinidspSpyConfig, MinidspSpy
-from minidsp import Minidsp24HD, MinidspDDRC88, MinidspDDRC24, Minidsp410, Minidsp1010, MinidspDescriptor
 
 
 def verify_slot(slot: dict, idx: int, active: bool = False, gain: Tuple[float, float] = (0.0, 0.0),
@@ -1292,19 +1291,19 @@ def test_get_by_digest_404(minidsp_client, minidsp_app, endpoint):
 
 
 @pytest.mark.parametrize('dt,exp', [
-    ('24HD', Minidsp24HD),
-    ('DDRC24', MinidspDDRC24),
-    ('DDRC88', MinidspDDRC88),
-    ('4x10', Minidsp410),
-    ('10x10', Minidsp1010),
-    ('SHD', MinidspDDRC24),
+    ('24HD', 'Minidsp24HD'),
+    ('DDRC24', 'MinidspDDRC24'),
+    ('DDRC88', 'MinidspDDRC88'),
+    ('4x10', 'Minidsp410'),
+    ('10x10', 'Minidsp1010'),
+    ('SHD', 'MinidspDDRC24'),
 ])
 def test_cfg_makes_known_minidsp(dt, exp):
     from minidsp import make_peq_layout
     cfg = {'device_type': dt}
     desc = make_peq_layout(cfg)
     assert desc
-    assert isinstance(desc, exp)
+    assert desc.__class__.__name__ == exp
 
 
 def test_cfg_customise_ddrc88_sw():
@@ -1312,7 +1311,7 @@ def test_cfg_customise_ddrc88_sw():
     cfg = {'device_type': 'DDRC88', 'sw_channels': [1, 2, 6]}
     desc = make_peq_layout(cfg)
     assert desc
-    assert isinstance(desc, MinidspDDRC88)
+    assert desc.__class__.__name__ == 'MinidspDDRC88'
     assert not desc.peq_routes[0].beq
     assert len(desc.peq_routes[1].beq) == 10
     assert len(desc.peq_routes[2].beq) == 10
@@ -1339,7 +1338,7 @@ def test_cfg_makes_custom_minidsp():
     }}
     desc = make_peq_layout(cfg)
     assert desc
-    assert isinstance(desc, MinidspDescriptor)
+    assert desc.__class__.__name__ == 'MinidspDescriptor'
     assert desc.name == 'mine'
     assert desc.fs == '48000'
     assert len(desc.peq_routes) == 1
