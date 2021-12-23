@@ -1,5 +1,5 @@
 import Header from "../Header";
-import React, {useState} from "react";
+import React, {useEffect, useState} from "react";
 import {makeStyles} from "@material-ui/core/styles";
 import {
     Button,
@@ -81,7 +81,7 @@ const SelectableSlots = ({name, values, availableValues, onChange}) => {
                     )}
                     MenuProps={MenuProps}>
                 {availableValues.map(v => (
-                    <MenuItem key={v}
+                    <MenuItem key={`${name}-${v}`}
                               value={v}
                               style={getStyles(v, values, theme)}>
                         {v}
@@ -95,12 +95,14 @@ const SelectableSlots = ({name, values, availableValues, onChange}) => {
 
 const Minidsp = ({availableDevices, setSelectedDeviceName, selectedDeviceName, selectedSlotId, setErr}) => {
     const classes = useStyles();
-    const [inputs, setInputs] = useLocalStorage('minidspInputs', []);
-    const [outputs, setOutputs] = useLocalStorage('minidspOutputs', [1, 2, 3, 4]);
+    const [inputs, setInputs] = useLocalStorage(`minidspInputs.${selectedDeviceName}.${selectedSlotId}`, []);
+    const [outputs, setOutputs] = useLocalStorage(`minidspOutputs.${selectedDeviceName}.${selectedSlotId}`, []);
     const [config, setConfig] = useState(selectedSlotId);
     const [biquads, setBiquads] = useState('');
     const [overwrite, setOverwrite] = useState(true);
     const [pending, setPending] = useState(false);
+    const [inputChannels, setInputChannels] = useState([]);
+    const [outputChannels, setOutputChannels] = useState([]);
 
     const uploadBiquads = async () => {
         setPending(true);
@@ -113,6 +115,26 @@ const Minidsp = ({availableDevices, setSelectedDeviceName, selectedDeviceName, s
             setPending(false);
         }
     };
+
+    useEffect(() => {
+        if (availableDevices && selectedDeviceName && selectedSlotId) {
+            const slot = availableDevices[selectedDeviceName].slots.find(s => s.id === selectedSlotId);
+            setInputChannels(Array.from(Array(slot.inputs).keys()).map(i => i+1));
+            setOutputChannels(Array.from(Array(slot.outputs).keys()).map(i => i+1));
+        }
+    }, [availableDevices, selectedDeviceName, selectedSlotId]);
+
+    useEffect(() => {
+        if (inputs.some(i => !inputChannels.includes(i))) {
+            setInputs(inputs.filter(i => inputChannels.includes(i)))
+        }
+    }, [setInputs, inputChannels, inputs]);
+
+    useEffect(() => {
+        if (outputs.some(i => !outputChannels.includes(i))) {
+            setOutputs(outputs.filter(i => outputChannels.includes(i)))
+        }
+    }, [setOutputs, outputChannels, outputs]);
 
     return (
         <>
@@ -130,22 +152,34 @@ const Minidsp = ({availableDevices, setSelectedDeviceName, selectedDeviceName, s
                                         id="config"
                                         value={config}
                                         onChange={e => setConfig(e.target.value)}>
-                                    {[1,2,3,4].map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+                                    {[1, 2, 3, 4].map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
                                 </Select>
                             </FormControl>
                         </Grid>
-                        <Grid item>
-                            <SelectableSlots name={'Input'}
-                                             onChange={e => setInputs(e.target.value.sort())}
-                                             availableValues={[1, 2]}
-                                             values={inputs}/>
-                        </Grid>
-                        <Grid item>
-                            <SelectableSlots name={'Output'}
-                                             onChange={e => setOutputs(e.target.value.sort())}
-                                             availableValues={[1, 2, 3, 4]}
-                                             values={outputs}/>
-                        </Grid>
+                        {
+                            inputChannels.length > 0
+                                ?
+                                <Grid item>
+                                    <SelectableSlots name={'Input'}
+                                                     key={'input'}
+                                                     onChange={e => setInputs(e.target.value.sort())}
+                                                     availableValues={inputChannels}
+                                                     values={inputs}/>
+                                </Grid>
+                                : null
+                        }
+                        {
+                            outputChannels.length > 0
+                                ?
+                                <Grid item>
+                                    <SelectableSlots name={'Output'}
+                                                     key={'output'}
+                                                     onChange={e => setOutputs(e.target.value.sort())}
+                                                     availableValues={outputChannels}
+                                                     values={outputs}/>
+                                </Grid>
+                                : null
+                        }
                         <Grid item>
                             <FormControlLabel
                                 control={<Switch checked={overwrite}

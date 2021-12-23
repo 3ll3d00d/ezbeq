@@ -20,13 +20,17 @@ logger = logging.getLogger('ezbeq.minidsp')
 
 class MinidspState(DeviceState):
 
-    def __init__(self, name: str, input_channels: int, **kwargs):
+    def __init__(self, name: str, descriptor: 'MinidspDescriptor', **kwargs):
         self.__name = name
         self.master_volume: float = kwargs['mv'] if 'mv' in kwargs else 0.0
         self.__mute: bool = kwargs['mute'] if 'mute' in kwargs else False
         self.__active_slot: str = kwargs['active_slot'] if 'active_slot' in kwargs else ''
+        self.__descriptr = descriptor
         slot_ids = [str(i + 1) for i in range(4)]
-        self.__slots: List[MinidspSlotState] = [MinidspSlotState(c_id, c_id == self.active_slot, input_channels) for c_id in slot_ids]
+        self.__slots: List[MinidspSlotState] = [
+            MinidspSlotState(c_id, c_id == self.active_slot, descriptor.input_channels, descriptor.output_channels) for
+            c_id in slot_ids
+        ]
 
     def update_master_state(self, mute: bool, gain: float):
         self.__mute = mute
@@ -99,9 +103,10 @@ class MinidspState(DeviceState):
 
 class MinidspSlotState(SlotState['MinidspSlotState']):
 
-    def __init__(self, slot_id: str, active: bool, input_channels: int):
+    def __init__(self, slot_id: str, active: bool, input_channels: int, output_channels: int):
         super().__init__(slot_id)
         self.__input_channels = input_channels
+        self.__output_channels = output_channels
         self.gains = self.__make_vals(0.0)
         self.mutes = self.__make_vals(False)
         self.active = active
@@ -172,7 +177,8 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
             'gains': [g for g in self.gains],
             'mutes': [m for m in self.mutes],
             'canActivate': True,
-            'inputs': self.__input_channels
+            'inputs': self.__input_channels,
+            'outputs': self.__output_channels
         }
 
     def __repr__(self):
@@ -203,10 +209,16 @@ class MinidspDescriptor:
         self.fs = str(int(fs))
         self.peq_routes = peq_routes
         self.split = split
+        self.__input_channels = len([r for r in self.peq_routes if r.is_input])
+        self.__output_channels = len([r for r in self.peq_routes if not r.is_input])
 
     @property
     def input_channels(self) -> int:
-        return len([r for r in self.peq_routes if r.is_input])
+        return self.__input_channels
+
+    @property
+    def output_channels(self) -> int:
+        return self.__output_channels
 
     def __repr__(self):
         return f"{self.name}, fs:{self.fs}, routes: {self.peq_routes}"
@@ -359,7 +371,7 @@ class Minidsp(PersistentDevice[MinidspState]):
 
     def __load_state(self) -> MinidspState:
         result = self.__executor.submit(self.__read_state_from_device).result(timeout=self.__cmd_timeout)
-        return result if result else MinidspState(self.name, self.__descriptor.input_channels)
+        return result if result else MinidspState(self.name, self.__descriptor)
 
     def __read_state_from_device(self) -> Optional[MinidspState]:
         output = None
@@ -374,7 +386,7 @@ class Minidsp(PersistentDevice[MinidspState]):
                     'mute': status['master']['mute'],
                     'mv': status['master']['volume']
                 }
-                return MinidspState(self.name, self.__descriptor.input_channels, **values)
+                return MinidspState(self.name, self.__descriptor, **values)
             else:
                 logger.error(f"No output returned from device")
         except:
