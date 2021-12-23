@@ -1299,17 +1299,24 @@ def test_get_by_digest_404(minidsp_client, minidsp_app, endpoint):
     ('SHD', 'MinidspDDRC24'),
 ])
 def test_cfg_makes_known_minidsp(dt, exp):
-    from minidsp import make_peq_layout
     cfg = {'device_type': dt}
-    desc = make_peq_layout(cfg)
+    desc = import_md().make_peq_layout(cfg)
     assert desc
     assert desc.__class__.__name__ == exp
 
 
+def import_md():
+    import importlib
+    try:
+        md = importlib.import_module('minidsp')
+    except ModuleNotFoundError:
+        md = importlib.import_module('ezbeq.minidsp')
+    return md
+
+
 def test_cfg_customise_ddrc88_sw():
-    from minidsp import make_peq_layout
     cfg = {'device_type': 'DDRC88', 'sw_channels': [1, 2, 6]}
-    desc = make_peq_layout(cfg)
+    desc = import_md().make_peq_layout(cfg)
     assert desc
     assert desc.__class__.__name__ == 'MinidspDDRC88'
     assert not desc.peq_routes[0].beq
@@ -1323,7 +1330,6 @@ def test_cfg_customise_ddrc88_sw():
 
 
 def test_cfg_makes_custom_minidsp():
-    from minidsp import make_peq_layout
     cfg = {'descriptor': {
         'name': 'mine',
         'fs': 48000,
@@ -1336,7 +1342,7 @@ def test_cfg_makes_custom_minidsp():
         ],
         'split': True
     }}
-    desc = make_peq_layout(cfg)
+    desc = import_md().make_peq_layout(cfg)
     assert desc
     assert desc.__class__.__name__ == 'MinidspDescriptor'
     assert desc.name == 'mine'
