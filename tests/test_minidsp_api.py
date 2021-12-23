@@ -5,6 +5,7 @@ from typing import Tuple, List
 import pytest
 
 from conftest import MinidspSpyConfig, MinidspSpy
+from minidsp import Minidsp24HD, MinidspDDRC88, MinidspDDRC24, Minidsp410, Minidsp1010, MinidspDescriptor
 
 
 def verify_slot(slot: dict, idx: int, active: bool = False, gain: Tuple[float, float] = (0.0, 0.0),
@@ -1288,3 +1289,47 @@ def test_get_by_digest(minidsp_client, minidsp_app, endpoint):
 def test_get_by_digest_404(minidsp_client, minidsp_app, endpoint):
     r = minidsp_client.get(f"/api/1/catalogue/abcdefghijkl/{endpoint}")
     assert r.status_code == 404
+
+
+@pytest.mark.parametrize('dt,exp', [
+    ('24HD', Minidsp24HD),
+    ('DDRC24', MinidspDDRC24),
+    ('DDRC88', MinidspDDRC88),
+    ('4x10', Minidsp410),
+    ('10x10', Minidsp1010),
+    ('SHD', MinidspDDRC24),
+])
+def test_cfg_makes_known_minidsp(dt, exp):
+    from minidsp import make_peq_layout
+    cfg = {'device_type': dt}
+    desc = make_peq_layout(cfg)
+    assert desc
+    assert isinstance(desc, exp)
+
+
+def test_cfg_makes_custom_minidsp():
+    from minidsp import make_peq_layout
+    cfg = {'descriptor': {
+        'name': 'mine',
+        'fs': 48000,
+        'routes': [
+            {
+                'side': 'input',
+                'channel_idx': 1,
+                'biquads': 20
+            }
+        ],
+        'split': True
+    }}
+    desc = make_peq_layout(cfg)
+    assert desc
+    assert isinstance(desc, MinidspDescriptor)
+    assert desc.name == 'mine'
+    assert desc.fs == '48000'
+    assert len(desc.peq_routes) == 1
+    assert desc.peq_routes[0].side == 'input'
+    assert desc.peq_routes[0].channel_idx == 1
+    assert desc.peq_routes[0].biquads == 20
+    assert desc.peq_routes[0].beq == [i for i in range(20)]
+    assert not desc.peq_routes[0].reset_on_clear
+    assert desc.split

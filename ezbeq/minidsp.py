@@ -187,7 +187,7 @@ class MinidspDescriptor:
 
     def __init__(self, name: str, fs: str, peq_routes: List[PeqRoute], split: bool = False):
         self.name = name
-        self.fs = fs
+        self.fs = str(int(fs))
         self.peq_routes = peq_routes
         self.split = split
 
@@ -301,8 +301,26 @@ def make_peq_layout(cfg: dict) -> MinidspDescriptor:
             return Minidsp1010()
         elif device_type == 'SHD':
             return MinidspDDRC24()
-    elif 'peq_layout' in cfg:
-        raise ValueError('custom peq_layout is not supported')
+    elif 'descriptor' in cfg:
+        desc: dict = cfg['descriptor']
+        named_args = ['name', 'fs', 'routes']
+        missing_keys = [x for x in named_args if x not in desc.keys()]
+        if missing_keys:
+            raise ValueError(f"Custom descriptor is missing keys - {missing_keys} - from {desc}")
+        routes: List[dict] = desc['routes']
+
+        def make_route(r: dict) -> PeqRoute:
+            r_named_args = ['side', 'channel_idx', 'biquads']
+            missing_route_keys = [x for x in r_named_args if x not in r.keys()]
+            if missing_route_keys:
+                raise ValueError(f"Custom PeqRoute is missing keys - {missing_keys} - from {r}")
+            bq_count = int(r['biquads'])
+            beq = [int(b) for b in r['beq']] if 'beq' in r else None
+            kwargs = {k: v for k, v in r.items() if k not in r_named_args}
+            return PeqRoute(r['side'], int(r['channel_idx']), bq_count, beq, **kwargs)
+
+        kwargs = {k: v for k, v in desc.items() if k not in named_args}
+        return MinidspDescriptor(desc['name'], str(desc['fs']), [make_route(r) for r in routes], **kwargs)
     else:
         return Minidsp24HD()
 
