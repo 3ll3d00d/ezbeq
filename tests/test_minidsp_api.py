@@ -1,20 +1,26 @@
 import json
 import os
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 
 import pytest
 
 from conftest import MinidspSpyConfig, MinidspSpy
 
 
-def verify_slot(slot: dict, idx: int, active: bool = False, gain: Tuple[float, float] = (0.0, 0.0),
-                mute: Tuple[bool, bool] = (False, False), last: str = 'Empty'):
+def verify_slot(slot: dict, idx: int, active: bool = False, gain: Optional[Tuple[float, float]] = (0.0, 0.0),
+                mute: Optional[Tuple[bool, bool]] = (False, False), last: str = 'Empty'):
     assert slot['id'] == str(idx)
     assert slot['active'] == active
-    assert slot['gain1'] == gain[0]
-    assert slot['gain2'] == gain[1]
-    assert slot['mute1'] == mute[0]
-    assert slot['mute2'] == mute[1]
+    if gain:
+        assert slot['gains'][0] == gain[0]
+        assert slot['gains'][1] == gain[1]
+    else:
+        assert len(slot['gains']) == 0
+    if mute:
+        assert slot['mutes'][0] == mute[0]
+        assert slot['mutes'][1] == mute[1]
+    else:
+        assert len(slot['mutes']) == 0
     assert slot['last'] == last
     assert slot['canActivate'] is True
 
@@ -782,9 +788,9 @@ output 3 peq 9 bypass on"""
     for idx, s in enumerate(slots):
         slot_is_active = idx + 1 == slot if is_valid else idx == 0
         if is_valid and idx + 1 == slot:
-            verify_slot(s, idx + 1, active=slot_is_active, last='Alien Resurrection')
+            verify_slot(s, idx + 1, active=slot_is_active, last='Alien Resurrection', gain=None, mute=None)
         else:
-            verify_slot(s, idx + 1, active=slot_is_active)
+            verify_slot(s, idx + 1, active=slot_is_active, gain=None, mute=None)
 
     if is_valid:
         r = minidsp_ddrc24_client.delete(f"/api/1/devices/master/filter/{slot}")
@@ -835,7 +841,7 @@ output 3 peq 9 bypass on"""
         slots = verify_master_device_state(r.json)
         for idx, s in enumerate(slots):
             slot_is_active = idx + 1 == slot if is_valid else idx == 0
-            verify_slot(s, idx + 1, active=slot_is_active)
+            verify_slot(s, idx + 1, active=slot_is_active, gain=None, mute=None)
 
 
 @pytest.mark.parametrize("v", [1, 2])
@@ -953,12 +959,12 @@ gain -- -10.20"""
 
 
 def test_reload_from_cache(minidsp_client, tmp_path):
-    from ezbeq.minidsp import MinidspState
-    expected = MinidspState('master')
+    from ezbeq.minidsp import MinidspState, Minidsp24HD
+    expected = MinidspState('master', Minidsp24HD())
     expected.update_master_state(True, -5.4)
     slot = expected.get_slot('2')
     slot.mute(None)
-    slot.gain1 = 4.8
+    slot.gains[0] = 4.8
     slot.active = True
     slot.last = 'Testing'
     with open(os.path.join(tmp_path, 'master.json'), 'w') as f:
@@ -1352,5 +1358,5 @@ def test_cfg_makes_custom_minidsp():
     assert desc.peq_routes[0].channel_idx == 1
     assert desc.peq_routes[0].biquads == 20
     assert desc.peq_routes[0].beq == [i for i in range(20)]
-    assert not desc.peq_routes[0].is_input
+    assert desc.peq_routes[0].is_input
     assert desc.split
