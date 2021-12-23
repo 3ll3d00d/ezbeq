@@ -537,33 +537,33 @@ def test_legacy_load_known_entry_and_then_clear(minidsp_client, minidsp_app, slo
         cmds = verify_cmd_count(config.spy, slot, 30)
         expected_commands = f"""input 0 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 0 peq 0 bypass off
-input 0 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 0 peq 1 bypass off
-input 0 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 0 peq 2 bypass off
-input 0 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 0 peq 3 bypass off
-input 0 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 0 peq 4 bypass off
-input 0 peq 5 bypass on
-input 0 peq 6 bypass on
-input 0 peq 7 bypass on
-input 0 peq 8 bypass on
-input 0 peq 9 bypass on
 input 1 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 1 peq 0 bypass off
+input 0 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 1 bypass off
 input 1 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 1 peq 1 bypass off
+input 0 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 2 bypass off
 input 1 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 1 peq 2 bypass off
+input 0 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 3 bypass off
 input 1 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 1 peq 3 bypass off
+input 0 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 4 bypass off
 input 1 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 1 peq 4 bypass off
+input 0 peq 5 bypass on
 input 1 peq 5 bypass on
+input 0 peq 6 bypass on
 input 1 peq 6 bypass on
+input 0 peq 7 bypass on
 input 1 peq 7 bypass on
+input 0 peq 8 bypass on
 input 1 peq 8 bypass on
+input 0 peq 9 bypass on
 input 1 peq 9 bypass on"""
         assert '\n'.join(cmds) == expected_commands
     else:
@@ -584,28 +584,28 @@ input 1 peq 9 bypass on"""
         cmds = config.spy.take_commands()
         assert len(cmds) == 24
         expected_commands = f"""input 0 peq 0 bypass on
-input 0 peq 1 bypass on
-input 0 peq 2 bypass on
-input 0 peq 3 bypass on
-input 0 peq 4 bypass on
-input 0 peq 5 bypass on
-input 0 peq 6 bypass on
-input 0 peq 7 bypass on
-input 0 peq 8 bypass on
-input 0 peq 9 bypass on
 input 1 peq 0 bypass on
+input 0 peq 1 bypass on
 input 1 peq 1 bypass on
+input 0 peq 2 bypass on
 input 1 peq 2 bypass on
+input 0 peq 3 bypass on
 input 1 peq 3 bypass on
+input 0 peq 4 bypass on
 input 1 peq 4 bypass on
+input 0 peq 5 bypass on
 input 1 peq 5 bypass on
+input 0 peq 6 bypass on
 input 1 peq 6 bypass on
+input 0 peq 7 bypass on
 input 1 peq 7 bypass on
+input 0 peq 8 bypass on
 input 1 peq 8 bypass on
+input 0 peq 9 bypass on
 input 1 peq 9 bypass on
 input 0 mute off
-input 1 mute off
 input 0 gain -- 0.00
+input 1 mute off
 input 1 gain -- 0.00"""
         assert '\n'.join(cmds) == expected_commands
         slots = verify_master_device_state(r.json)
@@ -626,33 +626,33 @@ def test_load_known_entry_and_then_clear(minidsp_client, minidsp_app, slot, is_v
         cmds = verify_cmd_count(config.spy, slot, 30)
         expected_commands = f"""input 0 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 0 peq 0 bypass off
-input 0 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 0 peq 1 bypass off
-input 0 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 0 peq 2 bypass off
-input 0 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 0 peq 3 bypass off
-input 0 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 0 peq 4 bypass off
-input 0 peq 5 bypass on
-input 0 peq 6 bypass on
-input 0 peq 7 bypass on
-input 0 peq 8 bypass on
-input 0 peq 9 bypass on
 input 1 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 1 peq 0 bypass off
+input 0 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 1 bypass off
 input 1 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 1 peq 1 bypass off
+input 0 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 2 bypass off
 input 1 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 1 peq 2 bypass off
+input 0 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 3 bypass off
 input 1 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 1 peq 3 bypass off
+input 0 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 4 bypass off
 input 1 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 1 peq 4 bypass off
+input 0 peq 5 bypass on
 input 1 peq 5 bypass on
+input 0 peq 6 bypass on
 input 1 peq 6 bypass on
+input 0 peq 7 bypass on
 input 1 peq 7 bypass on
+input 0 peq 8 bypass on
 input 1 peq 8 bypass on
+input 0 peq 9 bypass on
 input 1 peq 9 bypass on"""
         assert '\n'.join(cmds) == expected_commands
     else:
@@ -673,28 +673,28 @@ input 1 peq 9 bypass on"""
         cmds = config.spy.take_commands()
         assert len(cmds) == 24
         expected_commands = f"""input 0 peq 0 bypass on
-input 0 peq 1 bypass on
-input 0 peq 2 bypass on
-input 0 peq 3 bypass on
-input 0 peq 4 bypass on
-input 0 peq 5 bypass on
-input 0 peq 6 bypass on
-input 0 peq 7 bypass on
-input 0 peq 8 bypass on
-input 0 peq 9 bypass on
 input 1 peq 0 bypass on
+input 0 peq 1 bypass on
 input 1 peq 1 bypass on
+input 0 peq 2 bypass on
 input 1 peq 2 bypass on
+input 0 peq 3 bypass on
 input 1 peq 3 bypass on
+input 0 peq 4 bypass on
 input 1 peq 4 bypass on
+input 0 peq 5 bypass on
 input 1 peq 5 bypass on
+input 0 peq 6 bypass on
 input 1 peq 6 bypass on
+input 0 peq 7 bypass on
 input 1 peq 7 bypass on
+input 0 peq 8 bypass on
 input 1 peq 8 bypass on
+input 0 peq 9 bypass on
 input 1 peq 9 bypass on
 input 0 mute off
-input 1 mute off
 input 0 gain -- 0.00
+input 1 mute off
 input 1 gain -- 0.00"""
         assert '\n'.join(cmds) == expected_commands
         slots = verify_master_device_state(r.json)
@@ -910,33 +910,33 @@ input 0 mute off
 input 1 mute off
 input 0 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 0 peq 0 bypass off
-input 0 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 0 peq 1 bypass off
-input 0 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 0 peq 2 bypass off
-input 0 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 0 peq 3 bypass off
-input 0 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 0 peq 4 bypass off
-input 0 peq 5 bypass on
-input 0 peq 6 bypass on
-input 0 peq 7 bypass on
-input 0 peq 8 bypass on
-input 0 peq 9 bypass on
 input 1 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 1 peq 0 bypass off
+input 0 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 1 bypass off
 input 1 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 1 peq 1 bypass off
+input 0 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 2 bypass off
 input 1 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 1 peq 2 bypass off
+input 0 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 3 bypass off
 input 1 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 1 peq 3 bypass off
+input 0 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 4 bypass off
 input 1 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 1 peq 4 bypass off
+input 0 peq 5 bypass on
 input 1 peq 5 bypass on
+input 0 peq 6 bypass on
 input 1 peq 6 bypass on
+input 0 peq 7 bypass on
 input 1 peq 7 bypass on
+input 0 peq 8 bypass on
 input 1 peq 8 bypass on
+input 0 peq 9 bypass on
 input 1 peq 9 bypass on
 gain -- -10.20"""
     assert '\n'.join(cmds) == expected_commands
