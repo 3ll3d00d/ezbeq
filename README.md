@@ -123,7 +123,7 @@ Device support largely tracks [minidsp-rs device support](https://minidsp-rs.pag
 
 Filters are written to the input channel(s) if the device supports filtering on the input side. 
 For devices which support output peq only, except for the DDRC-88, filters are written to all output channels.
-For the DDRC-88, filters are written to channel 4 on the assumption this is the subwoofer channel.
+For the DDRC-88, filters are written to channel 4 on the assumption this is the subwoofer channel. The optional `sw_channels` config key can be used to override this, provide a list of channel indexes (0 based) to which the filters should be written.
 For the 2x8, the limited biquad capacity means that filters are split across input and output channels and there is no further capacity for user filters.
 For the 4x10, the limited biquad capacity means that filters are split across input and output channels and the last 2 biquads per output channel are left for the user. 
 

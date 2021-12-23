@@ -1307,6 +1307,22 @@ def test_cfg_makes_known_minidsp(dt, exp):
     assert isinstance(desc, exp)
 
 
+def test_cfg_customise_ddrc88_sw():
+    from minidsp import make_peq_layout
+    cfg = {'device_type': 'DDRC88', 'sw_channels': [1, 2, 6]}
+    desc = make_peq_layout(cfg)
+    assert desc
+    assert isinstance(desc, MinidspDDRC88)
+    assert not desc.peq_routes[0].beq
+    assert len(desc.peq_routes[1].beq) == 10
+    assert len(desc.peq_routes[2].beq) == 10
+    assert not desc.peq_routes[3].beq
+    assert not desc.peq_routes[4].beq
+    assert not desc.peq_routes[5].beq
+    assert len(desc.peq_routes[6].beq) == 10
+    assert not desc.peq_routes[7].beq
+
+
 def test_cfg_makes_custom_minidsp():
     from minidsp import make_peq_layout
     cfg = {'descriptor': {

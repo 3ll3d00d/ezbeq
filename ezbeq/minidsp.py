@@ -225,19 +225,12 @@ class MinidspDDRC24(MinidspDescriptor):
 
 class MinidspDDRC88(MinidspDescriptor):
 
-    def __init__(self):
+    def __init__(self, sw_channels: List[int] = None):
+        c = sw_channels if sw_channels is not None else [3]
         super().__init__('DDRC88',
                          '48000',
-                         [
-                             PeqRoute('output', 0, 10, []),
-                             PeqRoute('output', 1, 10, []),
-                             PeqRoute('output', 2, 10, []),
-                             PeqRoute('output', 3, 10, None),
-                             PeqRoute('output', 4, 10, []),
-                             PeqRoute('output', 5, 10, []),
-                             PeqRoute('output', 6, 10, []),
-                             PeqRoute('output', 7, 10, [])
-                         ])
+                         [PeqRoute('output', 0, 10, None if r in c else []) for r in range(8)]
+                         )
 
 
 class Minidsp410(MinidspDescriptor):
@@ -294,7 +287,7 @@ def make_peq_layout(cfg: dict) -> MinidspDescriptor:
         elif device_type == 'DDRC24':
             return MinidspDDRC24()
         elif device_type == 'DDRC88':
-            return MinidspDDRC88()
+            return MinidspDDRC88(sw_channels=cfg.get('sw_channels', None))
         elif device_type == '4x10':
             return Minidsp410()
         elif device_type == '10x10':
