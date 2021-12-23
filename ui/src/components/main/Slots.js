@@ -47,9 +47,7 @@ const getCurrentState = (active, label, slotId) => {
 const chunk = (arr, size) => arr.reduce((chunks, el, i) => (i % size ? chunks[chunks.length - 1].push(el) : chunks.push([el])) && chunks, []);
 
 const defaultGain = {
-    master_mv: 0.0, master_mute: false,
-    inputOne_mv: 0.0, inputOne_mute: false,
-    inputTwo_mv: 0.0, inputTwo_mute: false
+    master_mv: 0.0, master_mute: false, gains: [], mutes: []
 };
 
 const Slot = ({selected, slot, onSelect, isPending, onClear}) => {
@@ -87,12 +85,8 @@ const Slots = ({selectedDeviceName, selectedSlotId, useWide, device, setDevice, 
         gain.master_mute = device.mute;
         if (selectedSlotId && device && device.hasOwnProperty('slots')) {
             const slot = device.slots.find(s => s.id === selectedSlotId);
-            if (slot) {
-                gain.inputOne_mute = slot.mute1;
-                gain.inputTwo_mute = slot.mute2;
-                gain.inputOne_mv = slot.gain1;
-                gain.inputTwo_mv = slot.gain2;
-            }
+            gain.gains = slot.hasOwnProperty('gains') ? slot.gains : [];
+            gain.mutes = slot.hasOwnProperty('mutes') ? slot.mutes : [];
         }
         setDeviceGains(gain);
         setCurrentGains(gain);

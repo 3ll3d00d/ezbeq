@@ -20,13 +20,13 @@ logger = logging.getLogger('ezbeq.minidsp')
 
 class MinidspState(DeviceState):
 
-    def __init__(self, name: str, **kwargs):
+    def __init__(self, name: str, input_channels: int, **kwargs):
         self.__name = name
         self.master_volume: float = kwargs['mv'] if 'mv' in kwargs else 0.0
         self.__mute: bool = kwargs['mute'] if 'mute' in kwargs else False
         self.__active_slot: str = kwargs['active_slot'] if 'active_slot' in kwargs else ''
         slot_ids = [str(i + 1) for i in range(4)]
-        self.__slots: List[MinidspSlotState] = [MinidspSlotState(c_id, c_id == self.active_slot) for c_id in slot_ids]
+        self.__slots: List[MinidspSlotState] = [MinidspSlotState(c_id, c_id == self.active_slot, input_channels) for c_id in slot_ids]
 
     def update_master_state(self, mute: bool, gain: float):
         self.__mute = mute
@@ -99,30 +99,27 @@ class MinidspState(DeviceState):
 
 class MinidspSlotState(SlotState['MinidspSlotState']):
 
-    def __init__(self, slot_id: str, active: bool):
+    def __init__(self, slot_id: str, active: bool, input_channels: int):
         super().__init__(slot_id)
-        self.gain1 = 0.0
-        self.mute1 = False
-        self.gain2 = 0.0
-        self.mute2 = False
+        self.__input_channels = input_channels
+        self.gains = self.__make_vals(0.0)
+        self.mutes = self.__make_vals(False)
         self.active = active
 
     def clear(self):
         super().clear()
-        self.gain1 = 0.0
-        self.gain2 = 0.0
-        self.mute1 = False
-        self.mute2 = False
+        self.gains = self.__make_vals(0.0)
+        self.mutes = self.__make_vals(False)
+
+    def __make_vals(self, val):
+        return [val] * self.__input_channels
 
     def set_gain(self, channel: Optional[int], value: float):
         if channel is None:
-            self.gain1 = value
-            self.gain2 = value
+            self.gains = self.__make_vals(value)
         else:
-            if channel == 1:
-                self.gain1 = value
-            elif channel == 2:
-                self.gain2 = value
+            if channel <= self.__input_channels:
+                self.gains[channel-1] = value
             else:
                 raise ValueError(f'Unknown channel {channel} for slot {self.slot_id}')
 
@@ -131,13 +128,10 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
 
     def __do_mute(self, channel: Optional[int], value: bool):
         if channel is None:
-            self.mute1 = value
-            self.mute2 = value
+            self.mutes = self.__make_vals(value)
         else:
-            if channel == 1:
-                self.mute1 = value
-            elif channel == 2:
-                self.mute2 = value
+            if channel <= self.__input_channels:
+                self.mutes[channel-1] = value
             else:
                 raise ValueError(f'Unknown channel {channel} for slot {self.slot_id}')
 
@@ -146,38 +140,57 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
 
     def merge_with(self, state: dict) -> None:
         super().merge_with(state)
-        if 'gain1' in state:
-            self.gain1 = float(state['gain1'])
-        if 'gain2' in state:
-            self.gain2 = float(state['gain2'])
-        if 'mute1' in state:
-            self.mute1 = bool(state['mute1'])
-        if 'mute2' in state:
-            self.mute2 = bool(state['mute2'])
+        # legacy (v1 api)
+        if 'gain1' in state and self.__input_channels > 0:
+            self.gains[0] = float(state['gain1'])
+        if 'gain2' in state and self.__input_channels > 1:
+            self.gains[1] = float(state['gain2'])
+        if 'mute1' in state and self.__input_channels > 0:
+            self.mutes[0] = bool(state['mute1'])
+        if 'mute2' in state and self.__input_channels > 1:
+            self.mutes[1] = bool(state['mute2'])
+        # current (v2 api)
+        if 'gains' in state and len(state['gains']) == self.__input_channels:
+            self.gains = [float(v) for v in state['gains']]
+        if 'mutes' in state and len(state['mutes']) == self.__input_channels:
+            self.mutes = [bool(v) for v in state['mutes']]
 
     def as_dict(self) -> dict:
         sup = super().as_dict()
+        vals = {}
+        if self.__input_channels == 2:
+            # backwards compatibility
+            vals = {
+                'gain1': self.gains[0],
+                'gain2': self.gains[1],
+                'mute1': self.mutes[0],
+                'mute2': self.mutes[1],
+            }
         return {
             **sup,
-            'gain1': self.gain1,
-            'gain2': self.gain2,
-            'mute1': self.mute1,
-            'mute2': self.mute2,
-            'canActivate': True
+            **vals,
+            'gains': [g for g in self.gains],
+            'mutes': [m for m in self.mutes],
+            'canActivate': True,
+            'inputs': self.__input_channels
         }
 
     def __repr__(self):
-        return f"{super().__repr__()} - 1: {self.gain1:.2f}/{self.mute1} 2: {self.gain2:.2f}/{self.mute2}"
+        vals = ' '.join([f"{i+1}: {g:.2f}/{self.mutes[i]}" for i, g in enumerate(self.gains)])
+        return f"{super().__repr__()} - {vals}"
 
 
 class PeqRoute:
 
-    def __init__(self, side: str, channel_idx: int, biquads: int, beq: Optional[List[int]], reset_on_clear: bool = False):
+    def __init__(self, side: str, channel_idx: int, biquads: int, beq: Optional[List[int]]):
         self.side = side
         self.channel_idx = channel_idx
         self.biquads = biquads
         self.beq = beq if beq is not None else list(range(biquads))
-        self.reset_on_clear = reset_on_clear
+
+    @property
+    def is_input(self) -> bool:
+        return self.side == 'input'
 
     def __repr__(self):
         return f"{self.side} {self.channel_idx} {self.biquads} {self.beq}"
@@ -191,6 +204,10 @@ class MinidspDescriptor:
         self.peq_routes = peq_routes
         self.split = split
 
+    @property
+    def input_channels(self) -> int:
+        return len([r for r in self.peq_routes if r.is_input])
+
     def __repr__(self):
         return f"{self.name}, fs:{self.fs}, routes: {self.peq_routes}"
 
@@ -201,8 +218,8 @@ class Minidsp24HD(MinidspDescriptor):
         super().__init__('2x4HD',
                          '96000',
                          [
-                             PeqRoute('input', 0, 10, None, reset_on_clear=True),
-                             PeqRoute('input', 1, 10, None, reset_on_clear=True),
+                             PeqRoute('input', 0, 10, None),
+                             PeqRoute('input', 1, 10, None),
                              PeqRoute('output', 0, 10, []),
                              PeqRoute('output', 1, 10, []),
                              PeqRoute('output', 2, 10, []),
@@ -239,8 +256,8 @@ class Minidsp410(MinidspDescriptor):
         super().__init__('4x10',
                          '96000',
                          [
-                             PeqRoute('input', 0, 5, None, reset_on_clear=True),
-                             PeqRoute('input', 1, 5, None, reset_on_clear=True),
+                             PeqRoute('input', 0, 5, None),
+                             PeqRoute('input', 1, 5, None),
                              PeqRoute('output', 0, 5, None),
                              PeqRoute('output', 1, 5, None),
                              PeqRoute('output', 2, 5, None),
@@ -259,14 +276,14 @@ class Minidsp1010(MinidspDescriptor):
         super().__init__('10x10',
                          '48000',
                          [
-                             PeqRoute('input', 0, 6, None, reset_on_clear=True),
-                             PeqRoute('input', 1, 6, None, reset_on_clear=True),
-                             PeqRoute('input', 2, 6, None, reset_on_clear=True),
-                             PeqRoute('input', 3, 6, None, reset_on_clear=True),
-                             PeqRoute('input', 4, 6, None, reset_on_clear=True),
-                             PeqRoute('input', 5, 6, None, reset_on_clear=True),
-                             PeqRoute('input', 6, 6, None, reset_on_clear=True),
-                             PeqRoute('input', 7, 6, None, reset_on_clear=True),
+                             PeqRoute('input', 0, 6, None),
+                             PeqRoute('input', 1, 6, None),
+                             PeqRoute('input', 2, 6, None),
+                             PeqRoute('input', 3, 6, None),
+                             PeqRoute('input', 4, 6, None),
+                             PeqRoute('input', 5, 6, None),
+                             PeqRoute('input', 6, 6, None),
+                             PeqRoute('input', 7, 6, None),
                              PeqRoute('output', 0, 6, list(range(4))),
                              PeqRoute('output', 1, 6, list(range(4))),
                              PeqRoute('output', 2, 6, list(range(4))),
@@ -342,7 +359,7 @@ class Minidsp(PersistentDevice[MinidspState]):
 
     def __load_state(self) -> MinidspState:
         result = self.__executor.submit(self.__read_state_from_device).result(timeout=self.__cmd_timeout)
-        return result if result else MinidspState(self.name)
+        return result if result else MinidspState(self.name, self.__descriptor.input_channels)
 
     def __read_state_from_device(self) -> Optional[MinidspState]:
         output = None
@@ -357,7 +374,7 @@ class Minidsp(PersistentDevice[MinidspState]):
                     'mute': status['master']['mute'],
                     'mv': status['master']['volume']
                 }
-                return MinidspState(self.name, **values)
+                return MinidspState(self.name, self.__descriptor.input_channels, **values)
             else:
                 logger.error(f"No output returned from device")
         except:
@@ -423,7 +440,7 @@ class Minidsp(PersistentDevice[MinidspState]):
             self.__validate_slot_idx(target_slot_idx)
             cmds = MinidspBeqCommandGenerator.filt(None, self.__descriptor)
             for r in self.__descriptor.peq_routes:
-                if r.reset_on_clear:
+                if r.is_input:
                     cmds.extend(MinidspBeqCommandGenerator.mute(False, target_slot_idx, r.channel_idx, side=r.side))
                     cmds.extend(MinidspBeqCommandGenerator.gain(0.0, target_slot_idx, r.channel_idx, side=r.side))
             try:
@@ -523,6 +540,7 @@ class Minidsp(PersistentDevice[MinidspState]):
     def __update_slot(self, slot: dict) -> bool:
         any_update = False
         current_slot = self._current_state.get_slot(slot['id'])
+        # legacy
         if 'gain1' in slot:
             self.set_gain(current_slot.slot_id, 1, slot['gain1'])
             any_update = True
@@ -541,6 +559,18 @@ class Minidsp(PersistentDevice[MinidspState]):
             else:
                 self.unmute(current_slot.slot_id, 2)
             any_update = True
+        # current
+        if 'gains' in slot:
+            for idx, gain in enumerate(slot['gains']):
+                self.set_gain(current_slot.slot_id, idx+1, gain)
+                any_update = True
+        if 'mutes' in slot:
+            for idx, mute in enumerate(slot['mutes']):
+                if mute is True:
+                    self.mute(current_slot.slot_id, idx+1)
+                else:
+                    self.unmute(current_slot.slot_id, idx+1)
+                any_update = True
         if 'entry' in slot:
             if slot['entry']:
                 match = self.__catalogue.find(slot['entry'])

@@ -838,19 +838,20 @@ output 3 peq 9 bypass on"""
             verify_slot(s, idx + 1, active=slot_is_active)
 
 
-def test_patch_multiple_fields(minidsp_client, minidsp_app):
+@pytest.mark.parametrize("v", [1, 2])
+def test_patch_multiple_fields(minidsp_client, minidsp_app, v):
     config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
     assert isinstance(config, MinidspSpyConfig)
     # when: set master gain
     # and: set input gains
+    gains = {'gain1': 5.1, 'gain2': 6.1} if v == 1 else {'gains': [5.1, 6.1]}
     payload = {
         'masterVolume': -10.2,
         'mute': True,
         'slots': [
             {
                 'id': '2',
-                'gain1': 5.1,
-                'gain2': 6.1
+                **gains
             }
         ]
     }
@@ -873,26 +874,25 @@ def test_patch_multiple_fields(minidsp_client, minidsp_app):
             verify_slot(s, idx + 1)
 
 
-def test_patch_multiple_slots(minidsp_client, minidsp_app):
+@pytest.mark.parametrize("v", [1, 2])
+def test_patch_multiple_slots(minidsp_client, minidsp_app, v):
     config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
     assert isinstance(config, MinidspSpyConfig)
     # when: set master gain
     # and: set input gains
+    g1 = {'gain1': 5.1, 'gain2': 6.1} if v == 1 else {'gains': [5.1, 6.1]}
+    g2 = {'gain1': -1.1, 'gain2': -1.1, 'mute1': False, 'mute2': False} if v == 1 else {'gains': [-1.1, -1.1], 'mutes': [False]*2}
     payload = {
         'masterVolume': -10.2,
         'slots': [
             {
                 'id': '2',
-                'gain1': 5.1,
-                'gain2': 6.1
+                **g1
             },
             {
                 'id': '3',
-                'gain1': -1.1,
-                'gain2': -1.1,
                 'entry': '123456_0',
-                'mute1': False,
-                'mute2': False
+                **g2
             }
         ]
     }
@@ -1352,5 +1352,5 @@ def test_cfg_makes_custom_minidsp():
     assert desc.peq_routes[0].channel_idx == 1
     assert desc.peq_routes[0].biquads == 20
     assert desc.peq_routes[0].beq == [i for i in range(20)]
-    assert not desc.peq_routes[0].reset_on_clear
+    assert not desc.peq_routes[0].is_input
     assert desc.split

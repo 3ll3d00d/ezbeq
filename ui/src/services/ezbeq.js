@@ -131,7 +131,7 @@ class EzBeqService {
     };
 
     doPatch = async(device, payload) => {
-        const response = await fetch(`${API_PREFIX}/1/devices/${device}`, {
+        const response = await fetch(`${API_PREFIX}/2/devices/${device}`, {
             method: 'PATCH',
             body: JSON.stringify(payload),
             headers: {
@@ -155,10 +155,8 @@ class EzBeqService {
         }
         const slot = {
             id: String(slot_id),
-            gain1: parseFloat(gains.inputOne_mv),
-            gain2: parseFloat(gains.inputTwo_mv),
-            mute1: gains.inputOne_mute,
-            mute2: gains.inputTwo_mute
+            gains: gains.gains,
+            mutes: gains.mutes
         };
         if (entryId) {
             payload.slots = [Object.assign({}, slot, {entry: entryId})]

@@ -237,7 +237,7 @@ class Devices(Resource):
         return {n: d.serialise() for n, d in self.__bridge.all_devices().items()}
 
 
-slot_model = v1_api.model('Slot', {
+slot_model_v1 = v1_api.model('Slot', {
     'id': fields.String(required=True),
     'active': fields.Boolean(required=False),
     'gain1': fields.Float(required=False),
@@ -247,10 +247,11 @@ slot_model = v1_api.model('Slot', {
     'entry': fields.String(required=False)
 })
 
-device_model = v1_api.model('Device', {
+
+device_model_v1 = v1_api.model('Device', {
     'mute': fields.Boolean(required=False),
     'masterVolume': fields.Float(required=False),
-    'slots': fields.List(fields.Nested(slot_model), required=False)
+    'slots': fields.List(fields.Nested(slot_model_v1), required=False)
 })
 
 
@@ -262,7 +263,40 @@ class Device(Resource):
         self.__bridge: DeviceRepository = kwargs['device_bridge']
         self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
 
-    @v1_api.expect(device_model, validate=True)
+    @v1_api.expect(device_model_v1, validate=True)
+    def patch(self, device_name: str):
+        payload = request.get_json()
+        logger.info(f"PATCHing {device_name} with {payload}")
+        if not self.__bridge.update(device_name, payload):
+            logger.info(f"PATCH {device_name} was a nop")
+        return self.__bridge.state(device_name).serialise()
+
+
+slot_model_v2 = v2_api.model('Slot', {
+    'id': fields.String(required=True),
+    'active': fields.Boolean(required=False),
+    'gains': fields.List(fields.Float, required=False),
+    'mutes': fields.List(fields.Boolean,required=False),
+    'entry': fields.String(required=False)
+})
+
+
+device_model_v2 = v2_api.model('Device', {
+    'mute': fields.Boolean(required=False),
+    'masterVolume': fields.Float(required=False),
+    'slots': fields.List(fields.Nested(slot_model_v1), required=False)
+})
+
+
+@v2_api.route('/<string:device_name>')
+class Device(Resource):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__bridge: DeviceRepository = kwargs['device_bridge']
+        self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
+
+    @v2_api.expect(device_model_v2, validate=True)
     def patch(self, device_name: str):
         payload = request.get_json()
         logger.info(f"PATCHing {device_name} with {payload}")

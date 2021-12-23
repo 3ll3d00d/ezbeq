@@ -13,7 +13,7 @@ import {
 } from "@material-ui/core";
 import Typography from "@material-ui/core/Typography";
 import PublishIcon from "@material-ui/icons/Publish";
-import React, {useEffect, useState} from "react";
+import React, {useEffect, useMemo, useState} from "react";
 import ezbeq from "../../services/ezbeq";
 
 const useStyles = makeStyles({
@@ -110,29 +110,29 @@ const formatTV = entry => {
 };
 
 const Uploader = ({
-                      setSelectedSlot,
-                      slotIds,
-                      selectedSlot,
+                      setUploadSlotId,
+                      slots,
+                      uploadSlotId,
                       sendGain,
                       selectedEntry,
                       setSendGain,
-                      device,
                       pending,
                       upload
                   }) => {
-    const slotControls = slotIds.map(s => <FormControlLabel value={s}
-                                                            control={<Radio checked={selectedSlot === s}
+    const slotControls = slots.map(s => <FormControlLabel value={s.id}
+                                                            control={<Radio checked={uploadSlotId === s.id}
                                                                             color={'primary'}/>}
-                                                            label={s}
-                                                            key={s}/>);
-    const slotGroup = slotIds.length > 1
+                                                            label={s.id}
+                                                            key={s.id}/>);
+    const slotGroup = slots.length > 1
         ?
         <RadioGroup row aria-label="slot" name="slot"
-                    onChange={e => setSelectedSlot(e.target.value)}>
+                    onChange={e => setUploadSlotId(e.target.value)}>
             {slotControls}
         </RadioGroup>
         : null;
-    const gainControl = device && device.hasOwnProperty('masterVolume')
+    const slot = slots.find(s => s.id === uploadSlotId);
+    const gainControl = slot && slot.inputs > 0
         ? <FormControlLabel control={<Checkbox checked={sendGain}
                                                name="sendMV"
                                                color={'primary'}
@@ -155,32 +155,39 @@ const Uploader = ({
 
 const Entry = ({selectedDeviceName, selectedEntry, useWide, setDevice, selectedSlotId, device, setError}) => {
     const classes = useStyles();
-    const [selectedSlot, setSelectedSlot] = useState(null);
+    const slots = useMemo(() => device && device.hasOwnProperty('slots') ? device.slots : [], [device]);
+    const [uploadSlotId, setUploadSlotId] = useState(null);
     const [sendGain, setSendGain] = useState(false);
     const [pending, setPending] = useState(false);
-    const slotIds = device && device.hasOwnProperty('slots') ? device.slots.map(s => s.id) : [];
-    const canAcceptGain = device.hasOwnProperty('masterVolume');
+    const [acceptGain, setAcceptGain] = useState(false);
 
     useEffect(() => {
         setSendGain(false);
     }, [selectedEntry]);
 
     useEffect(() => {
-        setSelectedSlot(selectedSlotId);
-    }, [selectedSlotId])
+        const slot = slots.find(s => s.id === uploadSlotId);
+        const accepted = slot && device.hasOwnProperty('masterVolume') && slot.inputs > 0;
+        setAcceptGain(accepted);
+    }, [device, slots, uploadSlotId]);
+
+    useEffect(() => {
+        if (!uploadSlotId) {
+            setUploadSlotId(selectedSlotId);
+        }
+    }, [uploadSlotId, selectedSlotId]);
 
     const upload = async () => {
+        const slot = slots.find(s => s.id === uploadSlotId);
         const gains = {
-            inputOne_mv: sendGain ? selectedEntry.mvAdjust : 0.0,
-            inputOne_mute: false,
-            inputTwo_mv: sendGain ? selectedEntry.mvAdjust : 0.0,
-            inputTwo_mute: false
+            'gains': sendGain ? [...Array(slot.inputs)].map((_, i) => parseFloat(selectedEntry.mvAdjust)) : [],
+            'mutes': sendGain ? [...Array(slot.inputs)].map((_, i) => false) : []
         }
         setPending(true);
         try {
-            const call = canAcceptGain
-                ? () => ezbeq.loadWithMV(selectedDeviceName, selectedEntry.id, selectedSlot, gains)
-                : () => ezbeq.sendFilter(selectedDeviceName, selectedEntry.id, selectedSlot);
+            const call = acceptGain
+                ? () => ezbeq.loadWithMV(selectedDeviceName, selectedEntry.id, uploadSlotId, gains)
+                : () => ezbeq.sendFilter(selectedDeviceName, selectedEntry.id, uploadSlotId);
             const device = await call();
             setPending(false);
             setDevice(device);
@@ -240,14 +247,13 @@ const Entry = ({selectedDeviceName, selectedEntry, useWide, setDevice, selectedS
             </CardContent>;
         const uploadAction =
             <CardContent>
-                <Uploader setSelectedSlot={setSelectedSlot}
-                          selectedSlot={selectedSlot}
+                <Uploader setUploadSlotId={setUploadSlotId}
+                          uploadSlotId={uploadSlotId}
                           sendGain={sendGain}
-                          slotIds={slotIds}
+                          slots={slots}
                           selectedEntry={selectedEntry}
                           setSendGain={setSendGain}
                           pending={pending}
-                          device={device}
                           upload={upload}/>
             </CardContent>;
         const links =
