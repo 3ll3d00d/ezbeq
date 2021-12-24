@@ -155,7 +155,7 @@ class EzBeqService {
         }
         const slot = {
             id: String(slot_id),
-            gains: gains.gains,
+            gains: gains.gains.map(g => parseFloat(g)),
             mutes: gains.mutes
         };
         if (entryId) {

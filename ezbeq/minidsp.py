@@ -256,6 +256,8 @@ class MinidspDDRC88(MinidspDescriptor):
 
     def __init__(self, sw_channels: List[int] = None):
         c = sw_channels if sw_channels is not None else [3]
+        if any(ch for ch in c if ch < 0 or ch > 7):
+            raise ValueError(f"Invalid channels {c}")
         super().__init__('DDRC88',
                          '48000',
                          [PeqRoute('output', r, 10, None if r in c else []) for r in range(8)]
