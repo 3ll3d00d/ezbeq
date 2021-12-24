@@ -243,7 +243,7 @@ class MinidspDDRC24(MinidspDescriptor):
 
     def __init__(self):
         super().__init__('DDRC24',
-                         '96000',
+                         '48000',
                          [
                              PeqRoute('output', 0, 10, None),
                              PeqRoute('output', 1, 10, None),
@@ -258,7 +258,7 @@ class MinidspDDRC88(MinidspDescriptor):
         c = sw_channels if sw_channels is not None else [3]
         super().__init__('DDRC88',
                          '48000',
-                         [PeqRoute('output', 0, 10, None if r in c else []) for r in range(8)]
+                         [PeqRoute('output', r, 10, None if r in c else []) for r in range(8)]
                          )
 
 
@@ -658,7 +658,6 @@ class MinidspBeqCommandGenerator:
 
     @staticmethod
     def as_bq(f: dict, fs: str):
-        bq = []
         if fs in f['biquads']:
             bq = f['biquads'][fs]['b'] + f['biquads'][fs]['a']
         else:
@@ -675,7 +674,7 @@ class MinidspBeqCommandGenerator:
                 f = HighShelf(int(fs), freq, q, gain)
             else:
                 raise InvalidRequestError(f"Unknown filt_type {t}")
-            bq = f.format_biquads()
+            bq = list(f.format_biquads().values())
         if len(bq) != 5:
             raise ValueError(f"Invalid coeff count {len(bq)}")
         return bq
@@ -701,8 +700,8 @@ class MinidspBeqCommandGenerator:
             elif input_beqs == 0 or descriptor.split:
                 if idx < (input_beqs + output_beqs):
                     for r in output_beq_routes:
-                        cmds.append(MinidspBeqCommandGenerator.bq(r.channel_idx, idx, coeffs, r.side))
-                        cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx, False, r.side))
+                        cmds.append(MinidspBeqCommandGenerator.bq(r.channel_idx, idx - input_beqs, coeffs, r.side))
+                        cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx - input_beqs, False, r.side))
                 else:
                     raise ValueError('Not enough slots')
             else:
@@ -716,7 +715,7 @@ class MinidspBeqCommandGenerator:
             elif input_beqs == 0 or descriptor.split:
                 if idx < (input_beqs + output_beqs):
                     for r in output_beq_routes:
-                        cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx, True, r.side))
+                        cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx - input_beqs, True, r.side))
                 else:
                     raise ValueError('Not enough slots')
             else:

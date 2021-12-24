@@ -74,6 +74,45 @@ def minidsp_ddrc88_client(minidsp_ddrc88_app):
     return minidsp_ddrc88_app.test_client()
 
 
+@pytest.fixture
+def minidsp_4x10_app(httpserver: HTTPServer, tmp_path):
+    """Create and configure a new app instance for each test."""
+    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='4x10'))
+    yield app
+
+
+@pytest.fixture
+def minidsp_4x10_client(minidsp_4x10_app):
+    """A test client for the app."""
+    return minidsp_4x10_app.test_client()
+
+
+@pytest.fixture
+def minidsp_10x10_app(httpserver: HTTPServer, tmp_path):
+    """Create and configure a new app instance for each test."""
+    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='10x10'))
+    yield app
+
+
+@pytest.fixture
+def minidsp_10x10_client(minidsp_10x10_app):
+    """A test client for the app."""
+    return minidsp_10x10_app.test_client()
+
+
+@pytest.fixture
+def minidsp_shd_app(httpserver: HTTPServer, tmp_path):
+    """Create and configure a new app instance for each test."""
+    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='SHD'))
+    yield app
+
+
+@pytest.fixture
+def minidsp_shd_client(minidsp_shd_app):
+    """A test client for the app."""
+    return minidsp_shd_app.test_client()
+
+
 CONFIG_PATTERN = re.compile(r'config ([0-3])')
 GAIN_PATTERN = re.compile(r'gain -- ([-+]?\d*\.\d+|\d+)')
 

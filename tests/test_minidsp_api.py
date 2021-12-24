@@ -7,18 +7,19 @@ import pytest
 from conftest import MinidspSpyConfig, MinidspSpy
 
 
-def verify_slot(slot: dict, idx: int, active: bool = False, gain: Optional[Tuple[float, float]] = (0.0, 0.0),
-                mute: Optional[Tuple[bool, bool]] = (False, False), last: str = 'Empty'):
+def verify_slot(slot: dict, idx: int, active: bool = False, gain = (0.0, 0.0), mute = (False, False), last: str = 'Empty'):
     assert slot['id'] == str(idx)
     assert slot['active'] == active
     if gain:
-        assert slot['gains'][0] == gain[0]
-        assert slot['gains'][1] == gain[1]
+        assert len(slot['gains']) == len(gain)
+        for idx, g in enumerate(gain):
+            assert slot['gains'][idx] == g
     else:
         assert len(slot['gains']) == 0
     if mute:
-        assert slot['mutes'][0] == mute[0]
-        assert slot['mutes'][1] == mute[1]
+        assert len(slot['mutes']) == len(mute)
+        for idx, g in enumerate(mute):
+            assert slot['mutes'][idx] == g
     else:
         assert len(slot['mutes']) == 0
     assert slot['last'] == last
@@ -719,45 +720,45 @@ def test_load_known_entry_to_ddrc24_and_then_clear(minidsp_ddrc24_client, minids
     if is_valid:
         assert r.status_code == 200
         cmds = verify_cmd_count(config.spy, slot, 60)
-        expected_commands = f"""output 0 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+        expected_commands = f"""output 0 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 0 peq 0 bypass off
-output 1 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 1 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 1 peq 0 bypass off
-output 2 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 2 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 2 peq 0 bypass off
-output 3 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 3 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 3 peq 0 bypass off
-output 0 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 0 peq 1 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 0 peq 1 bypass off
-output 1 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 1 peq 1 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 1 peq 1 bypass off
-output 2 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 2 peq 1 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 2 peq 1 bypass off
-output 3 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 3 peq 1 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 3 peq 1 bypass off
-output 0 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 0 peq 2 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 0 peq 2 bypass off
-output 1 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 1 peq 2 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 1 peq 2 bypass off
-output 2 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 2 peq 2 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 2 peq 2 bypass off
-output 3 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 3 peq 2 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 3 peq 2 bypass off
-output 0 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 0 peq 3 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 0 peq 3 bypass off
-output 1 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 1 peq 3 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 1 peq 3 bypass off
-output 2 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 2 peq 3 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 2 peq 3 bypass off
-output 3 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 3 peq 3 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 3 peq 3 bypass off
-output 0 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 0 peq 4 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 0 peq 4 bypass off
-output 1 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 1 peq 4 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 1 peq 4 bypass off
-output 2 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 2 peq 4 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 2 peq 4 bypass off
-output 3 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+output 3 peq 4 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 3 peq 4 bypass off
 output 0 peq 5 bypass on
 output 1 peq 5 bypass on
@@ -842,6 +843,466 @@ output 3 peq 9 bypass on"""
         for idx, s in enumerate(slots):
             slot_is_active = idx + 1 == slot if is_valid else idx == 0
             verify_slot(s, idx + 1, active=slot_is_active, gain=None, mute=None)
+
+
+@pytest.mark.parametrize("slot,is_valid", [(0, False), (1, True), (2, True), (3, True), (4, True), (5, False)])
+def test_load_known_entry_to_ddrc88_and_then_clear(minidsp_ddrc88_client, minidsp_ddrc88_app, slot, is_valid):
+    config: MinidspSpyConfig = minidsp_ddrc88_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+
+    r = minidsp_ddrc88_client.put(f"/api/1/devices/master/filter/{slot}", data=json.dumps({'entryId': '123456_0'}),
+                                  content_type='application/json')
+    if is_valid:
+        assert r.status_code == 200
+        cmds = verify_cmd_count(config.spy, slot, 15)
+        expected_commands = f"""output 3 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+output 3 peq 0 bypass off
+output 3 peq 1 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+output 3 peq 1 bypass off
+output 3 peq 2 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+output 3 peq 2 bypass off
+output 3 peq 3 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+output 3 peq 3 bypass off
+output 3 peq 4 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+output 3 peq 4 bypass off
+output 3 peq 5 bypass on
+output 3 peq 6 bypass on
+output 3 peq 7 bypass on
+output 3 peq 8 bypass on
+output 3 peq 9 bypass on"""
+        assert '\n'.join(cmds) == expected_commands
+    else:
+        assert r.status_code == 400
+        cmds = config.spy.take_commands()
+        assert not cmds
+    slots = verify_master_device_state(r.json)
+    for idx, s in enumerate(slots):
+        slot_is_active = idx + 1 == slot if is_valid else idx == 0
+        if is_valid and idx + 1 == slot:
+            verify_slot(s, idx + 1, active=slot_is_active, last='Alien Resurrection', gain=None, mute=None)
+        else:
+            verify_slot(s, idx + 1, active=slot_is_active, gain=None, mute=None)
+
+    if is_valid:
+        r = minidsp_ddrc88_client.delete(f"/api/1/devices/master/filter/{slot}")
+        assert r.status_code == 200
+        cmds = config.spy.take_commands()
+        assert len(cmds) == 10
+        expected_commands = f"""output 3 peq 0 bypass on
+output 3 peq 1 bypass on
+output 3 peq 2 bypass on
+output 3 peq 3 bypass on
+output 3 peq 4 bypass on
+output 3 peq 5 bypass on
+output 3 peq 6 bypass on
+output 3 peq 7 bypass on
+output 3 peq 8 bypass on
+output 3 peq 9 bypass on"""
+        assert '\n'.join(cmds) == expected_commands
+        slots = verify_master_device_state(r.json)
+        for idx, s in enumerate(slots):
+            slot_is_active = idx + 1 == slot if is_valid else idx == 0
+            verify_slot(s, idx + 1, active=slot_is_active, gain=None, mute=None)
+
+
+@pytest.mark.parametrize("slot,is_valid", [(0, False), (1, True), (2, True), (3, True), (4, True), (5, False)])
+def test_load_known_entry_to_4x10_and_then_clear(minidsp_4x10_client, minidsp_4x10_app, slot, is_valid):
+    config: MinidspSpyConfig = minidsp_4x10_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+
+    r = minidsp_4x10_client.put(f"/api/1/devices/master/filter/{slot}", data=json.dumps({'entryId': '123456_0'}),
+                                content_type='application/json')
+    if is_valid:
+        assert r.status_code == 200
+        cmds = verify_cmd_count(config.spy, slot, 60)
+        expected_commands = f"""input 0 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 0 bypass off
+input 1 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 1 peq 0 bypass off
+input 0 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 1 bypass off
+input 1 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 1 peq 1 bypass off
+input 0 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 2 bypass off
+input 1 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 1 peq 2 bypass off
+input 0 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 3 bypass off
+input 1 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 1 peq 3 bypass off
+input 0 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 0 peq 4 bypass off
+input 1 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+input 1 peq 4 bypass off
+output 0 peq 0 bypass on
+output 1 peq 0 bypass on
+output 2 peq 0 bypass on
+output 3 peq 0 bypass on
+output 4 peq 0 bypass on
+output 5 peq 0 bypass on
+output 6 peq 0 bypass on
+output 7 peq 0 bypass on
+output 0 peq 1 bypass on
+output 1 peq 1 bypass on
+output 2 peq 1 bypass on
+output 3 peq 1 bypass on
+output 4 peq 1 bypass on
+output 5 peq 1 bypass on
+output 6 peq 1 bypass on
+output 7 peq 1 bypass on
+output 0 peq 2 bypass on
+output 1 peq 2 bypass on
+output 2 peq 2 bypass on
+output 3 peq 2 bypass on
+output 4 peq 2 bypass on
+output 5 peq 2 bypass on
+output 6 peq 2 bypass on
+output 7 peq 2 bypass on
+output 0 peq 3 bypass on
+output 1 peq 3 bypass on
+output 2 peq 3 bypass on
+output 3 peq 3 bypass on
+output 4 peq 3 bypass on
+output 5 peq 3 bypass on
+output 6 peq 3 bypass on
+output 7 peq 3 bypass on
+output 0 peq 4 bypass on
+output 1 peq 4 bypass on
+output 2 peq 4 bypass on
+output 3 peq 4 bypass on
+output 4 peq 4 bypass on
+output 5 peq 4 bypass on
+output 6 peq 4 bypass on
+output 7 peq 4 bypass on"""
+        assert '\n'.join(cmds) == expected_commands
+    else:
+        assert r.status_code == 400
+        cmds = config.spy.take_commands()
+        assert not cmds
+    slots = verify_master_device_state(r.json)
+    for idx, s in enumerate(slots):
+        slot_is_active = idx + 1 == slot if is_valid else idx == 0
+        if is_valid and idx + 1 == slot:
+            verify_slot(s, idx + 1, active=slot_is_active, last='Alien Resurrection', gain=None, mute=None)
+        else:
+            verify_slot(s, idx + 1, active=slot_is_active, gain=None, mute=None)
+
+    if is_valid:
+        r = minidsp_4x10_client.delete(f"/api/1/devices/master/filter/{slot}")
+        assert r.status_code == 200
+        cmds = config.spy.take_commands()
+        assert len(cmds) == 50
+        expected_commands = f"""input 0 peq 0 bypass on
+input 0 peq 1 bypass on
+input 0 peq 2 bypass on
+input 0 peq 3 bypass on
+input 0 peq 4 bypass on
+input 1 peq 0 bypass on
+input 1 peq 1 bypass on
+input 1 peq 2 bypass on
+input 1 peq 3 bypass on
+input 1 peq 4 bypass on
+output 0 peq 0 bypass on
+output 0 peq 1 bypass on
+output 0 peq 2 bypass on
+output 0 peq 3 bypass on
+output 0 peq 4 bypass on
+output 1 peq 0 bypass on
+output 1 peq 1 bypass on
+output 1 peq 2 bypass on
+output 1 peq 3 bypass on
+output 1 peq 4 bypass on
+output 2 peq 0 bypass on
+output 2 peq 1 bypass on
+output 2 peq 2 bypass on
+output 2 peq 3 bypass on
+output 2 peq 4 bypass on
+output 3 peq 0 bypass on
+output 3 peq 1 bypass on
+output 3 peq 2 bypass on
+output 3 peq 3 bypass on
+output 3 peq 4 bypass on
+output 4 peq 0 bypass on
+output 4 peq 1 bypass on
+output 4 peq 2 bypass on
+output 4 peq 3 bypass on
+output 4 peq 4 bypass on
+output 5 peq 0 bypass on
+output 5 peq 1 bypass on
+output 5 peq 2 bypass on
+output 5 peq 3 bypass on
+output 5 peq 4 bypass on
+output 6 peq 0 bypass on
+output 6 peq 1 bypass on
+output 6 peq 2 bypass on
+output 6 peq 3 bypass on
+output 6 peq 4 bypass on
+output 7 peq 0 bypass on
+output 7 peq 1 bypass on
+output 7 peq 2 bypass on
+output 7 peq 3 bypass on
+output 7 peq 4 bypass on
+input 0 mute off
+input 0 gain -- 0.00
+input 1 mute off
+input 1 gain -- 0.00"""
+        assert '\n'.join(cmds) == expected_commands
+        slots = verify_master_device_state(r.json)
+        for idx, s in enumerate(slots):
+            slot_is_active = idx + 1 == slot if is_valid else idx == 0
+            verify_slot(s, idx + 1, active=slot_is_active, gain=None, mute=None)
+
+
+@pytest.mark.parametrize("slot,is_valid", [(0, False), (1, True), (2, True), (3, True), (4, True), (5, False)])
+def test_load_known_entry_to_10x10_and_then_clear(minidsp_10x10_client, minidsp_10x10_app, slot, is_valid):
+    config: MinidspSpyConfig = minidsp_10x10_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+
+    r = minidsp_10x10_client.put(f"/api/1/devices/master/filter/{slot}", data=json.dumps({'entryId': '123456_0'}),
+                                 content_type='application/json')
+    if is_valid:
+        assert r.status_code == 200
+        cmds = verify_cmd_count(config.spy, slot, 120)
+        expected_commands = f"""input 0 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 0 peq 0 bypass off
+input 1 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 1 peq 0 bypass off
+input 2 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 2 peq 0 bypass off
+input 3 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 3 peq 0 bypass off
+input 4 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 4 peq 0 bypass off
+input 5 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 5 peq 0 bypass off
+input 6 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 6 peq 0 bypass off
+input 7 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 7 peq 0 bypass off
+input 0 peq 1 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 0 peq 1 bypass off
+input 1 peq 1 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 1 peq 1 bypass off
+input 2 peq 1 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 2 peq 1 bypass off
+input 3 peq 1 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 3 peq 1 bypass off
+input 4 peq 1 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 4 peq 1 bypass off
+input 5 peq 1 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 5 peq 1 bypass off
+input 6 peq 1 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 6 peq 1 bypass off
+input 7 peq 1 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 7 peq 1 bypass off
+input 0 peq 2 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 0 peq 2 bypass off
+input 1 peq 2 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 1 peq 2 bypass off
+input 2 peq 2 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 2 peq 2 bypass off
+input 3 peq 2 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 3 peq 2 bypass off
+input 4 peq 2 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 4 peq 2 bypass off
+input 5 peq 2 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 5 peq 2 bypass off
+input 6 peq 2 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 6 peq 2 bypass off
+input 7 peq 2 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 7 peq 2 bypass off
+input 0 peq 3 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 0 peq 3 bypass off
+input 1 peq 3 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 1 peq 3 bypass off
+input 2 peq 3 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 2 peq 3 bypass off
+input 3 peq 3 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 3 peq 3 bypass off
+input 4 peq 3 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 4 peq 3 bypass off
+input 5 peq 3 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 5 peq 3 bypass off
+input 6 peq 3 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 6 peq 3 bypass off
+input 7 peq 3 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 7 peq 3 bypass off
+input 0 peq 4 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 0 peq 4 bypass off
+input 1 peq 4 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 1 peq 4 bypass off
+input 2 peq 4 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 2 peq 4 bypass off
+input 3 peq 4 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 3 peq 4 bypass off
+input 4 peq 4 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 4 peq 4 bypass off
+input 5 peq 4 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 5 peq 4 bypass off
+input 6 peq 4 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 6 peq 4 bypass off
+input 7 peq 4 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 7 peq 4 bypass off
+input 0 peq 5 bypass on
+input 1 peq 5 bypass on
+input 2 peq 5 bypass on
+input 3 peq 5 bypass on
+input 4 peq 5 bypass on
+input 5 peq 5 bypass on
+input 6 peq 5 bypass on
+input 7 peq 5 bypass on
+output 0 peq 0 bypass on
+output 1 peq 0 bypass on
+output 2 peq 0 bypass on
+output 3 peq 0 bypass on
+output 4 peq 0 bypass on
+output 5 peq 0 bypass on
+output 6 peq 0 bypass on
+output 7 peq 0 bypass on
+output 0 peq 1 bypass on
+output 1 peq 1 bypass on
+output 2 peq 1 bypass on
+output 3 peq 1 bypass on
+output 4 peq 1 bypass on
+output 5 peq 1 bypass on
+output 6 peq 1 bypass on
+output 7 peq 1 bypass on
+output 0 peq 2 bypass on
+output 1 peq 2 bypass on
+output 2 peq 2 bypass on
+output 3 peq 2 bypass on
+output 4 peq 2 bypass on
+output 5 peq 2 bypass on
+output 6 peq 2 bypass on
+output 7 peq 2 bypass on
+output 0 peq 3 bypass on
+output 1 peq 3 bypass on
+output 2 peq 3 bypass on
+output 3 peq 3 bypass on
+output 4 peq 3 bypass on
+output 5 peq 3 bypass on
+output 6 peq 3 bypass on
+output 7 peq 3 bypass on"""
+        assert '\n'.join(cmds) == expected_commands
+    else:
+        assert r.status_code == 400
+        cmds = config.spy.take_commands()
+        assert not cmds
+    slots = verify_master_device_state(r.json)
+    for idx, s in enumerate(slots):
+        slot_is_active = idx + 1 == slot if is_valid else idx == 0
+        if is_valid and idx + 1 == slot:
+            verify_slot(s, idx + 1, active=slot_is_active, last='Alien Resurrection', gain=[0.0] * 8, mute=[False] * 8)
+        else:
+            verify_slot(s, idx + 1, active=slot_is_active, gain=[0.0] * 8, mute=[False] * 8)
+
+    if is_valid:
+        r = minidsp_10x10_client.delete(f"/api/1/devices/master/filter/{slot}")
+        assert r.status_code == 200
+        cmds = config.spy.take_commands()
+        assert len(cmds) == 96
+        expected_commands = f"""input 0 peq 0 bypass on
+input 1 peq 0 bypass on
+input 2 peq 0 bypass on
+input 3 peq 0 bypass on
+input 4 peq 0 bypass on
+input 5 peq 0 bypass on
+input 6 peq 0 bypass on
+input 7 peq 0 bypass on
+input 0 peq 1 bypass on
+input 1 peq 1 bypass on
+input 2 peq 1 bypass on
+input 3 peq 1 bypass on
+input 4 peq 1 bypass on
+input 5 peq 1 bypass on
+input 6 peq 1 bypass on
+input 7 peq 1 bypass on
+input 0 peq 2 bypass on
+input 1 peq 2 bypass on
+input 2 peq 2 bypass on
+input 3 peq 2 bypass on
+input 4 peq 2 bypass on
+input 5 peq 2 bypass on
+input 6 peq 2 bypass on
+input 7 peq 2 bypass on
+input 0 peq 3 bypass on
+input 1 peq 3 bypass on
+input 2 peq 3 bypass on
+input 3 peq 3 bypass on
+input 4 peq 3 bypass on
+input 5 peq 3 bypass on
+input 6 peq 3 bypass on
+input 7 peq 3 bypass on
+input 0 peq 4 bypass on
+input 1 peq 4 bypass on
+input 2 peq 4 bypass on
+input 3 peq 4 bypass on
+input 4 peq 4 bypass on
+input 5 peq 4 bypass on
+input 6 peq 4 bypass on
+input 7 peq 4 bypass on
+input 0 peq 5 bypass on
+input 1 peq 5 bypass on
+input 2 peq 5 bypass on
+input 3 peq 5 bypass on
+input 4 peq 5 bypass on
+input 5 peq 5 bypass on
+input 6 peq 5 bypass on
+input 7 peq 5 bypass on
+output 0 peq 0 bypass on
+output 1 peq 0 bypass on
+output 2 peq 0 bypass on
+output 3 peq 0 bypass on
+output 4 peq 0 bypass on
+output 5 peq 0 bypass on
+output 6 peq 0 bypass on
+output 7 peq 0 bypass on
+output 0 peq 1 bypass on
+output 1 peq 1 bypass on
+output 2 peq 1 bypass on
+output 3 peq 1 bypass on
+output 4 peq 1 bypass on
+output 5 peq 1 bypass on
+output 6 peq 1 bypass on
+output 7 peq 1 bypass on
+output 0 peq 2 bypass on
+output 1 peq 2 bypass on
+output 2 peq 2 bypass on
+output 3 peq 2 bypass on
+output 4 peq 2 bypass on
+output 5 peq 2 bypass on
+output 6 peq 2 bypass on
+output 7 peq 2 bypass on
+output 0 peq 3 bypass on
+output 1 peq 3 bypass on
+output 2 peq 3 bypass on
+output 3 peq 3 bypass on
+output 4 peq 3 bypass on
+output 5 peq 3 bypass on
+output 6 peq 3 bypass on
+output 7 peq 3 bypass on
+input 0 mute off
+input 0 gain -- 0.00
+input 1 mute off
+input 1 gain -- 0.00
+input 2 mute off
+input 2 gain -- 0.00
+input 3 mute off
+input 3 gain -- 0.00
+input 4 mute off
+input 4 gain -- 0.00
+input 5 mute off
+input 5 gain -- 0.00
+input 6 mute off
+input 6 gain -- 0.00
+input 7 mute off
+input 7 gain -- 0.00"""
+        assert '\n'.join(cmds) == expected_commands
+        slots = verify_master_device_state(r.json)
+        for idx, s in enumerate(slots):
+            slot_is_active = idx + 1 == slot if is_valid else idx == 0
+            verify_slot(s, idx + 1, active=slot_is_active, gain=[0.0] * 8, mute=[False] * 8)
 
 
 @pytest.mark.parametrize("v", [1, 2])
