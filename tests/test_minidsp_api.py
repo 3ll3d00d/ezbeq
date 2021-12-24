@@ -984,64 +984,64 @@ output 7 peq 4 bypass on"""
     for idx, s in enumerate(slots):
         slot_is_active = idx + 1 == slot if is_valid else idx == 0
         if is_valid and idx + 1 == slot:
-            verify_slot(s, idx + 1, active=slot_is_active, last='Alien Resurrection', gain=None, mute=None)
+            verify_slot(s, idx + 1, active=slot_is_active, last='Alien Resurrection')
         else:
-            verify_slot(s, idx + 1, active=slot_is_active, gain=None, mute=None)
+            verify_slot(s, idx + 1, active=slot_is_active)
 
     if is_valid:
         r = minidsp_4x10_client.delete(f"/api/1/devices/master/filter/{slot}")
         assert r.status_code == 200
         cmds = config.spy.take_commands()
-        assert len(cmds) == 50
+        assert len(cmds) == 54
         expected_commands = f"""input 0 peq 0 bypass on
-input 0 peq 1 bypass on
-input 0 peq 2 bypass on
-input 0 peq 3 bypass on
-input 0 peq 4 bypass on
 input 1 peq 0 bypass on
+input 0 peq 1 bypass on
 input 1 peq 1 bypass on
+input 0 peq 2 bypass on
 input 1 peq 2 bypass on
+input 0 peq 3 bypass on
 input 1 peq 3 bypass on
+input 0 peq 4 bypass on
 input 1 peq 4 bypass on
 output 0 peq 0 bypass on
-output 0 peq 1 bypass on
-output 0 peq 2 bypass on
-output 0 peq 3 bypass on
-output 0 peq 4 bypass on
 output 1 peq 0 bypass on
-output 1 peq 1 bypass on
-output 1 peq 2 bypass on
-output 1 peq 3 bypass on
-output 1 peq 4 bypass on
 output 2 peq 0 bypass on
-output 2 peq 1 bypass on
-output 2 peq 2 bypass on
-output 2 peq 3 bypass on
-output 2 peq 4 bypass on
 output 3 peq 0 bypass on
-output 3 peq 1 bypass on
-output 3 peq 2 bypass on
-output 3 peq 3 bypass on
-output 3 peq 4 bypass on
 output 4 peq 0 bypass on
-output 4 peq 1 bypass on
-output 4 peq 2 bypass on
-output 4 peq 3 bypass on
-output 4 peq 4 bypass on
 output 5 peq 0 bypass on
-output 5 peq 1 bypass on
-output 5 peq 2 bypass on
-output 5 peq 3 bypass on
-output 5 peq 4 bypass on
 output 6 peq 0 bypass on
-output 6 peq 1 bypass on
-output 6 peq 2 bypass on
-output 6 peq 3 bypass on
-output 6 peq 4 bypass on
 output 7 peq 0 bypass on
+output 0 peq 1 bypass on
+output 1 peq 1 bypass on
+output 2 peq 1 bypass on
+output 3 peq 1 bypass on
+output 4 peq 1 bypass on
+output 5 peq 1 bypass on
+output 6 peq 1 bypass on
 output 7 peq 1 bypass on
+output 0 peq 2 bypass on
+output 1 peq 2 bypass on
+output 2 peq 2 bypass on
+output 3 peq 2 bypass on
+output 4 peq 2 bypass on
+output 5 peq 2 bypass on
+output 6 peq 2 bypass on
 output 7 peq 2 bypass on
+output 0 peq 3 bypass on
+output 1 peq 3 bypass on
+output 2 peq 3 bypass on
+output 3 peq 3 bypass on
+output 4 peq 3 bypass on
+output 5 peq 3 bypass on
+output 6 peq 3 bypass on
 output 7 peq 3 bypass on
+output 0 peq 4 bypass on
+output 1 peq 4 bypass on
+output 2 peq 4 bypass on
+output 3 peq 4 bypass on
+output 4 peq 4 bypass on
+output 5 peq 4 bypass on
+output 6 peq 4 bypass on
 output 7 peq 4 bypass on
 input 0 mute off
 input 0 gain -- 0.00
@@ -1051,7 +1051,7 @@ input 1 gain -- 0.00"""
         slots = verify_master_device_state(r.json)
         for idx, s in enumerate(slots):
             slot_is_active = idx + 1 == slot if is_valid else idx == 0
-            verify_slot(s, idx + 1, active=slot_is_active, gain=None, mute=None)
+            verify_slot(s, idx + 1, active=slot_is_active)
 
 
 @pytest.mark.parametrize("slot,is_valid", [(0, False), (1, True), (2, True), (3, True), (4, True), (5, False)])
