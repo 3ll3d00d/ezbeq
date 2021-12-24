@@ -667,7 +667,7 @@ class MinidspBeqCommandGenerator:
             freq = f['freq']
             gain = f['gain']
             q = f['q']
-            from iir import PeakingEQ, LowShelf, HighShelf
+            from ezbeq.iir import PeakingEQ, LowShelf, HighShelf
             if t == 'PeakingEQ':
                 f = PeakingEQ(int(fs), freq, q, gain)
             elif t == 'LowShelf':
