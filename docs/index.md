@@ -11,7 +11,9 @@ ezbeq and minidsp-rs run on Linux, Windows, or Mac operating systems. Basic inst
 The following requirements should be met before attempting an installation:
 
 ### MiniDSP:
-- Functional MiniDSP 2x4HD ([https://www.minidsp.com/products/minidsp-in-a-box/minidsp-2x4-hd](https://www.minidsp.com/products/minidsp-in-a-box/minidsp-2x4-hd))
+- Functional and supported MiniDSP 
+  - the [2x4HD](https://www.minidsp.com/products/minidsp-in-a-box/minidsp-2x4-hd) is the default supported device however most devices supported by minidsp-rs are supported by ezbeq
+  - refer to the [ezbeq docs](https://github.com/3ll3d00d/ezbeq/#minidsp-variants) for information on how to configure ezbeq for use with other Minidsp models
 - Windows or Linux based system (Raspberry Pi) with network connectivity
 - USB cable connecting the computing system to the MiniDSP 2x4HD
 - Internet connection
