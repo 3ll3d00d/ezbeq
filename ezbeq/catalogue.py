@@ -49,6 +49,7 @@ class CatalogueEntry:
         self.created_at = vals.get('created_at', 0)
         self.updated_at = vals.get('updated_at', 0)
         self.digest = vals.get('digest', '')
+        self.collection = vals.get('collection', {})
         self.formatted_title = self.__format_title()
         now = time.time()
         if self.created_at >= (now - TWO_WEEKS_AGO_SECONDS):
@@ -123,6 +124,8 @@ class CatalogueEntry:
             self.for_search['note'] = self.note
         if self.warning:
             self.for_search['warning'] = self.warning
+        if self.collection and 'name' in self.collection:
+            self.for_search['collection'] = self.collection['name']
 
     def matches(self, authors: List[str], years: List[int], audio_types: List[str], content_types: List[str]):
         if not authors or self.author in authors:
