@@ -180,7 +180,7 @@ const Entry = ({selectedDeviceName, selectedEntry, useWide, setDevice, selectedS
     const upload = async () => {
         const slot = slots.find(s => s.id === uploadSlotId);
         const gains = {
-            'gains': sendGain ? [...Array(slot.inputs)].map((_, i) => parseFloat(selectedEntry.mvAdjust)) : [],
+            'gains': [...Array(slot.inputs)].map((_, i) => sendGain ? parseFloat(selectedEntry.mvAdjust) : 0.0),
             'mutes': sendGain ? [...Array(slot.inputs)].map((_, i) => false) : []
         }
         setPending(true);
