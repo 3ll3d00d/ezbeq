@@ -194,7 +194,7 @@ class MinidspSpy:
 class MinidspSpyConfig(Config):
 
     def __init__(self, host: str, port: int, tmp_path, device_type: str = None):
-        if device_type[-2:] == 'xo':
+        if device_type and device_type[-2:] == 'xo':
             self.device_type = device_type[:-2]
             self.use_xo = True
         else:

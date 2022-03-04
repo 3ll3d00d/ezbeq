@@ -2020,7 +2020,8 @@ def test_get_by_digest_404(minidsp_client, minidsp_app, endpoint):
 def test_cfg_makes_known_minidsp(dt, exp):
     cfg = {'device_type': dt}
     if dt == '10x10xo':
-        cfg['device_type']['use_xo'] = True
+        cfg['device_type'] = '10x10'
+        cfg['use_xo'] = True
     desc = import_md().make_peq_layout(cfg)
     assert desc
     assert desc.__class__.__name__ == exp
