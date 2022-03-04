@@ -13,6 +13,7 @@ python-dateutil = "*"
 autobahn = {extras = ["twisted"], version = "*"}
 semver = "*"
 flask-restx = ">=0.4.0"
+importlib-resources = "*"
 
 [dev-packages]
 mkdocs = "*"
