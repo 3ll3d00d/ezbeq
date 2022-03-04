@@ -95,9 +95,22 @@ def minidsp_10x10_app(httpserver: HTTPServer, tmp_path):
 
 
 @pytest.fixture
+def minidsp_10x10xo_app(httpserver: HTTPServer, tmp_path):
+    """Create and configure a new app instance for each test."""
+    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='10x10xo'))
+    yield app
+
+
+@pytest.fixture
 def minidsp_10x10_client(minidsp_10x10_app):
     """A test client for the app."""
     return minidsp_10x10_app.test_client()
+
+
+@pytest.fixture
+def minidsp_10x10xo_client(minidsp_10x10xo_app):
+    """A test client for the app."""
+    return minidsp_10x10xo_app.test_client()
 
 
 @pytest.fixture
@@ -181,7 +194,12 @@ class MinidspSpy:
 class MinidspSpyConfig(Config):
 
     def __init__(self, host: str, port: int, tmp_path, device_type: str = None):
-        self.device_type = device_type
+        if device_type[-2:] == 'xo':
+            self.device_type = device_type[:-2]
+            self.use_xo = True
+        else:
+            self.device_type = device_type
+            self.use_xo = False
         super().__init__('spy', beqcatalogue_url=f"http://{host}:{port}/")
         self.spy = MinidspSpy()
         self.__tmp_path = tmp_path
@@ -206,6 +224,8 @@ class MinidspSpyConfig(Config):
         }
         if self.device_type:
             vals['devices']['master']['device_type'] = self.device_type
+        if self.use_xo:
+            vals['devices']['master']['use_xo'] = True
         return vals
 
     def create_minidsp_runner(self, cfg):

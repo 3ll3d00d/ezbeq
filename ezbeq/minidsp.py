@@ -286,7 +286,15 @@ class Minidsp410(MinidspDescriptor):
 
 class Minidsp1010(MinidspDescriptor):
 
-    def __init__(self):
+    def __init__(self, use_xo: bool):
+        if use_xo:
+            secondary = 'crossover'
+            biquads = 4
+            beq = None
+        else:
+            secondary = 'output'
+            biquads = 6
+            beq = list(range(4))
         super().__init__('10x10',
                          '48000',
                          [
@@ -298,14 +306,14 @@ class Minidsp1010(MinidspDescriptor):
                              PeqRoute('input', 5, 6, None),
                              PeqRoute('input', 6, 6, None),
                              PeqRoute('input', 7, 6, None),
-                             PeqRoute('output', 0, 6, list(range(4))),
-                             PeqRoute('output', 1, 6, list(range(4))),
-                             PeqRoute('output', 2, 6, list(range(4))),
-                             PeqRoute('output', 3, 6, list(range(4))),
-                             PeqRoute('output', 4, 6, list(range(4))),
-                             PeqRoute('output', 5, 6, list(range(4))),
-                             PeqRoute('output', 6, 6, list(range(4))),
-                             PeqRoute('output', 7, 6, list(range(4)))
+                             PeqRoute(secondary, 0, biquads, beq),
+                             PeqRoute(secondary, 1, biquads, beq),
+                             PeqRoute(secondary, 2, biquads, beq),
+                             PeqRoute(secondary, 3, biquads, beq),
+                             PeqRoute(secondary, 4, biquads, beq),
+                             PeqRoute(secondary, 5, biquads, beq),
+                             PeqRoute(secondary, 6, biquads, beq),
+                             PeqRoute(secondary, 7, biquads, beq)
                          ],
                          split=True)
 
@@ -322,7 +330,7 @@ def make_peq_layout(cfg: dict) -> MinidspDescriptor:
         elif device_type == '4x10':
             return Minidsp410()
         elif device_type == '10x10':
-            return Minidsp1010()
+            return Minidsp1010(cfg.get('use_xo', False))
         elif device_type == 'SHD':
             return MinidspDDRC24()
     elif 'descriptor' in cfg:
@@ -690,8 +698,10 @@ class MinidspBeqCommandGenerator:
         filters = [MinidspBeqCommandGenerator.as_bq(f, descriptor.fs) for f in entry.filters] if entry else []
         idx = 0
         input_beq_routes = [r for r in descriptor.peq_routes if r.side == 'input' and r.beq]
+        xo_beq_routes = [r for r in descriptor.peq_routes if r.side == 'crossover' and r.beq]
         output_beq_routes = [r for r in descriptor.peq_routes if r.side == 'output' and r.beq]
         input_beqs = input_beq_routes[0].biquads if input_beq_routes else 0
+        xo_beqs = xo_beq_routes[0].biquads if xo_beq_routes else 0
         output_beqs = output_beq_routes[0].biquads if output_beq_routes else 0
         while idx < len(filters):
             coeffs: List[str] = filters[idx]
@@ -700,10 +710,14 @@ class MinidspBeqCommandGenerator:
                     cmds.append(MinidspBeqCommandGenerator.bq(r.channel_idx, idx, coeffs, r.side))
                     cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx, False, r.side))
             elif input_beqs == 0 or descriptor.split:
-                if idx < (input_beqs + output_beqs):
-                    for r in output_beq_routes:
+                if idx < (input_beqs + xo_beqs):
+                    for r in xo_beq_routes:
                         cmds.append(MinidspBeqCommandGenerator.bq(r.channel_idx, idx - input_beqs, coeffs, r.side))
                         cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx - input_beqs, False, r.side))
+                elif idx < (input_beqs + xo_beqs + output_beqs):
+                    for r in output_beq_routes:
+                        cmds.append(MinidspBeqCommandGenerator.bq(r.channel_idx, idx - xo_beqs - input_beqs, coeffs, r.side))
+                        cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx - xo_beqs - input_beqs, False, r.side))
                 else:
                     raise ValueError('Not enough slots')
             else:
@@ -715,9 +729,12 @@ class MinidspBeqCommandGenerator:
                 for r in input_beq_routes:
                     cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx, True, r.side))
             elif input_beqs == 0 or descriptor.split:
-                if idx < (input_beqs + output_beqs):
-                    for r in output_beq_routes:
+                if idx < (input_beqs + xo_beqs):
+                    for r in xo_beq_routes:
                         cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx - input_beqs, True, r.side))
+                elif idx < (input_beqs + xo_beqs + output_beqs):
+                    for r in output_beq_routes:
+                        cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx - xo_beqs - input_beqs, True, r.side))
                 else:
                     raise ValueError('Not enough slots')
             else:
@@ -727,11 +744,13 @@ class MinidspBeqCommandGenerator:
 
     @staticmethod
     def bq(channel: int, idx: int, coeffs, side: str = 'input'):
-        return f"{side} {channel} peq {idx} set -- {' '.join(coeffs)}"
+        is_xo = side == 'crossover'
+        return f"{'output' if is_xo else side} {channel} {'crossover' if is_xo else 'peq'} {idx} set -- {' '.join(coeffs)}"
 
     @staticmethod
     def bypass(channel: int, idx: int, bypass: bool, side: str = 'input'):
-        return f"{side} {channel} peq {idx} bypass {'on' if bypass else 'off'}"
+        is_xo = side == 'crossover'
+        return f"{'output' if is_xo else side} {channel} {'crossover' if is_xo else 'peq'} {idx} bypass {'on' if bypass else 'off'}"
 
     @staticmethod
     def mute(state: bool, slot: Optional[int], channel: Optional[int], side: Optional[str] = 'input'):
