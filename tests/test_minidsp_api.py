@@ -1403,38 +1403,38 @@ input 4 peq 5 bypass on
 input 5 peq 5 bypass on
 input 6 peq 5 bypass on
 input 7 peq 5 bypass on
-output 0 crossover 0 bypass on
-output 1 crossover 0 bypass on
-output 2 crossover 0 bypass on
-output 3 crossover 0 bypass on
-output 4 crossover 0 bypass on
-output 5 crossover 0 bypass on
-output 6 crossover 0 bypass on
-output 7 crossover 0 bypass on
-output 0 crossover 1 bypass on
-output 1 crossover 1 bypass on
-output 2 crossover 1 bypass on
-output 3 crossover 1 bypass on
-output 4 crossover 1 bypass on
-output 5 crossover 1 bypass on
-output 6 crossover 1 bypass on
-output 7 crossover 1 bypass on
-output 0 crossover 2 bypass on
-output 1 crossover 2 bypass on
-output 2 crossover 2 bypass on
-output 3 crossover 2 bypass on
-output 4 crossover 2 bypass on
-output 5 crossover 2 bypass on
-output 6 crossover 2 bypass on
-output 7 crossover 2 bypass on
-output 0 crossover 3 bypass on
-output 1 crossover 3 bypass on
-output 2 crossover 3 bypass on
-output 3 crossover 3 bypass on
-output 4 crossover 3 bypass on
-output 5 crossover 3 bypass on
-output 6 crossover 3 bypass on
-output 7 crossover 3 bypass on"""
+output 0 crossover 0 0 bypass on
+output 1 crossover 0 0 bypass on
+output 2 crossover 0 0 bypass on
+output 3 crossover 0 0 bypass on
+output 4 crossover 0 0 bypass on
+output 5 crossover 0 0 bypass on
+output 6 crossover 0 0 bypass on
+output 7 crossover 0 0 bypass on
+output 0 crossover 0 1 bypass on
+output 1 crossover 0 1 bypass on
+output 2 crossover 0 1 bypass on
+output 3 crossover 0 1 bypass on
+output 4 crossover 0 1 bypass on
+output 5 crossover 0 1 bypass on
+output 6 crossover 0 1 bypass on
+output 7 crossover 0 1 bypass on
+output 0 crossover 0 2 bypass on
+output 1 crossover 0 2 bypass on
+output 2 crossover 0 2 bypass on
+output 3 crossover 0 2 bypass on
+output 4 crossover 0 2 bypass on
+output 5 crossover 0 2 bypass on
+output 6 crossover 0 2 bypass on
+output 7 crossover 0 2 bypass on
+output 0 crossover 0 3 bypass on
+output 1 crossover 0 3 bypass on
+output 2 crossover 0 3 bypass on
+output 3 crossover 0 3 bypass on
+output 4 crossover 0 3 bypass on
+output 5 crossover 0 3 bypass on
+output 6 crossover 0 3 bypass on
+output 7 crossover 0 3 bypass on"""
         assert '\n'.join(cmds) == expected_commands
     else:
         assert r.status_code == 400
@@ -1501,38 +1501,38 @@ input 4 peq 5 bypass on
 input 5 peq 5 bypass on
 input 6 peq 5 bypass on
 input 7 peq 5 bypass on
-output 0 crossover 0 bypass on
-output 1 crossover 0 bypass on
-output 2 crossover 0 bypass on
-output 3 crossover 0 bypass on
-output 4 crossover 0 bypass on
-output 5 crossover 0 bypass on
-output 6 crossover 0 bypass on
-output 7 crossover 0 bypass on
-output 0 crossover 1 bypass on
-output 1 crossover 1 bypass on
-output 2 crossover 1 bypass on
-output 3 crossover 1 bypass on
-output 4 crossover 1 bypass on
-output 5 crossover 1 bypass on
-output 6 crossover 1 bypass on
-output 7 crossover 1 bypass on
-output 0 crossover 2 bypass on
-output 1 crossover 2 bypass on
-output 2 crossover 2 bypass on
-output 3 crossover 2 bypass on
-output 4 crossover 2 bypass on
-output 5 crossover 2 bypass on
-output 6 crossover 2 bypass on
-output 7 crossover 2 bypass on
-output 0 crossover 3 bypass on
-output 1 crossover 3 bypass on
-output 2 crossover 3 bypass on
-output 3 crossover 3 bypass on
-output 4 crossover 3 bypass on
-output 5 crossover 3 bypass on
-output 6 crossover 3 bypass on
-output 7 crossover 3 bypass on
+output 0 crossover 0 0 bypass on
+output 1 crossover 0 0 bypass on
+output 2 crossover 0 0 bypass on
+output 3 crossover 0 0 bypass on
+output 4 crossover 0 0 bypass on
+output 5 crossover 0 0 bypass on
+output 6 crossover 0 0 bypass on
+output 7 crossover 0 0 bypass on
+output 0 crossover 0 1 bypass on
+output 1 crossover 0 1 bypass on
+output 2 crossover 0 1 bypass on
+output 3 crossover 0 1 bypass on
+output 4 crossover 0 1 bypass on
+output 5 crossover 0 1 bypass on
+output 6 crossover 0 1 bypass on
+output 7 crossover 0 1 bypass on
+output 0 crossover 0 2 bypass on
+output 1 crossover 0 2 bypass on
+output 2 crossover 0 2 bypass on
+output 3 crossover 0 2 bypass on
+output 4 crossover 0 2 bypass on
+output 5 crossover 0 2 bypass on
+output 6 crossover 0 2 bypass on
+output 7 crossover 0 2 bypass on
+output 0 crossover 0 3 bypass on
+output 1 crossover 0 3 bypass on
+output 2 crossover 0 3 bypass on
+output 3 crossover 0 3 bypass on
+output 4 crossover 0 3 bypass on
+output 5 crossover 0 3 bypass on
+output 6 crossover 0 3 bypass on
+output 7 crossover 0 3 bypass on
 input 0 mute off
 input 0 gain -- 0.00
 input 1 mute off

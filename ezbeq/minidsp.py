@@ -204,13 +204,13 @@ class PeqRoute:
 
 class MinidspDescriptor:
 
-    def __init__(self, name: str, fs: str, peq_routes: List[PeqRoute], split: bool = False):
+    def __init__(self, name: str, fs: str, peq_routes: List[PeqRoute]):
         self.name = name
         self.fs = str(int(fs))
         self.peq_routes = peq_routes
-        self.split = split
         self.__input_channels = len([r for r in self.peq_routes if r.is_input])
         self.__output_channels = len([r for r in self.peq_routes if not r.is_input])
+        self.split = self.__output_channels > 0
 
     @property
     def input_channels(self) -> int:
@@ -280,8 +280,7 @@ class Minidsp410(MinidspDescriptor):
                              PeqRoute('output', 5, 5, None),
                              PeqRoute('output', 6, 5, None),
                              PeqRoute('output', 7, 5, None)
-                         ],
-                         split=True)
+                         ])
 
 
 class Minidsp1010(MinidspDescriptor):
@@ -314,8 +313,7 @@ class Minidsp1010(MinidspDescriptor):
                              PeqRoute(secondary, 5, biquads, beq),
                              PeqRoute(secondary, 6, biquads, beq),
                              PeqRoute(secondary, 7, biquads, beq)
-                         ],
-                         split=True)
+                         ])
 
 
 def make_peq_layout(cfg: dict) -> MinidspDescriptor:
@@ -348,11 +346,9 @@ def make_peq_layout(cfg: dict) -> MinidspDescriptor:
                 raise ValueError(f"Custom PeqRoute is missing keys - {missing_keys} - from {r}")
             bq_count = int(r['biquads'])
             beq = [int(b) for b in r['beq']] if 'beq' in r else None
-            kwargs = {k: v for k, v in r.items() if k not in r_named_args}
-            return PeqRoute(r['side'], int(r['channel_idx']), bq_count, beq, **kwargs)
+            return PeqRoute(r['side'], int(r['channel_idx']), bq_count, beq)
 
-        kwargs = {k: v for k, v in desc.items() if k not in named_args}
-        return MinidspDescriptor(desc['name'], str(desc['fs']), [make_route(r) for r in routes], **kwargs)
+        return MinidspDescriptor(desc['name'], str(desc['fs']), [make_route(r) for r in routes])
     else:
         return Minidsp24HD()
 
@@ -723,8 +719,8 @@ class MinidspBeqCommandGenerator:
             else:
                 raise ValueError('Not enough slots')
             idx += 1
-        # we assume 10 biquads max so bypass anything that is left
-        while idx < 10:
+        # bypass anything that is left
+        while idx < (input_beqs + xo_beqs + output_beqs):
             if idx < input_beqs:
                 for r in input_beq_routes:
                     cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx, True, r.side))
@@ -735,22 +731,18 @@ class MinidspBeqCommandGenerator:
                 elif idx < (input_beqs + xo_beqs + output_beqs):
                     for r in output_beq_routes:
                         cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx - xo_beqs - input_beqs, True, r.side))
-                else:
-                    raise ValueError('Not enough slots')
-            else:
-                raise ValueError('Not enough slots')
             idx += 1
         return cmds
 
     @staticmethod
     def bq(channel: int, idx: int, coeffs, side: str = 'input'):
         is_xo = side == 'crossover'
-        return f"{'output' if is_xo else side} {channel} {'crossover' if is_xo else 'peq'} {idx} set -- {' '.join(coeffs)}"
+        return f"{'output' if is_xo else side} {channel} {'crossover 0' if is_xo else 'peq'} {idx} set -- {' '.join(coeffs)}"
 
     @staticmethod
     def bypass(channel: int, idx: int, bypass: bool, side: str = 'input'):
         is_xo = side == 'crossover'
-        return f"{'output' if is_xo else side} {channel} {'crossover' if is_xo else 'peq'} {idx} bypass {'on' if bypass else 'off'}"
+        return f"{'output' if is_xo else side} {channel} {'crossover 0' if is_xo else 'peq'} {idx} bypass {'on' if bypass else 'off'}"
 
     @staticmethod
     def mute(state: bool, slot: Optional[int], channel: Optional[int], side: Optional[str] = 'input'):
