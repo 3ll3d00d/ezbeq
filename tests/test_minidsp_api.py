@@ -5,7 +5,6 @@ from typing import List
 import pytest
 
 from conftest import MinidspSpyConfig, MinidspSpy
-from minidsp import BeqFilterSlot
 
 
 def verify_slot(slot: dict, idx: int, active: bool = False, gain = (0.0, 0.0), mute = (False, False), last: str = 'Empty'):
@@ -2045,7 +2044,7 @@ def test_cfg_customise_ddrc88_sw():
     allocator = desc.to_allocator()
     assert len(allocator) == 10
     for i in range(0, 10):
-        s: BeqFilterSlot = allocator.pop()
+        s = allocator.pop()
         assert s
         assert s.name == 'output'
         assert s.idx == i
