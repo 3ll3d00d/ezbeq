@@ -15,6 +15,10 @@ from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
 from ezbeq.device import InvalidRequestError, SlotState, PersistentDevice, DeviceState
 
+INPUT_NAME = 'input'
+OUTPUT_NAME = 'output'
+CROSSOVER_NAME = 'crossover'
+
 logger = logging.getLogger('ezbeq.minidsp')
 
 
@@ -28,8 +32,10 @@ class MinidspState(DeviceState):
         self.__descriptr = descriptor
         slot_ids = [str(i + 1) for i in range(4)]
         self.__slots: List[MinidspSlotState] = [
-            MinidspSlotState(c_id, c_id == self.active_slot, descriptor.input_channels, descriptor.output_channels) for
-            c_id in slot_ids
+            MinidspSlotState(c_id,
+                             c_id == self.active_slot,
+                             0 if not descriptor.input else len(descriptor.input.channels),
+                             0 if not descriptor.output else len(descriptor.output.channels)) for c_id in slot_ids
         ]
 
     def update_master_state(self, mute: bool, gain: float):
@@ -186,42 +192,82 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
         return f"{super().__repr__()} - {vals}"
 
 
-class PeqRoute:
-
-    def __init__(self, side: str, channel_idx: int, biquads: int, beq: Optional[List[int]]):
-        self.side = side
-        self.channel_idx = channel_idx
+class PeqRoutes:
+    def __init__(self, name: str, biquads: int, channels: List[int], beq_slots: List[int], groups: List[int] = None):
+        self.name = name
         self.biquads = biquads
-        self.beq = beq if beq is not None else list(range(biquads))
+        self.channels = channels
+        self.beq_slots = beq_slots
+        self.groups = groups
 
     @property
-    def is_input(self) -> bool:
-        return self.side == 'input'
+    def takes_beq(self) -> bool:
+        return len(self.channels) > 0 and len(self.beq_slots) > 0
 
     def __repr__(self):
-        return f"{self.side} {self.channel_idx} {self.biquads} {self.beq}"
+        return f"{self.name}"
+
+
+class BeqFilterSlot:
+
+    def __init__(self, name: str, idx: int, channels: List[int], groups: Optional[List[int]] = None):
+        self.name = name
+        self.idx = idx
+        self.channels = channels
+        self.groups = groups
+
+    def __repr__(self):
+        return f"{self.name}/{self.idx}/{self.channels}/{self.groups}"
+
+
+class BeqFilterAllocator:
+
+    def __init__(self, routes: List[PeqRoutes]):
+        self.slots = [BeqFilterSlot(r.name, s, r.channels, r.groups) for r in routes if r for s in r.beq_slots]
+
+    def pop(self) -> Optional[BeqFilterSlot]:
+        if self.slots:
+            return self.slots.pop(0)
+        return None
+
+    def __len__(self):
+        return len(self.slots)
+
+    def __repr__(self):
+        return f"{self.slots}"
 
 
 class MinidspDescriptor:
 
-    def __init__(self, name: str, fs: str, peq_routes: List[PeqRoute]):
+    def __init__(self, name: str, fs: str, i: PeqRoutes = None, xo: PeqRoutes = None, o: PeqRoutes = None,
+                 extra: List[PeqRoutes] = None):
         self.name = name
         self.fs = str(int(fs))
-        self.peq_routes = peq_routes
-        self.__input_channels = len([r for r in self.peq_routes if r.is_input])
-        self.__output_channels = len([r for r in self.peq_routes if not r.is_input])
-        self.split = self.__output_channels > 0
+        self.input = i
+        self.crossover = xo
+        self.output = o
+        self.extra = extra
 
     @property
-    def input_channels(self) -> int:
-        return self.__input_channels
+    def peq_routes(self) -> List[PeqRoutes]:
+        return [x for x in [self.input, self.crossover, self.output, self.extra] if x]
 
-    @property
-    def output_channels(self) -> int:
-        return self.__output_channels
+    def to_allocator(self) -> BeqFilterAllocator:
+        return BeqFilterAllocator(self.peq_routes)
 
     def __repr__(self):
-        return f"{self.name}, fs:{self.fs}, routes: {self.peq_routes}"
+        s = f"{self.name}, fs:{self.fs}"
+        if self.input:
+            s = f"{s}, inputs: {self.input}"
+        if self.crossover:
+            s = f"{s}, crossovers: {self.crossover}"
+        if self.output:
+            s = f"{s}, outputs: {self.output}"
+        return s
+
+
+def zero_til(count: int) -> List[int]:
+    return list(range(0, count))
 
 
 class Minidsp24HD(MinidspDescriptor):
@@ -229,14 +275,9 @@ class Minidsp24HD(MinidspDescriptor):
     def __init__(self):
         super().__init__('2x4HD',
                          '96000',
-                         [
-                             PeqRoute('input', 0, 10, None),
-                             PeqRoute('input', 1, 10, None),
-                             PeqRoute('output', 0, 10, []),
-                             PeqRoute('output', 1, 10, []),
-                             PeqRoute('output', 2, 10, []),
-                             PeqRoute('output', 3, 10, [])
-                         ])
+                         i=PeqRoutes(INPUT_NAME, 10, zero_til(2), zero_til(10)),
+                         xo=PeqRoutes(CROSSOVER_NAME, 4, zero_til(4), [], groups=zero_til(2)),
+                         o=PeqRoutes(OUTPUT_NAME, 10, zero_til(4), []))
 
 
 class MinidspDDRC24(MinidspDescriptor):
@@ -244,12 +285,8 @@ class MinidspDDRC24(MinidspDescriptor):
     def __init__(self):
         super().__init__('DDRC24',
                          '48000',
-                         [
-                             PeqRoute('output', 0, 10, None),
-                             PeqRoute('output', 1, 10, None),
-                             PeqRoute('output', 2, 10, None),
-                             PeqRoute('output', 3, 10, None)
-                         ])
+                         xo=PeqRoutes(CROSSOVER_NAME, 4, zero_til(4), [], zero_til(2)),
+                         o=PeqRoutes(OUTPUT_NAME, 10, zero_til(4), zero_til(10)))
 
 
 class MinidspDDRC88(MinidspDescriptor):
@@ -258,10 +295,12 @@ class MinidspDDRC88(MinidspDescriptor):
         c = sw_channels if sw_channels is not None else [3]
         if any(ch for ch in c if ch < 0 or ch > 7):
             raise ValueError(f"Invalid channels {c}")
+        non_sw = [c1 for c1 in zero_til(8) if c1 not in c]
         super().__init__('DDRC88',
                          '48000',
-                         [PeqRoute('output', r, 10, None if r in c else []) for r in range(8)]
-                         )
+                         xo=PeqRoutes(CROSSOVER_NAME, 8, zero_til(8), [], zero_til(2)),
+                         o=PeqRoutes(OUTPUT_NAME, 10, c, zero_til(10)),
+                         extra=PeqRoutes(OUTPUT_NAME, 10, non_sw, []) if non_sw else None)
 
 
 class Minidsp410(MinidspDescriptor):
@@ -269,51 +308,21 @@ class Minidsp410(MinidspDescriptor):
     def __init__(self):
         super().__init__('4x10',
                          '96000',
-                         [
-                             PeqRoute('input', 0, 5, None),
-                             PeqRoute('input', 1, 5, None),
-                             PeqRoute('output', 0, 5, None),
-                             PeqRoute('output', 1, 5, None),
-                             PeqRoute('output', 2, 5, None),
-                             PeqRoute('output', 3, 5, None),
-                             PeqRoute('output', 4, 5, None),
-                             PeqRoute('output', 5, 5, None),
-                             PeqRoute('output', 6, 5, None),
-                             PeqRoute('output', 7, 5, None)
-                         ])
+                         i=PeqRoutes(INPUT_NAME, 5, zero_til(2), zero_til(5)),
+                         o=PeqRoutes(OUTPUT_NAME, 5, zero_til(8), zero_til(5)))
 
 
 class Minidsp1010(MinidspDescriptor):
 
     def __init__(self, use_xo: bool):
         if use_xo:
-            secondary = 'crossover'
-            biquads = 4
-            beq = None
+            secondary = {'xo': PeqRoutes(CROSSOVER_NAME, 4, zero_til(8), zero_til(4), groups=zero_til(2))}
         else:
-            secondary = 'output'
-            biquads = 6
-            beq = list(range(4))
+            secondary = {'o': PeqRoutes(OUTPUT_NAME, 6, zero_til(8), zero_til(4))}
         super().__init__('10x10',
                          '48000',
-                         [
-                             PeqRoute('input', 0, 6, None),
-                             PeqRoute('input', 1, 6, None),
-                             PeqRoute('input', 2, 6, None),
-                             PeqRoute('input', 3, 6, None),
-                             PeqRoute('input', 4, 6, None),
-                             PeqRoute('input', 5, 6, None),
-                             PeqRoute('input', 6, 6, None),
-                             PeqRoute('input', 7, 6, None),
-                             PeqRoute(secondary, 0, biquads, beq),
-                             PeqRoute(secondary, 1, biquads, beq),
-                             PeqRoute(secondary, 2, biquads, beq),
-                             PeqRoute(secondary, 3, biquads, beq),
-                             PeqRoute(secondary, 4, biquads, beq),
-                             PeqRoute(secondary, 5, biquads, beq),
-                             PeqRoute(secondary, 6, biquads, beq),
-                             PeqRoute(secondary, 7, biquads, beq)
-                         ])
+                         i=PeqRoutes(INPUT_NAME, 6, zero_til(8), zero_til(6)),
+                         **secondary)
 
 
 def make_peq_layout(cfg: dict) -> MinidspDescriptor:
@@ -339,16 +348,20 @@ def make_peq_layout(cfg: dict) -> MinidspDescriptor:
             raise ValueError(f"Custom descriptor is missing keys - {missing_keys} - from {desc}")
         routes: List[dict] = desc['routes']
 
-        def make_route(r: dict) -> PeqRoute:
-            r_named_args = ['side', 'channel_idx', 'biquads']
+        def make_route(r: dict) -> PeqRoutes:
+            r_named_args = ['name', 'biquads', 'channels', 'slots']
             missing_route_keys = [x for x in r_named_args if x not in r.keys()]
             if missing_route_keys:
-                raise ValueError(f"Custom PeqRoute is missing keys - {missing_keys} - from {r}")
-            bq_count = int(r['biquads'])
-            beq = [int(b) for b in r['beq']] if 'beq' in r else None
-            return PeqRoute(r['side'], int(r['channel_idx']), bq_count, beq)
+                raise ValueError(f"Custom PeqRoutes is missing keys - {missing_keys} - from {r}")
 
-        return MinidspDescriptor(desc['name'], str(desc['fs']), [make_route(r) for r in routes])
+            def to_ints(v):
+                return [int(i) for i in v] if v else None
+
+            return PeqRoutes(r['name'], int(r['biquads']), to_ints(r['channels']), to_ints(r['slots']),
+                             to_ints(r.get('groups', None)))
+        args = [make_route(r) for r in routes]
+        return MinidspDescriptor(desc['name'], str(desc['fs']),
+                                 **{'xo' if r.name == CROSSOVER_NAME else r.name[0]: r for r in args})
     else:
         return Minidsp24HD()
 
@@ -457,10 +470,17 @@ class Minidsp(PersistentDevice[MinidspState]):
             target_slot_idx = self.__as_idx(slot)
             self.__validate_slot_idx(target_slot_idx)
             cmds = MinidspBeqCommandGenerator.filt(None, self.__descriptor)
-            for r in self.__descriptor.peq_routes:
-                if r.is_input:
-                    cmds.extend(MinidspBeqCommandGenerator.mute(False, target_slot_idx, r.channel_idx, side=r.side))
-                    cmds.extend(MinidspBeqCommandGenerator.gain(0.0, target_slot_idx, r.channel_idx, side=r.side))
+            beq_slots = self.__descriptor.to_allocator()
+            levels = []
+            handled = []
+            while (s := beq_slots.pop()) is not None:
+                for c in s.channels:
+                    if s.name == INPUT_NAME and c not in handled:
+                        levels.extend(MinidspBeqCommandGenerator.mute(False, target_slot_idx, c, side=s.name))
+                        levels.extend(MinidspBeqCommandGenerator.gain(0.0, target_slot_idx, c, side=s.name))
+                        handled.append(c)
+            if levels:
+                cmds.extend(levels)
             try:
                 self.__send_cmds(target_slot_idx, cmds)
                 self._current_state.clear(slot)
@@ -526,8 +546,8 @@ class Minidsp(PersistentDevice[MinidspState]):
     def _load_initial_state(self) -> MinidspState:
         return self.__load_state()
 
-    def state(self) -> MinidspState:
-        if not self._hydrate():
+    def state(self, refresh: bool = False) -> MinidspState:
+        if not self._hydrate() or refresh is True:
             new_state = self.__load_state()
             self._current_state.update_master_state(new_state.mute, new_state.master_volume)
         return self._current_state
@@ -617,8 +637,8 @@ class Minidsp(PersistentDevice[MinidspState]):
             logger.info(f"readlevels,{ts},{to_millis(start, end)}")
             return {
                 'ts': ts,
-                'input': levels['input_levels'],
-                'output': levels['output_levels']
+                INPUT_NAME: levels['input_levels'],
+                OUTPUT_NAME: levels['output_levels']
             }
         except:
             logger.exception(f"Unable to load levels {lines}")
@@ -647,7 +667,7 @@ class MinidspBeqCommandGenerator:
         # [in|out]put <channel> peq <index> set -- <b0> <b1> <b2> <a1> <a2>
         # [in|out]put <channel> peq <index> bypass [on|off]
         cmds = []
-        for side, channels in {'input': inputs, 'output': outputs}.items():
+        for side, channels in {INPUT_NAME: inputs, OUTPUT_NAME: outputs}.items():
             for channel in channels:
                 for idx, bq in enumerate(biquads):
                     if bq:
@@ -690,62 +710,41 @@ class MinidspBeqCommandGenerator:
         # [in|out]put <channel> peq <index> set -- <b0> <b1> <b2> <a1> <a2>
         # [in|out]put <channel> peq <index> bypass [on|off]
         cmds = []
-        # write filts to the inputs first then the output if it's a split deviceb
+        # write filts to the inputs first then the output if it's a split device
         filters = [MinidspBeqCommandGenerator.as_bq(f, descriptor.fs) for f in entry.filters] if entry else []
+        beq_slots = descriptor.to_allocator()
+
+        def push(chs: List[int], i: int, s: str):
+            for ch in chs:
+                cmds.append(MinidspBeqCommandGenerator.bq(ch, i, coeffs, s))
+                cmds.append(MinidspBeqCommandGenerator.bypass(ch, i, False, s))
+
         idx = 0
-        input_beq_routes = [r for r in descriptor.peq_routes if r.side == 'input' and r.beq]
-        xo_beq_routes = [r for r in descriptor.peq_routes if r.side == 'crossover' and r.beq]
-        output_beq_routes = [r for r in descriptor.peq_routes if r.side == 'output' and r.beq]
-        input_beqs = input_beq_routes[0].biquads if input_beq_routes else 0
-        xo_beqs = xo_beq_routes[0].biquads if xo_beq_routes else 0
-        output_beqs = output_beq_routes[0].biquads if output_beq_routes else 0
         while idx < len(filters):
             coeffs: List[str] = filters[idx]
-            if idx < input_beqs:
-                for r in input_beq_routes:
-                    cmds.append(MinidspBeqCommandGenerator.bq(r.channel_idx, idx, coeffs, r.side))
-                    cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx, False, r.side))
-            elif input_beqs == 0 or descriptor.split:
-                if idx < (input_beqs + xo_beqs):
-                    for r in xo_beq_routes:
-                        cmds.append(MinidspBeqCommandGenerator.bq(r.channel_idx, idx - input_beqs, coeffs, r.side))
-                        cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx - input_beqs, False, r.side))
-                elif idx < (input_beqs + xo_beqs + output_beqs):
-                    for r in output_beq_routes:
-                        cmds.append(MinidspBeqCommandGenerator.bq(r.channel_idx, idx - xo_beqs - input_beqs, coeffs, r.side))
-                        cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx - xo_beqs - input_beqs, False, r.side))
-                else:
-                    raise ValueError('Not enough slots')
+            slot = beq_slots.pop()
+            if slot is not None:
+                push(slot.channels, slot.idx, slot.name)
             else:
-                raise ValueError('Not enough slots')
+                raise ValueError(f"Loaded {idx} filters but no slots remaining")
             idx += 1
-        # bypass anything that is left
-        while idx < (input_beqs + xo_beqs + output_beqs):
-            if idx < input_beqs:
-                for r in input_beq_routes:
-                    cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx, True, r.side))
-            elif input_beqs == 0 or descriptor.split:
-                if idx < (input_beqs + xo_beqs):
-                    for r in xo_beq_routes:
-                        cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx - input_beqs, True, r.side))
-                elif idx < (input_beqs + xo_beqs + output_beqs):
-                    for r in output_beq_routes:
-                        cmds.append(MinidspBeqCommandGenerator.bypass(r.channel_idx, idx - xo_beqs - input_beqs, True, r.side))
-            idx += 1
+        while (s := beq_slots.pop()) is not None:
+            for c in s.channels:
+                cmds.append(MinidspBeqCommandGenerator.bypass(c, s.idx, True, s.name))
         return cmds
 
     @staticmethod
-    def bq(channel: int, idx: int, coeffs, side: str = 'input'):
-        is_xo = side == 'crossover'
-        return f"{'output' if is_xo else side} {channel} {'crossover 0' if is_xo else 'peq'} {idx} set -- {' '.join(coeffs)}"
+    def bq(channel: int, idx: int, coeffs, side: str = INPUT_NAME):
+        is_xo = side == CROSSOVER_NAME
+        return f"{OUTPUT_NAME if is_xo else side} {channel} {'crossover 0' if is_xo else 'peq'} {idx} set -- {' '.join(coeffs)}"
 
     @staticmethod
-    def bypass(channel: int, idx: int, bypass: bool, side: str = 'input'):
-        is_xo = side == 'crossover'
-        return f"{'output' if is_xo else side} {channel} {'crossover 0' if is_xo else 'peq'} {idx} bypass {'on' if bypass else 'off'}"
+    def bypass(channel: int, idx: int, bypass: bool, side: str = INPUT_NAME):
+        is_xo = side == CROSSOVER_NAME
+        return f"{OUTPUT_NAME if is_xo else side} {channel} {'crossover 0' if is_xo else 'peq'} {idx} bypass {'on' if bypass else 'off'}"
 
     @staticmethod
-    def mute(state: bool, slot: Optional[int], channel: Optional[int], side: Optional[str] = 'input'):
+    def mute(state: bool, slot: Optional[int], channel: Optional[int], side: Optional[str] = INPUT_NAME):
         '''
         Generates commands to mute the configuration.
         :param state: mute if true otherwise unmute.
@@ -767,7 +766,7 @@ class MinidspBeqCommandGenerator:
             return [f"mute {state_cmd}"]
 
     @staticmethod
-    def gain(gain: float, slot: Optional[int], channel: Optional[int], side: Optional[str] = 'input'):
+    def gain(gain: float, slot: Optional[int], channel: Optional[int], side: Optional[str] = INPUT_NAME):
         '''
         Generates commands to set gain.
         :param gain: the gain to set.
@@ -841,7 +840,7 @@ class MinidspRsProtocol(WebSocketClientProtocol):
 
     def onConnect(self, response):
         logger.info(f"Connected to {response.peer}")
-        self.sendMessage('getmso'.encode('utf-8'), isBinary=False)
+        # self.sendMessage('getmso'.encode('utf-8'), isBinary=False)
 
     def onOpen(self):
         logger.info("Connected to Minidsp")

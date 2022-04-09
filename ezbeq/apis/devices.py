@@ -234,7 +234,7 @@ class Devices(Resource):
         self.__bridge: DeviceRepository = kwargs['device_bridge']
 
     def get(self):
-        return {n: d.serialise() for n, d in self.__bridge.all_devices().items()}
+        return {n: d.serialise() for n, d in self.__bridge.all_devices(refresh=True).items()}
 
 
 slot_model_v1 = v1_api.model('Slot', {

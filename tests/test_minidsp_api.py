@@ -1,10 +1,11 @@
 import json
 import os
-from typing import Tuple, List, Optional
+from typing import List
 
 import pytest
 
 from conftest import MinidspSpyConfig, MinidspSpy
+from minidsp import BeqFilterSlot
 
 
 def verify_slot(slot: dict, idx: int, active: bool = False, gain = (0.0, 0.0), mute = (False, False), last: str = 'Empty'):
@@ -2041,14 +2042,15 @@ def test_cfg_customise_ddrc88_sw():
     desc = import_md().make_peq_layout(cfg)
     assert desc
     assert desc.__class__.__name__ == 'MinidspDDRC88'
-    assert not desc.peq_routes[0].beq
-    assert len(desc.peq_routes[1].beq) == 10
-    assert len(desc.peq_routes[2].beq) == 10
-    assert not desc.peq_routes[3].beq
-    assert not desc.peq_routes[4].beq
-    assert not desc.peq_routes[5].beq
-    assert len(desc.peq_routes[6].beq) == 10
-    assert not desc.peq_routes[7].beq
+    allocator = desc.to_allocator()
+    assert len(allocator) == 10
+    for i in range(0, 10):
+        s: BeqFilterSlot = allocator.pop()
+        assert s
+        assert s.name == 'output'
+        assert s.idx == i
+        assert s.channels == [1, 2, 6]
+        assert not s.groups
 
 
 def test_cfg_makes_custom_minidsp():
@@ -2057,22 +2059,44 @@ def test_cfg_makes_custom_minidsp():
         'fs': 48000,
         'routes': [
             {
-                'side': 'input',
-                'channel_idx': 1,
-                'biquads': 20
+                'name': 'input',
+                'biquads': 5,
+                'channels': [1, 2, 8],
+                'slots': [0, 1, 2]
+            },
+            {
+                'name': 'output',
+                'biquads': 2,
+                'channels': [1, 2, 3],
+                'slots': [0, 1]
+            },
+            {
+                'name': 'crossover',
+                'biquads': 4,
+                'channels': [1],
+                'slots': [1, 2],
+                'groups': [0, 1]
             }
-        ],
-        'split': True
+        ]
     }}
     desc = import_md().make_peq_layout(cfg)
     assert desc
     assert desc.__class__.__name__ == 'MinidspDescriptor'
     assert desc.name == 'mine'
     assert desc.fs == '48000'
-    assert len(desc.peq_routes) == 1
-    assert desc.peq_routes[0].side == 'input'
-    assert desc.peq_routes[0].channel_idx == 1
-    assert desc.peq_routes[0].biquads == 20
-    assert desc.peq_routes[0].beq == [i for i in range(20)]
-    assert desc.peq_routes[0].is_input
-    assert desc.split
+    assert len(desc.peq_routes) == 3
+    assert desc.peq_routes[0].name == 'input'
+    assert desc.peq_routes[0].biquads == 5
+    assert desc.peq_routes[0].channels == [1, 2, 8]
+    assert desc.peq_routes[0].beq_slots == [0, 1, 2]
+    assert not desc.peq_routes[0].groups
+    assert desc.peq_routes[1].name == 'crossover'
+    assert desc.peq_routes[1].biquads == 4
+    assert desc.peq_routes[1].channels == [1]
+    assert desc.peq_routes[1].beq_slots == [1, 2]
+    assert desc.peq_routes[1].groups == [0, 1]
+    assert desc.peq_routes[2].name == 'output'
+    assert desc.peq_routes[2].biquads == 2
+    assert desc.peq_routes[2].channels == [1, 2, 3]
+    assert desc.peq_routes[2].beq_slots == [0, 1]
+    assert not desc.peq_routes[2].groups

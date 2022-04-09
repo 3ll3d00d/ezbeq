@@ -70,7 +70,7 @@ class Device(ABC, Generic[T]):
         return False
 
     @abstractmethod
-    def state(self) -> T:
+    def state(self, refresh: bool = False) -> T:
         pass
 
     @abstractmethod
@@ -132,8 +132,8 @@ class DeviceRepository:
     def state(self, name: str) -> DeviceState:
         return self.__get_device(name).state()
 
-    def all_devices(self) -> Dict[str, DeviceState]:
-        return {n: d.state() for n, d in self.__devices.items()}
+    def all_devices(self, refresh: bool = False) -> Dict[str, DeviceState]:
+        return {n: d.state(refresh=refresh) for n, d in self.__devices.items()}
 
     def activate(self, name: str, slot: str) -> None:
         self.__get_device(name).activate(slot)
@@ -207,12 +207,12 @@ class PersistentDevice(Device, ABC, Generic[T]):
     def name(self) -> str:
         return self.__name
 
-    def state(self) -> T:
-        self._hydrate()
+    def state(self, refresh: bool = False) -> T:
+        self._hydrate(refresh=refresh)
         return self._current_state
 
-    def _hydrate(self) -> bool:
-        if not self.__hydrated:
+    def _hydrate(self, refresh: bool = False) -> bool:
+        if not self.__hydrated or refresh is True:
             self._current_state = self._load_initial_state()
             if os.path.exists(self.__file_name):
                 with open(self.__file_name, 'r') as f:
@@ -221,8 +221,9 @@ class PersistentDevice(Device, ABC, Generic[T]):
                 self._current_state = self._merge_state(self._current_state, cached_state)
             else:
                 logger.info(f"No cached state found at {self.__file_name}")
-            self.__ws_server.factory.init(self.__get_state_msg)
-            self.__hydrated = True
+            if refresh is False:
+                self.__ws_server.factory.init(self.__get_state_msg)
+                self.__hydrated = True
             return True
         return False
 
