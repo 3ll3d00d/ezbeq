@@ -7,6 +7,7 @@ from concurrent.futures.thread import ThreadPoolExecutor
 from contextlib import contextmanager
 from typing import List, Optional, Union
 
+import yaml
 from autobahn.exception import Disconnected
 from autobahn.twisted import WebSocketClientFactory, WebSocketClientProtocol
 from twisted.internet.protocol import ReconnectingClientFactory
@@ -210,20 +211,28 @@ class PeqRoutes:
 
 class BeqFilterSlot:
 
-    def __init__(self, name: str, idx: int, channels: List[int], groups: Optional[List[int]] = None):
+    def __init__(self, name: str, idx: int, channels: List[int], group: Optional[int] = None):
         self.name = name
         self.idx = idx
         self.channels = channels
-        self.groups = groups
+        self.group = group
 
     def __repr__(self):
-        return f"{self.name}/{self.idx}/{self.channels}/{self.groups}"
+        return f"{self.name}{self.group if self.group is not None else ''}/{self.idx}/{self.channels}"
 
 
 class BeqFilterAllocator:
 
     def __init__(self, routes: List[PeqRoutes]):
-        self.slots = [BeqFilterSlot(r.name, s, r.channels, r.groups) for r in routes if r for s in r.beq_slots]
+        self.slots = []
+        for r in routes:
+            if r:
+                for s in r.beq_slots:
+                    if r.groups:
+                        for g in r.groups:
+                            self.slots.append(BeqFilterSlot(r.name, s, r.channels, g))
+                    else:
+                        self.slots.append(BeqFilterSlot(r.name, s, r.channels))
 
     def pop(self) -> Optional[BeqFilterSlot]:
         if self.slots:
@@ -314,8 +323,16 @@ class Minidsp410(MinidspDescriptor):
 
 class Minidsp1010(MinidspDescriptor):
 
-    def __init__(self, use_xo: bool):
-        if use_xo:
+    def __init__(self, use_xo: Union[bool, int, str]):
+        if use_xo is True:
+            secondary = {'xo': PeqRoutes(CROSSOVER_NAME, 4, zero_til(8), zero_til(4), groups=[0])}
+        elif use_xo is False:
+            secondary = {'o': PeqRoutes(OUTPUT_NAME, 6, zero_til(8), zero_til(4))}
+        elif use_xo == '0' or use_xo == '1':
+            secondary = {'xo': PeqRoutes(CROSSOVER_NAME, 4, zero_til(8), zero_til(4), groups=[int(use_xo)])}
+        elif use_xo == 0 or use_xo == 1:
+            secondary = {'xo': PeqRoutes(CROSSOVER_NAME, 4, zero_til(8), zero_til(4), groups=[use_xo])}
+        elif use_xo == 'all':
             secondary = {'xo': PeqRoutes(CROSSOVER_NAME, 4, zero_til(8), zero_til(4), groups=zero_til(2))}
         else:
             secondary = {'o': PeqRoutes(OUTPUT_NAME, 6, zero_til(8), zero_til(4))}
@@ -378,6 +395,8 @@ class Minidsp(PersistentDevice[MinidspState]):
         self.__runner = cfg['make_runner']()
         self.__client = MinidspRsClient(self) if cfg.get('useWs', False) else None
         self.__descriptor: MinidspDescriptor = make_peq_layout(cfg)
+        logger.info("Minidsp descriptor is loaded....")
+        logger.info(yaml.dump(self.__descriptor, indent=2, default_flow_style=False, sort_keys=False))
         ws_server.factory.set_levels_provider(name, self.start_broadcast_levels)
 
     @property
@@ -716,36 +735,38 @@ class MinidspBeqCommandGenerator:
         filters = [MinidspBeqCommandGenerator.as_bq(f, descriptor.fs) for f in entry.filters] if entry else []
         beq_slots = descriptor.to_allocator()
 
-        def push(chs: List[int], i: int, s: str):
+        def push(chs: List[int], i: int, s: str, group: Optional[int]):
             for ch in chs:
-                cmds.append(MinidspBeqCommandGenerator.bq(ch, i, coeffs, s))
-                cmds.append(MinidspBeqCommandGenerator.bypass(ch, i, False, s))
+                cmds.append(MinidspBeqCommandGenerator.bq(ch, i, coeffs, s, group=group))
+                cmds.append(MinidspBeqCommandGenerator.bypass(ch, i, False, s, group=group))
 
         idx = 0
         while idx < len(filters):
             coeffs: List[str] = filters[idx]
             slot = beq_slots.pop()
             if slot is not None:
-                push(slot.channels, slot.idx, slot.name)
+                push(slot.channels, slot.idx, slot.name, slot.group)
             else:
                 raise ValueError(f"Loaded {idx} filters but no slots remaining")
             idx += 1
         s = beq_slots.pop()
         while s is not None:
             for c in s.channels:
-                cmds.append(MinidspBeqCommandGenerator.bypass(c, s.idx, True, s.name))
+                cmds.append(MinidspBeqCommandGenerator.bypass(c, s.idx, True, s.name, s.group))
             s = beq_slots.pop()
         return cmds
 
     @staticmethod
-    def bq(channel: int, idx: int, coeffs, side: str = INPUT_NAME):
+    def bq(channel: int, idx: int, coeffs, side: str = INPUT_NAME, group: Optional[int] = None):
         is_xo = side == CROSSOVER_NAME
-        return f"{OUTPUT_NAME if is_xo else side} {channel} {'crossover 0' if is_xo else 'peq'} {idx} set -- {' '.join(coeffs)}"
+        addr = f"crossover {group}" if is_xo and group is not None else 'peq'
+        return f"{OUTPUT_NAME if is_xo else side} {channel} {addr} {idx} set -- {' '.join(coeffs)}"
 
     @staticmethod
-    def bypass(channel: int, idx: int, bypass: bool, side: str = INPUT_NAME):
+    def bypass(channel: int, idx: int, bypass: bool, side: str = INPUT_NAME, group: Optional[int] = 0):
         is_xo = side == CROSSOVER_NAME
-        return f"{OUTPUT_NAME if is_xo else side} {channel} {'crossover 0' if is_xo else 'peq'} {idx} bypass {'on' if bypass else 'off'}"
+        addr = f"crossover {group}" if is_xo and group is not None else 'peq'
+        return f"{OUTPUT_NAME if is_xo else side} {channel} {addr} {idx} bypass {'on' if bypass else 'off'}"
 
     @staticmethod
     def mute(state: bool, slot: Optional[int], channel: Optional[int], side: Optional[str] = INPUT_NAME):

@@ -153,9 +153,11 @@ set `device_type: 10x10`
 
 The limited biquad capacity (6 per channel) means that filters are split across input and output channels and the last 2 biquads per output channel are left under user control.
 
-To avoid this, use the crossover biquads to hold the remaining beq biquads. This leaves the output PEQ untouched.
+To avoid this, use the crossover biquads to hold the remaining beq biquads. This leaves the output PEQ untouched. Set `use_xo` to one of the following values to activate this mode:
 
-set `use_xo: true` to take this option. 
+* all : apply beq to both crossover groups
+* 0 (or true) : apply beq to crossover group 0
+* 1 : apply beq to crossover group 1
 
 ###### [SHD](https://www.minidsp.com/products/streaming-hd-series/shd)
 

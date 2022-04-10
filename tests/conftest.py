@@ -95,22 +95,35 @@ def minidsp_10x10_app(httpserver: HTTPServer, tmp_path):
 
 
 @pytest.fixture
-def minidsp_10x10xo_app(httpserver: HTTPServer, tmp_path):
-    """Create and configure a new app instance for each test."""
-    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='10x10xo'))
-    yield app
-
-
-@pytest.fixture
 def minidsp_10x10_client(minidsp_10x10_app):
     """A test client for the app."""
     return minidsp_10x10_app.test_client()
 
 
 @pytest.fixture
-def minidsp_10x10xo_client(minidsp_10x10xo_app):
+def minidsp_10x10xo0_app(httpserver: HTTPServer, tmp_path):
+    """Create and configure a new app instance for each test."""
+    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='10x10xo0'))
+    yield app
+
+
+@pytest.fixture
+def minidsp_10x10xo0_client(minidsp_10x10xo0_app):
     """A test client for the app."""
-    return minidsp_10x10xo_app.test_client()
+    return minidsp_10x10xo0_app.test_client()
+
+
+@pytest.fixture
+def minidsp_10x10xo1_app(httpserver: HTTPServer, tmp_path):
+    """Create and configure a new app instance for each test."""
+    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='10x10xo1'))
+    yield app
+
+
+@pytest.fixture
+def minidsp_10x10xo1_client(minidsp_10x10xo1_app):
+    """A test client for the app."""
+    return minidsp_10x10xo1_app.test_client()
 
 
 @pytest.fixture
@@ -194,9 +207,9 @@ class MinidspSpy:
 class MinidspSpyConfig(Config):
 
     def __init__(self, host: str, port: int, tmp_path, device_type: str = None):
-        if device_type and device_type[-2:] == 'xo':
-            self.device_type = device_type[:-2]
-            self.use_xo = True
+        if device_type and device_type[-3:-1] == 'xo':
+            self.device_type = device_type[:-3]
+            self.use_xo = device_type[-1]
         else:
             self.device_type = device_type
             self.use_xo = False
@@ -224,8 +237,8 @@ class MinidspSpyConfig(Config):
         }
         if self.device_type:
             vals['devices']['master']['device_type'] = self.device_type
-        if self.use_xo:
-            vals['devices']['master']['use_xo'] = True
+        if self.use_xo is not False:
+            vals['devices']['master']['use_xo'] = self.use_xo
         return vals
 
     def create_minidsp_runner(self, cfg):
