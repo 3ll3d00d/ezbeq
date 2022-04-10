@@ -473,12 +473,14 @@ class Minidsp(PersistentDevice[MinidspState]):
             beq_slots = self.__descriptor.to_allocator()
             levels = []
             handled = []
-            while (s := beq_slots.pop()) is not None:
+            s = beq_slots.pop()
+            while s is not None:
                 for c in s.channels:
                     if s.name == INPUT_NAME and c not in handled:
                         levels.extend(MinidspBeqCommandGenerator.mute(False, target_slot_idx, c, side=s.name))
                         levels.extend(MinidspBeqCommandGenerator.gain(0.0, target_slot_idx, c, side=s.name))
                         handled.append(c)
+                s = beq_slots.pop()
             if levels:
                 cmds.extend(levels)
             try:
@@ -728,9 +730,11 @@ class MinidspBeqCommandGenerator:
             else:
                 raise ValueError(f"Loaded {idx} filters but no slots remaining")
             idx += 1
-        while (s := beq_slots.pop()) is not None:
+        s = beq_slots.pop()
+        while s is not None:
             for c in s.channels:
                 cmds.append(MinidspBeqCommandGenerator.bypass(c, s.idx, True, s.name))
+            s = beq_slots.pop()
         return cmds
 
     @staticmethod
