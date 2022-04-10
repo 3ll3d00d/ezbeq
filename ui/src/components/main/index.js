@@ -51,14 +51,12 @@ const MainView = ({
             const matchOn = txtFilter.toLowerCase()
             if (e.formattedTitle.toLowerCase().includes(matchOn)) {
                 return true;
-            } else if (e.hasOwnProperty('altTitle')) {
-                if (e.altTitle.toLowerCase().includes(matchOn)) {
-                    return true;
-                }
-            } else if (e.hasOwnProperty('collection')) {
-                if (e.collection.toLowerCase().includes(matchOn)) {
-                    return true;
-                }
+            }
+            if (e.hasOwnProperty('altTitle') && e.altTitle.toLowerCase().includes(matchOn)) {
+                return true;
+            }
+            if (e.hasOwnProperty('collection') && e.collection.toLowerCase().includes(matchOn)) {
+                return true;
             }
             return false;
         }
