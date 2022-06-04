@@ -114,7 +114,7 @@ jobs:
       - name: Create distribution
         id: create_dist
         run: |
-          pipenv run pyinstaller --clean --log-level=INFO -F ezbeq.spec
+          pipenv run pyinstaller --clean --log-level=INFO ezbeq.spec
           if [[ "$RUNNER_OS" == "macOS" ]]
           then
             pushd dist
