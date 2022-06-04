@@ -391,6 +391,7 @@ class Minidsp(PersistentDevice[MinidspState]):
         self.__executor = ThreadPoolExecutor(max_workers=1)
         self.__cmd_timeout = cfg.get('cmdTimeout', 10)
         self.__ignore_retcode = cfg.get('ignoreRetcode', False)
+        self.__change_slot_separately = cfg.get('slotChangeDelay', False)
         self.__levels_interval = 1.0 / float(cfg.get('levelsFps', 10))
         self.__runner = cfg['make_runner']()
         self.__client = MinidspRsClient(self) if cfg.get('useWs', False) else None
@@ -436,7 +437,7 @@ class Minidsp(PersistentDevice[MinidspState]):
         return int(idx) - 1
 
     def __send_cmds(self, target_slot_idx: Optional[int], cmds: List[str]):
-        return self.__executor.submit(self.__do_run, cmds, target_slot_idx).result(timeout=self.__cmd_timeout)
+        return self.__executor.submit(self.__do_run, cmds, target_slot_idx, self.__change_slot_separately).result(timeout=self.__cmd_timeout)
 
     def activate(self, slot: str):
         def __do_it():
@@ -542,16 +543,19 @@ class Minidsp(PersistentDevice[MinidspState]):
         target_channel_idx = self.__as_idx(channel) if channel else None
         return target_channel_idx, target_slot_idx
 
-    def __do_run(self, config_cmds: List[str], slot: Optional[int]):
+    def __do_run(self, config_cmds: List[str], slot: Optional[int], separate_slot_change: bool):
         if slot is not None:
             change_slot = True
             current_state = self.__read_state_from_device()
             if current_state and current_state.active_slot == str(slot + 1):
                 change_slot = False
             if change_slot is True:
-                logger.info(
-                    f"Activating slot {slot}, current is {current_state.active_slot if current_state else 'UNKNOWN'}")
-                config_cmds.insert(0, MinidspBeqCommandGenerator.activate(slot))
+                if separate_slot_change is True:
+                    self.__do_run([], slot, False)
+                else:
+                    logger.info(
+                        f"Activating slot {slot}, current is {current_state.active_slot if current_state else 'UNKNOWN'}")
+                    config_cmds.insert(0, MinidspBeqCommandGenerator.activate(slot))
         formatted = '\n'.join(config_cmds)
         logger.info(f"\n{formatted}")
         with tmp_file(config_cmds) as file_name:
