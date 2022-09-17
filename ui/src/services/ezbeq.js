@@ -85,15 +85,16 @@ class EzBeqService {
         }
     }
 
-    sendBiquads = async (device, slot, inputs, outputs, biquads, overwrite) => {
-        const response = await fetch(`${API_PREFIX}/1/devices/${device}/biquads`, {
+    sendTextCommands = async (device, slot, inputs, outputs, commandType, commands, overwrite) => {
+        const response = await fetch(`${API_PREFIX}/1/devices/${device}/commands`, {
             method: 'PUT',
             body: JSON.stringify({
                 overwrite,
                 slot: `${slot}`,
                 inputs,
                 outputs,
-                biquads
+                commandType,
+                commands
             }),
             headers: {
                 'Content-Type': 'application/json',
@@ -101,7 +102,7 @@ class EzBeqService {
             },
         });
         if (!response.ok) {
-            throw new Error(`EzBeq.sendBiquads failed, HTTP status ${response.status}`);
+            throw new Error(`EzBeq.sendTextCommands failed, HTTP status ${response.status}`);
         }
         return response.json();
     };

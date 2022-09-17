@@ -471,6 +471,23 @@ class Minidsp(PersistentDevice[MinidspState]):
 
         self._hydrate_cache_broadcast(__do_it)
 
+    def send_commands(self, slot: str, inputs: List[int], outputs: List[int], commands: List[str]) -> None:
+        def __do_it():
+            target_slot_idx = self.__as_idx(slot)
+            self.__validate_slot_idx(target_slot_idx)
+            cmds = MinidspBeqCommandGenerator.commands(inputs, outputs, commands)
+            try:
+                self.__send_cmds(target_slot_idx, cmds)
+                if inputs:
+                    self._current_state.load(slot, 'CUSTOM')
+                else:
+                    self._current_state.activate(slot)
+            except Exception as e:
+                self._current_state.error(slot)
+                raise e
+
+        self._hydrate_cache_broadcast(__do_it)
+
     def load_filter(self, slot: str, entry: CatalogueEntry) -> None:
         def __do_it():
             target_slot_idx = self.__as_idx(slot)
@@ -712,6 +729,15 @@ class MinidspBeqCommandGenerator:
         return cmds
 
     @staticmethod
+    def commands(inputs: List[int], outputs: List[int], commands: List[str]):
+        cmds = []
+        for side, channels in {INPUT_NAME: inputs, OUTPUT_NAME: outputs}.items():
+            for channel in channels:
+                for command in commands:
+                    cmds.append(MinidspBeqCommandGenerator.cmd(channel - 1, command, side=side))
+        return cmds
+
+    @staticmethod
     def as_bq(f: dict, fs: str):
         if fs in f['biquads']:
             bq = f['biquads'][fs]['b'] + f['biquads'][fs]['a']
@@ -769,6 +795,10 @@ class MinidspBeqCommandGenerator:
         is_xo = side == CROSSOVER_NAME
         addr = f"crossover {group}" if is_xo and group is not None else 'peq'
         return f"{OUTPUT_NAME if is_xo else side} {channel} {addr} {idx} set -- {' '.join(coeffs)}"
+
+    @staticmethod
+    def cmd(channel: int, cmd: str, side: str = INPUT_NAME):
+        return f"{side} {channel} {cmd}"
 
     @staticmethod
     def bypass(channel: int, idx: int, bypass: bool, side: str = INPUT_NAME, group: Optional[int] = 0):

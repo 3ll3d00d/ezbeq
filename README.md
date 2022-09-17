@@ -289,3 +289,8 @@ Aug 18 21:58:36 swoop systemd[1]: Started ezbeq.
 ```
 
 3) reboot and repeat step 2 to verify the recorder has automatically started
+
+# Development
+
+Requires node 16 (due to UI/react incompatibility with 18) & python 3.8 (due to rpi dependency) at present
+

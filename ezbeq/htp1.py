@@ -101,6 +101,9 @@ class Htp1(PersistentDevice[Htp1State]):
     def load_biquads(self, slot: str, overwrite: bool, inputs: List[int], outputs: List[int], biquads: List[dict]) -> None:
         raise NotImplementedError()
 
+    def send_commands(self, slot: str, inputs: List[int], outputs: List[int], commands: List[str]) -> None:
+        raise NotImplementedError()
+
     def load_filter(self, slot: str, entry: CatalogueEntry) -> None:
         to_load = [PEQ(idx, fc=f['freq'], q=f['q'], gain=f['gain'], filter_type_name=f['type'])
                    for idx, f in enumerate(entry.filters)]

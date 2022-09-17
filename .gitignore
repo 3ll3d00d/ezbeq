@@ -158,3 +158,4 @@ ezbeq/ui
 ezbeq/VERSION
 out
 t.py
+**/*.swp

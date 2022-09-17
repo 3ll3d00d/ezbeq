@@ -115,6 +115,9 @@ class JRiver(PersistentDevice[JRiverState]):
     def load_biquads(self, slot: str, overwrite: bool, inputs: List[int], outputs: List[int], biquads: List[dict]) -> None:
         raise NotImplementedError()
 
+    def send_commands(self, slot: str, inputs: List[int], outputs: List[int], commands: List[str]) -> None:
+        raise NotImplementedError()
+
     def load_filter(self, slot: str, entry: CatalogueEntry) -> None:
         def __do_it():
             mc_filts = [make_meta(entry.title, True)] \

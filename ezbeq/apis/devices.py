@@ -1,7 +1,7 @@
 import decimal
 import logging
 import re
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Union
 
 from flask import request
 from flask_restx import Resource, Namespace, fields
@@ -34,24 +34,10 @@ def delete_filter(bridge: DeviceRepository, device_name: str, slot: str):
         return bridge.state(device_name).serialise(), 500
 
 
-def load_biquads(bridge: DeviceRepository, device_name: str, slot: str, overwrite: bool, inputs: List[int],
-                 outputs: List[int], biquads: str):
-    '''
-    Attempts to load the provided biquads into the device. Expects minidsp format only. biquads can be raw biquad format
-    or filter text format (as per https://sourceforge.net/p/equalizerapo/wiki/Configuration%20reference/#filter)
-    :param bridge:
-    :param device_name:
-    :param slot:
-    :param overwrite:
-    :param inputs:
-    :param outputs:
-    :param biquads:
-    :return:
-    '''
-    lines = biquads.splitlines()
-    bqs: List[dict] = []
-    if lines and lines[0][0:6].lower() == 'filter':
-        bqs = [{}] * 10
+def text_to_commands(command_type: str, lines: List[str]) -> Tuple[str, Union[List[dict], List[str]]]:
+    commands: Union[List[dict], List[str]] = []
+    if lines and command_type == 'filt':
+        commands = [{}] * 10
 
         def convert_to_bq(filt_type: str, freq: float, gain: float, q: float) -> dict:
             if filt_type == 'PK' or filt_type == 'PEQ':
@@ -74,13 +60,16 @@ def load_biquads(bridge: DeviceRepository, device_name: str, slot: str, overwrit
                         fc = float(m.group(4))
                         g = float(m.group(5))
                         q = float(m.group(6))
-                        bqs[filt_idx-1] = convert_to_bq(ft, fc, g, q)
+                        commands[filt_idx-1] = convert_to_bq(ft, fc, g, q)
                         if m.group(2) == 'OFF':
-                            bqs[filt_idx-1]['BYPASS'] = True
+                            commands[filt_idx-1]['BYPASS'] = True
                     else:
                         raise InvalidRequestError(f"Filter line {idx} specifies filter {filt_idx} which is out of range")
                 else:
                     raise InvalidRequestError(f"Filter line {idx} does not match - {line}")
+        return 'bq', commands
+    elif lines and command_type == 'rs':
+        return 'rs', [line for line in lines if line.strip()]
     else:
         tmp = {}
 
@@ -88,7 +77,7 @@ def load_biquads(bridge: DeviceRepository, device_name: str, slot: str, overwrit
             if tmp:
                 keys = list(tmp.keys())
                 if 'b0' in keys and 'b1' in keys and 'b2' in keys and 'a1' in keys and 'a2' in keys:
-                    bqs.append(tmp)
+                    commands.append(tmp)
                 else:
                     raise InvalidRequestError()
 
@@ -103,8 +92,57 @@ def load_biquads(bridge: DeviceRepository, device_name: str, slot: str, overwrit
         if tmp:
             append_bq()
 
+        return 'bq', commands
+
+
+def load_biquads(bridge: DeviceRepository, device_name: str, slot: str, overwrite: bool, inputs: List[int],
+                 outputs: List[int], biquads: str):
+    '''
+    Attempts to load the provided biquads into the device. Expects minidsp format only. biquads can be raw biquad format
+    or filter text format (as per https://sourceforge.net/p/equalizerapo/wiki/Configuration%20reference/#filter)
+    :param bridge:
+    :param device_name:
+    :param slot:
+    :param overwrite:
+    :param inputs:
+    :param outputs:
+    :param biquads:
+    :return:
+    '''
+    cmd_type, bqs = text_to_commands('bq', biquads.splitlines())
     try:
+        if cmd_type != 'bq':
+            raise InvalidRequestError(f"load_biquads but parsed command type is {cmd_type}")
         bridge.load_biquads(device_name, slot, overwrite, inputs, outputs, bqs)
+        return bridge.state(device_name).serialise(), 200
+    except InvalidRequestError as e:
+        logger.exception(f"Invalid biquad request to {device_name} {slot}")
+        return bridge.state(device_name).serialise(), 400
+    except Exception as e:
+        logger.exception(f"Failed to write biquads to {device_name} {slot}")
+        return bridge.state(device_name).serialise(), 500
+
+
+def load_commands(bridge: DeviceRepository, device_name: str, slot: str, overwrite: bool, inputs: List[int],
+                  outputs: List[int], command_type: str, commands: str):
+    '''
+    Attempts to load the provided commands, filters or biquads into the device.
+    :param bridge:
+    :param device_name:
+    :param slot:
+    :param overwrite:
+    :param inputs:
+    :param outputs:
+    :param command_type:
+    :param commands:
+    :return:
+    '''
+    cmd_type, bqs = text_to_commands(command_type, commands.splitlines())
+    try:
+        if cmd_type == 'bq':
+            bridge.load_biquads(device_name, slot, overwrite, inputs, outputs, bqs)
+        else:
+            bridge.send_commands(device_name, slot, inputs, outputs, bqs)
         return bridge.state(device_name).serialise(), 200
     except InvalidRequestError as e:
         logger.exception(f"Invalid biquad request to {device_name} {slot}")
@@ -415,6 +453,37 @@ class LoadBiquads(Resource):
         outputs = request.get_json()['outputs']
         biquads = request.get_json()['biquads']
         return load_biquads(self.__bridge, device_name, str(slot), overwrite, inputs, outputs, biquads)
+
+
+command_model = v1_api.model('Command', {
+    'overwrite': fields.Boolean,
+    'slot': fields.String,
+    'inputs': fields.List(fields.Integer),
+    'outputs': fields.List(fields.Integer),
+    'commandType': fields.String,
+    'commands': fields.String
+})
+
+
+@v1_api.route('/<string:device_name>/commands')
+@v1_api.doc(params={
+    'device_name': 'The dsp device name',
+})
+class LoadCommands(Resource):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__bridge: DeviceRepository = kwargs['device_bridge']
+
+    @v1_api.expect(command_model, validate=True)
+    def put(self, device_name: str) -> Tuple[dict, int]:
+        overwrite = request.get_json()['overwrite']
+        slot = request.get_json()['slot']
+        inputs = request.get_json()['inputs']
+        outputs = request.get_json()['outputs']
+        command_type = request.get_json()['commandType']
+        commands = request.get_json()['commands']
+        return load_commands(self.__bridge, device_name, str(slot), overwrite, inputs, outputs, command_type, commands)
 
 
 filter_model = v1_api.model('Filter', {

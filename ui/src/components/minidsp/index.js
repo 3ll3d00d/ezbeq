@@ -97,17 +97,18 @@ const Minidsp = ({availableDevices, setSelectedDeviceName, selectedDeviceName, s
     const classes = useStyles();
     const [inputs, setInputs] = useLocalStorage(`minidspInputs.${selectedDeviceName}.${selectedSlotId}`, []);
     const [outputs, setOutputs] = useLocalStorage(`minidspOutputs.${selectedDeviceName}.${selectedSlotId}`, []);
+    const [commandType, setCommandType] = useLocalStorage(`minidsp.${selectedDeviceName}.commandType`, 'bq')
     const [config, setConfig] = useState(selectedSlotId);
-    const [biquads, setBiquads] = useState('');
+    const [commands, setCommands] = useState('');
     const [overwrite, setOverwrite] = useState(true);
     const [pending, setPending] = useState(false);
     const [inputChannels, setInputChannels] = useState([]);
     const [outputChannels, setOutputChannels] = useState([]);
 
-    const uploadBiquads = async () => {
+    const uploadTextCommands = async () => {
         setPending(true);
         try {
-            const response = await ezbeq.sendBiquads(selectedDeviceName, config, inputs, outputs, biquads, overwrite);
+            const response = await ezbeq.sendTextCommands(selectedDeviceName, config, inputs, outputs, commandType, commands, overwrite);
             console.debug(response);
         } catch (e) {
             setErr(e);
@@ -190,10 +191,23 @@ const Minidsp = ({availableDevices, setSelectedDeviceName, selectedDeviceName, s
                                 label="Overwrite?"/>
                         </Grid>
                         <Grid item>
+                            <FormControl className={classes.formControl}>
+                                <InputLabel id="mode-label">Mode</InputLabel>
+                                <Select labelId="mode-label"
+                                        id="mode"
+                                        value={commandType}
+                                        onChange={e => setCommandType(e.target.value)}>
+                                    <MenuItem key={'bq'} value={'bq'}>Biquads</MenuItem>
+                                    <MenuItem key={'filt'} value={'filt'}>Filters</MenuItem>
+                                    <MenuItem key={'rs'} value={'rs'}>RS</MenuItem>
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                        <Grid item>
                             <Button variant="outlined"
                                     color="primary"
-                                    onClick={uploadBiquads}
-                                    disabled={biquads.length === 0}
+                                    onClick={uploadTextCommands}
+                                    disabled={commands.length === 0}
                                     startIcon={pending ? <CircularProgress size={24}/> :
                                         <PublishIcon fontSize="small"/>}>
                                 Upload
@@ -201,13 +215,13 @@ const Minidsp = ({availableDevices, setSelectedDeviceName, selectedDeviceName, s
                         </Grid>
                     </Grid>
                     <Grid container item>
-                        <TextField id="biquads"
-                                   label="Biquads/Filters"
+                        <TextField id="commands"
+                                   label={commandType === 'bq' ? 'Biquads' : commandType === 'filt' ? 'Filters' : 'Minidsp RS'}
                                    multiline
                                    rows={26}
                                    fullWidth
-                                   value={biquads}
-                                   onChange={e => setBiquads(e.target.value)}
+                                   value={commands}
+                                   onChange={e => setCommands(e.target.value)}
                                    variant="outlined"/>
                     </Grid>
                 </Grid>

@@ -86,6 +86,10 @@ class Device(ABC, Generic[T]):
         pass
 
     @abstractmethod
+    def send_commands(self, slot: str, inputs: List[int], outputs: List[int], commands: List[str]) -> None:
+        pass
+
+    @abstractmethod
     def clear_filter(self, slot: str) -> None:
         pass
 
@@ -144,6 +148,9 @@ class DeviceRepository:
     def load_biquads(self, name: str, slot: str, overwrite: bool, inputs: List[int], outputs: List[int],
                      biquads: List[dict]) -> None:
         self.__get_device(name).load_biquads(slot, overwrite, inputs, outputs, biquads)
+
+    def send_commands(self, name: str, slot: str, inputs: List[int], outputs: List[int], commands: List[str]) -> None:
+        self.__get_device(name).send_commands(slot, inputs, outputs, commands)
 
     def clear_filter(self, name: str, slot: str) -> None:
         self.__get_device(name).clear_filter(slot)
