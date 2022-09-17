@@ -2159,6 +2159,66 @@ def test_load_single_filter(minidsp_client, minidsp_app, filter_idx):
             verify_slot(s, idx + 1)
 
 
+def test_load_single_command(minidsp_client, minidsp_app):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+    # when: load command
+    commands = f"gain -- -20"
+    payload = {
+        'overwrite': False,
+        'inputs': [],
+        'outputs': [2],
+        'slot': '1',
+        'commandType': 'rs',
+        'commands': commands
+    }
+    r = minidsp_client.put(f"/api/1/devices/master/commands", data=json.dumps(payload), content_type='application/json')
+    assert r.status_code == 200
+
+    expected_commands = f"output 1 {commands}"
+    # then: expected commands are sent
+    cmds = verify_cmd_count(config.spy, 1, 1)
+    assert cmds == [expected_commands]
+
+    # and: device state is accurate
+    slots = verify_master_device_state(r.json)
+    for idx, s in enumerate(slots):
+        if idx == 0:
+            verify_slot(s, idx + 1, active=True)
+        else:
+            verify_slot(s, idx + 1)
+
+
+def test_load_multi_command(minidsp_client, minidsp_app):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+    # when: load command
+    commands = ['gain -- -20', 'mute off', 'delay 15']
+    payload = {
+        'overwrite': False,
+        'inputs': [],
+        'outputs': [2],
+        'slot': '1',
+        'commandType': 'rs',
+        'commands': '\n'.join(commands)
+    }
+    r = minidsp_client.put(f"/api/1/devices/master/commands", data=json.dumps(payload), content_type='application/json')
+    assert r.status_code == 200
+
+    expected_commands = [f"output 1 {l}" for l in commands]
+    # then: expected commands are sent
+    cmds = verify_cmd_count(config.spy, 1, 3)
+    assert cmds == expected_commands
+
+    # and: device state is accurate
+    slots = verify_master_device_state(r.json)
+    for idx, s in enumerate(slots):
+        if idx == 0:
+            verify_slot(s, idx + 1, active=True)
+        else:
+            verify_slot(s, idx + 1)
+
+
 def test_load_multi_filter(minidsp_client, minidsp_app):
     config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
     assert isinstance(config, MinidspSpyConfig)
