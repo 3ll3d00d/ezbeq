@@ -106,7 +106,7 @@ class Config:
             self.__store_config(cfg, config_path)
         for name, device in cfg['devices'].items():
             if device['type'] == 'minidsp':
-                device['make_runner'] = lambda: self.create_minidsp_runner(device)
+                device['make_runner'] = self.create_minidsp_runner
         return cfg
 
     def __store_config(self, config, config_path):
@@ -183,10 +183,10 @@ class Config:
         logger.addHandler(ch)
         return logger
 
-    def create_minidsp_runner(self, device: dict):
+    def create_minidsp_runner(self, exe: str, options: str):
         from plumbum import local
-        cmd = local[device['exe']]
-        return cmd[device['options'].split(' ')] if device.get('options', None) else cmd
+        cmd = local[exe]
+        return cmd[options.split(' ')] if options else cmd
 
     @property
     def version(self):

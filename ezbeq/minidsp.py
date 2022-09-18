@@ -393,10 +393,10 @@ class Minidsp(PersistentDevice[MinidspState]):
         self.__ignore_retcode = cfg.get('ignoreRetcode', False)
         self.__slot_change_delay: Union[bool, int] = cfg.get('slotChangeDelay', False)
         self.__levels_interval = 1.0 / float(cfg.get('levelsFps', 10))
-        self.__runner = cfg['make_runner']()
+        self.__runner = cfg['make_runner'](cfg['exe'], cfg.get('options', ''))
         self.__client = MinidspRsClient(self) if cfg.get('useWs', False) else None
         self.__descriptor: MinidspDescriptor = make_peq_layout(cfg)
-        logger.info("Minidsp descriptor is loaded....")
+        logger.info(f"[{name}] Minidsp descriptor is loaded.... exe is {self.__runner}")
         logger.info(yaml.dump(self.__descriptor, indent=2, default_flow_style=False, sort_keys=False))
         ws_server.factory.set_levels_provider(name, self.start_broadcast_levels)
 
@@ -427,9 +427,9 @@ class Minidsp(PersistentDevice[MinidspState]):
                 }
                 return MinidspState(self.name, self.__descriptor, **values)
             else:
-                logger.error(f"No output returned from device")
+                logger.error(f"[{self.name}] No output returned from device")
         except:
-            logger.exception(f"Unable to parse device state {output}")
+            logger.exception(f"[{self.name}] Unable to parse device state {output}")
         return None
 
     @staticmethod
@@ -571,23 +571,24 @@ class Minidsp(PersistentDevice[MinidspState]):
                     self.__do_run([], slot, False)
                     if slot_change_delay is not True and slot_change_delay > 0:
                         from time import sleep
-                        logger.info(f"Sleeping for {slot_change_delay} seconds after config slot change")
+                        logger.info(f"[{self.name}] Sleeping for {slot_change_delay} seconds after config slot change")
                         sleep(slot_change_delay)
                 else:
                     logger.info(
-                        f"Activating slot {slot}, current is {current_state.active_slot if current_state else 'UNKNOWN'}")
+                        f"[{self.name}] Activating slot {slot}, current is {current_state.active_slot if current_state else 'UNKNOWN'}")
                     config_cmds.insert(0, MinidspBeqCommandGenerator.activate(slot))
         formatted = '\n'.join(config_cmds)
         logger.info(f"\n{formatted}")
         with tmp_file(config_cmds) as file_name:
             kwargs = {'retcode': None} if self.__ignore_retcode else {}
+            exe = self.__runner['-f', file_name]
             logger.info(
-                f"Sending {len(config_cmds)} commands to slot {slot} via {file_name} {kwargs if kwargs else ''}")
+                f"[{self.name}] Sending {len(config_cmds)} commands to slot {slot} using {exe} {kwargs if kwargs else ''}")
             start = time.time()
-            code, stdout, stderr = self.__runner['-f', file_name].run(timeout=self.__cmd_timeout, **kwargs)
+            code, stdout, stderr = exe.run(timeout=self.__cmd_timeout, **kwargs)
             end = time.time()
             logger.info(
-                f"Sent {len(config_cmds)} commands to slot {slot} in {to_millis(start, end)}ms - result is {code}")
+                f"[{self.name}] Sent {len(config_cmds)} commands to slot {slot} in {to_millis(start, end)}ms - result is {code}")
 
     def _load_initial_state(self) -> MinidspState:
         return self.__load_state()
@@ -680,14 +681,14 @@ class Minidsp(PersistentDevice[MinidspState]):
             end = time.time()
             levels = json.loads(lines)
             ts = time.time()
-            logger.info(f"readlevels,{ts},{to_millis(start, end)}")
+            logger.info(f"{self.name},readlevels,{ts},{to_millis(start, end)}")
             return {
                 'ts': ts,
                 INPUT_NAME: levels['input_levels'],
                 OUTPUT_NAME: levels['output_levels']
             }
         except:
-            logger.exception(f"Unable to load levels {lines}")
+            logger.exception(f"[{self.name}] Unable to load levels {lines}")
             return {}
 
     def start_broadcast_levels(self) -> None:

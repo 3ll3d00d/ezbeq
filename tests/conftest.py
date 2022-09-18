@@ -231,7 +231,7 @@ class MinidspSpyConfig(Config):
                     'type': 'minidsp',
                     'exe': 'minidsp',
                     'cmdTimeout': 10,
-                    'make_runner': lambda: self.create_minidsp_runner(None)
+                    'make_runner': self.create_minidsp_runner
                 }
             }
         }
@@ -241,7 +241,7 @@ class MinidspSpyConfig(Config):
             vals['devices']['master']['use_xo'] = self.use_xo
         return vals
 
-    def create_minidsp_runner(self, cfg):
+    def create_minidsp_runner(self, exe: str, options: str):
         return self.spy
 
     @property
