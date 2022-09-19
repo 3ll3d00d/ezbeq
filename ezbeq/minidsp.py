@@ -394,7 +394,12 @@ class Minidsp(PersistentDevice[MinidspState]):
         self.__slot_change_delay: Union[bool, int] = cfg.get('slotChangeDelay', False)
         self.__levels_interval = 1.0 / float(cfg.get('levelsFps', 10))
         self.__runner = cfg['make_runner'](cfg['exe'], cfg.get('options', ''))
-        self.__client = MinidspRsClient(self) if cfg.get('useWs', False) else None
+        ws_device_id = cfg.get('wsDeviceId', None)
+        ws_ip = cfg.get('wsIp', '127.0.0.1:5380')
+        if ws_device_id is not None and ws_ip:
+            self.__ws_client = MinidspRsClient(self, ws_ip, ws_device_id)
+        else:
+            self.__ws_client = None
         self.__descriptor: MinidspDescriptor = make_peq_layout(cfg)
         logger.info(f"[{name}] Minidsp descriptor is loaded.... exe is {self.__runner}")
         logger.info(yaml.dump(self.__descriptor, indent=2, default_flow_style=False, sort_keys=False))
@@ -692,15 +697,40 @@ class Minidsp(PersistentDevice[MinidspState]):
             return {}
 
     def start_broadcast_levels(self) -> None:
-        from twisted.internet import reactor
-        sched = lambda: reactor.callLater(self.__levels_interval, __send)
+        if self.__ws_client is None:
+            from twisted.internet import reactor
+            sched = lambda: reactor.callLater(self.__levels_interval, __send)
 
-        def __send():
-            msg = json.dumps(self.levels())
-            if self.ws_server.levels(self.name, msg):
-                sched()
+            def __send():
+                msg = json.dumps(self.levels())
+                if self.ws_server.levels(self.name, msg):
+                    sched()
 
-        sched()
+            sched()
+
+    def on_ws_message(self, msg: dict):
+        logger.info(f"[{self.name}] Received {msg}")
+        if 'master' in msg:
+            master = msg['master']
+            if master:
+                def do_it():
+                    preset = str(master['preset'] + 1)
+                    mv = master['volume']
+                    mute = master['mute']
+                    if self._current_state.master_volume != mv:
+                        self._current_state.master_volume = mv
+                    if self._current_state.mute != mute:
+                        self._current_state.mute = mute
+                    if self._current_state.active_slot != preset:
+                        self._current_state.activate(preset)
+
+                self._hydrate_cache_broadcast(do_it)
+        if 'input_levels' in msg and 'output_levels' in msg:
+            self.ws_server.levels(self.name, json.dumps({
+                'ts': time.time(),
+                INPUT_NAME: msg['input_levels'],
+                OUTPUT_NAME: msg['output_levels']
+            }))
 
 
 class MinidspBeqCommandGenerator:
@@ -885,9 +915,10 @@ def to_millis(start, end, precision=1):
 
 class MinidspRsClient:
 
-    def __init__(self, listener):
-        # TODO which device
-        self.__factory = MinidspRsClientFactory(listener, url='ws://localhost/devices/0?levels=true')
+    def __init__(self, listener, ip, device_id):
+        ws_url = f"ws://{ip}/devices/{device_id}?levels=true&poll=true"
+        logger.info(f"Listening to ws on {ws_url}")
+        self.__factory = MinidspRsClientFactory(listener, device_id, url=ws_url)
         from twisted.internet.endpoints import clientFromString
         from twisted.internet import reactor
         wsclient = clientFromString(reactor, 'unix:path=/tmp/minidsp.sock:timeout=5')
@@ -904,7 +935,6 @@ class MinidspRsProtocol(WebSocketClientProtocol):
 
     def onConnect(self, response):
         logger.info(f"Connected to {response.peer}")
-        # self.sendMessage('getmso'.encode('utf-8'), isBinary=False)
 
     def onOpen(self):
         logger.info("Connected to Minidsp")
@@ -921,8 +951,11 @@ class MinidspRsProtocol(WebSocketClientProtocol):
             logger.warning(f"Received {len(payload)} bytes in binary payload, ignoring")
         else:
             msg = payload.decode('utf8')
-            logger.info(f"Received {msg}")
-            # self.factory.listener.on_msoupdate(json.loads(msg[10:]))
+            logger.debug(f"[{self.factory.device_id}] Received {msg}")
+            try:
+                self.factory.listener.on_ws_message(json.loads(msg))
+            except:
+                logger.exception(f"[{self.factory.device_id}] Receiving unparseable message {msg}")
 
 
 class MinidspRsClientFactory(WebSocketClientFactory, ReconnectingClientFactory):
@@ -930,25 +963,30 @@ class MinidspRsClientFactory(WebSocketClientFactory, ReconnectingClientFactory):
     maxDelay = 5
     initialDelay = 0.5
 
-    def __init__(self, listener, *args, **kwargs):
+    def __init__(self, listener, device_id, *args, **kwargs):
         super(MinidspRsClientFactory, self).__init__(*args, **kwargs)
+        self.__device_id = device_id
         self.__clients: List[MinidspRsProtocol] = []
         self.listener = listener
 
+    @property
+    def device_id(self):
+        return self.__device_id
+
     def clientConnectionFailed(self, connector, reason):
-        logger.warning(f"Client connection failed {reason} .. retrying ..")
+        logger.warning(f"[{self.device_id}] Client connection failed {reason} .. retrying ..")
         super().clientConnectionFailed(connector, reason)
 
     def clientConnectionLost(self, connector, reason):
-        logger.warning(f"Client connection failed {reason} .. retrying ..")
+        logger.warning(f"[{self.device_id}] Client connection failed {reason} .. retrying ..")
         super().clientConnectionLost(connector, reason)
 
     def register(self, client: MinidspRsProtocol):
         if client not in self.__clients:
-            logger.info(f"Registered device {client.peer}")
+            logger.info(f"[{self.device_id}] Registered device {client.peer}")
             self.__clients.append(client)
         else:
-            logger.info(f"Ignoring duplicate device {client.peer}")
+            logger.info(f"[{self.device_id}] Ignoring duplicate device {client.peer}")
 
     def unregister(self, client: MinidspRsProtocol):
         if client in self.__clients:
@@ -961,11 +999,11 @@ class MinidspRsClientFactory(WebSocketClientFactory, ReconnectingClientFactory):
         if self.__clients:
             disconnected_clients = []
             for c in self.__clients:
-                logger.info(f"Sending to {c.peer} - {msg}")
+                logger.info(f"[{self.device_id}] Sending to {c.peer} - {msg}")
                 try:
                     c.sendMessage(msg.encode('utf8'))
                 except Disconnected as e:
-                    logger.exception(f"Failed to send to {c.peer}, discarding")
+                    logger.exception(f"[{self.device_id}] Failed to send to {c.peer}, discarding")
                     disconnected_clients.append(c)
             for c in disconnected_clients:
                 self.unregister(c)

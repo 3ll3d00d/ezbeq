@@ -110,6 +110,24 @@ By default, it is assumed the Minidsp 2x4HD is in use. To use a different model,
     device_type: 4x10
 ```
 
+In order for the ezbeq ui to update when the device status is updated outside of ezbeq (e.g. using minidsp remote control), additional configuration is required to enable the [minidsp rs websocket interface](https://minidsp-rs.pages.dev/daemon/http#websocket-streaming)
+
+This requires 2 optional additional values in the configuration
+
+```
+  wsDeviceId: 0
+  wsIp: 127.0.0.1:5380
+```
+
+`wsIp` is the address of the `[http_server]` from `/etc/minidsp/config.toml`
+`wsDeviceId` is the device id provided by `minidsp probe`, in this example 2 device ids (0 and 1) are available
+
+```
+$ minidsp probe                                                                                                                                                                                
+Found 2x4HD with serial 911111 at ws://localhost/devices/0/ws [hw_id: 10, dsp_version: 100]
+Found 2x4HD with serial 911112 at ws://localhost/devices/1/ws [hw_id: 10, dsp_version: 100]
+```
+
 A full list of supported models is provided below.
 
 ##### Minidsp Variants
