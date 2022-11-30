@@ -921,7 +921,8 @@ class MinidspRsClient:
         self.__factory = MinidspRsClientFactory(listener, device_id, url=ws_url)
         from twisted.internet.endpoints import clientFromString
         from twisted.internet import reactor
-        wsclient = clientFromString(reactor, 'unix:path=/tmp/minidsp.sock:timeout=5')
+        # wsclient = clientFromString(reactor, 'unix:path=/tmp/minidsp.sock:timeout=5')
+        wsclient = clientFromString(reactor, f"tcp:{ip}:timeout=5")
         self.__connector = wsclient.connect(self.__factory)
 
     def send(self, msg: str):

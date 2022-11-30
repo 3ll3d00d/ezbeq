@@ -1,6 +1,6 @@
 import Header from "../Header";
 import Controls from "./Controls";
-import React, {useCallback, useEffect, useRef, useState} from "react";
+import React, {useEffect, useMemo, useRef, useState} from "react";
 import Chart from "./Chart";
 import {FormControlLabel, Switch, useTheme} from "@material-ui/core";
 import {debounce} from "lodash/function";
@@ -100,9 +100,12 @@ const Levels = ({availableDevices, selectedDeviceName, setSelectedDeviceName, se
         },
     };
 
-    const debounceDuration = useCallback((d) => {
-        debounce(() => setActiveDuration(d), 400)
-    }, [setActiveDuration]);
+    const debounceDuration = useMemo(
+        () => debounce(d => {
+            setActiveDuration(d);
+        }, 400),
+        []
+    );
 
     useEffect(() => {
         debounceDuration(duration);
