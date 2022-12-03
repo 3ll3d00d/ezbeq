@@ -13,7 +13,7 @@ jobs:
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
       - name: pytest
         run: |
           python -m pip install --upgrade pip
