@@ -227,7 +227,7 @@ class CatalogueProvider:
 
     @property
     def catalogue(self) -> List[CatalogueEntry]:
-        self.__executor.submit(self.__refresh_catalogue_if_stale).result(timeout=60)
+        self.__executor.submit(self.__refresh_catalogue_if_stale)
         return self.__catalogue
 
     def __refresh_catalogue_if_stale(self):
@@ -235,8 +235,8 @@ class CatalogueProvider:
             try:
                 self.__reload()
             except Exception as e:
+                logger.exception(f"Failed to refresh catalogue,[last loaded at {self.__loaded_at}]", e)
                 self.__loaded_at = None
-                raise e
 
 
 class DatabaseDownloader:
