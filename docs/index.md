@@ -47,7 +47,7 @@ NOTE – ezbeq and minidsp-rs will be modifying the INPUT settings of the MiniDS
 
 ## Installation
 
-Follow one of the two guides provided (Windows or RPi).
+Follow one of the two guides provided ([Windows](./win.md) or [RPi](./rpi.md))
 
 ## Usage
 
