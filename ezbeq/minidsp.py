@@ -372,7 +372,7 @@ def make_peq_layout(cfg: dict) -> MinidspDescriptor:
                 raise ValueError(f"Custom PeqRoutes is missing keys - {missing_keys} - from {r}")
 
             def to_ints(v):
-                return [int(i) for i in v] if v else None
+                return [int(i) for i in v] if v else []
 
             return PeqRoutes(r['name'], int(r['biquads']), to_ints(r['channels']), to_ints(r['slots']),
                              to_ints(r.get('groups', None)))
