@@ -22,3 +22,6 @@ pytest = "*"
 pytest-httpserver = "*"
 pytest-cov = "*"
 pipenv-setup = "*"
+
+[requires]
+python_version = "3.9"

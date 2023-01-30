@@ -203,10 +203,18 @@ class PeqRoutes:
 
     @property
     def takes_beq(self) -> bool:
-        return len(self.channels) > 0 and len(self.beq_slots) > 0
+        return self.channels and len(self.channels) > 0 and self.beq_slots and len(self.beq_slots) > 0
 
     def __repr__(self):
         return f"{self.name}"
+
+    def __eq__(self, o: object) -> bool:
+        if isinstance(o, PeqRoutes):
+            same = self.name == o.name and self.biquads == o.biquads and self.channels == o.channels and self.beq_slots == o.beq_slots
+            if same:
+                return (self.groups is None and o.groups is None) or (self.groups is not None and self.groups == o.groups)
+            return same
+        return NotImplemented
 
 
 class BeqFilterSlot:
@@ -226,7 +234,7 @@ class BeqFilterAllocator:
     def __init__(self, routes: List[PeqRoutes]):
         self.slots = []
         for r in routes:
-            if r:
+            if r and r.takes_beq:
                 for s in r.beq_slots:
                     if r.groups:
                         for g in r.groups:
@@ -248,8 +256,8 @@ class BeqFilterAllocator:
 
 class MinidspDescriptor:
 
-    def __init__(self, name: str, fs: str, i: PeqRoutes = None, xo: PeqRoutes = None, o: PeqRoutes = None,
-                 extra: List[PeqRoutes] = None):
+    def __init__(self, name: str, fs: str, i: Optional[PeqRoutes] = None, xo: Optional[PeqRoutes] = None,
+                 o: Optional[PeqRoutes] = None, extra: List[PeqRoutes] = None):
         self.name = name
         self.fs = str(int(fs))
         self.input = i
@@ -259,7 +267,7 @@ class MinidspDescriptor:
 
     @property
     def peq_routes(self) -> List[PeqRoutes]:
-        return [x for x in [self.input, self.crossover, self.output, self.extra] if x]
+        return [x for x in [self.input, self.crossover, self.output] if x] + ([x for x in self.extra] if self.extra else [])
 
     def to_allocator(self) -> BeqFilterAllocator:
         return BeqFilterAllocator(self.peq_routes)
@@ -369,16 +377,37 @@ def make_peq_layout(cfg: dict) -> MinidspDescriptor:
             r_named_args = ['name', 'biquads', 'channels', 'slots']
             missing_route_keys = [x for x in r_named_args if x not in r.keys()]
             if missing_route_keys:
-                raise ValueError(f"Custom PeqRoutes is missing keys - {missing_keys} - from {r}")
+                raise ValueError(f"Custom PeqRoutes is missing keys - {missing_route_keys} - from {r}")
 
             def to_ints(v):
                 return [int(i) for i in v] if v else None
 
             return PeqRoutes(r['name'], int(r['biquads']), to_ints(r['channels']), to_ints(r['slots']),
                              to_ints(r.get('groups', None)))
-        args = [make_route(r) for r in routes]
-        return MinidspDescriptor(desc['name'], str(desc['fs']),
-                                 **{'xo' if r.name == CROSSOVER_NAME else r.name[0]: r for r in args})
+        routes_by_name = {}
+        extra = []
+        for r in routes:
+            route = make_route(r)
+            if route.name == 'input':
+                if 'i' in routes_by_name:
+                    extra.append(route)
+                else:
+                    routes_by_name['i'] = route
+            elif route.name == 'output':
+                if 'o' in routes_by_name:
+                    extra.append(route)
+                else:
+                    routes_by_name['o'] = route
+            elif route.name == 'xo' or route.name == CROSSOVER_NAME:
+                if 'xo' in routes_by_name:
+                    extra.append(route)
+                else:
+                    routes_by_name['xo'] = route
+            else:
+                extra.append(route)
+        if extra:
+            routes_by_name['extra'] = extra
+        return MinidspDescriptor(desc['name'], str(desc['fs']), **routes_by_name)
     else:
         return Minidsp24HD()
 
