@@ -317,7 +317,7 @@ class MinidspDDRC88(MinidspDescriptor):
                          '48000',
                          xo=PeqRoutes(CROSSOVER_NAME, 8, zero_til(8), [], zero_til(2)),
                          o=PeqRoutes(OUTPUT_NAME, 10, c, zero_til(10)),
-                         extra=PeqRoutes(OUTPUT_NAME, 10, non_sw, []) if non_sw else None)
+                         extra=[PeqRoutes(OUTPUT_NAME, 10, non_sw, []) if non_sw else None])
 
 
 class Minidsp410(MinidspDescriptor):
