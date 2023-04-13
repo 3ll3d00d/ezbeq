@@ -44,6 +44,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Use node.js 16
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16.x
       - name: Setup node_modules
         working-directory: ./ui
         run: yarn install --frozen-lockfile
@@ -89,6 +93,10 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v3
+      - name: Use node.js 16
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16.x
       - name: Setup node_modules
         working-directory: ./ui
         run: yarn install --frozen-lockfile
