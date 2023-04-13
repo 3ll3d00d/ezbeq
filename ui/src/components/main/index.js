@@ -2,7 +2,7 @@ import Header from "../Header";
 import Filter from "./Filter";
 import {Grid} from "@material-ui/core";
 import React, {useEffect, useState} from "react";
-import {pushData} from "../../services/util";
+import {pushData, useLocalStorage} from "../../services/util";
 import useMediaQuery from "@material-ui/core/useMediaQuery";
 import Slots from "./Slots";
 import Catalogue from "./Catalogue";
@@ -21,7 +21,7 @@ const MainView = ({
                       setSelectedSlotId,
                       getSelectedDevice
                   }) => {
-    const [selectedAuthors, setSelectedAuthors] = useState([]);
+    const [selectedAuthors, setSelectedAuthors] = useLocalStorage('selectedAuthors', []);
     const [selectedLanguages, setSelectedLanguages] = useState([]);
     const [selectedYears, setSelectedYears] = useState([]);
     const [selectedAudioTypes, setSelectedAudioTypes] = useState([]);
