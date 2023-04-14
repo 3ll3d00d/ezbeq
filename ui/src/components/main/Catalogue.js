@@ -49,16 +49,19 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, showB
                 width: '100%'
             }}>
                 <DataGrid rows={entries}
-                               columns={catalogueGridColumns}
-                               pageSize={50}
-                               density={'compact'}
-                               sortModel={[
-                                   {
-                                       field: 'sortTitle',
-                                       sort: 'asc',
-                                   },
-                               ]}
-                               onRowSelected={p => setSelectedEntryId(p.data.id)}/>
+                          columns={catalogueGridColumns}
+                          pageSize={50}
+                          density={'compact'}
+                          sortModel={[
+                              {
+                                  field: 'sortTitle',
+                                  sort: 'asc',
+                              },
+                          ]}
+                          onRowSelectionModelChange={e => {
+                              console.log(e[0]);
+                              setSelectedEntryId(e[0]);
+                          }}/>
             </Grid>;
         return useWide ? grid : <Grid container className={classes.noLeft}>{grid}</Grid>;
     } else {

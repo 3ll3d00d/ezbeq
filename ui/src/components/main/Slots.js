@@ -2,6 +2,7 @@ import {makeStyles} from "@mui/styles";
 import React, {useEffect, useState} from "react";
 import ezbeq from "../../services/ezbeq";
 import {CircularProgress, Grid, IconButton, Paper} from "@mui/material";
+import Box from '@mui/material/Box';
 import ClearIcon from "@mui/icons-material/Clear";
 import Typography from "@mui/material/Typography";
 import Gain from "./Gain";
@@ -25,7 +26,8 @@ const deviceStyles = makeStyles(theme => ({
         margin: `${theme.spacing(0.5)} auto`,
         padding: theme.spacing(0.5),
         flexGrow: 1,
-        backgroundColor: props.selected ? theme.palette.action.selected : theme.palette.background.default
+        backgroundColor: props.selected ? theme.palette.action.selected : theme.palette.background.default,
+        display: 'flex'
     }),
     content: () => ({
         padding: 4,
@@ -55,10 +57,10 @@ const Slot = ({selected, slot, onSelect, isPending, onClear}) => {
     return (
         <Paper className={`${classes.paper}`}>
             <Grid container justifyContent="space-between" alignItems="center">
-                <Grid item onClick={onSelect} xs={8} className={`${classes.content}`}>
+                <Grid item onClick={onSelect} xs={8} className={`${classes.content}`} zeroMinWidth>
                     <Typography component="p" variant="body2">{slot.id}: {slot.last}</Typography>
                 </Grid>
-                <Grid item xs={4}>
+                <Grid item xs={4} zeroMinWidth>
                     <IconButton
                         onClick={onClear}
                         disabled={isPending}
@@ -157,19 +159,19 @@ const Slots = ({selectedDeviceName, selectedSlotId, useWide, device, setDevice, 
                            isActive={() => getCurrentState(pending, 'gain', selectedSlotId) === 1}/>;
         if (useWide) {
             return (
-                <div className={classes.fullWidth}>
+                <Box sx={{ flexGrow: 1 }}>
                     {devices}
                     <Grid container>
                         {gain}
                     </Grid>
-                </div>
+                </Box>
             );
         } else {
             return (
-                <div className={classes.fullWidth}>
+                <Box sx={{ flexGrow: 1 }}>
                     <Grid container direction={'column'}>{devices}</Grid>
                     <Grid container direction={'column'}>{gain}</Grid>
-                </div>
+                </Box>
             );
         }
     } else {

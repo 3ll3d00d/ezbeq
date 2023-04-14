@@ -66,7 +66,7 @@ const Search = ({txtFilter, setTxtFilter, showFilters, toggleShowFilters}) => {
         </IconButton>
         <FormControlLabel className={classes.advancedFilter}
                           control={
-                              <Switch checked={showFilters} onChange={toggleShowFilters} size={'small'}/>
+                              <Switch checked={showFilters} onChange={toggleShowFilters} size={'small'} color="default"/>
                           }/>
     </>;
 };

@@ -257,7 +257,7 @@ class DatabaseDownloader:
 
     @property
     def version(self) -> Optional[str]:
-        return self.__cached_version
+        return self.__cached_version.rstrip('\n') if self.__cached_version else self.__cached_version
 
     def run(self) -> bool:
         '''

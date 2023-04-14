@@ -1,6 +1,6 @@
 import React from "react";
 import TextField from "@mui/material/TextField";
-import Autocomplete from "@mui/lab/Autocomplete";
+import { Autocomplete } from '@mui/material';
 import CheckBoxOutlineBlankIcon from "@mui/icons-material/CheckBoxOutlineBlank";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import {Checkbox} from "@mui/material";
@@ -19,11 +19,11 @@ const MultiSelect = ({
                          isInView = v => true
                      }) => {
     const handleChange = (event, value, reason) => {
-        if (reason === "select-option" || reason === "remove-option") {
+        if (reason === "selectOption" || reason === "removeOption") {
             onToggleOption && onToggleOption(value);
         } else if (reason === "clear") {
             onClearOptions && onClearOptions();
-        } else if (reason === 'create-option') {
+        } else if (reason === 'createOption') {
             onCreateOption && onCreateOption(value);
         } else {
             console.log(`Event: ${event} Value: ${value} Reason: ${reason}`);
