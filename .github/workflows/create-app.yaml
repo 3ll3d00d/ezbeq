@@ -47,7 +47,7 @@ jobs:
       - name: Use node.js lts
         uses: actions/setup-node@v3
         with:
-          node-version: lts
+          node-version: lts/*
       - name: Setup node_modules
         working-directory: ./ui
         run: yarn install --frozen-lockfile
@@ -96,7 +96,7 @@ jobs:
       - name: Use node.js lts
         uses: actions/setup-node@v3
         with:
-          node-version: lts
+          node-version: lts/*
       - name: Setup node_modules
         working-directory: ./ui
         run: yarn install --frozen-lockfile
