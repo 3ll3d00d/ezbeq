@@ -1,9 +1,9 @@
 import React, {useEffect, useState} from "react";
 import ezbeq from "../services/ezbeq";
 import {pushData} from "../services/util";
-import {Grid} from "@material-ui/core";
-import Typography from "@material-ui/core/Typography";
-import {makeStyles} from "@material-ui/core/styles";
+import {Grid} from "@mui/material";
+import Typography from "@mui/material/Typography";
+import {makeStyles} from "@mui/styles";
 
 const useStyles = makeStyles((theme) => ({
     noLeft: {
@@ -37,7 +37,7 @@ const Footer = () => {
     if (meta || version) {
         const sha1 = meta && meta.version ? meta.version.substring(0, 7) : '';
         return (
-            <Grid container justify="space-around" className={classes.noLeft}>
+            <Grid container justifyContent="space-around" className={classes.noLeft}>
                 <Grid item>
                     <Typography variant={'caption'} color={'textSecondary'}>
                         {meta ? `${formatSeconds(meta.loaded)} / ${sha1}` : ''}

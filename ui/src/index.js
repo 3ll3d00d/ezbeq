@@ -1,11 +1,13 @@
 import React from 'react';
-import ReactDOM from 'react-dom';
+import {StrictMode} from 'react';
 import '@fontsource/roboto'
 import App from './App';
+import ReactDOMClient from "react-dom/client";
 
-ReactDOM.render(
-    <React.StrictMode>
+const container = document.getElementById('root');
+const root = ReactDOMClient.createRoot(container);
+root.render(
+    <StrictMode>
         <App/>
-    </React.StrictMode>,
-    document.getElementById('root')
+    </StrictMode>
 );

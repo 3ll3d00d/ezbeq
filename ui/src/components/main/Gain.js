@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import clsx from 'clsx';
-import {makeStyles} from '@material-ui/core/styles';
+import {makeStyles, withStyles} from '@mui/styles';
 import {
     Button,
     CircularProgress,
@@ -8,12 +8,11 @@ import {
     FormGroup,
     IconButton,
     InputAdornment,
-    TextField,
-    withStyles
-} from "@material-ui/core";
-import PublishIcon from '@material-ui/icons/Publish';
-import VolumeOffIcon from '@material-ui/icons/VolumeOff';
-import VolumeUpIcon from '@material-ui/icons/VolumeUp';
+    TextField
+} from "@mui/material";
+import PublishIcon from '@mui/icons-material/Publish';
+import VolumeOffIcon from '@mui/icons-material/VolumeOff';
+import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 
 const useStyles = makeStyles((theme) => ({
     padTop: {
@@ -45,7 +44,7 @@ const TightTextField = withStyles({
 
 const GainInput = ({fieldName, helpText, minGain, maxGain, step, dp, savedValues, values, setMV, setMute}) => {
     const classes = useStyles();
-    const decimalSeparator = 1.1.toLocaleString().substring(1, 2);
+    const decimalSeparator = (1.1).toLocaleString().substring(1, 2);
     const oneNum = '^[0-9]$';
     const sepMatcher = decimalSeparator === '.' ? /\./g : new RegExp(decimalSeparator, 'g');
     const roundFactor = 1 / step;
@@ -107,10 +106,12 @@ const GainInput = ({fieldName, helpText, minGain, maxGain, step, dp, savedValues
                         InputProps={{
                             endAdornment: (
                                 <InputAdornment position="end">
-                                    <IconButton aria-label="mute channel"
-                                                onClick={e => setMute(!values.mute)}
-                                                className={classes.zeroPad}
-                                                color={delta ? 'secondary' : 'default'}>
+                                    <IconButton
+                                        aria-label="mute channel"
+                                        onClick={e => setMute(!values.mute)}
+                                        className={classes.zeroPad}
+                                        color={delta ? 'secondary' : 'default'}
+                                        size="large">
                                         {values.mute ? <VolumeOffIcon fontSize="small"/> :
                                             <VolumeUpIcon fontSize="small"/>}
                                     </IconButton>
@@ -137,7 +138,7 @@ const Gain = ({selectedSlotId, deviceGains, gains, setGains, sendGains, isActive
     if (selectedSlotId !== null) {
         return (
             <div className={classes.padTop}>
-                <FormControl component="fieldset">
+                <FormControl variant="standard" component="fieldset">
                     <FormGroup row>
                         <GainInput fieldName='master-gain' helpText='Master'
                                    minGain={-127} maxGain={0} step={0.5} dp={1}

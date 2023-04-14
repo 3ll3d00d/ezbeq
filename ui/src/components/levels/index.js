@@ -2,7 +2,7 @@ import Header from "../Header";
 import Controls from "./Controls";
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import Chart from "./Chart";
-import {FormControlLabel, Switch, useTheme} from "@material-ui/core";
+import {FormControlLabel, Switch, useTheme} from "@mui/material";
 import {debounce} from "lodash/function";
 import {useLocalStorage} from "../../services/util";
 

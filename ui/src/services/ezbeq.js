@@ -180,4 +180,5 @@ class EzBeqService {
     }
 }
 
-export default new EzBeqService();
+const ezBeqService = new EzBeqService();
+export default ezBeqService;

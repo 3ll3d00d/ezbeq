@@ -1,14 +1,15 @@
 import React, {useCallback, useEffect, useState} from 'react';
-import {createMuiTheme, makeStyles, ThemeProvider} from '@material-ui/core/styles';
+import {createTheme, StyledEngineProvider, ThemeProvider} from '@mui/material/styles';
+import {makeStyles} from '@mui/styles';
 import ezbeq from './services/ezbeq';
-import useMediaQuery from '@material-ui/core/useMediaQuery';
-import CssBaseline from '@material-ui/core/CssBaseline';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import CssBaseline from '@mui/material/CssBaseline';
 import {pushData} from "./services/util";
 import Footer from "./components/Footer";
-import {BottomNavigation, BottomNavigationAction} from "@material-ui/core";
-import LocalLibraryIcon from '@material-ui/icons/LocalLibrary';
-import EqualizerIcon from '@material-ui/icons/Equalizer';
-import SettingsApplicationsIcon from '@material-ui/icons/SettingsApplications';
+import {BottomNavigation, BottomNavigationAction} from "@mui/material";
+import LocalLibraryIcon from '@mui/icons-material/LocalLibrary';
+import EqualizerIcon from '@mui/icons-material/Equalizer';
+import SettingsApplicationsIcon from '@mui/icons-material/SettingsApplications';
 import ErrorSnack from "./components/ErrorSnack";
 import MainView from "./components/main";
 import Levels from "./components/levels";
@@ -22,15 +23,24 @@ const useStyles = makeStyles((theme) => ({
     }
 }));
 
+const Root = ({children}) => {
+    const classes = useStyles();
+    return (
+        <div className={classes.root}>
+            {children}
+        </div>
+    )
+}
+
 const ws = new WebSocket("ws://" + window.location.host + "/ws");
 
 const App = () => {
     const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
     const theme = React.useMemo(
         () =>
-            createMuiTheme({
+            createTheme({
                 palette: {
-                    type: prefersDarkMode ? 'dark' : 'light',
+                    mode: prefersDarkMode ? 'dark' : 'light',
                 },
             }),
         [prefersDarkMode],
@@ -44,7 +54,6 @@ const App = () => {
         replaceDevice(JSON.parse(event.data));
     };
 
-    const classes = useStyles();
     const [showBottomNav, setShowBottomNav] = useState(false);
     // errors
     const [err, setErr] = useState(null);
@@ -89,53 +98,56 @@ const App = () => {
     }, [getSelectedDevice, selectedDeviceName, availableDevices]);
 
     return (
-        <ThemeProvider theme={theme}>
-            <CssBaseline/>
-            <div className={classes.root}>
-                <ErrorSnack err={err} setErr={setErr}/>
-                {
-                    selectedNav === 'catalogue'
-                        ?
-                        <MainView entries={entries}
-                                  setErr={setErr}
-                                  replaceDevice={replaceDevice}
-                                  availableDevices={availableDevices}
-                                  selectedDeviceName={selectedDeviceName}
-                                  setSelectedDeviceName={setSelectedDeviceName}
-                                  getSelectedDevice={getSelectedDevice}
-                                  selectedSlotId={selectedSlotId}
-                                  setSelectedSlotId={setSelectedSlotId}
-                                  showBottomNav={showBottomNav}/>
-                        :
-                        selectedNav === 'levels'
+        <StyledEngineProvider injectFirst>
+            <ThemeProvider theme={theme}>
+                <CssBaseline/>
+                <Root>
+                    <ErrorSnack err={err} setErr={setErr}/>
+                    {
+                        selectedNav === 'catalogue'
                             ?
-                            <Levels availableDevices={availableDevices}
-                                    selectedDeviceName={selectedDeviceName}
-                                    setSelectedDeviceName={setSelectedDeviceName}
-                                    setErr={setErr}/>
+                            <MainView entries={entries}
+                                      setErr={setErr}
+                                      replaceDevice={replaceDevice}
+                                      availableDevices={availableDevices}
+                                      selectedDeviceName={selectedDeviceName}
+                                      setSelectedDeviceName={setSelectedDeviceName}
+                                      getSelectedDevice={getSelectedDevice}
+                                      selectedSlotId={selectedSlotId}
+                                      setSelectedSlotId={setSelectedSlotId}
+                                      showBottomNav={showBottomNav}/>
                             :
-                            <Minidsp availableDevices={availableDevices}
-                                     selectedDeviceName={selectedDeviceName}
-                                     setSelectedDeviceName={setSelectedDeviceName}
-                                     selectedSlotId={selectedSlotId}
-                                     setErr={setErr}/>
-                }
-                {
-                    showBottomNav
-                        ?
-                        <BottomNavigation value={selectedNav}
-                                          onChange={(event, newValue) => {
-                                              setSelectedNav(newValue);
-                                          }}>
-                            <BottomNavigationAction label="Catalogue" value="catalogue" icon={<LocalLibraryIcon/>}/>
-                            <BottomNavigationAction label="Levels" value="levels" icon={<EqualizerIcon/>}/>
-                            <BottomNavigationAction label="Control" value="control" icon={<SettingsApplicationsIcon/>}/>
-                        </BottomNavigation>
-                        : null
-                }
-                <Footer/>
-            </div>
-        </ThemeProvider>
+                            selectedNav === 'levels'
+                                ?
+                                <Levels availableDevices={availableDevices}
+                                        selectedDeviceName={selectedDeviceName}
+                                        setSelectedDeviceName={setSelectedDeviceName}
+                                        setErr={setErr}/>
+                                :
+                                <Minidsp availableDevices={availableDevices}
+                                         selectedDeviceName={selectedDeviceName}
+                                         setSelectedDeviceName={setSelectedDeviceName}
+                                         selectedSlotId={selectedSlotId}
+                                         setErr={setErr}/>
+                    }
+                    {
+                        showBottomNav
+                            ?
+                            <BottomNavigation value={selectedNav}
+                                              onChange={(event, newValue) => {
+                                                  setSelectedNav(newValue);
+                                              }}>
+                                <BottomNavigationAction label="Catalogue" value="catalogue" icon={<LocalLibraryIcon/>}/>
+                                <BottomNavigationAction label="Levels" value="levels" icon={<EqualizerIcon/>}/>
+                                <BottomNavigationAction label="Control" value="control"
+                                                        icon={<SettingsApplicationsIcon/>}/>
+                            </BottomNavigation>
+                            : null
+                    }
+                    <Footer/>
+                </Root>
+            </ThemeProvider>
+        </StyledEngineProvider>
     );
 };
 

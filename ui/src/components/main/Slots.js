@@ -1,9 +1,9 @@
-import {makeStyles} from "@material-ui/core/styles";
+import {makeStyles} from "@mui/styles";
 import React, {useEffect, useState} from "react";
 import ezbeq from "../../services/ezbeq";
-import {CircularProgress, Grid, IconButton, Paper} from "@material-ui/core";
-import ClearIcon from "@material-ui/icons/Clear";
-import Typography from "@material-ui/core/Typography";
+import {CircularProgress, Grid, IconButton, Paper} from "@mui/material";
+import ClearIcon from "@mui/icons-material/Clear";
+import Typography from "@mui/material/Typography";
 import Gain from "./Gain";
 
 const useStyles = makeStyles((theme) => ({
@@ -22,7 +22,7 @@ const useStyles = makeStyles((theme) => ({
 
 const deviceStyles = makeStyles(theme => ({
     paper: props => ({
-        margin: `${theme.spacing(0.5)}px auto`,
+        margin: `${theme.spacing(0.5)} auto`,
         padding: theme.spacing(0.5),
         flexGrow: 1,
         backgroundColor: props.selected ? theme.palette.action.selected : theme.palette.background.default
@@ -54,12 +54,16 @@ const Slot = ({selected, slot, onSelect, isPending, onClear}) => {
     const classes = deviceStyles({selected});
     return (
         <Paper className={`${classes.paper}`}>
-            <Grid container justify="space-between" alignItems="center">
+            <Grid container justifyContent="space-between" alignItems="center">
                 <Grid item onClick={onSelect} xs={8} className={`${classes.content}`}>
                     <Typography component="p" variant="body2">{slot.id}: {slot.last}</Typography>
                 </Grid>
                 <Grid item xs={4}>
-                    <IconButton onClick={onClear} disabled={isPending} className={classes.right}>
+                    <IconButton
+                        onClick={onClear}
+                        disabled={isPending}
+                        className={classes.right}
+                        size="large">
                         {
                             isPending
                                 ? <CircularProgress size={32}/>

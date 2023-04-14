@@ -1,7 +1,7 @@
-import {makeStyles} from "@material-ui/core/styles";
+import {makeStyles} from "@mui/styles";
 import React from "react";
-import {Grid} from "@material-ui/core";
-import {DataGrid} from "@material-ui/data-grid";
+import {Grid} from "@mui/material";
+import {DataGrid} from "@mui/x-data-grid";
 
 const useStyles = makeStyles((theme) => ({
     noLeft: {

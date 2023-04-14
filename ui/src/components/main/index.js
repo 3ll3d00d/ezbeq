@@ -1,9 +1,9 @@
 import Header from "../Header";
 import Filter from "./Filter";
-import {Grid} from "@material-ui/core";
+import {Grid} from "@mui/material";
 import React, {useEffect, useState} from "react";
 import {pushData, useLocalStorage} from "../../services/util";
-import useMediaQuery from "@material-ui/core/useMediaQuery";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import Slots from "./Slots";
 import Catalogue from "./Catalogue";
 import Entry from "./Entry";

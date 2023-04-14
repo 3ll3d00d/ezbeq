@@ -7,12 +7,12 @@ import {
     CircularProgress,
     FormControlLabel,
     FormGroup,
-    makeStyles,
     Radio,
     RadioGroup
-} from "@material-ui/core";
-import Typography from "@material-ui/core/Typography";
-import PublishIcon from "@material-ui/icons/Publish";
+} from "@mui/material";
+import {makeStyles} from '@mui/styles';
+import Typography from "@mui/material/Typography";
+import PublishIcon from "@mui/icons-material/Publish";
 import React, {useEffect, useMemo, useState} from "react";
 import ezbeq from "../../services/ezbeq";
 

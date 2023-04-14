@@ -1,10 +1,10 @@
-import AppBar from "@material-ui/core/AppBar";
-import Toolbar from "@material-ui/core/Toolbar";
-import {Avatar, FormControl, MenuItem, Select} from "@material-ui/core";
+import AppBar from "@mui/material/AppBar";
+import Toolbar from "@mui/material/Toolbar";
+import {Avatar, FormControl, MenuItem, Select} from "@mui/material";
 import beqcIcon from "../beqc.png";
-import Typography from "@material-ui/core/Typography";
+import Typography from "@mui/material/Typography";
 import React from "react";
-import {makeStyles} from "@material-ui/core/styles";
+import {makeStyles} from "@mui/styles";
 
 const useStyles = makeStyles((theme) => ({
     noLeftTop: {
@@ -18,7 +18,7 @@ const useStyles = makeStyles((theme) => ({
     device: {
         flexGrow: 1,
         margin: theme.spacing(1),
-        [theme.breakpoints.down('sm')]: {
+        [theme.breakpoints.down('md')]: {
             flexGrow: 0.5
         },
     },
@@ -43,16 +43,18 @@ const Header = ({availableDeviceNames, setSelectedDeviceName, selectedDeviceName
                 {
                     availableDeviceNames.length > 1
                         ?
-                        <FormControl className={classes.device}>
-                            <Select labelId="device-select-label"
-                                    id="device-select"
-                                    value={selectedDeviceName ? selectedDeviceName : availableDeviceNames[0]}
-                                    onChange={e => setSelectedDeviceName(e.target.value)}
-                                    autoWidth={true}
-                                    classes={{
-                                        select: classes.white,
-                                        icon: classes.white,
-                                    }}>
+                        <FormControl variant="standard" className={classes.device}>
+                            <Select
+                                variant="standard"
+                                labelId="device-select-label"
+                                id="device-select"
+                                value={selectedDeviceName ? selectedDeviceName : availableDeviceNames[0]}
+                                onChange={e => setSelectedDeviceName(e.target.value)}
+                                autoWidth={true}
+                                classes={{
+                                    select: classes.white,
+                                    icon: classes.white,
+                                }}>
                                 {
                                     availableDeviceNames.map(d => <MenuItem value={d} key={d}>{d}</MenuItem>)
                                 }

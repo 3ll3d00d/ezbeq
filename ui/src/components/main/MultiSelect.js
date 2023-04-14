@@ -1,9 +1,9 @@
 import React from "react";
-import TextField from "@material-ui/core/TextField";
-import Autocomplete from "@material-ui/lab/Autocomplete";
-import CheckBoxOutlineBlankIcon from "@material-ui/icons/CheckBoxOutlineBlank";
-import CheckBoxIcon from "@material-ui/icons/CheckBox";
-import {Checkbox} from "@material-ui/core";
+import TextField from "@mui/material/TextField";
+import Autocomplete from "@mui/lab/Autocomplete";
+import CheckBoxOutlineBlankIcon from "@mui/icons-material/CheckBoxOutlineBlank";
+import CheckBoxIcon from "@mui/icons-material/CheckBox";
+import {Checkbox} from "@mui/material";
 
 const MultiSelect = ({
                          items,
@@ -35,22 +35,21 @@ const MultiSelect = ({
         };
     };
 
-    const optionRenderer = (option, {selected}) => {
-        return (
-            <>
-                <Checkbox
-                    color="primary"
-                    icon={<CheckBoxOutlineBlankIcon fontSize="small"/>}
-                    checkedIcon={<CheckBoxIcon fontSize="small"/>}
-                    style={{marginRight: 8}}
-                    checked={selected}
-                />
-                <div style={getOptionStyle(option)}>{getOptionLabel(option)}</div>
-            </>
-        );
-    };
+    const optionRenderer = (props, option, {selected}) => (
+        <li {...props}>
+            <Checkbox
+                color="primary"
+                icon={<CheckBoxOutlineBlankIcon fontSize="small"/>}
+                checkedIcon={<CheckBoxIcon fontSize="small"/>}
+                style={{marginRight: 8}}
+                checked={selected}
+            />
+            <div style={getOptionStyle(option)}>{getOptionLabel(option)}</div>
+        </li>
+    );
+
     const inputRenderer = params => (
-        <TextField {...params} label={label} placeholder={placeholder}/>
+        <TextField variant="standard" {...params} label={label} placeholder={placeholder} />
     );
     return (
         <Autocomplete
