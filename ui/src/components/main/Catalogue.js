@@ -1,7 +1,7 @@
 import {makeStyles} from "@mui/styles";
 import React from "react";
 import {Grid} from "@mui/material";
-import {DataGrid} from "@mui/x-data-grid";
+import {DataGrid, GridToolbar} from "@mui/x-data-grid";
 
 const useStyles = makeStyles((theme) => ({
     noLeft: {
@@ -33,12 +33,10 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, showB
         },
         {
             field: 'sortTitle',
-            hide: true
         },
         {
             field: 'edition',
-            headerName: 'Edition',
-            hide: !useWide
+            headerName: 'Edition'
         }
     ];
     if (entries.length > 0) {
@@ -61,7 +59,16 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, showB
                           onRowSelectionModelChange={e => {
                               console.log(e[0]);
                               setSelectedEntryId(e[0]);
-                          }}/>
+                          }}
+                          columnVisibilityModel={{
+                              sortTitle: false,
+                              edition: useWide,
+                          }}
+                          slots={{
+                              toolbar: GridToolbar
+                          }}
+                          slotProps={{ toolbar: { printOptions: { disableToolbarButton: true } } }}
+                />
             </Grid>;
         return useWide ? grid : <Grid container className={classes.noLeft}>{grid}</Grid>;
     } else {
