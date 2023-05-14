@@ -97,6 +97,7 @@ const App = () => {
         }
     }, [getSelectedDevice, selectedDeviceName, availableDevices]);
 
+    console.log('rendering');
     return (
         <StyledEngineProvider injectFirst>
             <ThemeProvider theme={theme}>
