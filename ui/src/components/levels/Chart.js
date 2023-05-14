@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from "react";
+import React, {useEffect, useMemo} from "react";
 import UplotReact from 'uplot-react';
 import 'uplot/dist/uPlot.min.css';
 import Streamer from "./streamer";
