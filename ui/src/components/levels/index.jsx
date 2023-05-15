@@ -6,20 +6,21 @@ import {debounce} from "lodash/function";
 import Chart from "./Chart";
 import {useLocalStorage} from "../../services/util";
 
-const EMPTY_PAYLOAD = [[], [], [], [], [], [], []];
-
-const Levels = ({availableDevices, selectedDeviceName, setSelectedDeviceName, setErr}) => {
+const Levels = ({
+                    availableDevices,
+                    selectedDeviceName,
+                    setSelectedDeviceName,
+                    minidspRs,
+                    setMinidspRs,
+                    direct,
+                    setDirect,
+                    streamer
+                }) => {
     const theme = useTheme();
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [activeDuration, setActiveDuration] = useState(60);
-    const [duration, setDuration] = useLocalStorage('chartDuration', 60);
     const [recording, setRecording] = useState(true);
-    const [direct, setDirect] = useLocalStorage('chartDirect', false);
-    const [minidspRs, setMinidspRs] = useLocalStorage('chartMinidspRs', {
-        host: window.location.hostname,
-        device: 0,
-        port: 5380
-    });
+    const [duration, setDuration] = useLocalStorage('chartDuration', 60);
     const opts = {
         series: [
             {
@@ -96,6 +97,14 @@ const Levels = ({availableDevices, selectedDeviceName, setSelectedDeviceName, se
         debounceDuration(duration);
     }, [duration, debounceDuration]);
 
+    useEffect(() => {
+        streamer.setRecording(recording);
+    }, [streamer, recording]);
+
+    useEffect(() => {
+        streamer.setActiveDuration(activeDuration);
+    }, [streamer, activeDuration]);
+
     const chartOpts = Object.assign({}, opts, {
         width: window.innerWidth - 16,
         height: window.innerHeight - 233,
@@ -119,17 +128,9 @@ const Levels = ({availableDevices, selectedDeviceName, setSelectedDeviceName, se
                       minidspRs={minidspRs}
                       setMinidspRs={setMinidspRs}/>
             <Chart options={chartOpts}
-                   recording={recording}
-                   setErr={setErr}
-                   activeDuration={activeDuration}
-                   direct={direct}
-                   minidspRs={minidspRs}
-                   selectedDeviceName={selectedDeviceName}/>
+                   streamer={streamer}/>
         </>
     );
 };
 
-export {
-    EMPTY_PAYLOAD
-};
 export default Levels;

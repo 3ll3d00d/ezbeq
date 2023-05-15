@@ -1,10 +1,10 @@
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {createTheme, StyledEngineProvider, ThemeProvider} from '@mui/material/styles';
 import {makeStyles} from '@mui/styles';
 import ezbeq from './services/ezbeq';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import CssBaseline from '@mui/material/CssBaseline';
-import {pushData} from "./services/util";
+import {pushData, useLocalStorage} from "./services/util";
 import Footer from "./components/Footer";
 import {BottomNavigation, BottomNavigationAction} from "@mui/material";
 import LocalLibraryIcon from '@mui/icons-material/LocalLibrary';
@@ -14,6 +14,7 @@ import ErrorSnack from "./components/ErrorSnack";
 import MainView from "./components/main";
 import Levels from "./components/levels";
 import Minidsp from "./components/minidsp";
+import Streamer from "./services/streamer";
 
 const useStyles = makeStyles((theme) => ({
     root: {
@@ -66,6 +67,22 @@ const App = () => {
     const [selectedDeviceName, setSelectedDeviceName] = useState('');
     const [selectedNav, setSelectedNav] = useState('catalogue');
 
+    // levels
+    const [minidspRs, setMinidspRs] = useLocalStorage('chartMinidspRs', {
+        host: window.location.host,
+        device: 0,
+        port: 5380
+    });
+    const [direct, setDirect] = useLocalStorage('chartDirect', false);
+
+    const streamer = useMemo(() => {
+        return new Streamer(setErr);
+    }, [setErr]);
+
+    useEffect(() => {
+        streamer.setSelectedDeviceName(selectedDeviceName);
+    }, [streamer, selectedDeviceName]);
+
     // initial data load
     useEffect(() => {
         pushData(setEntries, ezbeq.load, setErr);
@@ -74,6 +91,13 @@ const App = () => {
     useEffect(() => {
         pushData(setAvailableDevices, ezbeq.getDevices, setErr);
     }, []);
+
+    useEffect(() => {
+        const url = direct
+            ? `ws://${minidspRs.host}:${minidspRs.port}/devices/${minidspRs.device}?levels=true`
+            : `ws://${window.location.host}/ws`;
+        streamer.setUrl(url);
+    }, [minidspRs, direct, streamer]);
 
     useEffect(() => {
         setShowBottomNav([...Object.keys(availableDevices)].find(k => availableDevices[k].hasOwnProperty('masterVolume')));
@@ -97,7 +121,6 @@ const App = () => {
         }
     }, [getSelectedDevice, selectedDeviceName, availableDevices]);
 
-    console.log('rendering');
     return (
         <StyledEngineProvider injectFirst>
             <ThemeProvider theme={theme}>
@@ -123,7 +146,11 @@ const App = () => {
                                 <Levels availableDevices={availableDevices}
                                         selectedDeviceName={selectedDeviceName}
                                         setSelectedDeviceName={setSelectedDeviceName}
-                                        setErr={setErr}/>
+                                        minidspRs={minidspRs}
+                                        setMinidspRs={setMinidspRs}
+                                        direct={direct}
+                                        setDirect={setDirect}
+                                        streamer={streamer}/>
                                 :
                                 <Minidsp availableDevices={availableDevices}
                                          selectedDeviceName={selectedDeviceName}

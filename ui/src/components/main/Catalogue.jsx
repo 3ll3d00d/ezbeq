@@ -56,10 +56,7 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, showB
                                   sort: 'asc',
                               },
                           ]}
-                          onRowSelectionModelChange={e => {
-                              console.log(e[0]);
-                              setSelectedEntryId(e[0]);
-                          }}
+                          onRowSelectionModelChange={ e => setSelectedEntryId(e[0]) }
                           columnVisibilityModel={{
                               sortTitle: false,
                               edition: useWide,
