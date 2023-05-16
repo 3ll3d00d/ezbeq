@@ -2,7 +2,7 @@ const NO_DATA_ERROR = new Error("No data in levels update");
 
 const EMPTY_PAYLOAD = [[], [], [], [], [], [], []];
 
-class StreamerService {
+class LevelsService {
 
     constructor(setErr) {
         this.url = null;
@@ -10,13 +10,26 @@ class StreamerService {
         this.first = 0;
         this.chart = null;
         this.recording = true;
-        this.selectedDeviceName = null;
+        this.devices = [];
+        this.activeDevice = null;
         this.activeDuration = 60;
-        this.data = {
-            payload: EMPTY_PAYLOAD,
-            first: 0
-        };
+        this.data = {};
     }
+
+    loadDevices = (devices) => {
+        devices.forEach(d => {
+           if (this.devices.indexOf(d) === -1) {
+               this.devices.push(d);
+               this.data[d] =  {
+                   payload: EMPTY_PAYLOAD,
+                   first: 0
+               };
+               if (this.ws && this.ws.readyState === 1) {
+                   this.ws.send(`subscribe levels ${d}`);
+               }
+           }
+        });
+    };
 
     setRecording = (recording) => {
         this.recording = recording;
@@ -49,9 +62,7 @@ class StreamerService {
             };
             this.ws.onopen = e => {
                 console.log(`Connected to ${this.url}`);
-                if (this.selectedDeviceName) {
-                    this.ws.send(`subscribe levels ${this.selectedDeviceName}`);
-                }
+                this.devices.forEach(d => this.ws.send(`subscribe levels ${d}`));
             }
             this.ws.onclose = e => {
                 console.log(`Closed connection to ${this.url} - ${e.code}`);
@@ -64,21 +75,26 @@ class StreamerService {
                     } else if (payload.hasOwnProperty('masterVolume')) {
                         // ignore, status update from ezbeq
                     } else if (payload.hasOwnProperty('input_levels') || payload.hasOwnProperty('input')) {
-                        const newVals = payload.hasOwnProperty('input_levels')
-                            ? [new Date().getTime() / 1000.0, ...payload.input_levels, ...payload.output_levels]
-                            : [payload.ts, ...payload.input, ...payload.output];
-                        const d = this.data;
-                        if (d.payload[0].length > 0) {
-                            d.payload = newVals.map((v, idx) => idx === 0 ? [...d.payload[idx], (v - d.first)] : [...d.payload[idx], v]);
+                        if (payload.hasOwnProperty('name')) {
+                            const newVals = payload.hasOwnProperty('input_levels')
+                                ? [new Date().getTime() / 1000.0, ...payload.input_levels, ...payload.output_levels]
+                                : [payload.ts, ...payload.input, ...payload.output];
+                            const d = this.data[payload.name];
+                            if (d.payload[0].length > 0) {
+                                d.payload = newVals.map((v, idx) => idx === 0 ? [...d.payload[idx], (v - d.first)] : [...d.payload[idx], v]);
+                            } else {
+                                d.first = newVals[0];
+                                d.payload = newVals.map((v, idx) => idx === 0 ? [v - d.first] : [v]);
+                            }
+                            this.data[payload.name] = this.trimToDuration(d, this.activeDuration);
+                            if (this.chart && this.recording) {
+                                this.chart.setData(d.payload);
+                            }
                         } else {
-                            d.first = newVals[0];
-                            d.payload = newVals.map((v, idx) => idx === 0 ? [v - d.first] : [v]);
+                            console.warn('No name in payload');
+                            console.warn(payload);
                         }
-                        this.data = this.trimToDuration(d, this.activeDuration);
-                        if (this.chart && this.recording) {
-                            this.chart.setData(d.payload);
-                        }
-                    } else if (this.selectedDeviceName && payload.hasOwnProperty('master')) {
+                    } else if (this.activeDevice && payload.hasOwnProperty('master')) {
                         // ignore, status update from minidsprs
                     } else {
                         this.setErr(new Error(`Unexpected data ${payload}`));
@@ -88,11 +104,11 @@ class StreamerService {
         }
     };
 
-    setSelectedDeviceName = (selectedDeviceName) => {
-        const previous = this.selectedDeviceName;
-        this.selectedDeviceName = selectedDeviceName;
-        if (previous !== selectedDeviceName && selectedDeviceName && this.ws && this.ws.readyState === 1) {
-            this.ws.send(`subscribe levels ${selectedDeviceName}`);
+    setActiveDevice = (name) => {
+        if (this.devices.indexOf(name) > -1) {
+            this.activeDevice = name;
+        } else {
+            this.setErr(new Error(`Unknown device ${name}`));
         }
     };
 
@@ -125,4 +141,4 @@ class StreamerService {
 export {
     EMPTY_PAYLOAD
 };
-export default StreamerService;
+export default LevelsService;

@@ -717,6 +717,7 @@ class Minidsp(PersistentDevice[MinidspState]):
             ts = time.time()
             logger.info(f"{self.name},readlevels,{ts},{to_millis(start, end)}")
             return {
+                'name': self.name,
                 'ts': ts,
                 INPUT_NAME: levels['input_levels'],
                 OUTPUT_NAME: levels['output_levels']
@@ -756,6 +757,7 @@ class Minidsp(PersistentDevice[MinidspState]):
                 self._hydrate_cache_broadcast(do_it)
         if 'input_levels' in msg and 'output_levels' in msg:
             self.ws_server.levels(self.name, json.dumps({
+                'name': self.name,
                 'ts': time.time(),
                 INPUT_NAME: msg['input_levels'],
                 OUTPUT_NAME: msg['output_levels']

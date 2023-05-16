@@ -79,14 +79,14 @@ const App = () => {
         return new Streamer(setErr);
     }, [setErr]);
 
-    useEffect(() => {
-        streamer.setSelectedDeviceName(selectedDeviceName);
-    }, [streamer, selectedDeviceName]);
-
     // initial data load
     useEffect(() => {
         pushData(setEntries, ezbeq.load, setErr);
     }, []);
+
+    useEffect(() => {
+        streamer.loadDevices(Object.keys(availableDevices));
+    }, [streamer, availableDevices]);
 
     useEffect(() => {
         pushData(setAvailableDevices, ezbeq.getDevices, setErr);

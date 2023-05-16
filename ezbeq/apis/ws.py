@@ -77,9 +77,18 @@ class WsServerFactory(WebSocketServerFactory):
 
     def register_for_levels(self, device: str, client: WsProtocol):
         if device in self.__levels_provider:
-            logger.info(f"Transferring client {client.peer} from broadcast to level subscription for {device}")
-            self.__clients.remove(client)
-            self.__levels_client[device].append(client)
+            if client in self.__clients:
+                logger.info(f"Removing client {client.peer} from broadcast on level subscription for {device}")
+                self.__clients.remove(client)
+            # make sure the device is known
+            _ = self.__levels_client[device]
+            for k, v in self.__levels_client.items():
+                if k == device:
+                    if client in v:
+                        logger.warning(f"Client {client.peer} already subscribed to levels for {device}")
+                    else:
+                        logger.info(f"Client {client.peer} subscribed to levels for {device}")
+                        v.append(client)
             self.__levels_provider[device]()
         else:
             logger.warning(f"Unknown device {device} requested by {client.peer}")

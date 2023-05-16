@@ -128,7 +128,8 @@ const Levels = ({
                       minidspRs={minidspRs}
                       setMinidspRs={setMinidspRs}/>
             <Chart options={chartOpts}
-                   streamer={streamer}/>
+                   streamer={streamer}
+                   devices={Object.keys(availableDevices)}/>
         </>
     );
 };

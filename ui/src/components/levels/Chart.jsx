@@ -4,9 +4,10 @@ import 'uplot/dist/uPlot.min.css';
 import {EMPTY_PAYLOAD} from "../../services/streamer";
 
 
-const Chart = ({options, streamer}) => {
+const Chart = ({options, streamer, devices}) => {
 
     useEffect(() => {
+        streamer.loadDevices(devices);
         streamer.initWebsocket();
         return () => {
             streamer.close();
