@@ -80,15 +80,19 @@ class LevelsService {
                                 ? [new Date().getTime() / 1000.0, ...payload.input_levels, ...payload.output_levels]
                                 : [payload.ts, ...payload.input, ...payload.output];
                             const d = this.data[payload.name];
-                            if (d.payload[0].length > 0) {
-                                d.payload = newVals.map((v, idx) => idx === 0 ? [...d.payload[idx], (v - d.first)] : [...d.payload[idx], v]);
+                            if (d) {
+                                if (d.payload[0].length > 0) {
+                                    d.payload = newVals.map((v, idx) => idx === 0 ? [...d.payload[idx], (v - d.first)] : [...d.payload[idx], v]);
+                                } else {
+                                    d.first = newVals[0];
+                                    d.payload = newVals.map((v, idx) => idx === 0 ? [v - d.first] : [v]);
+                                }
+                                this.data[payload.name] = this.trimToDuration(d, this.activeDuration);
+                                if (this.chart && this.recording && payload.name === this.activeDevice) {
+                                    this.chart.setData(this.data[payload.name].payload);
+                                }
                             } else {
-                                d.first = newVals[0];
-                                d.payload = newVals.map((v, idx) => idx === 0 ? [v - d.first] : [v]);
-                            }
-                            this.data[payload.name] = this.trimToDuration(d, this.activeDuration);
-                            if (this.chart && this.recording) {
-                                this.chart.setData(d.payload);
+                                console.warn(`No cached data for ${payload.name}`);
                             }
                         } else {
                             console.warn('No name in payload');

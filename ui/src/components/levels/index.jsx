@@ -105,6 +105,10 @@ const Levels = ({
         streamer.setActiveDuration(activeDuration);
     }, [streamer, activeDuration]);
 
+    useEffect(() => {
+        streamer.setActiveDevice(selectedDeviceName);
+    }, [streamer, selectedDeviceName]);
+
     const chartOpts = Object.assign({}, opts, {
         width: window.innerWidth - 16,
         height: window.innerHeight - 233,

@@ -759,6 +759,8 @@ class Minidsp(PersistentDevice[MinidspState]):
             self.ws_server.levels(self.name, json.dumps({
                 'name': self.name,
                 'ts': time.time(),
+                # quick hack for testing purposes
+                # INPUT_NAME: [x + ((random() * 5) * (-1.0 if self.name == 'd1' else 1.0)) for x in msg['input_levels']],
                 INPUT_NAME: msg['input_levels'],
                 OUTPUT_NAME: msg['output_levels']
             }))
