@@ -37,6 +37,7 @@ class WsProtocol(WebSocketServerProtocol):
 
     def onClose(self, was_clean, code, reason):
         logger.info(f"WebSocket connection closed: clean? {was_clean}, code: {code}, reason: {reason}")
+        self.factory.unregister_for_levels(self)
 
     def onMessage(self, payload, is_binary):
         try:
@@ -92,6 +93,14 @@ class WsServerFactory(WebSocketServerFactory):
             self.__levels_provider[device]()
         else:
             logger.warning(f"Unknown device {device} requested by {client.peer}")
+
+    def unregister_for_levels(self, client: WsProtocol):
+        for k, v in self.__levels_client.items():
+            try:
+                v.remove(client)
+                logger.info(f"Client {client.peer} unsubscribed from levels for {k}")
+            except ValueError:
+                pass
 
     def unregister(self, client: WsProtocol):
         if client in self.__clients:
