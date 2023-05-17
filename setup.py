@@ -40,7 +40,7 @@ setup(
         "charset-normalizer==3.1.0; python_version >= '3.7'",
         "click==8.1.3; python_version >= '3.7'",
         "constantly==15.1.0",
-        "cryptography==40.0.2; python_version >= '3.6'",
+        "cryptography==40.0.1; python_version >= '3.6'",
         "flask==2.2.3; python_version >= '3.7'",
         "flask-compress==1.13",
         "flask-restx==1.1.0",

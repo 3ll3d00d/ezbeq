@@ -22,6 +22,7 @@ pytest = "*"
 pytest-httpserver = "*"
 pytest-cov = "*"
 pipenv-setup = "*"
+pipdeptree = "*"
 
 [requires]
 python_version = "3.8"
