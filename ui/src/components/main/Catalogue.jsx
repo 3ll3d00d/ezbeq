@@ -50,13 +50,10 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, showB
                           columns={catalogueGridColumns}
                           pageSize={50}
                           density={'compact'}
-                          sortModel={[
-                              {
-                                  field: 'sortTitle',
-                                  sort: 'asc',
-                              },
-                          ]}
-                          onRowSelectionModelChange={ e => setSelectedEntryId(e[0]) }
+                          initialState={{
+                              sorting: {sortModel: [{field: 'sortTitle', sort: 'asc'}]}
+                          }}
+                          onRowSelectionModelChange={e => setSelectedEntryId(e[0])}
                           columnVisibilityModel={{
                               sortTitle: false,
                               edition: useWide,
@@ -64,7 +61,7 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, showB
                           slots={{
                               toolbar: GridToolbar
                           }}
-                          slotProps={{ toolbar: { printOptions: { disableToolbarButton: true } } }}
+                          slotProps={{toolbar: {printOptions: {disableToolbarButton: true}}}}
                 />
             </Grid>;
         return useWide ? grid : <Grid container className={classes.noLeft}>{grid}</Grid>;
