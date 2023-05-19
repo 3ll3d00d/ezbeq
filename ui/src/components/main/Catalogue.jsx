@@ -57,7 +57,8 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, showB
             flex: 0.1,
             renderCell: params => (
                 <Avatar {...stringAvatar(params.row.author)} variant="rounded"/>
-            )
+            ),
+            sortable: false
         },
         {
             field: 'title',
@@ -72,14 +73,16 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, showB
         {
             field: 'audioTypes',
             headerName: 'Audio Type',
-            flex: 0.4
+            flex: 0.4,
+            sortable: false
         },
         {
             field: 'sortTitle',
         },
         {
             field: 'edition',
-            headerName: 'Edition'
+            headerName: 'Edition',
+            sortable: false
         }
     ];
     if (entries.length > 0) {
