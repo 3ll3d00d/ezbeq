@@ -116,8 +116,6 @@ def main(args=None):
                 elif cfg.webapp_path is not None:
                     uiRoot = cfg.webapp_path
                 else:
-                    # release script moves the ui under the analyser package because setuptools doesn't seem to include
-                    # files from outside the package
                     uiRoot = os.path.join(os.path.dirname(__file__), 'ui')
                 logger.info('Serving ui from ' + str(uiRoot))
                 self.react = ReactApp(uiRoot)

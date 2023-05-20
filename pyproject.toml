@@ -1,0 +1,42 @@
+[tool.poetry]
+name = "ezbeq"
+version = "1.0.0b17"
+description = "A webapp which can send beqcatalogue filters to a DSP device"
+authors = ["3ll3d00d <mattkhan+ezbeq@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://ezbeq.readthedocs.io/"
+repository = "https://github.com/3ll3d00d/ezbeq"
+include = [
+    "LICENSE",
+    "ezbeq/ui/**/*",
+    "VERSION"
+]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+Flask-Compress = "^1.13"
+PyYAML = "^6.0"
+plumbum = "^1.8.1"
+Twisted = "^22.10.0"
+requests = "^2.30.0"
+python-dateutil = "^2.8.2"
+autobahn = {extras = ["twisted"], version = "^23.1.2"}
+semver = "^3.0.0"
+flask-restx = "^1.1.0"
+
+[tool.poetry.group.dev.dependencies]
+mkdocs = "^1.4.3"
+mkdocs-material = "^9.1.13"
+mkdocs-material-extensions = "^1.1.1"
+pytest = "^7.3.1"
+pytest-httpserver = "^1.0.7"
+pytest-cov = "^4.0.0"
+pipdeptree = "^2.7.1"
+
+[tool.poetry.scripts]
+ezbeq = 'ezbeq.main:main'
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

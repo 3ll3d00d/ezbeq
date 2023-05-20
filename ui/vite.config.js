@@ -5,7 +5,7 @@ import circleDependency from 'vite-plugin-circular-dependency'
 export default defineConfig(() => {
     return {
         build: {
-            outDir: 'build',
+            outDir: '../ezbeq/ui',
         },
         plugins: [
             react(),
