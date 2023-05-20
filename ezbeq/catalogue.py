@@ -164,10 +164,10 @@ class CatalogueEntry:
                         current = int(ep)
                         if last_value == current - 1:
                             working.append(ep)
-                            last_value = current
                         else:
                             formatted += self.__format_episodes(formatted, working)
-                            working = []
+                            working = [ep]
+                        last_value = current
                 if len(working) > 0:
                     formatted += self.__format_episodes(formatted, working)
             else:
