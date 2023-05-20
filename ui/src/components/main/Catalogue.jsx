@@ -13,12 +13,6 @@ const formatTitle = entry => {
     return entry.formattedTitle;
 };
 
-const CatalogueToolbar = () =>
-            <GridToolbarContainer>
-                <GridToolbarFilterButton />
-                <GridToolbarDensitySelector />
-            </GridToolbarContainer>;
-
 const stringToColor = string => {
     let hash = 0;
     let i;
@@ -48,7 +42,7 @@ const stringAvatar = name => {
     };
 }
 
-const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, showBottomNav}) => {
+const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, showBottomNav, device}) => {
     const classes = useStyles();
     const catalogueGridColumns = [
         {
@@ -86,10 +80,23 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, showB
         }
     ];
     if (entries.length > 0) {
-        const bottomNavHeight = showBottomNav ? 40 : 0;
+        const topNav = 64;
+        const gain = 56;
+        const deviceRowHeight = 59;
+        const deviceRows = device && device.slots ? Math.ceil(device.slots.length / 2) : 0;
+        const upperNavHeight = topNav + (showBottomNav ? gain : 0) + (deviceRows * deviceRowHeight);
+        const bottomNavShouldBeVisible = showBottomNav || selectedEntryId === -1;
+        const bottomNavHeight = bottomNavShouldBeVisible ? (showBottomNav ? 80 : 24) : 0;
+        // portrait mode so reduce space allocated to the grid
+        const halfHeight = selectedEntryId !== -1 && !useWide;
+        const gridHeight = Math.max(260, (window.innerHeight - upperNavHeight - bottomNavHeight) / (halfHeight ? 2 : 1));
+        console.debug(`showBottom: ${showBottomNav} / ${selectedEntryId} / ${useWide} / ${deviceRows} * ${deviceRowHeight} / ${halfHeight}`);
+        console.debug(`numerator: ${window.innerHeight} - ${upperNavHeight} - ${bottomNavHeight} = ${window.innerHeight - upperNavHeight - bottomNavHeight}`);
+        console.debug(`denominator: ${halfHeight ? 2 : 1}`);
+        console.debug(`Grid Height: ${gridHeight}`);
         const grid =
             <Grid item style={{
-                height: `${Math.max(260, (window.innerHeight - 310 - bottomNavHeight) / (selectedEntryId === -1 || useWide ? 1 : 2))}px`,
+                height: `${gridHeight}px`,
                 width: '100%'
             }}>
                 <DataGrid rows={entries}
@@ -99,8 +106,6 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, showB
                           initialState={{ sorting: {sortModel: [{field: 'sortTitle', sort: 'asc'}]} }}
                           onRowSelectionModelChange={e => setSelectedEntryId(e[0])}
                           columnVisibilityModel={{sortTitle: false, edition: useWide}}
-                          slots={{toolbar: CatalogueToolbar}}
-                          slotProps={{toolbar: {printOptions: {disableToolbarButton: true}}}}
                 />
             </Grid>;
         return useWide ? grid : <Grid container className={classes.noLeft}>{grid}</Grid>;

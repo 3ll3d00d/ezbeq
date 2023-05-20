@@ -107,7 +107,8 @@ const MainView = ({
                                  setSelectedEntryId={setSelectedEntryId}
                                  selectedEntryId={selectedEntryId}
                                  useWide={useWide}
-                                 showBottomNav={showBottomNav}/>;
+                                 showBottomNav={showBottomNav}
+                                 device={getSelectedDevice()}/>;
     const entry = <Entry selectedDeviceName={selectedDeviceName}
                          selectedEntry={selectedEntryId ? entries.find(e => e.id === selectedEntryId) : null}
                          useWide={useWide}
