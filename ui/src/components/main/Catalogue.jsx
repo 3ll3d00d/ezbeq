@@ -1,17 +1,23 @@
-import {makeStyles} from "@mui/styles";
 import React from "react";
 import {Avatar, Grid} from "@mui/material";
-import {DataGrid, GridToolbarContainer, GridToolbarDensitySelector, GridToolbarFilterButton} from "@mui/x-data-grid";
-
-const useStyles = makeStyles((theme) => ({
-    noLeft: {
-        marginLeft: '0px'
-    }
-}));
+import {DataGrid} from "@mui/x-data-grid";
+import {styled} from "@mui/material/styles";
 
 const formatTitle = entry => {
     return entry.formattedTitle;
 };
+
+const UnpaddedDataGrid = styled(DataGrid)(({theme}) => ({
+    '.MuiDataGrid-footerContainer': {
+        minHeight: '36px'
+    },
+    '.MuiTablePagination-toolbar': {
+        minHeight: '36px'
+    },
+    '.MuiTablePagination-displayedRows': {
+        margin: '0px'
+    }
+}));
 
 const stringToColor = string => {
     let hash = 0;
@@ -36,14 +42,13 @@ const stringToColor = string => {
 const stringAvatar = name => {
     return {
         sx: {
-            bgcolor: stringToColor(name),
+            bgcolor: stringToColor(name)
         },
         children: `${name.split(' ')[0][0]}`,
     };
 }
 
 const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, hasMultipleTabs, device}) => {
-    const classes = useStyles();
     const catalogueGridColumns = [
         {
             field: 'author',
@@ -98,16 +103,20 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, hasMu
                 height: `${gridHeight}px`,
                 width: '100%'
             }}>
-                <DataGrid rows={entries}
-                          columns={catalogueGridColumns}
-                          pageSize={50}
-                          density={'compact'}
-                          initialState={{ sorting: {sortModel: [{field: 'sortTitle', sort: 'asc'}]} }}
-                          onRowSelectionModelChange={e => setSelectedEntryId(e[0])}
-                          columnVisibilityModel={{sortTitle: false, edition: useWide}}
+                <UnpaddedDataGrid rows={entries}
+                                  columns={catalogueGridColumns}
+                                  pageSize={50}
+                                  density={'compact'}
+                                  initialState={{sorting: {sortModel: [{field: 'sortTitle', sort: 'asc'}]}}}
+                                  onRowSelectionModelChange={e => setSelectedEntryId(e[0])}
+                                  columnVisibilityModel={{sortTitle: false, edition: useWide}}
+                                  sx={{p: 0, '& .avatar': { paddingLeft: '0px', paddingRight: '0px' }}}
+                                  disableColumnMenu={true}
+                                  getCellClassName={(params) => params.field === 'author' ? 'avatar' : ''}
+                                  hideFooterSelectedRowCount={true}
                 />
             </Grid>;
-        return useWide ? grid : <Grid container className={classes.noLeft}>{grid}</Grid>;
+        return useWide ? grid : <Grid container sx={{ml: 0}}>{grid}</Grid>;
     } else {
         return null;
     }
