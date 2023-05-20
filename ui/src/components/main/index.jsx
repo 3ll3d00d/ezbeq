@@ -3,11 +3,11 @@ import Filter from "./Filter";
 import {Grid} from "@mui/material";
 import React, {useEffect, useState} from "react";
 import {pushData, useLocalStorage} from "../../services/util";
-import useMediaQuery from "@mui/material/useMediaQuery";
 import Slots from "./Slots";
 import Catalogue from "./Catalogue";
 import Entry from "./Entry";
 import Search from "./Search";
+import Footer from "./Footer";
 
 const MainView = ({
                       entries,
@@ -16,10 +16,13 @@ const MainView = ({
                       replaceDevice,
                       selectedDeviceName,
                       setSelectedDeviceName,
-                      showBottomNav,
                       selectedSlotId,
                       setSelectedSlotId,
-                      getSelectedDevice
+                      getSelectedDevice,
+                      useWide,
+                      hasMultipleTabs,
+                      setSelectedNav,
+                      selectedNav
                   }) => {
     const [selectedAuthors, setSelectedAuthors] = useLocalStorage('selectedAuthors', []);
     const [selectedLanguages, setSelectedLanguages] = useState([]);
@@ -93,7 +96,6 @@ const MainView = ({
         }
     }, [getSelectedDevice, selectedSlotId, setTxtFilter, userDriven]);
 
-    const useWide = useMediaQuery('(orientation: landscape) and (min-height: 580px)');
     const devices = <Slots selectedDeviceName={selectedDeviceName}
                            selectedEntryId={selectedEntryId}
                            selectedSlotId={selectedSlotId}
@@ -107,7 +109,7 @@ const MainView = ({
                                  setSelectedEntryId={setSelectedEntryId}
                                  selectedEntryId={selectedEntryId}
                                  useWide={useWide}
-                                 showBottomNav={showBottomNav}
+                                 hasMultipleTabs={hasMultipleTabs}
                                  device={getSelectedDevice()}/>;
     const entry = <Entry selectedDeviceName={selectedDeviceName}
                          selectedEntry={selectedEntryId ? entries.find(e => e.id === selectedEntryId) : null}
@@ -116,12 +118,16 @@ const MainView = ({
                          selectedSlotId={selectedSlotId}
                          device={getSelectedDevice()}
                          setError={setErr}/>;
-
+    const footer = <Footer/>;
     return (
         <>
             <Header availableDeviceNames={Object.keys(availableDevices)}
                     setSelectedDeviceName={setSelectedDeviceName}
-                    selectedDeviceName={selectedDeviceName}>
+                    selectedDeviceName={selectedDeviceName}
+                    selectedNav={selectedNav}
+                    setSelectedNav={setSelectedNav}
+                    hasMultipleTabs={hasMultipleTabs}
+            >
                 <Search txtFilter={txtFilter}
                         setTxtFilter={setTxtFilter}
                         showFilters={showFilters}
@@ -151,6 +157,9 @@ const MainView = ({
                             <Grid container>
                                 {catalogue}
                             </Grid>
+                            <Grid container>
+                                {footer}
+                            </Grid>
                         </Grid>
                         <Grid item xs={6} md={6}>
                             {entry}
@@ -161,6 +170,7 @@ const MainView = ({
                         {devices}
                         {catalogue}
                         {entry}
+                        {footer}
                     </>
             }
         </>

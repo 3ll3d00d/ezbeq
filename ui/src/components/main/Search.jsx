@@ -1,73 +1,76 @@
+import {alpha, styled} from '@mui/material/styles';
 import SearchIcon from "@mui/icons-material/Search";
 import {FormControlLabel, IconButton, InputBase, Switch} from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
 import React from "react";
-import {makeStyles} from "@mui/styles";
-import {alpha} from "@mui/material/styles";
+import Box from "@mui/material/Box";
 
-const useStyles = makeStyles((theme) => ({
-    search: {
-        position: 'relative',
-        borderRadius: theme.shape.borderRadius,
-        backgroundColor: alpha(theme.palette.common.white, 0.15),
-        '&:hover': {
-            backgroundColor: alpha(theme.palette.common.white, 0.25),
-        },
-        width: '40%',
-        [theme.breakpoints.up('md')]: {
-            flexGrow: 1
-        },
+const SearchBar = styled('div')(({theme}) => ({
+    position: 'relative',
+    borderRadius: theme.shape.borderRadius,
+    backgroundColor: alpha(theme.palette.common.white, 0.15),
+    '&:hover': {
+        backgroundColor: alpha(theme.palette.common.white, 0.25),
     },
-    searchIcon: {
-        padding: theme.spacing(0, 2),
-        height: '100%',
-        position: 'absolute',
-        pointerEvents: 'none',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+    marginRight: theme.spacing(2),
+    marginLeft: 0,
+    width: '100%',
+    [theme.breakpoints.up('sm')]: {
+        marginLeft: theme.spacing(3),
+        width: 'auto',
     },
-    inputRoot: {
-        color: 'inherit',
-    },
-    inputInput: {
+}));
+
+const SearchIconWrapper = styled('div')(({theme}) => ({
+    padding: theme.spacing(0, 2),
+    height: '100%',
+    position: 'absolute',
+    pointerEvents: 'none',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+}));
+
+const StyledInputBase = styled(InputBase)(({theme}) => ({
+    color: 'inherit',
+    '& .MuiInputBase-input': {
         padding: theme.spacing(1, 1, 1, 0),
         // vertical padding + font size from searchIcon
-        paddingLeft: `calc(1em + ${theme.spacing(4)})`
+        paddingLeft: `calc(1em + ${theme.spacing(4)})`,
+        transition: theme.transitions.create('width'),
+        width: '100%',
+        [theme.breakpoints.up('md')]: {
+            width: '20ch',
+        },
     },
-    advancedFilter: {
-        marginLeft: '4px',
-        marginRight: '0px'
-    }
 }));
 
 const Search = ({txtFilter, setTxtFilter, showFilters, toggleShowFilters}) => {
-    const classes = useStyles();
     return <>
-        <div className={classes.search}>
-            <div className={classes.searchIcon}>
+        <SearchBar>
+            <SearchIconWrapper>
                 <SearchIcon/>
-            </div>
-            <InputBase
+            </SearchIconWrapper>
+            <StyledInputBase
                 placeholder="Search…"
-                classes={{
-                    root: classes.inputRoot,
-                    input: classes.inputInput,
-                }}
                 inputProps={{'aria-label': 'search'}}
                 value={txtFilter}
                 onChange={e => setTxtFilter(e.target.value)}
                 size={'small'}
                 fullWidth={true}
             />
-        </div>
+        </SearchBar>
         <IconButton onClick={e => setTxtFilter("")} size="large">
             <ClearIcon/>
         </IconButton>
-        <FormControlLabel className={classes.advancedFilter}
+        <FormControlLabel sx={{marginLeft: '4px'}}
                           control={
-                              <Switch checked={showFilters} onChange={toggleShowFilters} size={'small'} color="default"/>
+                              <Switch checked={showFilters}
+                                      onChange={toggleShowFilters}
+                                      size={'small'}
+                                      color="default"/>
                           }/>
+        <Box sx={{flexGrow: 1}}/>
     </>;
 };
 export default Search;

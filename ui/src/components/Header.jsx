@@ -1,77 +1,171 @@
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
-import {Avatar, FormControl, MenuItem, Select} from "@mui/material";
+import {Avatar, Divider, ListItemIcon, ListItemText, Menu, MenuItem, Tooltip} from "@mui/material";
 import beqcIcon from "../beqc.png";
-import Typography from "@mui/material/Typography";
 import React from "react";
-import {makeStyles} from "@mui/styles";
+import Box from "@mui/material/Box";
+import IconButton from "@mui/material/IconButton";
+import MenuIcon from '@mui/icons-material/Menu';
+import LocalLibraryIcon from "@mui/icons-material/LocalLibrary";
+import EqualizerIcon from "@mui/icons-material/Equalizer";
+import SettingsApplicationsIcon from "@mui/icons-material/SettingsApplications";
+import {Check} from "@mui/icons-material";
 
-const useStyles = makeStyles((theme) => ({
-    noLeftTop: {
-        marginLeft: '0px',
-        marginTop: '0px'
-    },
-    title: {
-        flexGrow: 1,
-        marginLeft: theme.spacing(1)
-    },
-    device: {
-        flexGrow: 1,
-        margin: theme.spacing(1),
-        [theme.breakpoints.down('md')]: {
-            flexGrow: 0.5
-        },
-    },
-    white: {
-        color: theme.palette.common.white,
-    },
-    smallAvatar: {
-        width: theme.spacing(3),
-        height: theme.spacing(3),
+const Header = ({
+                    availableDeviceNames,
+                    setSelectedDeviceName,
+                    selectedDeviceName,
+                    selectedNav,
+                    setSelectedNav,
+                    hasMultipleTabs,
+                    children
+                }) => {
+    const mobileMenuId = 'primary-search-account-menu-mobile';
+    const [mobileMoreAnchorEl, setMobileMoreAnchorEl] = React.useState(null);
+    const isMobileMenuOpen = Boolean(mobileMoreAnchorEl);
+    const handleMobileMenuClose = () => {
+        setMobileMoreAnchorEl(null);
+    };
+    const handleMobileMenuOpen = (event) => {
+        setMobileMoreAnchorEl(event.currentTarget);
+    };
+    const [mainMenuAnchorEl, setMainMenuAnchorEl] = React.useState(null);
+    const mainMenuOpen = Boolean(mainMenuAnchorEl);
+    const openMainMenu = (event) => {
+        setMainMenuAnchorEl(event.currentTarget);
+    };
+    const closeMainMenu = () => {
+        setMainMenuAnchorEl(null);
+    };
+    const tabNames = hasMultipleTabs ? ['Catalogue', 'Levels', 'Control'] : [];
+    const tabIcons = {
+        'Catalogue': <LocalLibraryIcon/>,
+        'Levels': <EqualizerIcon/>,
+        'Control': <SettingsApplicationsIcon/>
     }
-}));
+    const navMenuItems = tabNames.map(t =>
+        <MenuItem key={t} onClick={e => setSelectedNav(t.toLowerCase())}>
+            {selectedNav === t.toLowerCase() ? <ListItemIcon><Check/></ListItemIcon> : null}
+            <ListItemText inset={selectedNav !== t.toLowerCase()}>{t}</ListItemText>{tabIcons[t]}
+        </MenuItem>
+    );
+    const deviceMenuItems = availableDeviceNames.map(d =>
+        <MenuItem value={d}
+                  key={d}
+                  onClick={e => setSelectedDeviceName(d)}>
+            {d === selectedDeviceName ? <ListItemIcon><Check/></ListItemIcon> : null}
+            <ListItemText inset={d !== selectedDeviceName}>{d}</ListItemText>
+        </MenuItem>
+    );
 
-const Header = ({availableDeviceNames, setSelectedDeviceName, selectedDeviceName, children}) => {
-    const classes = useStyles();
+    const renderMobileMenu = (
+        <Menu anchorEl={mobileMoreAnchorEl}
+              anchorOrigin={{
+                  vertical: 'top',
+                  horizontal: 'right',
+              }}
+              id={mobileMenuId}
+              keepMounted
+              transformOrigin={{
+                  vertical: 'top',
+                  horizontal: 'right',
+              }}
+              open={isMobileMenuOpen}
+              onClose={handleMobileMenuClose}>
+            {navMenuItems}
+            {deviceMenuItems ? <Divider/> : null}
+            {deviceMenuItems}
+        </Menu>
+    );
+
     return (
-        <AppBar position="static" className={classes.noLeftTop}>
-            <Toolbar>
-                <Avatar alt="beqcatalogue"
-                        variant="rounded"
-                        src={beqcIcon}
-                        className={classes.smallAvatar}/>
-                {
-                    availableDeviceNames.length > 1
-                        ?
-                        <FormControl variant="standard" className={classes.device}>
-                            <Select
-                                variant="standard"
-                                labelId="device-select-label"
-                                id="device-select"
-                                value={selectedDeviceName ? selectedDeviceName : availableDeviceNames[0]}
-                                onChange={e => setSelectedDeviceName(e.target.value)}
-                                autoWidth={true}
-                                classes={{
-                                    select: classes.white,
-                                    icon: classes.white,
-                                }}>
-                                {
-                                    availableDeviceNames.map(d => <MenuItem value={d} key={d}>{d}</MenuItem>)
-                                }
-                            </Select>
-                        </FormControl>
-                        :
-                        (
-                            !availableDeviceNames || availableDeviceNames.length === 0
+        <Box sx={{flexGrow: 1}}>
+            <AppBar position="static" sx={{marginLeft: '0px', marginTop: '0px'}}>
+                <Toolbar>
+                    <Avatar alt="beqcatalogue"
+                            variant="rounded"
+                            src={beqcIcon}
+                            sx={{width: 32, height: 32}}/>
+                    <Box sx={{flexGrow: 1}}/>
+                    {children}
+                    {/* landscape layout */}
+                    <Box sx={{display: {xs: 'none', md: 'flex'}}}>
+                        {
+                            availableDeviceNames.length > 1
                                 ?
-                                null
+                                <>
+                                    <Tooltip title="Device Selection">
+                                        <IconButton
+                                            onClick={openMainMenu}
+                                            size="small"
+                                            sx={{ml: 2}}
+                                            aria-controls={mainMenuOpen ? 'device-menu' : undefined}
+                                            aria-haspopup="true"
+                                            aria-expanded={mainMenuOpen ? 'true' : undefined}
+                                        >
+                                            <MenuIcon/>
+                                        </IconButton>
+                                    </Tooltip>
+                                    <Menu
+                                        anchorEl={mainMenuAnchorEl}
+                                        id="device-menu"
+                                        open={mainMenuOpen}
+                                        onClose={closeMainMenu}
+                                        onClick={closeMainMenu}
+                                        PaperProps={{
+                                            elevation: 0,
+                                            sx: {
+                                                overflow: 'visible',
+                                                filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.32))',
+                                                mt: 1.5,
+                                                '& .MuiAvatar-root': {
+                                                    width: 32,
+                                                    height: 32,
+                                                    ml: -0.5,
+                                                    mr: 1,
+                                                },
+                                                '&:before': {
+                                                    content: '""',
+                                                    display: 'block',
+                                                    position: 'absolute',
+                                                    top: 0,
+                                                    right: 14,
+                                                    width: 10,
+                                                    height: 10,
+                                                    bgcolor: 'background.paper',
+                                                    transform: 'translateY(-50%) rotate(45deg)',
+                                                    zIndex: 0,
+                                                },
+                                            },
+                                        }}
+                                        transformOrigin={{horizontal: 'right', vertical: 'top'}}
+                                        anchorOrigin={{horizontal: 'right', vertical: 'bottom'}}
+                                    >
+                                        {navMenuItems}
+                                        {deviceMenuItems ? <Divider/> : null}
+                                        {deviceMenuItems}
+                                    </Menu>
+                                </>
                                 :
-                                <Typography className={classes.title} variant="h6" noWrap>ezbeq</Typography>
-                        )
-                }
-                {children}
-            </Toolbar>
-        </AppBar>
+                                null
+                        }
+                    </Box>
+                    {/* landscape layout */}
+                    <Box sx={{display: {xs: 'flex', md: 'none'}}}>
+                        <IconButton
+                            size="large"
+                            aria-label="show more"
+                            aria-controls={mobileMenuId}
+                            aria-haspopup="true"
+                            onClick={handleMobileMenuOpen}
+                            color="inherit">
+                            <MenuIcon/>
+                        </IconButton>
+                    </Box>
+                </Toolbar>
+            </AppBar>
+            {renderMobileMenu}
+        </Box>
     );
 };
 

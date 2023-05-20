@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from "react";
-import ezbeq from "../services/ezbeq";
-import {pushData} from "../services/util";
+import ezbeq from "../../services/ezbeq";
+import {pushData} from "../../services/util";
 import {Grid} from "@mui/material";
 import Typography from "@mui/material/Typography";
 import {makeStyles} from "@mui/styles";

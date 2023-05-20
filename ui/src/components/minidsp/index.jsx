@@ -60,7 +60,15 @@ const getStyles = (output, outputs, theme) => {
     };
 };
 
-const SelectableSlots = ({name, values, availableValues, onChange}) => {
+const SelectableSlots = ({
+                             name,
+                             values,
+                             availableValues,
+                             onChange,
+                             hasMultipleTabs,
+                             setSelectedNav,
+                             selectedNav
+                         }) => {
     const classes = useStyles();
     const theme = useTheme();
     return (
@@ -94,7 +102,16 @@ const SelectableSlots = ({name, values, availableValues, onChange}) => {
     );
 };
 
-const Minidsp = ({availableDevices, setSelectedDeviceName, selectedDeviceName, selectedSlotId, setErr}) => {
+const Minidsp = ({
+                     availableDevices,
+                     setSelectedDeviceName,
+                     selectedDeviceName,
+                     selectedSlotId,
+                     setErr,
+                     hasMultipleTabs,
+                     setSelectedNav,
+                     selectedNav
+                 }) => {
     const classes = useStyles();
     const [inputs, setInputs] = useLocalStorage(`minidspInputs.${selectedDeviceName}.${selectedSlotId}`, []);
     const [outputs, setOutputs] = useLocalStorage(`minidspOutputs.${selectedDeviceName}.${selectedSlotId}`, []);
@@ -121,8 +138,8 @@ const Minidsp = ({availableDevices, setSelectedDeviceName, selectedDeviceName, s
     useEffect(() => {
         if (availableDevices && selectedDeviceName && selectedSlotId) {
             const slot = availableDevices[selectedDeviceName].slots.find(s => s.id === selectedSlotId);
-            setInputChannels(Array.from(Array(slot.inputs).keys()).map(i => i+1));
-            setOutputChannels(Array.from(Array(slot.outputs).keys()).map(i => i+1));
+            setInputChannels(Array.from(Array(slot.inputs).keys()).map(i => i + 1));
+            setOutputChannels(Array.from(Array(slot.outputs).keys()).map(i => i + 1));
         }
     }, [availableDevices, selectedDeviceName, selectedSlotId]);
 
@@ -141,8 +158,11 @@ const Minidsp = ({availableDevices, setSelectedDeviceName, selectedDeviceName, s
     return <>
         <Header availableDeviceNames={Object.keys(availableDevices)}
                 setSelectedDeviceName={setSelectedDeviceName}
-                selectedDeviceName={selectedDeviceName}>
-        </Header>
+                selectedDeviceName={selectedDeviceName}
+                selectedNav={selectedNav}
+                setSelectedNav={setSelectedNav}
+                hasMultipleTabs={hasMultipleTabs}
+        />
         <form className={classes.root} noValidate autoComplete="off">
             <Grid container>
                 <Grid container justifyContent="space-evenly" alignItems="center">

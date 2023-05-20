@@ -5,11 +5,6 @@ import ezbeq from './services/ezbeq';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import CssBaseline from '@mui/material/CssBaseline';
 import {pushData, useLocalStorage} from "./services/util";
-import Footer from "./components/Footer";
-import {BottomNavigation, BottomNavigationAction} from "@mui/material";
-import LocalLibraryIcon from '@mui/icons-material/LocalLibrary';
-import EqualizerIcon from '@mui/icons-material/Equalizer';
-import SettingsApplicationsIcon from '@mui/icons-material/SettingsApplications';
 import ErrorSnack from "./components/ErrorSnack";
 import MainView from "./components/main";
 import Levels from "./components/levels";
@@ -55,7 +50,7 @@ const App = () => {
         replaceDevice(JSON.parse(event.data));
     };
 
-    const [showBottomNav, setShowBottomNav] = useState(false);
+    const [hasMultipleTabs, setHasMultipleTabs] = useState(false);
     // errors
     const [err, setErr] = useState(null);
     // catalogue data
@@ -100,8 +95,8 @@ const App = () => {
     }, [minidspRs, direct, streamer]);
 
     useEffect(() => {
-        setShowBottomNav([...Object.keys(availableDevices)].find(k => availableDevices[k].hasOwnProperty('masterVolume')));
-    }, [availableDevices, setShowBottomNav]);
+        setHasMultipleTabs([...Object.keys(availableDevices)].find(k => availableDevices[k].hasOwnProperty('masterVolume')));
+    }, [availableDevices, setHasMultipleTabs]);
 
     const getSelectedDevice = useCallback(() => {
             if (selectedDeviceName && availableDevices.hasOwnProperty(selectedDeviceName)) {
@@ -121,6 +116,8 @@ const App = () => {
         }
     }, [getSelectedDevice, selectedDeviceName, availableDevices]);
 
+    const useWide = useMediaQuery('(orientation: landscape) and (min-height: 580px)');
+
     return (
         <StyledEngineProvider injectFirst>
             <ThemeProvider theme={theme}>
@@ -139,7 +136,11 @@ const App = () => {
                                       getSelectedDevice={getSelectedDevice}
                                       selectedSlotId={selectedSlotId}
                                       setSelectedSlotId={setSelectedSlotId}
-                                      showBottomNav={showBottomNav}/>
+                                      hasMultipleTabs={hasMultipleTabs}
+                                      useWide={useWide}
+                                      selectedNav={selectedNav}
+                                      setSelectedNav={setSelectedNav}
+                            />
                             :
                             selectedNav === 'levels'
                                 ?
@@ -150,29 +151,22 @@ const App = () => {
                                         setMinidspRs={setMinidspRs}
                                         direct={direct}
                                         setDirect={setDirect}
-                                        streamer={streamer}/>
+                                        streamer={streamer}
+                                        hasMultipleTabs={hasMultipleTabs}
+                                        selectedNav={selectedNav}
+                                        setSelectedNav={setSelectedNav}
+                                />
                                 :
                                 <Minidsp availableDevices={availableDevices}
                                          selectedDeviceName={selectedDeviceName}
                                          setSelectedDeviceName={setSelectedDeviceName}
                                          selectedSlotId={selectedSlotId}
-                                         setErr={setErr}/>
+                                         setErr={setErr}
+                                         hasMultipleTabs={hasMultipleTabs}
+                                         selectedNav={selectedNav}
+                                         setSelectedNav={setSelectedNav}
+                                />
                     }
-                    {
-                        showBottomNav
-                            ?
-                            <BottomNavigation value={selectedNav}
-                                              onChange={(event, newValue) => {
-                                                  setSelectedNav(newValue);
-                                              }}>
-                                <BottomNavigationAction label="Catalogue" value="catalogue" icon={<LocalLibraryIcon/>}/>
-                                <BottomNavigationAction label="Levels" value="levels" icon={<EqualizerIcon/>}/>
-                                <BottomNavigationAction label="Control" value="control"
-                                                        icon={<SettingsApplicationsIcon/>}/>
-                            </BottomNavigation>
-                            : null
-                    }
-                    <Footer/>
                 </Root>
             </ThemeProvider>
         </StyledEngineProvider>

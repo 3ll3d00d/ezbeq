@@ -5,6 +5,7 @@ import {FormControlLabel, Switch, useTheme} from "@mui/material";
 import {debounce} from "lodash/function";
 import Chart from "./Chart";
 import {useLocalStorage} from "../../services/util";
+import Box from "@mui/material/Box";
 
 const Levels = ({
                     availableDevices,
@@ -14,7 +15,10 @@ const Levels = ({
                     setMinidspRs,
                     direct,
                     setDirect,
-                    streamer
+                    streamer,
+                    hasMultipleTabs,
+                    setSelectedNav,
+                    selectedNav
                 }) => {
     const theme = useTheme();
     const [showAdvanced, setShowAdvanced] = useState(false);
@@ -117,9 +121,15 @@ const Levels = ({
         <>
             <Header availableDeviceNames={Object.keys(availableDevices)}
                     setSelectedDeviceName={setSelectedDeviceName}
-                    selectedDeviceName={selectedDeviceName}>
+                    selectedDeviceName={selectedDeviceName}
+                    selectedNav={selectedNav}
+                    setSelectedNav={setSelectedNav}
+                    hasMultipleTabs={hasMultipleTabs}
+            >
                 <FormControlLabel control={
-                    <Switch checked={showAdvanced} onChange={e => setShowAdvanced(e.target.checked)} size={'small'}/>
+                    <Switch checked={showAdvanced}
+                            onChange={e => setShowAdvanced(e.target.checked)}
+                            size={'small'}/>
                 }/>
             </Header>
             <Controls duration={duration}
