@@ -20,7 +20,7 @@ const Header = ({
                     hasMultipleTabs,
                     children
                 }) => {
-    const mobileMenuId = 'primary-search-account-menu-mobile';
+    const mobileMenuId = 'mobile-menu';
     const [mobileMoreAnchorEl, setMobileMoreAnchorEl] = React.useState(null);
     const isMobileMenuOpen = Boolean(mobileMoreAnchorEl);
     const handleMobileMenuClose = () => {
@@ -29,6 +29,8 @@ const Header = ({
     const handleMobileMenuOpen = (event) => {
         setMobileMoreAnchorEl(event.currentTarget);
     };
+
+    const mainMenuId = 'main-menu';
     const [mainMenuAnchorEl, setMainMenuAnchorEl] = React.useState(null);
     const mainMenuOpen = Boolean(mainMenuAnchorEl);
     const openMainMenu = (event) => {
@@ -59,12 +61,12 @@ const Header = ({
     );
 
     const renderMobileMenu = (
-        <Menu anchorEl={mobileMoreAnchorEl}
+        <Menu id={mobileMenuId}
+              anchorEl={mobileMoreAnchorEl}
               anchorOrigin={{
                   vertical: 'top',
                   horizontal: 'right',
               }}
-              id={mobileMenuId}
               keepMounted
               transformOrigin={{
                   vertical: 'top',
@@ -78,6 +80,49 @@ const Header = ({
         </Menu>
     );
 
+    const renderMainMenu = (
+        <Menu id="main-menu"
+              anchorEl={mainMenuAnchorEl}
+              open={mainMenuOpen}
+              onClose={closeMainMenu}
+              onClick={closeMainMenu}
+              PaperProps={{
+                  elevation: 0,
+                  sx: {
+                      overflow: 'visible',
+                      filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.32))',
+                      mt: 1.5,
+                      '& .MuiAvatar-root': {
+                          width: 32,
+                          height: 32,
+                          ml: -0.5,
+                          mr: 1,
+                      },
+                      '&:before': {
+                          content: '""',
+                          display: 'block',
+                          position: 'absolute',
+                          top: 0,
+                          right: 14,
+                          width: 10,
+                          height: 10,
+                          bgcolor: 'background.paper',
+                          transform: 'translateY(-50%) rotate(45deg)',
+                          zIndex: 0,
+                      },
+                  },
+              }}
+              transformOrigin={{horizontal: 'right', vertical: 'top'}}
+              anchorOrigin={{horizontal: 'right', vertical: 'bottom'}}
+        >
+            {navMenuItems}
+            {deviceMenuItems ? <Divider/> : null}
+            {deviceMenuItems}
+        </Menu>
+    );
+
+    const shouldShowMenu = availableDeviceNames.length > 1 || hasMultipleTabs;
+
     return (
         <Box sx={{flexGrow: 1}}>
             <AppBar position="static" sx={{marginLeft: '0px', marginTop: '0px'}}>
@@ -88,83 +133,43 @@ const Header = ({
                             sx={{width: 32, height: 32}}/>
                     <Box sx={{flexGrow: 1}}/>
                     {children}
-                    {/* landscape layout */}
                     <Box sx={{display: {xs: 'none', md: 'flex'}}}>
                         {
-                            availableDeviceNames.length > 1
+                            shouldShowMenu
                                 ?
-                                <>
-                                    <Tooltip title="Device Selection">
-                                        <IconButton
-                                            onClick={openMainMenu}
-                                            size="small"
-                                            sx={{ml: 2}}
-                                            aria-controls={mainMenuOpen ? 'device-menu' : undefined}
-                                            aria-haspopup="true"
-                                            aria-expanded={mainMenuOpen ? 'true' : undefined}
-                                        >
-                                            <MenuIcon/>
-                                        </IconButton>
-                                    </Tooltip>
-                                    <Menu
-                                        anchorEl={mainMenuAnchorEl}
-                                        id="device-menu"
-                                        open={mainMenuOpen}
-                                        onClose={closeMainMenu}
-                                        onClick={closeMainMenu}
-                                        PaperProps={{
-                                            elevation: 0,
-                                            sx: {
-                                                overflow: 'visible',
-                                                filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.32))',
-                                                mt: 1.5,
-                                                '& .MuiAvatar-root': {
-                                                    width: 32,
-                                                    height: 32,
-                                                    ml: -0.5,
-                                                    mr: 1,
-                                                },
-                                                '&:before': {
-                                                    content: '""',
-                                                    display: 'block',
-                                                    position: 'absolute',
-                                                    top: 0,
-                                                    right: 14,
-                                                    width: 10,
-                                                    height: 10,
-                                                    bgcolor: 'background.paper',
-                                                    transform: 'translateY(-50%) rotate(45deg)',
-                                                    zIndex: 0,
-                                                },
-                                            },
-                                        }}
-                                        transformOrigin={{horizontal: 'right', vertical: 'top'}}
-                                        anchorOrigin={{horizontal: 'right', vertical: 'bottom'}}
-                                    >
-                                        {navMenuItems}
-                                        {deviceMenuItems ? <Divider/> : null}
-                                        {deviceMenuItems}
-                                    </Menu>
-                                </>
+                                <IconButton
+                                    onClick={openMainMenu}
+                                    size="small"
+                                    sx={{ml: 2}}
+                                    aria-controls={mainMenuOpen ? 'device-menu' : undefined}
+                                    aria-haspopup="true"
+                                    aria-expanded={mainMenuOpen ? 'true' : undefined}
+                                >
+                                    <MenuIcon/>
+                                </IconButton>
                                 :
                                 null
                         }
                     </Box>
-                    {/* landscape layout */}
                     <Box sx={{display: {xs: 'flex', md: 'none'}}}>
-                        <IconButton
-                            size="large"
-                            aria-label="show more"
-                            aria-controls={mobileMenuId}
-                            aria-haspopup="true"
-                            onClick={handleMobileMenuOpen}
-                            color="inherit">
-                            <MenuIcon/>
-                        </IconButton>
+                        {
+                            shouldShowMenu
+                                ?
+                                <IconButton
+                                    size="large"
+                                    aria-label="show more"
+                                    aria-controls={mobileMenuId}
+                                    aria-haspopup="true"
+                                    onClick={handleMobileMenuOpen}>
+                                    <MenuIcon/>
+                                </IconButton>
+                                : null
+                        }
                     </Box>
                 </Toolbar>
             </AppBar>
             {renderMobileMenu}
+            {renderMainMenu}
         </Box>
     );
 };
