@@ -180,7 +180,7 @@ class Htp1(PersistentDevice[Htp1State]):
 
 class Htp1Client:
 
-    def __init__(self, ip, listener):
+    def __init__(self, ip, listener: Htp1):
         self.__factory = Htp1ClientFactory(listener, f"ws://{ip}/ws/controller")
         self.__connector = connectWS(self.__factory)
 
@@ -228,10 +228,10 @@ class Htp1ClientFactory(WebSocketClientFactory, ReconnectingClientFactory):
     maxDelay = 5
     initialDelay = 0.5
 
-    def __init__(self, listener, *args, **kwargs):
+    def __init__(self, listener: Htp1, *args, **kwargs):
         super(Htp1ClientFactory, self).__init__(*args, **kwargs)
         self.__clients: List[Htp1Protocol] = []
-        self.listener = listener
+        self.listener: Htp1 = listener
         self.setProtocolOptions(version=13)
 
     def clientConnectionFailed(self, connector, reason):

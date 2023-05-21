@@ -211,7 +211,7 @@ TODO
 
 #### JRiver Media Center
 
-NB: Media Network must be enabled
+Media Network must be enabled
 
 ```
   jriver:
@@ -269,6 +269,40 @@ The component name should be supplied in the configuration above.
 An optional `content_info` list of components can also be supplied. Each named component listed (`beq_movie_info` in the example above) is a [Custom Control](https://q-syshelp.qsc.com/Index.htm#Schematic_Library/custom_controls.htm) component which contains 1 or more text fields. The listed fields are a mapping of control key to `CatalogueEntry` field name.
 
 The images field has special treatment as there can be a variable number of images, may be multiple images
+
+#### CamillaDSP
+
+[CamillaDSP](https://github.com/HEnquist/camilladsp) is supported via its [websocket](https://github.com/HEnquist/camilladsp/blob/master/websocket.md) api which means CamillaDSP must be started with additional options:
+
+* `-p` to specify the port
+* `-a` to specify the listen address (required if ezbeq runs on a different host to camilladsp)
+
+```
+  camilla:
+    ip: 192.168.1.181
+    port: 1710
+    timeout_secs: 2
+    channels: 
+    - 4
+    - 7
+    type: camilladsp
+```
+
+* ip: the ip on which camilladsp is listening
+* port: the port on which camilladsp is listening
+* channels: a list of channel numbers to which BEQ filters will be appended
+
+On load, the camilladsp configuration will be updated as follows:
+
+* each filter will be added to the `Filters` section in [IIR](https://github.com/HEnquist/camilladsp#iir) format using one of the Peaking, HighShelf or LowShelf filter types. Filter names will be BEQ1 to BEQ10 
+* each filter will be appended to the [Pipeline](https://github.com/HEnquist/camilladsp#pipeline) for the specified channel, an entry of type `Filter` will be added if not already present for that channel
+
+On unload, the camilladsp configuration will be updated as follows:
+
+* the filters will deleted from the `Filters` section
+* the filters will be removed from the `Pipeline` section
+
+Volume adjustments are not supported at this point.
 
 ## Starting ezbeq on bootup
 
