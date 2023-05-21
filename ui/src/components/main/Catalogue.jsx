@@ -98,6 +98,7 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, hasMu
         // console.debug(`numerator: ${window.innerHeight} - ${upperNavHeight} - ${bottomNavHeight} = ${window.innerHeight - upperNavHeight - bottomNavHeight}`);
         // console.debug(`denominator: ${halfHeight ? 2 : 1}`);
         // console.debug(`Grid Height: ${gridHeight}`);
+        const authors = new Set(entries.map(e => e.author));
         const grid =
             <Grid item style={{
                 height: `${gridHeight}px`,
@@ -109,7 +110,7 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, hasMu
                                   density={'compact'}
                                   initialState={{sorting: {sortModel: [{field: 'sortTitle', sort: 'asc'}]}}}
                                   onRowSelectionModelChange={e => setSelectedEntryId(e[0])}
-                                  columnVisibilityModel={{sortTitle: false, edition: useWide}}
+                                  columnVisibilityModel={{sortTitle: false, edition: useWide, author: authors.size > 1}}
                                   sx={{p: 0, '& .avatar': { paddingLeft: '0px', paddingRight: '0px' }}}
                                   disableColumnMenu={true}
                                   getCellClassName={(params) => params.field === 'author' ? 'avatar' : ''}
