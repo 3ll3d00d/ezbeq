@@ -10,15 +10,10 @@ import {
     Radio,
     RadioGroup
 } from "@mui/material";
-import {makeStyles} from '@mui/styles';
 import Typography from "@mui/material/Typography";
 import PublishIcon from "@mui/icons-material/Publish";
 import React, {useEffect, useMemo, useState} from "react";
 import ezbeq from "../../services/ezbeq";
-
-const useStyles = makeStyles({
-    root: {}
-});
 
 const formatExtraMeta = entry => {
     const extras = []
@@ -120,10 +115,10 @@ const Uploader = ({
                       upload
                   }) => {
     const slotControls = slots.map(s => <FormControlLabel value={s.id}
-                                                            control={<Radio checked={uploadSlotId === s.id}
-                                                                            color={'primary'}/>}
-                                                            label={s.id}
-                                                            key={s.id}/>);
+                                                          control={<Radio checked={uploadSlotId === s.id}
+                                                                          color={'primary'}/>}
+                                                          label={s.id}
+                                                          key={s.id}/>);
     const slotGroup = slots.length > 1
         ?
         <RadioGroup row aria-label="slot" name="slot"
@@ -154,7 +149,6 @@ const Uploader = ({
 };
 
 const Entry = ({selectedDeviceName, selectedEntry, useWide, setDevice, selectedSlotId, device, setError}) => {
-    const classes = useStyles();
     const slots = useMemo(() => device && device.hasOwnProperty('slots') ? device.slots : [], [device]);
     const [uploadSlotId, setUploadSlotId] = useState(null);
     const [sendGain, setSendGain] = useState(false);
@@ -203,10 +197,10 @@ const Entry = ({selectedDeviceName, selectedEntry, useWide, setDevice, selectedS
                 <CardMedia
                     key={`img${idx}`}
                     component="img"
-                    className={classes.media}
                     image={i}
                     title={`img${idx}`}
-                    alt={`${selectedEntry.title} - ${idx}`}/>
+                    alt={`${selectedEntry.title} - ${idx}`}
+                />
             )
             : null;
         const content =
@@ -281,7 +275,7 @@ const Entry = ({selectedDeviceName, selectedEntry, useWide, setDevice, selectedS
             </FormGroup>;
         if (useWide) {
             return (
-                <Card className={classes.root}>
+                <Card>
                     {content}
                     {uploadAction}
                     {links}
@@ -290,7 +284,7 @@ const Entry = ({selectedDeviceName, selectedEntry, useWide, setDevice, selectedS
             );
         } else {
             return (
-                <Card className={classes.root}>
+                <Card>
                     {uploadAction}
                     {content}
                     {links}
