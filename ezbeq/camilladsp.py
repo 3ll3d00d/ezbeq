@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import List, Optional
+from typing import List, Optional, Callable
 
 from autobahn.exception import Disconnected
 from autobahn.twisted.websocket import connectWS, WebSocketClientProtocol, WebSocketClientFactory
@@ -10,13 +10,15 @@ from apis.ws import WsServer
 from catalogue import CatalogueProvider, CatalogueEntry
 from device import SlotState, DeviceState, PersistentDevice
 
+SLOT_ID = 'CamillaDSP'
+
 logger = logging.getLogger('ezbeq.camilladsp')
 
 
 class CamillaDspSlotState(SlotState):
 
     def __init__(self):
-        super().__init__('CamillaDSP')
+        super().__init__(SLOT_ID)
 
 
 class CamillaDspState(DeviceState):
@@ -42,8 +44,7 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         self.__ip: str = cfg['ip']
         self.__port: int = cfg['port']
         self.__channels: List[int] = [int(c) for c in cfg['channels']]
-        self.__dsp_config = {}
-        self.__peq = {}
+        self.__config_loader: Optional[LoadConfig] = None
         if not self.__channels:
             raise ValueError(f'No channels supplied for CamillaDSP {name} - {self.__ip}:{self.__port}')
         self.__client = CamillaDspClient(self.__ip, self.__port, self)
@@ -55,7 +56,7 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         if 'slots' in cached:
             for slot in cached['slots']:
                 if 'id' in slot:
-                    if slot['id'] == 'CAMILLADSP':
+                    if slot['id'] == SLOT_ID:
                         if slot['last']:
                             loaded.slot.last = slot['last']
         return loaded
@@ -68,25 +69,27 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         any_update = False
         if 'slots' in params:
             for slot in params['slots']:
-                if slot['id'] == 'CAMILLADSP':
+                if slot['id'] == SLOT_ID:
                     if 'entry' in slot:
                         if slot['entry']:
                             match = self.__catalogue.find(slot['entry'])
                             if match:
-                                self.load_filter('CAMILLADSP', match)
+                                self.load_filter(SLOT_ID, match)
                                 any_update = True
                         else:
-                            self.clear_filter('CAMILLADSP')
+                            self.clear_filter(SLOT_ID)
                             any_update = True
         return any_update
 
-    def __send(self, to_load: List[dict]):
-        if self.__dsp_config:
-            logger.info(f"Sending {len(to_load)} filters")
-            self.__client.send(json.dumps({'SetConfigJson': json.dumps(create_new_cfg(to_load, self.__dsp_config, self.__channels))}))
-            self.__client.send(json.dumps('Reload'))
+    def __send(self, to_load: List[dict], title: str, on_complete: Callable[[bool], None]):
+        if self.__config_loader is None:
+            logger.info(f"Sending {len(to_load)} filters for {title}")
+            self.__config_loader = LoadConfig(title, self.__channels, to_load, self.ws_server, self.__client,
+                                              on_complete)
+            from twisted.internet import reactor
+            reactor.callLater(0.0, self.__config_loader.send_get_config)
         else:
-            raise ValueError(f'Unable to load PEQ, no dsp config available')
+            raise ValueError(f'Unable to load PEQ, load already in progress for {self.__config_loader.title}')
 
     def activate(self, slot: str) -> None:
         def __do_it():
@@ -106,8 +109,15 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
 
     def __do_it(self, to_load: List[dict], title: str):
         try:
-            self.__send(to_load)
-            self._current_state.slot.last = title
+            self._current_state.slot.last = 'Loading' if to_load else 'Clearing'
+
+            def completed(success: bool):
+                if success:
+                    self._current_state.slot.last = title
+                else:
+                    self._current_state.slot.last = 'ERROR'
+
+            self.__send(to_load, title, lambda b: self._hydrate_cache_broadcast(lambda: completed(b)))
         except Exception as e:
             self._current_state.slot.last = 'ERROR'
             raise e
@@ -129,11 +139,34 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         return {}
 
     def on_get_config(self, config: dict):
-        if config['result'] == 'Ok':
-            candidate = json.loads(config['value'])
-            if candidate != self.__dsp_config:
-                logger.info(f"Received new DSP config {candidate}")
-                self.__dsp_config = candidate
+        if self.__config_loader is None:
+            logger.info(f'Received new DSP config but nothing to load, ignoring {config}')
+        else:
+            if config['result'] == 'Ok':
+                self.__config_loader.on_get_config(json.loads(config['value']))
+            else:
+                self.__config_loader.failed('GetConfig', config)
+                self.__config_loader = None
+
+    def on_set_config(self, result: str):
+        if self.__config_loader is None:
+            logger.info(f'Received response to SetConfigJson but nothing to load, ignoring {result}')
+        else:
+            if result == 'Ok':
+                self.__config_loader.on_set_config()
+            else:
+                self.__config_loader.failed('SetConfig', result)
+                self.__config_loader = None
+
+    def on_reload(self, result: str):
+        if self.__config_loader is None:
+            logger.info(f'Received response to Reload but nothing to load, ignoring {result}')
+        else:
+            if result == 'Ok':
+                self.__config_loader.on_reload()
+            else:
+                self.__config_loader.failed('Reload', result)
+            self.__config_loader = None
 
     def on_get_volume(self, msg):
         pass
@@ -160,31 +193,20 @@ class CamillaDspClient:
 
 class CamillaDspProtocol(WebSocketClientProtocol):
 
-    do_send = None
+    # do_send = None
 
     def onConnecting(self, transport_details):
         logger.info(f"Connecting to {transport_details}")
 
     def onConnect(self, response):
         logger.info(f"Connected to {response.peer}")
-        from twisted.internet import reactor
-        self.do_send = lambda: reactor.callLater(0.5, __send)
-
-        def __send():
-            if self.do_send:
-                try:
-                    self.sendMessage(json.dumps("GetConfigJson").encode('utf-8'), isBinary=False)
-                finally:
-                    self.do_send()
-
-        self.do_send()
 
     def onOpen(self):
         logger.info("Connected to CAMILLADSP")
         self.factory.register(self)
 
     def onClose(self, was_clean, code, reason):
-        self.do_send = None
+        # self.do_send = None
         if was_clean:
             logger.info(f"Disconnected code: {code} reason: {reason}")
         else:
@@ -199,9 +221,13 @@ class CamillaDspProtocol(WebSocketClientProtocol):
                 logger.debug(f'>>> {msg}')
                 if 'GetConfigJson' in msg:
                     self.factory.listener.on_get_config(msg['GetConfigJson'])
+                elif 'SetConfigJson' in msg:
+                    self.factory.listener.on_set_config(msg['SetConfigJson']['result'])
+                elif 'Reload' in msg:
+                    self.factory.listener.on_reload(msg['Reload']['result'])
                 elif 'GetVolume' in msg:
                     self.factory.listener.on_get_volume(msg['GetVolume'])
-                elif 'GetMute' in msg:
+                elif 'GetMute' in msg:\
                     self.factory.listener.on_get_mute(msg['GetMute'])
                 elif 'GetPlaybackSignalRms' in msg:
                     self.factory.listener.on_get_playback_rms(msg['GetPlaybackSignalRms'])
@@ -250,7 +276,7 @@ class CamillaDspClientFactory(WebSocketClientFactory, ReconnectingClientFactory)
             for c in self.__clients:
                 logger.info(f"Sending to {c.peer} - {msg}")
                 try:
-                    c.sendMessage(msg.encode('utf8'))
+                    c.sendMessage(msg.encode('utf8'), isBinary=False)
                 except Disconnected as e:
                     logger.exception(f"Failed to send to {c.peer}, discarding")
                     disconnected_clients.append(c)
@@ -301,3 +327,45 @@ def create_new_cfg(to_load: List[dict], base_cfg: dict, channels: List[int]) -> 
         raise ValueError(f'Unable to load PEQ, dsp config has no pipeline declared')
     return new_cfg
 
+
+class LoadConfig:
+
+    def __init__(self, title: str, channels: List[int], to_load: List[dict], ws_server: WsServer,
+                 client: CamillaDspClient, on_complete: Callable[[bool], None]):
+        self.title = title
+        self.__channels = channels
+        self.__to_load = to_load
+        self.__dsp_config = None
+        self.__ws_server = ws_server
+        self.__client = client
+        self.__failed = False
+        self.__on_complete = on_complete
+
+    def on_get_config(self, cfg: dict):
+        logger.info(f"Received new DSP config {cfg}")
+        self.__dsp_config = cfg
+        self.__do_set_config()
+
+    def send_get_config(self):
+        logger.info(f'[{self.title}] Sending GetConfigJson')
+        self.__client.send(json.dumps("GetConfigJson"))
+
+    def __do_set_config(self):
+        logger.info(f'[{self.title}] Sending SetConfigJson')
+        new_cfg = create_new_cfg(self.__to_load, self.__dsp_config, self.__channels)
+        self.__client.send(json.dumps({'SetConfigJson': json.dumps(new_cfg)}))
+
+    def on_set_config(self):
+        logger.info(f'[{self.title}] Sending Reload')
+        self.__client.send(json.dumps('Reload'))
+
+    def on_reload(self):
+        logger.info(f'[{self.title}] Reload completed')
+        self.__on_complete(True)
+
+    def failed(self, stage: str, payload):
+        self.__failed = True
+        msg = f'{stage} failed : {payload}'
+        logger.warning(f'[{self.title}] {msg}')
+        self.__on_complete(False)
+        self.__ws_server.broadcast(json.dumps({'message': 'Error', 'data': msg}))

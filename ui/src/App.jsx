@@ -46,13 +46,24 @@ const App = () => {
         setAvailableDevices(Object.assign({}, availableDevices, {[replacement.name]: replacement}));
     };
 
+    // errors
+    const [err, setErr] = useState(null);
+
     ws.onmessage = event => {
-        replaceDevice(JSON.parse(event.data));
+        const payload = JSON.parse(event.data);
+        switch (payload.message) {
+            case 'DeviceState':
+                replaceDevice(payload.data);
+                break;
+            case 'Error':
+                setErr(new Error(payload.data));
+                break;
+            default:
+                console.warn(`Unknown ws message ${event.data}`)
+        }
     };
 
     const [hasMultipleTabs, setHasMultipleTabs] = useState(false);
-    // errors
-    const [err, setErr] = useState(null);
     // catalogue data
     const [entries, setEntries] = useState([]);
     // device state

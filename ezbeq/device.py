@@ -251,12 +251,12 @@ class PersistentDevice(Device, ABC, Generic[T]):
             json.dump(self._current_state.serialise(), f, sort_keys=True)
 
     def _broadcast(self):
-        if self.__ws_server:
-            self.__ws_server.broadcast(self.__get_state_msg())
+        if self.ws_server:
+            self.ws_server.broadcast(self.__get_state_msg())
 
     def __get_state_msg(self):
         assert self._current_state, 'hydrate cannot return None'
-        return json.dumps(self._current_state.serialise(), ensure_ascii=False)
+        return json.dumps({'message': 'DeviceState', 'data': self._current_state.serialise()}, ensure_ascii=False)
 
     def _hydrate_cache_broadcast(self, func: callable):
         self._hydrate()

@@ -141,10 +141,10 @@ const Slots = ({selectedDeviceName, selectedSlotId, useWide, device, setDevice, 
             {r.map((d, i2) =>
                 <Grid key={i2} container item xs={r.length === 1 ? 12 : 6} className={classes.container}>
                     <Slot selected={d.id === selectedSlotId}
-                            slot={d}
-                            onSelect={() => activateSlot(d.id)}
-                            onClear={() => clearDeviceSlot(d.id)}
-                            isPending={isPending(d.id)}/>
+                          slot={d}
+                          onSelect={() => activateSlot(d.id)}
+                          onClear={() => clearDeviceSlot(d.id)}
+                          isPending={isPending(d.id)}/>
                 </Grid>
             )}
         </Grid>
@@ -159,7 +159,7 @@ const Slots = ({selectedDeviceName, selectedSlotId, useWide, device, setDevice, 
                            isActive={() => getCurrentState(pending, 'gain', selectedSlotId) === 1}/>;
         if (useWide) {
             return (
-                <Box sx={{ flexGrow: 1 }}>
+                <Box sx={{flexGrow: 1}}>
                     {devices}
                     <Grid container>
                         {gain}
@@ -168,7 +168,7 @@ const Slots = ({selectedDeviceName, selectedSlotId, useWide, device, setDevice, 
             );
         } else {
             return (
-                <Box sx={{ flexGrow: 1 }}>
+                <Box sx={{flexGrow: 1}}>
                     <Grid container direction={'column'}>{devices}</Grid>
                     <Grid container direction={'column'}>{gain}</Grid>
                 </Box>
