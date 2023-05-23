@@ -6,9 +6,9 @@ from autobahn.exception import Disconnected
 from autobahn.twisted.websocket import connectWS, WebSocketClientProtocol, WebSocketClientFactory
 from twisted.internet.protocol import ReconnectingClientFactory
 
-from apis.ws import WsServer
-from catalogue import CatalogueProvider, CatalogueEntry
-from device import SlotState, DeviceState, PersistentDevice
+from ezbeq.apis.ws import WsServer
+from ezbeq.catalogue import CatalogueProvider, CatalogueEntry
+from ezbeq.device import SlotState, DeviceState, PersistentDevice
 
 SLOT_ID = 'CamillaDSP'
 

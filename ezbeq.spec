@@ -17,7 +17,7 @@ def get_data_args():
     return [
         ('icons/icon.ico', '.'),
         ('ezbeq/VERSION', '.'),
-        ('ui/build', 'ui')
+        ('ezbeq/ui', 'ui')
     ]
 
 block_cipher = None
