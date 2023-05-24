@@ -1,24 +1,22 @@
 import React, {useEffect} from "react";
 import UplotReact from 'uplot-react';
 import 'uplot/dist/uPlot.min.css';
-import {EMPTY_PAYLOAD} from "../../services/streamer";
 
-
-const Chart = ({options, streamer, devices}) => {
+const Chart = ({options, levelsService, devices}) => {
 
     useEffect(() => {
-        streamer.loadDevices(devices);
-        streamer.initWebsocket();
+        levelsService.loadDevices(devices);
+        levelsService.initWebsocket();
         return () => {
-            streamer.close();
+            levelsService.close();
         };
-    }, [streamer]);
+    }, [levelsService]);
 
     return (
         <UplotReact options={options}
-                    data={EMPTY_PAYLOAD}
-                    onCreate={u => streamer.setChart(u)}
-                    onDelete={u => streamer.setChart(null)}/>
+                    data={[]}
+                    onCreate={u => levelsService.setChart(u)}
+                    onDelete={u => levelsService.setChart(null)}/>
     );
 }
 

@@ -14,7 +14,6 @@ import {
     Select,
     Switch,
     TextField,
-    useTheme
 } from "@mui/material";
 import PublishIcon from "@mui/icons-material/Publish";
 import ezbeq from "../../services/ezbeq";
@@ -67,10 +66,10 @@ const SelectableSlots = ({
                              onChange,
                              hasMultipleTabs,
                              setSelectedNav,
-                             selectedNav
+                             selectedNav,
+                             theme
                          }) => {
     const classes = useStyles();
-    const theme = useTheme();
     return (
         <FormControl variant="standard" className={classes.formControl}>
             <InputLabel id={`${name}-label`}>{name}</InputLabel>
@@ -110,7 +109,8 @@ const Minidsp = ({
                      setErr,
                      hasMultipleTabs,
                      setSelectedNav,
-                     selectedNav
+                     selectedNav,
+                     theme
                  }) => {
     const classes = useStyles();
     const [inputs, setInputs] = useLocalStorage(`minidspInputs.${selectedDeviceName}.${selectedSlotId}`, []);
@@ -187,7 +187,8 @@ const Minidsp = ({
                                                  key={'input'}
                                                  onChange={e => setInputs(e.target.value.sort())}
                                                  availableValues={inputChannels}
-                                                 values={inputs}/>
+                                                 values={inputs}
+                                                 theme={theme}/>
                             </Grid>
                             : null
                     }
@@ -199,7 +200,8 @@ const Minidsp = ({
                                                  key={'output'}
                                                  onChange={e => setOutputs(e.target.value.sort())}
                                                  availableValues={outputChannels}
-                                                 values={outputs}/>
+                                                 values={outputs}
+                                                 theme={theme}/>
                             </Grid>
                             : null
                     }

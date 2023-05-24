@@ -1,64 +1,34 @@
 import Header from "../Header";
 import Controls from "./Controls";
 import React, {useEffect, useMemo, useState} from "react";
-import {FormControlLabel, Switch, useTheme} from "@mui/material";
 import {debounce} from "lodash/function";
 import Chart from "./Chart";
 import {useLocalStorage} from "../../services/util";
-import Box from "@mui/material/Box";
 
 const Levels = ({
                     availableDevices,
                     selectedDeviceName,
                     setSelectedDeviceName,
-                    minidspRs,
-                    setMinidspRs,
-                    direct,
-                    setDirect,
-                    streamer,
+                    levelsService,
                     hasMultipleTabs,
                     setSelectedNav,
-                    selectedNav
+                    selectedNav,
+                    theme
                 }) => {
-    const theme = useTheme();
-    const [showAdvanced, setShowAdvanced] = useState(false);
     const [activeDuration, setActiveDuration] = useState(60);
     const [recording, setRecording] = useState(true);
     const [duration, setDuration] = useLocalStorage('chartDuration', 60);
+    const debounceDuration = useMemo(
+        () => debounce(d => {
+            setActiveDuration(d);
+        }, 400),
+        []
+    );
+
     const opts = {
         series: [
             {
                 label: 'Time'
-            },
-            {
-                label: 'I1',
-                stroke: theme.palette.primary.light,
-                points: {show: false}
-            },
-            {
-                label: 'I2',
-                stroke: theme.palette.secondary.light,
-                points: {show: false}
-            },
-            {
-                label: 'O1',
-                stroke: theme.palette.error.light,
-                points: {show: false}
-            },
-            {
-                label: 'O2',
-                stroke: theme.palette.warning.light,
-                points: {show: false}
-            },
-            {
-                label: 'O3',
-                stroke: theme.palette.info.light,
-                points: {show: false}
-            },
-            {
-                label: 'O4',
-                stroke: theme.palette.success.light,
-                points: {show: false}
             }
         ],
         axes: [
@@ -90,28 +60,21 @@ const Levels = ({
         },
     };
 
-    const debounceDuration = useMemo(
-        () => debounce(d => {
-            setActiveDuration(d);
-        }, 400),
-        []
-    );
-
     useEffect(() => {
         debounceDuration(duration);
     }, [duration, debounceDuration]);
 
     useEffect(() => {
-        streamer.setRecording(recording);
-    }, [streamer, recording]);
+        levelsService.setRecording(recording);
+    }, [levelsService, recording]);
 
     useEffect(() => {
-        streamer.setActiveDuration(activeDuration);
-    }, [streamer, activeDuration]);
+        levelsService.setActiveDuration(activeDuration);
+    }, [levelsService, activeDuration]);
 
     useEffect(() => {
-        streamer.setActiveDevice(selectedDeviceName);
-    }, [streamer, selectedDeviceName]);
+        levelsService.setActiveDevice(selectedDeviceName);
+    }, [levelsService, selectedDeviceName]);
 
     const chartOpts = Object.assign({}, opts, {
         width: window.innerWidth - 16,
@@ -124,25 +87,13 @@ const Levels = ({
                     selectedDeviceName={selectedDeviceName}
                     selectedNav={selectedNav}
                     setSelectedNav={setSelectedNav}
-                    hasMultipleTabs={hasMultipleTabs}
-            >
-                <FormControlLabel control={
-                    <Switch checked={showAdvanced}
-                            onChange={e => setShowAdvanced(e.target.checked)}
-                            size={'small'}/>
-                }/>
-            </Header>
+                    hasMultipleTabs={hasMultipleTabs}/>
             <Controls duration={duration}
                       setDuration={setDuration}
                       recording={recording}
-                      setRecording={setRecording}
-                      direct={direct}
-                      setDirect={setDirect}
-                      showAdvanced={showAdvanced}
-                      minidspRs={minidspRs}
-                      setMinidspRs={setMinidspRs}/>
+                      setRecording={setRecording}/>
             <Chart options={chartOpts}
-                   streamer={streamer}
+                   levelsService={levelsService}
                    devices={Object.keys(availableDevices)}/>
         </>
     );

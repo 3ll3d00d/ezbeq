@@ -4,12 +4,12 @@ import {makeStyles} from '@mui/styles';
 import ezbeq from './services/ezbeq';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import CssBaseline from '@mui/material/CssBaseline';
-import {pushData, useLocalStorage} from "./services/util";
+import {pushData} from "./services/util";
 import ErrorSnack from "./components/ErrorSnack";
 import MainView from "./components/main";
 import Levels from "./components/levels";
 import Minidsp from "./components/minidsp";
-import Streamer from "./services/streamer";
+import LevelsService from "./services/levels";
 
 const useStyles = makeStyles((theme) => ({
     root: {
@@ -73,16 +73,8 @@ const App = () => {
     const [selectedDeviceName, setSelectedDeviceName] = useState('');
     const [selectedNav, setSelectedNav] = useState('catalogue');
 
-    // levels
-    const [minidspRs, setMinidspRs] = useLocalStorage('chartMinidspRs', {
-        host: window.location.host,
-        device: 0,
-        port: 5380
-    });
-    const [direct, setDirect] = useLocalStorage('chartDirect', false);
-
-    const streamer = useMemo(() => {
-        return new Streamer(setErr);
+    const levelsService = useMemo(() => {
+        return new LevelsService(setErr, `ws://${window.location.host}/ws`, theme);
     }, [setErr]);
 
     // initial data load
@@ -91,19 +83,12 @@ const App = () => {
     }, []);
 
     useEffect(() => {
-        streamer.loadDevices(Object.keys(availableDevices));
-    }, [streamer, availableDevices]);
+        levelsService.loadDevices(Object.keys(availableDevices));
+    }, [levelsService, availableDevices]);
 
     useEffect(() => {
         pushData(setAvailableDevices, ezbeq.getDevices, setErr);
     }, []);
-
-    useEffect(() => {
-        const url = direct
-            ? `ws://${minidspRs.host}:${minidspRs.port}/devices/${minidspRs.device}?levels=true`
-            : `ws://${window.location.host}/ws`;
-        streamer.setUrl(url);
-    }, [minidspRs, direct, streamer]);
 
     useEffect(() => {
         setHasMultipleTabs([...Object.keys(availableDevices)].find(k => availableDevices[k].hasOwnProperty('masterVolume')));
@@ -158,14 +143,11 @@ const App = () => {
                                 <Levels availableDevices={availableDevices}
                                         selectedDeviceName={selectedDeviceName}
                                         setSelectedDeviceName={setSelectedDeviceName}
-                                        minidspRs={minidspRs}
-                                        setMinidspRs={setMinidspRs}
-                                        direct={direct}
-                                        setDirect={setDirect}
-                                        streamer={streamer}
+                                        levelsService={levelsService}
                                         hasMultipleTabs={hasMultipleTabs}
                                         selectedNav={selectedNav}
                                         setSelectedNav={setSelectedNav}
+                                        theme={theme}
                                 />
                                 :
                                 <Minidsp availableDevices={availableDevices}
@@ -176,6 +158,7 @@ const App = () => {
                                          hasMultipleTabs={hasMultipleTabs}
                                          selectedNav={selectedNav}
                                          setSelectedNav={setSelectedNav}
+                                         theme={theme}
                                 />
                     }
                 </Root>

@@ -1,3 +1,4 @@
+import json
 import logging
 from collections import defaultdict
 from typing import Callable, Optional, List, Dict
@@ -22,8 +23,8 @@ class WsServer:
     def broadcast(self, msg: str):
         self.__factory.broadcast(msg)
 
-    def levels(self, device: str, msg: str) -> bool:
-        return self.__factory.send_levels(device, msg)
+    def levels(self, device: str, levels: dict) -> bool:
+        return self.__factory.send_levels(device, json.dumps({'message': 'Levels', 'data': levels}))
 
 
 class WsProtocol(WebSocketServerProtocol):
