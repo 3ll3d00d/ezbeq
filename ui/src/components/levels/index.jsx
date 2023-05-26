@@ -15,7 +15,7 @@ const Levels = ({
                     theme
                 }) => {
     const [activeDuration, setActiveDuration] = useState(60);
-    const [recording, setRecording] = useState(true);
+    const [paused, setPaused] = useState(false);
     const [duration, setDuration] = useLocalStorage('chartDuration', 60);
     const debounceDuration = useMemo(
         () => debounce(d => {
@@ -42,6 +42,7 @@ const Levels = ({
                 }
             },
             {
+                scale: 'dB',
                 label: "Level (dB)",
                 stroke: theme.palette.text.primary,
                 ticks: {
@@ -55,6 +56,10 @@ const Levels = ({
         scales: {
             "x": {
                 time: false,
+            },
+            "dB": {
+                auto: false,
+                range: [-96, 0],
             }
         },
     };
@@ -64,8 +69,8 @@ const Levels = ({
     }, [duration, debounceDuration]);
 
     useEffect(() => {
-        levelsService.setRecording(recording);
-    }, [levelsService, recording]);
+        levelsService.pause(paused);
+    }, [levelsService, paused]);
 
     useEffect(() => {
         levelsService.setActiveDuration(activeDuration);
@@ -88,8 +93,8 @@ const Levels = ({
                     setSelectedNav={setSelectedNav}/>
             <Controls duration={duration}
                       setDuration={setDuration}
-                      recording={recording}
-                      setRecording={setRecording}/>
+                      paused={paused}
+                      setPaused={setPaused}/>
             <Chart options={chartOpts}
                    levelsService={levelsService}
                    devices={availableDevices}/>

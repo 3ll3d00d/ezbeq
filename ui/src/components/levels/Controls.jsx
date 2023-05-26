@@ -18,8 +18,8 @@ const useStyles = makeStyles((theme) => ({
 const Controls = ({
                       duration,
                       setDuration,
-                      recording,
-                      setRecording
+                      paused,
+                      setPaused
                   }) => {
     const classes = useStyles();
     return <form className={clsx(classes.root, classes.margin)} noValidate autoComplete="off">
@@ -38,11 +38,11 @@ const Controls = ({
             onChange={e => setDuration(e.target.value)}
             InputLabelProps={{ shrink: true }} />
         <FormControlLabel className={classes.margin}
-                          control={<Switch checked={recording}
-                                           onChange={e => setRecording(e.target.checked)}
-                                           name="recording"
+                          control={<Switch checked={paused}
+                                           onChange={e => setPaused(e.target.checked)}
+                                           name="paused"
                                            color="primary"/>}
-                          label="Recording?"/>
+                          label="Pause?"/>
     </form>;
 };
 
