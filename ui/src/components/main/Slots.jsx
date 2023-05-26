@@ -78,7 +78,7 @@ const Slot = ({selected, slot, onSelect, isPending, onClear}) => {
     );
 };
 
-const Slots = ({selectedDeviceName, selectedSlotId, useWide, device, setDevice, setUserDriven, setError}) => {
+const Slots = ({selectedDevice, selectedSlotId, useWide, setDevice, setUserDriven, setError}) => {
     const classes = useStyles({selected: false});
     const [pending, setPending] = useState([]);
     const [currentGains, setCurrentGains] = useState(defaultGain);
@@ -86,17 +86,19 @@ const Slots = ({selectedDeviceName, selectedSlotId, useWide, device, setDevice, 
 
     // reset gain on slot (de)select or device update
     useEffect(() => {
-        const gain = {...defaultGain};
-        gain.master_mv = device.masterVolume;
-        gain.master_mute = device.mute;
-        if (selectedSlotId && device && device.hasOwnProperty('slots')) {
-            const slot = device.slots.find(s => s.id === selectedSlotId);
-            gain.gains = slot.hasOwnProperty('gains') ? slot.gains : [];
-            gain.mutes = slot.hasOwnProperty('mutes') ? slot.mutes : [];
+        if (selectedDevice) {
+            const gain = {...defaultGain};
+            gain.master_mv = selectedDevice.masterVolume;
+            gain.master_mute = selectedDevice.mute;
+            if (selectedSlotId && selectedDevice && selectedDevice.hasOwnProperty('slots')) {
+                const slot = selectedDevice.slots.find(s => s.id === selectedSlotId);
+                gain.gains = slot.hasOwnProperty('gains') ? slot.gains : [];
+                gain.mutes = slot.hasOwnProperty('mutes') ? slot.mutes : [];
+            }
+            setDeviceGains(gain);
+            setCurrentGains(gain);
         }
-        setDeviceGains(gain);
-        setCurrentGains(gain);
-    }, [device, selectedSlotId]);
+    }, [selectedDevice, selectedSlotId]);
 
     const trackDeviceUpdate = async (action, slotId, valProvider, andThen = null) => {
         setPending(u => [{slotId, action, state: 1}].concat(u));
@@ -120,22 +122,22 @@ const Slots = ({selectedDeviceName, selectedSlotId, useWide, device, setDevice, 
     };
 
     const sendGainToDevice = (slotId, gains) => {
-        trackDeviceUpdate('gain', slotId, () => ezbeq.setGains(selectedDeviceName, slotId, gains));
+        trackDeviceUpdate('gain', slotId, () => ezbeq.setGains(selectedDevice.name, slotId, gains));
     };
 
     const clearDeviceSlot = (slotId) => {
-        trackDeviceUpdate('clear', slotId, () => ezbeq.clearSlot(selectedDeviceName, slotId));
+        trackDeviceUpdate('clear', slotId, () => ezbeq.clearSlot(selectedDevice.name, slotId));
     };
 
     const activateSlot = (slotId) => {
-        trackDeviceUpdate('activate', slotId, () => ezbeq.activateSlot(selectedDeviceName, slotId), () => setUserDriven(true));
+        trackDeviceUpdate('activate', slotId, () => ezbeq.activateSlot(selectedDevice.name, slotId), () => setUserDriven(true));
     };
 
     const isPending = (slotId) => {
         return getCurrentState(pending, 'clear', slotId) === 1 || getCurrentState(pending, 'activate', slotId) === 1;
     };
 
-    const rows = chunk("slots" in device ? device.slots : [], 2);
+    const rows = chunk(selectedDevice && selectedDevice.hasOwnProperty('slots') ? selectedDevice.slots : [], 2);
     const devices = rows.map((r, i1) =>
         <Grid container key={i1} className={classes.root}>
             {r.map((d, i2) =>
@@ -150,7 +152,7 @@ const Slots = ({selectedDeviceName, selectedSlotId, useWide, device, setDevice, 
         </Grid>
     );
 
-    if (device && device.hasOwnProperty('masterVolume')) {
+    if (selectedDevice && selectedDevice.hasOwnProperty('masterVolume')) {
         const gain = <Gain selectedSlotId={selectedSlotId}
                            deviceGains={deviceGains}
                            gains={currentGains}

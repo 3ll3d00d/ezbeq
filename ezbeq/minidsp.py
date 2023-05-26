@@ -94,6 +94,7 @@ class MinidspState(DeviceState):
 
     def serialise(self) -> dict:
         return {
+            'type': 'minidsp',
             'name': self.__name,
             'masterVolume': self.master_volume,
             'mute': self.__mute,

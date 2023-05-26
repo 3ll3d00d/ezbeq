@@ -148,7 +148,7 @@ const Uploader = ({
     );
 };
 
-const Entry = ({selectedDeviceName, selectedEntry, useWide, setDevice, selectedSlotId, device, setError}) => {
+const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotId, device, setError}) => {
     const slots = useMemo(() => device && device.hasOwnProperty('slots') ? device.slots : [], [device]);
     const [uploadSlotId, setUploadSlotId] = useState(null);
     const [sendGain, setSendGain] = useState(false);
@@ -180,8 +180,8 @@ const Entry = ({selectedDeviceName, selectedEntry, useWide, setDevice, selectedS
         setPending(true);
         try {
             const call = acceptGain
-                ? () => ezbeq.loadWithMV(selectedDeviceName, selectedEntry.id, uploadSlotId, gains)
-                : () => ezbeq.sendFilter(selectedDeviceName, selectedEntry.id, uploadSlotId);
+                ? () => ezbeq.loadWithMV(selectedDevice.name, selectedEntry.id, uploadSlotId, gains)
+                : () => ezbeq.sendFilter(selectedDevice.name, selectedEntry.id, uploadSlotId);
             const device = await call();
             setPending(false);
             setDevice(device);

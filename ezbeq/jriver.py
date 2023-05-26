@@ -56,6 +56,7 @@ class JRiverState(DeviceState):
 
     def serialise(self) -> dict:
         return {
+            'type': 'jriver',
             'name': self.__name,
             'slots': [s.as_dict() for s in self.__slots.values()]
         }

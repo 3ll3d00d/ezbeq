@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {createTheme, StyledEngineProvider, ThemeProvider} from '@mui/material/styles';
 import {makeStyles} from '@mui/styles';
 import ezbeq from './services/ezbeq';
@@ -63,14 +63,13 @@ const App = () => {
         }
     };
 
-    const [hasMultipleTabs, setHasMultipleTabs] = useState(false);
     // catalogue data
     const [entries, setEntries] = useState([]);
     // device state
     const [availableDevices, setAvailableDevices] = useState({});
     const [selectedSlotId, setSelectedSlotId] = useState(null);
     // view selection
-    const [selectedDeviceName, setSelectedDeviceName] = useState('');
+    const [selectedDevice, setSelectedDevice] = useState(null);
     const [selectedNav, setSelectedNav] = useState('catalogue');
 
     const levelsService = useMemo(() => {
@@ -91,26 +90,13 @@ const App = () => {
     }, []);
 
     useEffect(() => {
-        setHasMultipleTabs([...Object.keys(availableDevices)].find(k => availableDevices[k].hasOwnProperty('masterVolume')));
-    }, [availableDevices, setHasMultipleTabs]);
-
-    const getSelectedDevice = useCallback(() => {
-            if (selectedDeviceName && availableDevices.hasOwnProperty(selectedDeviceName)) {
-                return availableDevices[selectedDeviceName];
-            }
-            return {};
-        }, [selectedDeviceName, availableDevices]
-    );
-
-    useEffect(() => {
-        const d = getSelectedDevice();
-        if (d && d.hasOwnProperty('slots')) {
-            const slot = d.slots.find(s => s.active === true);
+        if (selectedDevice && selectedDevice.hasOwnProperty('slots')) {
+            const slot = selectedDevice.slots.find(s => s.active === true);
             if (slot) {
                 setSelectedSlotId(slot.id);
             }
         }
-    }, [getSelectedDevice, selectedDeviceName, availableDevices]);
+    }, [selectedDevice, availableDevices]);
 
     const useWide = useMediaQuery('(orientation: landscape) and (min-height: 580px)');
 
@@ -127,12 +113,10 @@ const App = () => {
                                       setErr={setErr}
                                       replaceDevice={replaceDevice}
                                       availableDevices={availableDevices}
-                                      selectedDeviceName={selectedDeviceName}
-                                      setSelectedDeviceName={setSelectedDeviceName}
-                                      getSelectedDevice={getSelectedDevice}
+                                      selectedDevice={selectedDevice}
+                                      setSelectedDevice={setSelectedDevice}
                                       selectedSlotId={selectedSlotId}
                                       setSelectedSlotId={setSelectedSlotId}
-                                      hasMultipleTabs={hasMultipleTabs}
                                       useWide={useWide}
                                       selectedNav={selectedNav}
                                       setSelectedNav={setSelectedNav}
@@ -141,21 +125,19 @@ const App = () => {
                             selectedNav === 'levels'
                                 ?
                                 <Levels availableDevices={availableDevices}
-                                        selectedDeviceName={selectedDeviceName}
-                                        setSelectedDeviceName={setSelectedDeviceName}
+                                        selectedDevice={selectedDevice}
+                                        setSelectedDevice={setSelectedDevice}
                                         levelsService={levelsService}
-                                        hasMultipleTabs={hasMultipleTabs}
                                         selectedNav={selectedNav}
                                         setSelectedNav={setSelectedNav}
                                         theme={theme}
                                 />
                                 :
                                 <Minidsp availableDevices={availableDevices}
-                                         selectedDeviceName={selectedDeviceName}
-                                         setSelectedDeviceName={setSelectedDeviceName}
+                                         selectedDevice={selectedDevice}
+                                         setSelectedDevice={setSelectedDevice}
                                          selectedSlotId={selectedSlotId}
                                          setErr={setErr}
-                                         hasMultipleTabs={hasMultipleTabs}
                                          selectedNav={selectedNav}
                                          setSelectedNav={setSelectedNav}
                                          theme={theme}

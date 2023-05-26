@@ -14,13 +14,11 @@ const MainView = ({
                       availableDevices,
                       setErr,
                       replaceDevice,
-                      selectedDeviceName,
-                      setSelectedDeviceName,
+                      selectedDevice,
+                      setSelectedDevice,
                       selectedSlotId,
                       setSelectedSlotId,
-                      getSelectedDevice,
                       useWide,
-                      hasMultipleTabs,
                       setSelectedNav,
                       selectedNav
                   }) => {
@@ -41,13 +39,13 @@ const MainView = ({
     };
 
     useEffect(() => {
-        if (availableDevices && !selectedDeviceName) {
+        if (availableDevices && !selectedDevice) {
             const deviceNames = Object.keys(availableDevices);
             if (deviceNames.length > 0) {
-                setSelectedDeviceName(deviceNames[0]);
+                setSelectedDevice(availableDevices[deviceNames[0]]);
             }
         }
-    }, [availableDevices, selectedDeviceName, setSelectedDeviceName]);
+    }, [availableDevices, selectedDevice, setSelectedDevice]);
 
     useEffect(() => {
         const txtMatch = e => {
@@ -87,47 +85,42 @@ const MainView = ({
     }, [entries, selectedAudioTypes, selectedYears, selectedAuthors, selectedContentTypes, selectedFreshness, selectedLanguages, txtFilter, setErr]);
 
     useEffect(() => {
-        const d = getSelectedDevice();
+        const d = selectedDevice;
         if (d && userDriven && d.hasOwnProperty('slots')) {
             const slot = d.slots.find(s => s.id === selectedSlotId);
             if (slot && slot.last && slot.last !== "ERROR" && slot.last !== "Empty") {
                 setTxtFilter(slot.last);
             }
         }
-    }, [getSelectedDevice, selectedSlotId, setTxtFilter, userDriven]);
+    }, [selectedDevice, selectedSlotId, setTxtFilter, userDriven]);
 
-    const devices = <Slots selectedDeviceName={selectedDeviceName}
+    const devices = <Slots selectedDevice={selectedDevice}
                            selectedEntryId={selectedEntryId}
                            selectedSlotId={selectedSlotId}
                            useWide={useWide}
                            setSelectedSlotId={setSelectedSlotId}
                            setUserDriven={setUserDriven}
-                           device={getSelectedDevice()}
                            setDevice={d => replaceDevice(d)}
                            setError={setErr}/>;
     const catalogue = <Catalogue entries={filteredEntries}
                                  setSelectedEntryId={setSelectedEntryId}
                                  selectedEntryId={selectedEntryId}
                                  useWide={useWide}
-                                 hasMultipleTabs={hasMultipleTabs}
-                                 device={getSelectedDevice()}/>;
-    const entry = <Entry selectedDeviceName={selectedDeviceName}
+                                 selectedDevice={selectedDevice}/>;
+    const entry = <Entry selectedDevice={selectedDevice}
                          selectedEntry={selectedEntryId ? entries.find(e => e.id === selectedEntryId) : null}
                          useWide={useWide}
                          setDevice={d => replaceDevice(d)}
                          selectedSlotId={selectedSlotId}
-                         device={getSelectedDevice()}
                          setError={setErr}/>;
     const footer = <Footer/>;
     return (
         <>
-            <Header availableDeviceNames={Object.keys(availableDevices)}
-                    setSelectedDeviceName={setSelectedDeviceName}
-                    selectedDeviceName={selectedDeviceName}
+            <Header availableDevices={availableDevices}
+                    setSelectedDevice={setSelectedDevice}
+                    selectedDevice={selectedDevice}
                     selectedNav={selectedNav}
-                    setSelectedNav={setSelectedNav}
-                    hasMultipleTabs={hasMultipleTabs}
-            >
+                    setSelectedNav={setSelectedNav}>
                 <Search txtFilter={txtFilter}
                         setTxtFilter={setTxtFilter}
                         showFilters={showFilters}

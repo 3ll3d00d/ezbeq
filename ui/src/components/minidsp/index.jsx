@@ -64,7 +64,6 @@ const SelectableSlots = ({
                              values,
                              availableValues,
                              onChange,
-                             hasMultipleTabs,
                              setSelectedNav,
                              selectedNav,
                              theme
@@ -103,19 +102,18 @@ const SelectableSlots = ({
 
 const Minidsp = ({
                      availableDevices,
-                     setSelectedDeviceName,
-                     selectedDeviceName,
+                     setSelectedDevice,
+                     selectedDevice,
                      selectedSlotId,
                      setErr,
-                     hasMultipleTabs,
                      setSelectedNav,
                      selectedNav,
                      theme
                  }) => {
     const classes = useStyles();
-    const [inputs, setInputs] = useLocalStorage(`minidspInputs.${selectedDeviceName}.${selectedSlotId}`, []);
-    const [outputs, setOutputs] = useLocalStorage(`minidspOutputs.${selectedDeviceName}.${selectedSlotId}`, []);
-    const [commandType, setCommandType] = useLocalStorage(`minidsp.${selectedDeviceName}.commandType`, 'bq')
+    const [inputs, setInputs] = useLocalStorage(`minidspInputs.${selectedDevice.name}.${selectedSlotId}`, []);
+    const [outputs, setOutputs] = useLocalStorage(`minidspOutputs.${selectedDevice.name}.${selectedSlotId}`, []);
+    const [commandType, setCommandType] = useLocalStorage(`minidsp.${selectedDevice.name}.commandType`, 'bq')
     const [config, setConfig] = useState(selectedSlotId);
     const [commands, setCommands] = useState('');
     const [overwrite, setOverwrite] = useState(true);
@@ -126,7 +124,7 @@ const Minidsp = ({
     const uploadTextCommands = async () => {
         setPending(true);
         try {
-            const response = await ezbeq.sendTextCommands(selectedDeviceName, config, inputs, outputs, commandType, commands, overwrite);
+            const response = await ezbeq.sendTextCommands(selectedDevice.name, config, inputs, outputs, commandType, commands, overwrite);
             console.debug(response);
         } catch (e) {
             setErr(e);
@@ -136,12 +134,12 @@ const Minidsp = ({
     };
 
     useEffect(() => {
-        if (availableDevices && selectedDeviceName && selectedSlotId) {
-            const slot = availableDevices[selectedDeviceName].slots.find(s => s.id === selectedSlotId);
+        if (availableDevices && selectedDevice && selectedSlotId) {
+            const slot = availableDevices[selectedDevice.name].slots.find(s => s.id === selectedSlotId);
             setInputChannels(Array.from(Array(slot.inputs).keys()).map(i => i + 1));
             setOutputChannels(Array.from(Array(slot.outputs).keys()).map(i => i + 1));
         }
-    }, [availableDevices, selectedDeviceName, selectedSlotId]);
+    }, [availableDevices, selectedDevice, selectedSlotId]);
 
     useEffect(() => {
         if (inputs.some(i => !inputChannels.includes(i))) {
@@ -156,12 +154,11 @@ const Minidsp = ({
     }, [setOutputs, outputChannels, outputs]);
 
     return <>
-        <Header availableDeviceNames={Object.keys(availableDevices)}
-                setSelectedDeviceName={setSelectedDeviceName}
-                selectedDeviceName={selectedDeviceName}
+        <Header availableDevices={availableDevices}
+                setSelectedDevice={setSelectedDevice}
+                selectedDevice={selectedDevice}
                 selectedNav={selectedNav}
                 setSelectedNav={setSelectedNav}
-                hasMultipleTabs={hasMultipleTabs}
         />
         <form className={classes.root} noValidate autoComplete="off">
             <Grid container>

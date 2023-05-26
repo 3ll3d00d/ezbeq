@@ -12,12 +12,11 @@ import SettingsApplicationsIcon from "@mui/icons-material/SettingsApplications";
 import {Check} from "@mui/icons-material";
 
 const Header = ({
-                    availableDeviceNames,
-                    setSelectedDeviceName,
-                    selectedDeviceName,
+                    availableDevices,
+                    setSelectedDevice,
+                    selectedDevice,
                     selectedNav,
                     setSelectedNav,
-                    hasMultipleTabs,
                     children
                 }) => {
     const mobileMenuId = 'mobile-menu';
@@ -39,7 +38,13 @@ const Header = ({
     const closeMainMenu = () => {
         setMainMenuAnchorEl(null);
     };
-    const tabNames = hasMultipleTabs ? ['Catalogue', 'Levels', 'Control'] : [];
+    const tabNames = ['Catalogue'];
+    if (selectedDevice && (selectedDevice.type === 'minidsp' || selectedDevice.type === 'camilladsp')) {
+        tabNames.push('Levels');
+    }
+    if (selectedDevice && selectedDevice.type === 'minidsp') {
+        tabNames.push('Control');
+    }
     const tabIcons = {
         'Catalogue': <LocalLibraryIcon/>,
         'Levels': <EqualizerIcon/>,
@@ -51,14 +56,19 @@ const Header = ({
             <ListItemText inset={selectedNav !== t.toLowerCase()}>{t}</ListItemText>{tabIcons[t]}
         </MenuItem>
     );
-    const deviceMenuItems = availableDeviceNames.map(d =>
-        <MenuItem value={d}
-                  key={d}
-                  onClick={e => setSelectedDeviceName(d)}>
-            {d === selectedDeviceName ? <ListItemIcon><Check/></ListItemIcon> : null}
-            <ListItemText inset={d !== selectedDeviceName}>{d}</ListItemText>
-        </MenuItem>
-    );
+    const deviceMenuItems = availableDevices && Object.keys(availableDevices).length > 1
+        ? Object.keys(availableDevices).map(d =>
+            <MenuItem value={d}
+                      key={d}
+                      onClick={e => setSelectedDevice(availableDevices[d])}>
+                {
+                    selectedDevice && d === selectedDevice.name
+                        ? <ListItemIcon><Check/></ListItemIcon>
+                        : null
+                }
+                <ListItemText inset={!selectedDevice || d !== selectedDevice.name}>{d}</ListItemText>
+            </MenuItem>
+        ) : null;
 
     const renderMobileMenu = (
         <Menu id={mobileMenuId}
@@ -121,7 +131,7 @@ const Header = ({
         </Menu>
     );
 
-    const shouldShowMenu = availableDeviceNames.length > 1 || hasMultipleTabs;
+    const shouldShowMenu = availableDevices.length > 1 || tabNames.length > 1;
 
     return (
         <Box sx={{flexGrow: 1}}>

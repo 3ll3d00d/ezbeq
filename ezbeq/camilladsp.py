@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from typing import List, Optional, Callable
 
 from autobahn.exception import Disconnected
@@ -27,10 +28,15 @@ class CamillaDspState(DeviceState):
         self.__name = name
         self.slot = CamillaDspSlotState()
         self.slot.active = True
+        self.master_volume: float = 0.0
+        self.muted: bool = False
 
     def serialise(self) -> dict:
         return {
+            'type': 'camilladsp',
             'name': self.__name,
+            'masterVolume': self.master_volume,
+            'mute': self.muted,
             'slots': [self.slot.as_dict()]
         }
 
@@ -44,10 +50,25 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         self.__ip: str = cfg['ip']
         self.__port: int = cfg['port']
         self.__channels: List[int] = [int(c) for c in cfg['channels']]
+        self.__levels_interval_ms = round(1000.0 / float(cfg.get('levelsFps', 10)))
         self.__config_loader: Optional[LoadConfig] = None
         if not self.__channels:
             raise ValueError(f'No channels supplied for CamillaDSP {name} - {self.__ip}:{self.__port}')
-        self.__client = CamillaDspClient(self.__ip, self.__port, self)
+        self.__ws_client = CamillaDspClient(self.__ip, self.__port, self)
+        self.__playback_peak: float = 0.0
+        self.__playback_rms: float = 0.0
+        ws_server.factory.set_levels_provider(name, self.start_broadcast_levels)
+
+    def start_broadcast_levels(self) -> None:
+        from twisted.internet import reactor
+        sched = lambda: reactor.callLater(self.__levels_interval_ms / 1000.0, __send)
+
+        def __send():
+            self.request_levels()
+            if self.ws_server.has_levels_client(self.name):
+                sched()
+
+        sched()
 
     def _load_initial_state(self) -> CamillaDspState:
         return CamillaDspState(self.name)
@@ -84,7 +105,7 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
     def __send(self, to_load: List[dict], title: str, on_complete: Callable[[bool], None]):
         if self.__config_loader is None:
             logger.info(f"Sending {len(to_load)} filters for {title}")
-            self.__config_loader = LoadConfig(title, self.__channels, to_load, self.ws_server, self.__client,
+            self.__config_loader = LoadConfig(title, self.__channels, to_load, self.ws_server, self.__ws_client,
                                               on_complete)
             from twisted.internet import reactor
             reactor.callLater(0.0, self.__config_loader.send_get_config)
@@ -105,9 +126,9 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         raise NotImplementedError()
 
     def load_filter(self, slot: str, entry: CatalogueEntry) -> None:
-        self._hydrate_cache_broadcast(lambda: self.__do_it(entry.filters, entry.formatted_title))
+        self._hydrate_cache_broadcast(lambda: self.__do_load_filter(entry.filters, entry.formatted_title))
 
-    def __do_it(self, to_load: List[dict], title: str):
+    def __do_load_filter(self, to_load: List[dict], title: str):
         try:
             self._current_state.slot.last = 'Loading' if to_load else 'Clearing'
 
@@ -123,20 +144,47 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
             raise e
 
     def clear_filter(self, slot: str) -> None:
-        self._hydrate_cache_broadcast(lambda: self.__do_it([], 'Empty'))
+        self._hydrate_cache_broadcast(lambda: self.__do_load_filter([], 'Empty'))
 
     def mute(self, slot: Optional[str], channel: Optional[int]) -> None:
-        raise NotImplementedError()
+        # TODO
+        def do_it():
+            pass
+        self._hydrate_cache_broadcast(do_it)
 
     def unmute(self, slot: Optional[str], channel: Optional[int]) -> None:
-        raise NotImplementedError()
+        # TODO
+        def do_it():
+            pass
+        self._hydrate_cache_broadcast(do_it)
 
     def set_gain(self, slot: Optional[str], channel: Optional[int], gain: float) -> None:
-        raise NotImplementedError()
+        # TODO
+        def do_it():
+            pass
+        self._hydrate_cache_broadcast(do_it)
+
+    def request_levels(self):
+        self.__ws_client.send(json.dumps('GetPlaybackSignalPeak'))
+        self.__ws_client.send(json.dumps('GetPlaybackSignalRms'))
 
     def levels(self) -> dict:
-        # TODO implement
-        return {}
+        return {
+            'name': self.name,
+            'ts': time.time(),
+            'levels': self.__format_levels()
+        }
+
+    def __format_levels(self):
+        return {
+            **{f'RMS-{i}': v for i, v in enumerate(self.__playback_rms)},
+            **{f'Peak-{i}': v for i, v in enumerate(self.__playback_peak)}
+        }
+
+    def on_open(self):
+        self.__ws_client.send(json.dumps('GetVolume'))
+        self.__ws_client.send(json.dumps('GetMute'))
+        self.__ws_client.send(json.dumps({'SetUpdateInterval': self.__levels_interval_ms}))
 
     def on_get_config(self, config: dict):
         if self.__config_loader is None:
@@ -169,16 +217,28 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
             self.__config_loader = None
 
     def on_get_volume(self, msg):
-        pass
+        if msg['result'] == 'Ok':
+
+            def do_it():
+                self._current_state.master_volume = msg['value']
+
+            self._hydrate_cache_broadcast(do_it)
 
     def on_get_mute(self, msg):
-        pass
+        if msg['result'] == 'Ok':
+            def do_it():
+                self._current_state.muted = msg['value']
+
+            self._hydrate_cache_broadcast(do_it)
 
     def on_get_playback_rms(self, msg):
-        pass
+        if msg['result'] == 'Ok':
+            self.__playback_rms = msg['value']
+            self.ws_server.levels(self.name, self.levels())
 
     def on_get_playback_peak(self, msg):
-        pass
+        if msg['result'] == 'Ok':
+            self.__playback_peak = msg['value']
 
 
 class CamillaDspClient:
@@ -204,6 +264,7 @@ class CamillaDspProtocol(WebSocketClientProtocol):
     def onOpen(self):
         logger.info("Connected to CAMILLADSP")
         self.factory.register(self)
+        self.factory.listener.on_open()
 
     def onClose(self, was_clean, code, reason):
         # self.do_send = None
@@ -227,12 +288,12 @@ class CamillaDspProtocol(WebSocketClientProtocol):
                     self.factory.listener.on_reload(msg['Reload']['result'])
                 elif 'GetVolume' in msg:
                     self.factory.listener.on_get_volume(msg['GetVolume'])
-                elif 'GetMute' in msg:\
+                elif 'GetMute' in msg:
                     self.factory.listener.on_get_mute(msg['GetMute'])
                 elif 'GetPlaybackSignalRms' in msg:
                     self.factory.listener.on_get_playback_rms(msg['GetPlaybackSignalRms'])
                 elif 'GetPlaybackSignalPeak' in msg:
-                    self.factory.listener.on_get_playback_rms(msg['GetPlaybackSignalPeak'])
+                    self.factory.listener.on_get_playback_peak(msg['GetPlaybackSignalPeak'])
             except:
                 logger.exception(f'Unable to decode {len(payload)} bytes in text payload')
 
@@ -299,7 +360,8 @@ def create_new_cfg(to_load: List[dict], base_cfg: dict, channels: List[int]) -> 
         filters[name] = {
             'type': 'Biquad',
             'parameters': {
-                'type': 'Lowshelf' if peq['type'] == 'LowShelf' else 'Highshelf' if peq['type'] == 'HighShelf' else 'Peaking',
+                'type': 'Lowshelf' if peq['type'] == 'LowShelf' else 'Highshelf' if peq[
+                                                                                        'type'] == 'HighShelf' else 'Peaking',
                 'freq': peq['freq'],
                 'q': peq['q'],
                 'gain': peq['gain']

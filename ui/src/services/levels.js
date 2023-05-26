@@ -52,7 +52,7 @@ class LevelsService {
     };
 
     loadDevices = (devices) => {
-        devices.forEach(d => {
+        Object.keys(devices).forEach(d => {
             if (this.devices.indexOf(d) === -1) {
                 this.devices.push(d);
                 this.dataByDevice[d] = {
@@ -150,11 +150,13 @@ class LevelsService {
         }
     };
 
-    setActiveDevice = (name) => {
-        if (this.devices.indexOf(name) > -1) {
-            this.activeDevice = name;
-        } else {
-            this.setErr(new Error(`Unknown device ${name}`));
+    setActiveDevice = (device) => {
+        if (device) {
+            if (this.devices.indexOf(device.name) > -1) {
+                this.activeDevice = device.name;
+            } else {
+                this.setErr(new Error(`Unknown device ${device.name}`));
+            }
         }
     };
 

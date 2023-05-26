@@ -48,7 +48,7 @@ const stringAvatar = name => {
     };
 }
 
-const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, hasMultipleTabs, device}) => {
+const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, selectedDevice}) => {
     const catalogueGridColumns = [
         {
             field: 'author',
@@ -88,8 +88,8 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, hasMu
         const topNav = 64;
         const gain = 56;
         const deviceRowHeight = 59;
-        const deviceRows = device && device.slots ? Math.ceil(device.slots.length / 2) : 0;
-        const upperNavHeight = topNav + (hasMultipleTabs ? gain : 0) + (deviceRows * deviceRowHeight);
+        const deviceRows = selectedDevice && selectedDevice.slots ? Math.ceil(selectedDevice.slots.length / 2) : 0;
+        const upperNavHeight = topNav + (['minidsp', 'camilladsp'].indexOf(selectedDevice.type) === -1 ? 0 : gain) + (deviceRows * deviceRowHeight);
         const bottomNavHeight = 24;
         // portrait mode so reduce space allocated to the grid
         const halfHeight = selectedEntryId !== -1 && !useWide;

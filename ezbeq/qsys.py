@@ -29,6 +29,7 @@ class QsysState(DeviceState):
 
     def serialise(self) -> dict:
         return {
+            'type': 'qsys',
             'name': self.__name,
             'slots': [self.slot.as_dict()]
         }

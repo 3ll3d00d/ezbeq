@@ -26,6 +26,9 @@ class WsServer:
     def levels(self, device: str, levels: dict) -> bool:
         return self.__factory.send_levels(device, json.dumps({'message': 'Levels', 'data': levels}))
 
+    def has_levels_client(self, device: str) -> bool:
+        return self.__factory.has_levels_client(device)
+
 
 class WsProtocol(WebSocketServerProtocol):
 
@@ -45,7 +48,8 @@ class WsProtocol(WebSocketServerProtocol):
             s = payload.decode('utf-8')
             logger.info(f"Received {s}")
             if s.startswith(SUBSCRIBE_LEVELS_CMD):
-                self.factory.register_for_levels(s[len(SUBSCRIBE_LEVELS_CMD) + 1:], self)
+                device_name = s[len(SUBSCRIBE_LEVELS_CMD) + 1:].rstrip()
+                self.factory.register_for_levels(device_name, self)
         except:
             logger.exception('Message received failure')
 
@@ -145,3 +149,6 @@ class WsServerFactory(WebSocketServerFactory):
             return self.__send_to_all(clients, msg)
         else:
             return False
+
+    def has_levels_client(self, device: str):
+        return self.__levels_client.get(device, None) is not None

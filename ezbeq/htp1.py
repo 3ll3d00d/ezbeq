@@ -29,6 +29,7 @@ class Htp1State(DeviceState):
 
     def serialise(self) -> dict:
         return {
+            'type': 'htp1',
             'name': self.__name,
             'slots': [self.slot.as_dict()]
         }
