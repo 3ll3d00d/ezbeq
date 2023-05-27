@@ -141,7 +141,7 @@ const Header = ({
                             variant="rounded"
                             src={beqcIcon}
                             sx={{width: 32, height: 32}}/>
-                    <Box sx={{flexGrow: 1}}/>
+                    <Box sx={{flexGrow: 0.5}}/>
                     {children}
                     <Box sx={{display: {xs: 'none', md: 'flex'}}}>
                         {
