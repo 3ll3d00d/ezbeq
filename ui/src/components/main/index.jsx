@@ -107,12 +107,14 @@ const MainView = ({
                                  selectedEntryId={selectedEntryId}
                                  useWide={useWide}
                                  selectedDevice={selectedDevice}/>;
-    const entry = <Entry selectedDevice={selectedDevice}
-                         selectedEntry={selectedEntryId ? entries.find(e => e.id === selectedEntryId) : null}
-                         useWide={useWide}
-                         setDevice={d => replaceDevice(d)}
-                         selectedSlotId={selectedSlotId}
-                         setError={setErr}/>;
+    const entry = selectedDevice
+        ? <Entry selectedDevice={selectedDevice}
+                 selectedEntry={selectedEntryId ? entries.find(e => e.id === selectedEntryId) : null}
+                 useWide={useWide}
+                 setDevice={d => replaceDevice(d)}
+                 selectedSlotId={selectedSlotId}
+                 setError={setErr}/>
+        : null;
     const footer = <Footer/>;
     return (
         <>

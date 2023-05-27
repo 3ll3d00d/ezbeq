@@ -112,6 +112,7 @@ const Uploader = ({
                       selectedEntry,
                       setSendGain,
                       pending,
+                      acceptGain,
                       upload
                   }) => {
     const slotControls = slots.map(s => <FormControlLabel value={s.id}
@@ -126,8 +127,7 @@ const Uploader = ({
             {slotControls}
         </RadioGroup>
         : null;
-    const slot = slots.find(s => s.id === uploadSlotId);
-    const gainControl = slot && slot.inputs > 0
+    const gainControl = acceptGain
         ? <FormControlLabel control={<Checkbox checked={sendGain}
                                                name="sendMV"
                                                color={'primary'}
@@ -148,8 +148,7 @@ const Uploader = ({
     );
 };
 
-const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotId, device, setError}) => {
-    const slots = useMemo(() => device && device.hasOwnProperty('slots') ? device.slots : [], [device]);
+const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotId, setError}) => {
     const [uploadSlotId, setUploadSlotId] = useState(null);
     const [sendGain, setSendGain] = useState(false);
     const [pending, setPending] = useState(false);
@@ -160,10 +159,10 @@ const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotI
     }, [selectedEntry]);
 
     useEffect(() => {
-        const slot = slots.find(s => s.id === uploadSlotId);
-        const accepted = slot && device.hasOwnProperty('masterVolume') && slot.inputs > 0;
+        const slot = selectedDevice.slots ? selectedDevice.slots.find(s => s.id === uploadSlotId) : null;
+        const accepted = slot && (selectedDevice.type === 'minidsp' || (selectedDevice.type === 'camilladsp' && slot.has_gain));
         setAcceptGain(accepted);
-    }, [device, slots, uploadSlotId]);
+    }, [selectedDevice, uploadSlotId]);
 
     useEffect(() => {
         if (!uploadSlotId) {
@@ -172,22 +171,28 @@ const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotI
     }, [uploadSlotId, selectedSlotId]);
 
     const upload = async () => {
-        const slot = slots.find(s => s.id === uploadSlotId);
-        const gains = {
-            'gains': [...Array(slot.inputs)].map((_, i) => sendGain ? parseFloat(selectedEntry.mvAdjust) : 0.0),
-            'mutes': sendGain ? [...Array(slot.inputs)].map((_, i) => false) : []
-        }
-        setPending(true);
-        try {
-            const call = acceptGain
-                ? () => ezbeq.loadWithMV(selectedDevice.name, selectedEntry.id, uploadSlotId, gains)
-                : () => ezbeq.sendFilter(selectedDevice.name, selectedEntry.id, uploadSlotId);
-            const device = await call();
-            setPending(false);
-            setDevice(device);
-        } catch (e) {
-            setError(e);
-            setPending(false);
+        if (selectedDevice.slots) {
+            const slot = selectedDevice.slots.find(s => s.id === uploadSlotId);
+            if (slot) {
+                const gains = selectedDevice.type === 'minidsp'
+                    ? {
+                        'gains': [...Array(slot.inputs)].map((_, i) => sendGain ? parseFloat(selectedEntry.mvAdjust) : 0.0),
+                        'mutes': sendGain ? [...Array(slot.inputs)].map((_, i) => false) : []
+                    }
+                    : {'gains': [selectedEntry.mvAdjust], 'mutes': [false]};
+                setPending(true);
+                try {
+                    const call = acceptGain
+                        ? () => ezbeq.loadWithMV(selectedDevice.name, selectedEntry.id, uploadSlotId, gains)
+                        : () => ezbeq.sendFilter(selectedDevice.name, selectedEntry.id, uploadSlotId);
+                    const device = await call();
+                    setPending(false);
+                    setDevice(device);
+                } catch (e) {
+                    setError(e);
+                    setPending(false);
+                }
+            }
         }
     };
     if (selectedEntry) {
@@ -244,10 +249,11 @@ const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotI
                 <Uploader setUploadSlotId={setUploadSlotId}
                           uploadSlotId={uploadSlotId}
                           sendGain={sendGain}
-                          slots={slots}
+                          slots={selectedDevice.slots}
                           selectedEntry={selectedEntry}
                           setSendGain={setSendGain}
                           pending={pending}
+                          acceptGain={acceptGain}
                           upload={upload}/>
             </CardContent>;
         const links =

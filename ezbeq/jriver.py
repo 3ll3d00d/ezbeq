@@ -119,7 +119,7 @@ class JRiver(PersistentDevice[JRiverState]):
     def send_commands(self, slot: str, inputs: List[int], outputs: List[int], commands: List[str]) -> None:
         raise NotImplementedError()
 
-    def load_filter(self, slot: str, entry: CatalogueEntry) -> None:
+    def load_filter(self, slot: str, entry: CatalogueEntry, mv_adjust: float = 0.0) -> None:
         def __do_it():
             mc_filts = [make_meta(entry.title, True)] \
                        + [convert_filter_to_mc_dsp(f, self.__channels) for f in entry.filters] \

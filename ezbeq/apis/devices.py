@@ -322,7 +322,7 @@ slot_model_v2 = v2_api.model('Slot', {
 device_model_v2 = v2_api.model('Device', {
     'mute': fields.Boolean(required=False),
     'masterVolume': fields.Float(required=False),
-    'slots': fields.List(fields.Nested(slot_model_v1), required=False)
+    'slots': fields.List(fields.Nested(slot_model_v2), required=False)
 })
 
 

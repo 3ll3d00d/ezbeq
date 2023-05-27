@@ -151,4 +151,4 @@ class WsServerFactory(WebSocketServerFactory):
             return False
 
     def has_levels_client(self, device: str):
-        return self.__levels_client.get(device, None) is not None
+        return len(self.__levels_client.get(device, [])) > 0

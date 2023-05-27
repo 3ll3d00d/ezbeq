@@ -282,6 +282,10 @@ The images field has special treatment as there can be a variable number of imag
     ip: 192.168.1.181
     port: 1710
     timeout_secs: 2
+    input_gains:
+      mixer: input
+      channels:
+      - 4
     channels: 
     - 4
     - 7
@@ -302,7 +306,15 @@ On unload, the camilladsp configuration will be updated as follows:
 * the filters will deleted from the `Filters` section
 * the filters will be removed from the `Pipeline` section
 
-Volume adjustments are not supported at this point.
+User controlled master volume adjustments are supported using the [Volume](https://github.com/HEnquist/camilladsp/blob/master/README.md#volume) filter if that filter has been configured in the pipeline. 
+
+BEQ specific input gain adjustments are supported via the use of a gain option on the [Mixer](https://github.com/HEnquist/camilladsp/blob/master/README.md#mixers) if the `input_gains` key is configured in the device configuration. 
+This requires 2 pieces of configuration:
+
+* the mixer name
+* a list of 1 or more channels to apply the adjustment to
+
+Note that ezbeq will take exclusive ownership over these values and will overwrite the gain value specified in the configuration as required. Use an additional mixer in the pipeline if further user configuration is required. 
 
 ## Starting ezbeq on bootup
 

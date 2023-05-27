@@ -1,7 +1,8 @@
 import json
 import logging
+import math
 import time
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, Union, Tuple
 
 from autobahn.exception import Disconnected
 from autobahn.twisted.websocket import connectWS, WebSocketClientProtocol, WebSocketClientFactory
@@ -20,25 +21,35 @@ class CamillaDspSlotState(SlotState):
 
     def __init__(self):
         super().__init__(SLOT_ID)
+        self.has_gain = False
+
+    def as_dict(self) -> dict:
+        return {
+            **super().as_dict(),
+            'has_gain': self.has_gain
+        }
 
 
 class CamillaDspState(DeviceState):
 
     def __init__(self, name: str):
         self.__name = name
+        self.has_volume = False
         self.slot = CamillaDspSlotState()
         self.slot.active = True
         self.master_volume: float = 0.0
-        self.muted: bool = False
+        self.mute: bool = False
 
     def serialise(self) -> dict:
-        return {
+        val = {
             'type': 'camilladsp',
             'name': self.__name,
-            'masterVolume': self.master_volume,
-            'mute': self.muted,
+            'mute': self.mute,
             'slots': [self.slot.as_dict()]
         }
+        if self.has_volume is True:
+            val['masterVolume'] = self.master_volume
+        return val
 
 
 class CamillaDsp(PersistentDevice[CamillaDspState]):
@@ -49,15 +60,49 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         self.__catalogue = catalogue
         self.__ip: str = cfg['ip']
         self.__port: int = cfg['port']
-        self.__channels: List[int] = [int(c) for c in cfg['channels']]
+        self.__beq_channels: List[int] = [int(c) for c in cfg['channels']]
+        self.__input_gains: Optional[Tuple[str, List[int]]] = self.__extract_input_gains(cfg)
+        self.__current_config: dict = {}
         self.__levels_interval_ms = round(1000.0 / float(cfg.get('levelsFps', 10)))
         self.__config_loader: Optional[LoadConfig] = None
-        if not self.__channels:
+        if not self.__beq_channels:
             raise ValueError(f'No channels supplied for CamillaDSP {name} - {self.__ip}:{self.__port}')
         self.__ws_client = CamillaDspClient(self.__ip, self.__port, self)
         self.__playback_peak: float = 0.0
         self.__playback_rms: float = 0.0
         ws_server.factory.set_levels_provider(name, self.start_broadcast_levels)
+
+    @staticmethod
+    def __extract_input_gains(cfg) -> Optional[Tuple[str, List[int]]]:
+        input_gains = cfg.get('input_gains', {})
+        return (input_gains['mixer'], [int(c) for c in input_gains['channels']]) if 'input_gains' in cfg else None
+
+    @property
+    def current_config(self) -> dict:
+        return self.__current_config
+
+    @current_config.setter
+    def current_config(self, cfg: dict):
+        self.__current_config = cfg
+
+        def upd():
+            prev = self._current_state.has_volume
+            if 'filters' in cfg:
+                vol_filter_name = next((k for k, v in cfg['filters'].items() if v['type'] == 'Volume'), None)
+                if vol_filter_name and 'pipeline' in cfg:
+                    self._current_state.has_volume = any(f for f in cfg['pipeline']
+                                                         if f['type'] == 'Filter' and vol_filter_name in f['names'])
+            if prev != self._current_state.has_volume:
+                logger.info(f'[{self.name}] current config has volume filter? {self._current_state.has_volume}')
+
+            if self.__input_gains and 'mixers' in cfg:
+                available_channels = {source['channel']
+                                      for v in cfg['mixers'].values()
+                                      for mapping in v['mapping']
+                                      for source in mapping['sources']}
+                self._current_state.slot.has_gain = set(self.__input_gains[1]) <= available_channels
+
+        self._hydrate_cache_broadcast(upd)
 
     def start_broadcast_levels(self) -> None:
         from twisted.internet import reactor
@@ -87,30 +132,54 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         return self.__class__.__name__.lower()
 
     def update(self, params: dict) -> bool:
-        any_update = False
-        if 'slots' in params:
-            for slot in params['slots']:
-                if slot['id'] == SLOT_ID:
-                    if 'entry' in slot:
-                        if slot['entry']:
-                            match = self.__catalogue.find(slot['entry'])
-                            if match:
-                                self.load_filter(SLOT_ID, match)
+        def __do_it() -> bool:
+            any_update = False
+            if 'slots' in params:
+                for slot in params['slots']:
+                    if slot['id'] == SLOT_ID:
+                        if 'entry' in slot:
+                            if slot['entry']:
+                                match = self.__catalogue.find(slot['entry'])
+                                if match:
+                                    mv = 0.0
+                                    if 'gains' in slot and slot['gains']:
+                                        mv = float(slot['gains'][0])
+                                    self.load_filter(SLOT_ID, match, mv)
+                                    any_update = True
+                            else:
+                                self.clear_filter(SLOT_ID)
                                 any_update = True
-                        else:
-                            self.clear_filter(SLOT_ID)
-                            any_update = True
-        return any_update
+                        if 'mutes' in slot and slot['mutes']:
+                            if slot['mutes'][0] is True:
+                                self.mute(None, None)
+                            else:
+                                self.unmute(None, None)
+            if 'mute' in params and params['mute'] != self._current_state.mute:
+                if self._current_state.mute:
+                    self.unmute(None, None)
+                else:
+                    self.mute(None, None)
+                any_update = True
+            if 'masterVolume' in params and not math.isclose(params['masterVolume'], self._current_state.master_volume):
+                self.set_gain(None, None, params['masterVolume'])
+                any_update = True
+            return any_update
 
-    def __send(self, to_load: List[dict], title: str, on_complete: Callable[[bool], None]):
+        return self._hydrate_cache_broadcast(__do_it)
+
+    def __send_filter(self, to_load: List[dict], title: str, mv_adjust: float, on_complete: Callable[[bool], None]):
         if self.__config_loader is None:
             logger.info(f"Sending {len(to_load)} filters for {title}")
-            self.__config_loader = LoadConfig(title, self.__channels, to_load, self.ws_server, self.__ws_client,
-                                              on_complete)
+            self.__config_loader = LoadConfig(title, self.__beq_channels, mv_adjust, self.__input_gains, to_load,
+                                              self.ws_server, self.__ws_client, on_complete)
             from twisted.internet import reactor
             reactor.callLater(0.0, self.__config_loader.send_get_config)
         else:
-            raise ValueError(f'Unable to load PEQ, load already in progress for {self.__config_loader.title}')
+            raise ValueError(f'Unable to load BEQ, load already in progress for {self.__config_loader.title}')
+
+    def __send_command(self, set_cmd: str, value: Union[float, bool]):
+        logger.info(f"Sending command {set_cmd}: {value}")
+        self.__ws_client.send(json.dumps({set_cmd: value}))
 
     def activate(self, slot: str) -> None:
         def __do_it():
@@ -125,10 +194,10 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
     def send_commands(self, slot: str, inputs: List[int], outputs: List[int], commands: List[str]) -> None:
         raise NotImplementedError()
 
-    def load_filter(self, slot: str, entry: CatalogueEntry) -> None:
-        self._hydrate_cache_broadcast(lambda: self.__do_load_filter(entry.filters, entry.formatted_title))
+    def load_filter(self, slot: str, entry: CatalogueEntry, mv_adjust: float = 0.0) -> None:
+        self._hydrate_cache_broadcast(lambda: self.__do_load_filter(entry.filters, entry.formatted_title, mv_adjust))
 
-    def __do_load_filter(self, to_load: List[dict], title: str):
+    def __do_load_filter(self, to_load: List[dict], title: str, mv_adjust: float = 0.0):
         try:
             self._current_state.slot.last = 'Loading' if to_load else 'Clearing'
 
@@ -138,7 +207,7 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
                 else:
                     self._current_state.slot.last = 'ERROR'
 
-            self.__send(to_load, title, lambda b: self._hydrate_cache_broadcast(lambda: completed(b)))
+            self.__send_filter(to_load, title, mv_adjust, lambda b: self._hydrate_cache_broadcast(lambda: completed(b)))
         except Exception as e:
             self._current_state.slot.last = 'ERROR'
             raise e
@@ -147,22 +216,25 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         self._hydrate_cache_broadcast(lambda: self.__do_load_filter([], 'Empty'))
 
     def mute(self, slot: Optional[str], channel: Optional[int]) -> None:
-        # TODO
-        def do_it():
-            pass
-        self._hydrate_cache_broadcast(do_it)
+        self._hydrate_cache_broadcast(lambda: self.__do_mute_op(True))
+
+    def __do_mute_op(self, mute: bool):
+        try:
+            self.__send_command('SetMute', mute)
+        except Exception as e:
+            raise e
 
     def unmute(self, slot: Optional[str], channel: Optional[int]) -> None:
-        # TODO
-        def do_it():
-            pass
-        self._hydrate_cache_broadcast(do_it)
+        self._hydrate_cache_broadcast(lambda: self.__do_mute_op(False))
 
     def set_gain(self, slot: Optional[str], channel: Optional[int], gain: float) -> None:
-        # TODO
-        def do_it():
-            pass
-        self._hydrate_cache_broadcast(do_it)
+        self._hydrate_cache_broadcast(lambda: self.__do_volume_op(gain))
+
+    def __do_volume_op(self, level: float):
+        try:
+            self.__send_command('SetVolume', level)
+        except Exception as e:
+            raise e
 
     def request_levels(self):
         self.__ws_client.send(json.dumps('GetPlaybackSignalPeak'))
@@ -182,19 +254,25 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         }
 
     def on_open(self):
+        self.__ws_client.send(json.dumps('GetConfigJson'))
         self.__ws_client.send(json.dumps('GetVolume'))
         self.__ws_client.send(json.dumps('GetMute'))
         self.__ws_client.send(json.dumps({'SetUpdateInterval': self.__levels_interval_ms}))
 
     def on_get_config(self, config: dict):
-        if self.__config_loader is None:
-            logger.info(f'Received new DSP config but nothing to load, ignoring {config}')
-        else:
-            if config['result'] == 'Ok':
-                self.__config_loader.on_get_config(json.loads(config['value']))
+        if config['result'] == 'Ok':
+            new_config = json.loads(config['value'])
+            self.current_config = new_config
+            if self.__config_loader is None:
+                logger.info(f'Received new DSP config but nothing to load, ignoring {new_config}')
             else:
+                self.__config_loader.on_get_config(new_config)
+        else:
+            if self.__config_loader is not None:
                 self.__config_loader.failed('GetConfig', config)
                 self.__config_loader = None
+            else:
+                logger.warning(f'GetConfig failed :: {config}')
 
     def on_set_config(self, result: str):
         if self.__config_loader is None:
@@ -218,16 +296,29 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
 
     def on_get_volume(self, msg):
         if msg['result'] == 'Ok':
-
             def do_it():
                 self._current_state.master_volume = msg['value']
 
             self._hydrate_cache_broadcast(do_it)
 
+    def on_set_volume(self, msg):
+        if msg['result'] == 'Ok':
+            self.__ws_client.send(json.dumps('GetVolume'))
+        else:
+            # TODO send to UI
+            logger.warning(f'Unsuccessful command {msg}')
+
+    def on_set_mute(self, msg):
+        if msg['result'] == 'Ok':
+            self.__ws_client.send(json.dumps('GetMute'))
+        else:
+            # TODO send to UI
+            logger.warning(f'Unsuccessful command {msg}')
+
     def on_get_mute(self, msg):
         if msg['result'] == 'Ok':
             def do_it():
-                self._current_state.muted = msg['value']
+                self._current_state.mute = msg['value']
 
             self._hydrate_cache_broadcast(do_it)
 
@@ -347,7 +438,8 @@ class CamillaDspClientFactory(WebSocketClientFactory, ReconnectingClientFactory)
             raise ValueError(f"No devices connected, ignoring {msg}")
 
 
-def create_new_cfg(to_load: List[dict], base_cfg: dict, channels: List[int]) -> dict:
+def create_new_cfg(to_load: List[dict], base_cfg: dict, beq_channels: List[int], mv_adjust: float,
+                   input_gains: Optional[Tuple[str, List[int]]]) -> dict:
     from copy import deepcopy
     new_cfg = deepcopy(base_cfg)
     if 'filters' not in new_cfg:
@@ -360,8 +452,7 @@ def create_new_cfg(to_load: List[dict], base_cfg: dict, channels: List[int]) -> 
         filters[name] = {
             'type': 'Biquad',
             'parameters': {
-                'type': 'Lowshelf' if peq['type'] == 'LowShelf' else 'Highshelf' if peq[
-                                                                                        'type'] == 'HighShelf' else 'Peaking',
+                'type': get_filter_type(peq),
                 'freq': peq['freq'],
                 'q': peq['q'],
                 'gain': peq['gain']
@@ -374,7 +465,7 @@ def create_new_cfg(to_load: List[dict], base_cfg: dict, channels: List[int]) -> 
             del filters[k]
     if 'pipeline' in new_cfg:
         pipeline = new_cfg['pipeline']
-        for channel in channels:
+        for channel in beq_channels:
             empty_filter = {'type': 'Filter', 'channel': channel, 'names': []}
             existing = None
             for f in pipeline:
@@ -386,16 +477,35 @@ def create_new_cfg(to_load: List[dict], base_cfg: dict, channels: List[int]) -> 
             import re
             existing['names'] = [n for n in existing['names'] if re.match(r'^BEQ\d$', n) is None] + filter_names
     else:
-        raise ValueError(f'Unable to load PEQ, dsp config has no pipeline declared')
+        raise ValueError(f'Unable to load BEQ, dsp config has no pipeline declared')
+    if input_gains and 'mixers' in new_cfg:
+        mixer_name, input_channels = input_gains
+        if mixer_name and input_channels:
+            mixer_cfg = new_cfg['mixers'].get(mixer_name, None)
+            if mixer_cfg:
+                for mapping in mixer_cfg['mapping']:
+                    for source in mapping['sources']:
+                        for gain_channel in input_channels:
+                            if source['channel'] == gain_channel:
+                                source['gain'] = mv_adjust
+            else:
+                raise ValueError(f'Unable to load BEQ with MV adjustment, mixer {mixer_name} is required but not found in config')
     return new_cfg
+
+
+def get_filter_type(peq):
+    return 'Lowshelf' if peq['type'] == 'LowShelf' else 'Highshelf' if peq['type'] == 'HighShelf' else 'Peaking'
 
 
 class LoadConfig:
 
-    def __init__(self, title: str, channels: List[int], to_load: List[dict], ws_server: WsServer,
+    def __init__(self, title: str, beq_channels: List[int], mv_adjust: float,
+                 input_gains: Optional[Tuple[str, List[int]]], to_load: List[dict], ws_server: WsServer,
                  client: CamillaDspClient, on_complete: Callable[[bool], None]):
         self.title = title
-        self.__channels = channels
+        self.__mv_adjust = mv_adjust
+        self.__input_gains = input_gains
+        self.__beq_channels = beq_channels
         self.__to_load = to_load
         self.__dsp_config = None
         self.__ws_server = ws_server
@@ -414,7 +524,7 @@ class LoadConfig:
 
     def __do_set_config(self):
         logger.info(f'[{self.title}] Sending SetConfigJson')
-        new_cfg = create_new_cfg(self.__to_load, self.__dsp_config, self.__channels)
+        new_cfg = create_new_cfg(self.__to_load, self.__dsp_config, self.__beq_channels, self.__mv_adjust, self.__input_gains)
         self.__client.send(json.dumps({'SetConfigJson': json.dumps(new_cfg)}))
 
     def on_set_config(self):

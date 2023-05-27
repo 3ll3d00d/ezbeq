@@ -78,7 +78,7 @@ class Device(ABC, Generic[T]):
         pass
 
     @abstractmethod
-    def load_filter(self, slot: str, entry: CatalogueEntry) -> None:
+    def load_filter(self, slot: str, entry: CatalogueEntry, mv_adjust: float = 0.0) -> None:
         pass
 
     @abstractmethod

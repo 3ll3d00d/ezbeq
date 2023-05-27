@@ -105,7 +105,7 @@ class Htp1(PersistentDevice[Htp1State]):
     def send_commands(self, slot: str, inputs: List[int], outputs: List[int], commands: List[str]) -> None:
         raise NotImplementedError()
 
-    def load_filter(self, slot: str, entry: CatalogueEntry) -> None:
+    def load_filter(self, slot: str, entry: CatalogueEntry, mv_adjust: float = 0.0) -> None:
         to_load = [PEQ(idx, fc=f['freq'], q=f['q'], gain=f['gain'], filter_type_name=f['type'])
                    for idx, f in enumerate(entry.filters)]
         self._hydrate_cache_broadcast(lambda: self.__do_it(to_load, entry.formatted_title))
