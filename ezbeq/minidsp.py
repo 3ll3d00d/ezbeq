@@ -5,7 +5,7 @@ import os
 import time
 from concurrent.futures.thread import ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict
 
 import yaml
 from autobahn.exception import Disconnected
@@ -30,7 +30,7 @@ class MinidspState(DeviceState):
         self.master_volume: float = kwargs['mv'] if 'mv' in kwargs else 0.0
         self.__mute: bool = kwargs['mute'] if 'mute' in kwargs else False
         self.__active_slot: str = kwargs['active_slot'] if 'active_slot' in kwargs else ''
-        self.__descriptr = descriptor
+        self.__descriptor = descriptor
         slot_ids = [str(i + 1) for i in range(4)]
         self.__slots: List[MinidspSlotState] = [
             MinidspSlotState(c_id,
@@ -124,15 +124,15 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
         self.gains = self.__make_vals(0.0)
         self.mutes = self.__make_vals(False)
 
-    def __make_vals(self, val):
-        return [val] * self.__input_channels
+    def __make_vals(self, val: Union[float, bool]) -> List[dict]:
+        return [{'id': str(i + 1), 'value': val} for i in range(self.__input_channels)]
 
     def set_gain(self, channel: Optional[int], value: float):
         if channel is None:
             self.gains = self.__make_vals(value)
         else:
             if channel <= self.__input_channels:
-                self.gains[channel - 1] = value
+                next(g for g in self.gains if g['id'] == str(channel))['value'] = value
             else:
                 raise ValueError(f'Unknown channel {channel} for slot {self.slot_id}')
 
@@ -144,7 +144,7 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
             self.mutes = self.__make_vals(value)
         else:
             if channel <= self.__input_channels:
-                self.mutes[channel - 1] = value
+                next(g for g in self.mutes if g['id'] == str(channel))['value'] = value
             else:
                 raise ValueError(f'Unknown channel {channel} for slot {self.slot_id}')
 
@@ -153,44 +153,34 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
 
     def merge_with(self, state: dict) -> None:
         super().merge_with(state)
-        # legacy (v1 api)
-        if 'gain1' in state and self.__input_channels > 0:
-            self.gains[0] = float(state['gain1'])
-        if 'gain2' in state and self.__input_channels > 1:
-            self.gains[1] = float(state['gain2'])
-        if 'mute1' in state and self.__input_channels > 0:
-            self.mutes[0] = bool(state['mute1'])
-        if 'mute2' in state and self.__input_channels > 1:
-            self.mutes[1] = bool(state['mute2'])
-        # current (v2 api)
         if 'gains' in state and len(state['gains']) == self.__input_channels:
-            self.gains = [float(v) for v in state['gains']]
+            self.gains = []
+            for i, g in enumerate(state['gains']):
+                if isinstance(g, dict):
+                    self.gains.append(g)
+                else:
+                    self.gains.append({'id': str(i+1), 'value': float(g)})
         if 'mutes' in state and len(state['mutes']) == self.__input_channels:
-            self.mutes = [bool(v) for v in state['mutes']]
+            self.mutes = []
+            for i, m in enumerate(state['mutes']):
+                if isinstance(m, dict):
+                    self.mutes.append(m)
+                else:
+                    self.mutes.append({'id': str(i+1), 'value': bool(m)})
 
     def as_dict(self) -> dict:
         sup = super().as_dict()
-        vals = {}
-        if self.__input_channels == 2:
-            # backwards compatibility
-            vals = {
-                'gain1': self.gains[0],
-                'gain2': self.gains[1],
-                'mute1': self.mutes[0],
-                'mute2': self.mutes[1],
-            }
         return {
             **sup,
-            **vals,
-            'gains': [g for g in self.gains],
-            'mutes': [m for m in self.mutes],
+            'gains': self.gains,
+            'mutes': self.mutes,
             'canActivate': True,
             'inputs': self.__input_channels,
             'outputs': self.__output_channels
         }
 
     def __repr__(self):
-        vals = ' '.join([f"{i + 1}: {g:.2f}/{self.mutes[i]}" for i, g in enumerate(self.gains)])
+        vals = ' '.join([f"{g['id']}: {g['value']:.2f}/{self.mutes[i]['value']}" for i, g in enumerate(self.gains)])
         return f"{super().__repr__()} - {vals}"
 
 
@@ -214,7 +204,7 @@ class PeqRoutes:
             same = self.name == o.name and self.biquads == o.biquads and self.channels == o.channels and self.beq_slots == o.beq_slots
             if same:
                 return (self.groups is None and o.groups is None) or (
-                            self.groups is not None and self.groups == o.groups)
+                        self.groups is not None and self.groups == o.groups)
             return same
         return NotImplemented
 
@@ -664,36 +654,16 @@ class Minidsp(PersistentDevice[MinidspState]):
     def __update_slot(self, slot: dict) -> bool:
         any_update = False
         current_slot = self._current_state.get_slot(slot['id'])
-        # legacy
-        if 'gain1' in slot:
-            self.set_gain(current_slot.slot_id, 1, slot['gain1'])
-            any_update = True
-        if 'gain2' in slot:
-            self.set_gain(current_slot.slot_id, 2, slot['gain2'])
-            any_update = True
-        if 'mute1' in slot:
-            if slot['mute1'] is True:
-                self.mute(current_slot.slot_id, 1)
-            else:
-                self.unmute(current_slot.slot_id, 1)
-            any_update = True
-        if 'mute2' in slot:
-            if slot['mute1'] is True:
-                self.mute(current_slot.slot_id, 2)
-            else:
-                self.unmute(current_slot.slot_id, 2)
-            any_update = True
-        # current
         if 'gains' in slot:
-            for idx, gain in enumerate(slot['gains']):
-                self.set_gain(current_slot.slot_id, idx + 1, gain)
+            for gain in slot['gains']:
+                self.set_gain(current_slot.slot_id, int(gain['id']), gain['value'])
                 any_update = True
         if 'mutes' in slot:
-            for idx, mute in enumerate(slot['mutes']):
-                if mute is True:
-                    self.mute(current_slot.slot_id, idx + 1)
+            for mute in slot['mutes']:
+                if mute['value'] is True:
+                    self.mute(current_slot.slot_id, int(mute['id']))
                 else:
-                    self.unmute(current_slot.slot_id, idx + 1)
+                    self.unmute(current_slot.slot_id, int(mute['id']))
                 any_update = True
         if 'entry' in slot:
             if slot['entry']:
@@ -742,7 +712,7 @@ class Minidsp(PersistentDevice[MinidspState]):
             sched()
 
     def on_ws_message(self, msg: dict):
-        logger.info(f"[{self.name}] Received {msg}")
+        logger.debug(f"[{self.name}] Received {msg}")
         if 'master' in msg:
             master = msg['master']
             if master:

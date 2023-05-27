@@ -275,49 +275,23 @@ class Devices(Resource):
         return {n: d.serialise() for n, d in self.__bridge.all_devices(refresh=True).items()}
 
 
-slot_model_v1 = v1_api.model('Slot', {
+gain_model = v2_api.model('Gain', {
     'id': fields.String(required=True),
-    'active': fields.Boolean(required=False),
-    'gain1': fields.Float(required=False),
-    'gain2': fields.Float(required=False),
-    'mute1': fields.Boolean(required=False),
-    'mute2': fields.Boolean(required=False),
-    'entry': fields.String(required=False)
+    'value': fields.Float(required=True)
 })
 
-
-device_model_v1 = v1_api.model('Device', {
-    'mute': fields.Boolean(required=False),
-    'masterVolume': fields.Float(required=False),
-    'slots': fields.List(fields.Nested(slot_model_v1), required=False)
+mute_model = v2_api.model('Mute', {
+    'id': fields.String(required=True),
+    'value': fields.Boolean(required=True)
 })
-
-
-@v1_api.route('/<string:device_name>')
-class Device(Resource):
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.__bridge: DeviceRepository = kwargs['device_bridge']
-        self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
-
-    @v1_api.expect(device_model_v1, validate=True)
-    def patch(self, device_name: str):
-        payload = request.get_json()
-        logger.info(f"PATCHing {device_name} with {payload}")
-        if not self.__bridge.update(device_name, payload):
-            logger.info(f"PATCH {device_name} was a nop")
-        return self.__bridge.state(device_name).serialise()
-
 
 slot_model_v2 = v2_api.model('Slot', {
     'id': fields.String(required=True),
     'active': fields.Boolean(required=False),
-    'gains': fields.List(fields.Float, required=False),
-    'mutes': fields.List(fields.Boolean,required=False),
+    'gains': fields.List(fields.Nested(gain_model), required=False),
+    'mutes': fields.List(fields.Nested(mute_model), required=False),
     'entry': fields.String(required=False)
 })
-
 
 device_model_v2 = v2_api.model('Device', {
     'mute': fields.Boolean(required=False),

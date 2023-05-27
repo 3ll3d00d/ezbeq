@@ -129,11 +129,11 @@ const GainInput = ({fieldName, helpText, minGain, maxGain, step, dp, savedValues
     );
 };
 
-const Gain = ({selectedSlotId, deviceGains, gains, setGains, sendGains, isActive}) => {
+const Gain = ({selectedSlotId, deviceGains, gains, updateGain, sendGains, isActive}) => {
     const classes = useStyles();
     const [valid, setValid] = useState(true);
     useEffect(() => {
-        setValid(isNaN(gains.master_mv) || gains.gains.some(i => isNaN(i)));
+        setValid(isNaN(gains.master_mv) || gains.gains.some(g => isNaN(g.value)));
     }, [gains]);
     if (selectedSlotId !== null) {
         return (
@@ -144,18 +144,18 @@ const Gain = ({selectedSlotId, deviceGains, gains, setGains, sendGains, isActive
                                    minGain={-127} maxGain={0} step={0.5} dp={1}
                                    savedValues={{mv: deviceGains.master_mv, mute: deviceGains.master_mute}}
                                    values={{mv: gains.master_mv, mute: gains.master_mute}}
-                                   setMV={v => setGains({...gains, ...{master_mv: v}})}
-                                   setMute={v => setGains({...gains, ...{master_mute: v}})}/>
+                                   setMV={v => updateGain('master', 'mv', v)}
+                                   setMute={v => updateGain('master', 'mute', v)}/>
                         {
-                            gains.gains.map((g, idx) =>
-                                <GainInput key={`input${idx}`}
-                                           fieldName={`input${idx}-gain`}
-                                           helpText={`Input ${idx+1}`}
+                            gains.gains.map((g, i) =>
+                                <GainInput key={`input${g.id}`}
+                                           fieldName={`input${g.id}-gain`}
+                                           helpText={`Input ${g.id}`}
                                            minGain={-72} maxGain={12} step={0.25} dp={2}
-                                           savedValues={{mv: deviceGains.gains[idx], mute: deviceGains.mutes[idx]}}
-                                           values={{mv: gains.gains[idx], mute: gains.mutes[idx]}}
-                                           setMV={v => setGains({...gains, ...{gains: gains.gains.map((g, i) => i === idx ? v : g)}})}
-                                           setMute={v => setGains({...gains, ...{mutes: gains.mutes.map((g, i) => i === idx ? v : g)}})}/>
+                                           savedValues={{mv: deviceGains.gains[i].value, mute: deviceGains.mutes[i].value}}
+                                           values={{mv: gains.gains[i].value, mute: gains.mutes[i].value}}
+                                           setMV={v => updateGain(g.id, 'mv', v)}
+                                           setMute={v => updateGain(g.id, 'mute', v)}/>
                             )
                         }
                         <Button variant="outlined"

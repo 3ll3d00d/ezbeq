@@ -1,5 +1,5 @@
 import {makeStyles} from "@mui/styles";
-import React, {useEffect, useState} from "react";
+import React, {useCallback, useEffect, useState} from "react";
 import ezbeq from "../../services/ezbeq";
 import {CircularProgress, Grid, IconButton, Paper} from "@mui/material";
 import Box from '@mui/material/Box';
@@ -84,6 +84,41 @@ const Slots = ({selectedDevice, selectedSlotId, useWide, setDevice, setUserDrive
     const [currentGains, setCurrentGains] = useState(defaultGain);
     const [deviceGains, setDeviceGains] = useState({});
 
+    const updateGain = useCallback((parent, key, value) => {
+        const newGains = JSON.parse(JSON.stringify(currentGains));
+        let updated = true;
+        if (key === 'mv') {
+            if (parent === 'master') {
+                newGains.master_mv = value;
+            } else {
+                const match = newGains.gains.find(e => e.id === parent);
+                if (match) {
+                    match.value = value
+                } else {
+                    updated = false;
+                }
+            }
+        } else if (key === 'mute') {
+            if (parent === 'master') {
+                newGains.master_mute = value;
+            } else {
+                const match = newGains.mutes.find(e => e.id === parent);
+                if (match) {
+                    match.value = value
+                } else {
+                    updated = false;
+                }
+            }
+        } else {
+            updated = false;
+        }
+        if (updated) {
+            setCurrentGains(newGains);
+        } else {
+            console.warn(`Ignoring unknown update : ${parent}.${key}=${value}`);
+        }
+    }, [currentGains, setCurrentGains]);
+
     // reset gain on slot (de)select or device update
     useEffect(() => {
         if (selectedDevice) {
@@ -156,7 +191,7 @@ const Slots = ({selectedDevice, selectedSlotId, useWide, setDevice, setUserDrive
         const gain = <Gain selectedSlotId={selectedSlotId}
                            deviceGains={deviceGains}
                            gains={currentGains}
-                           setGains={setCurrentGains}
+                           updateGain={updateGain}
                            sendGains={sendGainToDevice}
                            isActive={() => getCurrentState(pending, 'gain', selectedSlotId) === 1}/>;
         if (useWide) {

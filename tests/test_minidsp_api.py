@@ -13,13 +13,13 @@ def verify_slot(slot: dict, idx: int, active: bool = False, gain = (0.0, 0.0), m
     if gain:
         assert len(slot['gains']) == len(gain)
         for idx, g in enumerate(gain):
-            assert slot['gains'][idx] == g
+            assert slot['gains'][idx]['value'] == g
     else:
         assert len(slot['gains']) == 0
     if mute:
         assert len(slot['mutes']) == len(mute)
         for idx, g in enumerate(mute):
-            assert slot['mutes'][idx] == g
+            assert slot['mutes'][idx]['value'] == g
     else:
         assert len(slot['mutes']) == 0
     assert slot['last'] == last
@@ -1807,24 +1807,22 @@ input 7 gain -- 0.00"""
             verify_slot(s, idx + 1, active=slot_is_active, gain=[0.0] * 8, mute=[False] * 8)
 
 
-@pytest.mark.parametrize("v", [1, 2])
-def test_patch_multiple_fields(minidsp_client, minidsp_app, v):
+def test_patch_multiple_fields(minidsp_client, minidsp_app):
     config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
     assert isinstance(config, MinidspSpyConfig)
     # when: set master gain
     # and: set input gains
-    gains = {'gain1': 5.1, 'gain2': 6.1} if v == 1 else {'gains': [5.1, 6.1]}
     payload = {
         'masterVolume': -10.2,
         'mute': True,
         'slots': [
             {
                 'id': '2',
-                **gains
+                'gains': [{'id': '1', 'value': 5.1}, {'id': '2', 'value': 6.1}]
             }
         ]
     }
-    r = minidsp_client.patch(f"/api/1/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.patch(f"/api/2/devices/master", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
 
     # then: expected commands are sent
@@ -1843,29 +1841,27 @@ def test_patch_multiple_fields(minidsp_client, minidsp_app, v):
             verify_slot(s, idx + 1)
 
 
-@pytest.mark.parametrize("v", [1, 2])
-def test_patch_multiple_slots(minidsp_client, minidsp_app, v):
+def test_patch_multiple_slots(minidsp_client, minidsp_app):
     config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
     assert isinstance(config, MinidspSpyConfig)
     # when: set master gain
     # and: set input gains
-    g1 = {'gain1': 5.1, 'gain2': 6.1} if v == 1 else {'gains': [5.1, 6.1]}
-    g2 = {'gain1': -1.1, 'gain2': -1.1, 'mute1': False, 'mute2': False} if v == 1 else {'gains': [-1.1, -1.1], 'mutes': [False]*2}
     payload = {
         'masterVolume': -10.2,
         'slots': [
             {
                 'id': '2',
-                **g1
+                'gains': [{'id': '1', 'value': 5.1}, {'id': '2', 'value': 6.1}]
             },
             {
                 'id': '3',
                 'entry': '123456_0',
-                **g2
+                'gains': [{'id': '1', 'value': -1.1}, {'id': '2', 'value': -1.1}],
+                'mutes': [{'id': '1', 'value': False}, {'id': '2', 'value': False}]
             }
         ]
     }
-    r = minidsp_client.patch(f"/api/1/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.patch(f"/api/2/devices/master", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
 
     # then: expected commands are sent
@@ -1927,7 +1923,7 @@ def test_reload_from_cache(minidsp_client, tmp_path):
     expected.update_master_state(True, -5.4)
     slot = expected.get_slot('2')
     slot.mute(None)
-    slot.gains[0] = 4.8
+    slot.gains[0]['value'] = 4.8
     slot.active = True
     slot.last = 'Testing'
     with open(os.path.join(tmp_path, 'master.json'), 'w') as f:

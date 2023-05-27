@@ -2,7 +2,7 @@ import json
 import logging
 import math
 import time
-from typing import List, Optional, Callable, Union, Tuple
+from typing import List, Optional, Callable, Union, Tuple, Dict
 
 from autobahn.exception import Disconnected
 from autobahn.twisted.websocket import connectWS, WebSocketClientProtocol, WebSocketClientFactory
@@ -21,12 +21,12 @@ class CamillaDspSlotState(SlotState):
 
     def __init__(self):
         super().__init__(SLOT_ID)
-        self.has_gain = False
+        self.gains_by_channel: Dict[str, float] = {}
 
     def as_dict(self) -> dict:
         return {
             **super().as_dict(),
-            'has_gain': self.has_gain
+            'gains': self.gains_by_channel
         }
 
 
@@ -96,11 +96,14 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
                 logger.info(f'[{self.name}] current config has volume filter? {self._current_state.has_volume}')
 
             if self.__input_gains and 'mixers' in cfg:
-                available_channels = {source['channel']
-                                      for v in cfg['mixers'].values()
-                                      for mapping in v['mapping']
-                                      for source in mapping['sources']}
-                self._current_state.slot.has_gain = set(self.__input_gains[1]) <= available_channels
+                mixer_cfg = cfg['mixers'].get(self.__input_gains[0], None)
+                gains = {}
+                if mixer_cfg:
+                    for mapping in mixer_cfg['mapping']:
+                        for source in mapping['sources']:
+                            if source['channel'] in self.__input_gains[1]:
+                                gains[str(source['channel'])] = source.get('gain', 0.0)
+                self._current_state.slot.gains_by_channel = gains
 
         self._hydrate_cache_broadcast(upd)
 

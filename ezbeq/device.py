@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 import os
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, TypeVar, Generic, Callable
@@ -225,10 +226,13 @@ class PersistentDevice(Device, ABC, Generic[T]):
         if not self.__hydrated or refresh is True:
             self._current_state = self._load_initial_state()
             if os.path.exists(self.__file_name):
-                with open(self.__file_name, 'r') as f:
-                    cached_state = json.load(f)
-                logger.info(f"Loaded {cached_state} from {self.__file_name}")
-                self._current_state = self._merge_state(self._current_state, cached_state)
+                try:
+                    with open(self.__file_name, 'r') as f:
+                        cached_state = json.load(f)
+                    logger.info(f"Loaded {cached_state} from {self.__file_name}")
+                    self._current_state = self._merge_state(self._current_state, cached_state)
+                except Exception:
+                    logger.exception(f'Failed to load content from {self.__file_name}')
             else:
                 logger.info(f"No cached state found at {self.__file_name}")
             if refresh is False:

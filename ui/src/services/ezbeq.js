@@ -146,7 +146,7 @@ class EzBeqService {
         return response.json();
     }
 
-    createPatchPayload = (slot_id, gains, entryId = null) => {
+    createPatchPayload = (slotId, gains, entryId = null) => {
         const payload = {};
         if (gains.hasOwnProperty('master_mv')) {
             payload.masterVolume = parseFloat(gains.master_mv);
@@ -155,10 +155,12 @@ class EzBeqService {
             payload.mute = gains.master_mute;
         }
         const slot = {
-            id: String(slot_id),
-            gains: gains.gains.map(g => parseFloat(g)),
-            mutes: gains.mutes
-        };
+            id: String(slotId)
+        }
+        if (gains.hasOwnProperty('gains')) {
+            slot.gains = gains.gains.map(g => ({id: g.id, value: parseFloat(g.value)}));
+            slot.mutes = gains.mutes;
+        }
         if (entryId) {
             payload.slots = [Object.assign({}, slot, {entry: entryId})]
         } else {

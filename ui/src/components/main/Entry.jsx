@@ -160,7 +160,7 @@ const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotI
 
     useEffect(() => {
         const slot = selectedDevice.slots ? selectedDevice.slots.find(s => s.id === uploadSlotId) : null;
-        const accepted = slot && (selectedDevice.type === 'minidsp' || (selectedDevice.type === 'camilladsp' && slot.has_gain));
+        const accepted = slot && slot.gains && Object.keys(slot.gains).length > 0;
         setAcceptGain(accepted);
     }, [selectedDevice, uploadSlotId]);
 
@@ -174,12 +174,10 @@ const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotI
         if (selectedDevice.slots) {
             const slot = selectedDevice.slots.find(s => s.id === uploadSlotId);
             if (slot) {
-                const gains = selectedDevice.type === 'minidsp'
-                    ? {
-                        'gains': [...Array(slot.inputs)].map((_, i) => sendGain ? parseFloat(selectedEntry.mvAdjust) : 0.0),
-                        'mutes': sendGain ? [...Array(slot.inputs)].map((_, i) => false) : []
-                    }
-                    : {'gains': [selectedEntry.mvAdjust], 'mutes': [false]};
+                const gains = {
+                    'gains': slot.gains.map(g => { return {id: g.id, value: sendGain ? parseFloat(selectedEntry.mvAdjust) : 0.0}; }),
+                    'mutes': sendGain ? slot.mutes.map(m => { return {id: m.id, value: false}; }) : []
+                };
                 setPending(true);
                 try {
                     const call = acceptGain
