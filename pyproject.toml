@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ezbeq"
-version = "1.0.0b20"
+version = "1.0.0b21"
 description = "A webapp which can send beqcatalogue filters to a DSP device"
 authors = ["3ll3d00d <mattkhan+ezbeq@gmail.com>"]
 license = "MIT"
@@ -10,7 +10,7 @@ repository = "https://github.com/3ll3d00d/ezbeq"
 include = [
     "LICENSE",
     "ezbeq/ui/**/*",
-    "VERSION"
+    "ezbeq/VERSION"
 ]
 
 [tool.poetry.dependencies]
