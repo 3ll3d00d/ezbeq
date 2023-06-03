@@ -10,6 +10,7 @@ import MainView from "./components/main";
 import Levels from "./components/levels";
 import Minidsp from "./components/minidsp";
 import LevelsService from "./services/levels";
+import StateService from "./services/state";
 
 const useStyles = makeStyles((theme) => ({
     root: {
@@ -28,7 +29,7 @@ const Root = ({children}) => {
     )
 }
 
-const ws = new WebSocket("ws://" + window.location.host + "/ws");
+const ss = new StateService(`ws://${window.location.host}/ws`);
 
 const App = () => {
     const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
@@ -42,32 +43,23 @@ const App = () => {
         [prefersDarkMode],
     );
 
-    const replaceDevice = replacement => {
-        setAvailableDevices(Object.assign({}, availableDevices, {[replacement.name]: replacement}));
-    };
-
     // errors
     const [err, setErr] = useState(null);
 
-    ws.onmessage = event => {
-        const payload = JSON.parse(event.data);
-        switch (payload.message) {
-            case 'DeviceState':
-                replaceDevice(payload.data);
-                break;
-            case 'Error':
-                setErr(new Error(payload.data));
-                break;
-            default:
-                console.warn(`Unknown ws message ${event.data}`)
-        }
-    };
-
-    // catalogue data
-    const [entries, setEntries] = useState([]);
     // device state
     const [availableDevices, setAvailableDevices] = useState({});
     const [selectedSlotId, setSelectedSlotId] = useState(null);
+
+    const replaceDevice = useMemo(() => replacement => {
+        setAvailableDevices(Object.assign({}, availableDevices, {[replacement.name]: replacement}));
+    }, [setAvailableDevices, availableDevices]);
+
+    useEffect(() => {
+        ss.init(setErr, replaceDevice);
+    }, [setErr, replaceDevice]);
+
+    // catalogue data
+    const [entries, setEntries] = useState([]);
     // view selection
     const [selectedDevice, setSelectedDevice] = useState(null);
     const [selectedNav, setSelectedNav] = useState('catalogue');
@@ -111,7 +103,14 @@ const App = () => {
                             ?
                             <MainView entries={entries}
                                       setErr={setErr}
-                                      replaceDevice={replaceDevice}
+                                      replaceDevice={d => {
+                                          if (ss && ss.isConnected()) {
+                                              console.debug(`Discarding update, ws is connected`);
+                                          } else {
+                                              console.debug(`Accepting update, ws is disconnected`);
+                                              replaceDevice(d);
+                                          }
+                                      }}
                                       availableDevices={availableDevices}
                                       selectedDevice={selectedDevice}
                                       setSelectedDevice={setSelectedDevice}

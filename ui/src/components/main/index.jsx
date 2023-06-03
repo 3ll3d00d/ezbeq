@@ -39,7 +39,7 @@ const MainView = ({
     };
 
     useEffect(() => {
-        if (availableDevices && !selectedDevice) {
+        if (availableDevices) {
             const deviceNames = Object.keys(availableDevices);
             if (deviceNames.length > 0) {
                 setSelectedDevice(availableDevices[deviceNames[0]]);

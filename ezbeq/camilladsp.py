@@ -39,17 +39,26 @@ class CamillaDspState(DeviceState):
 
     def __init__(self, name: str):
         self.__name = name
-        self.has_volume = False
+        self.__has_volume = False
         self.slot = CamillaDspSlotState()
         self.slot.active = True
         self.master_volume: float = 0.0
         self.mute: bool = False
+
+    @property
+    def has_volume(self) -> bool:
+        return self.__has_volume
+
+    @has_volume.setter
+    def has_volume(self, has_volume: bool):
+        self.__has_volume = has_volume
 
     def serialise(self) -> dict:
         val = {
             'type': 'camilladsp',
             'name': self.__name,
             'mute': self.mute,
+            'has_volume': self.has_volume,
             'slots': [self.slot.as_dict()]
         }
         if self.has_volume is True:
@@ -127,6 +136,10 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         return CamillaDspState(self.name)
 
     def _merge_state(self, loaded: CamillaDspState, cached: dict) -> CamillaDspState:
+        if 'has_volume' in cached:
+            loaded.has_volume = cached['has_volume']
+        if 'masterVolume' in cached:
+            loaded.master_volume = cached['masterVolume']
         if 'slots' in cached:
             for slot in cached['slots']:
                 if 'id' in slot:
@@ -136,7 +149,7 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
                         if slot['gains']:
                             loaded.slot.gains = slot['gains']
                         if slot['mutes']:
-                            loaded.slot.gains = slot['mutes']
+                            loaded.slot.mutes = slot['mutes']
         return loaded
 
     @property
