@@ -432,10 +432,6 @@ class Minidsp(PersistentDevice[MinidspState]):
     def device_type(self) -> str:
         return self.__class__.__name__.lower()
 
-    @property
-    def supports_gain(self) -> bool:
-        return True
-
     def __load_state(self) -> MinidspState:
         result = self.__executor.submit(self.__read_state_from_device).result(timeout=self.__cmd_timeout)
         return result if result else MinidspState(self.name, self.__descriptor)

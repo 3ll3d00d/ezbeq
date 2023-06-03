@@ -66,10 +66,6 @@ class Device(ABC, Generic[T]):
     def device_type(self) -> str:
         pass
 
-    @property
-    def supports_gain(self) -> bool:
-        return False
-
     @abstractmethod
     def state(self, refresh: bool = False) -> T:
         pass
@@ -130,9 +126,6 @@ class DeviceRepository:
             return self.__devices[name]
         else:
             raise NoSuchDevice(name)
-
-    def supports_gain(self, name: str) -> bool:
-        return self.__get_device(name).supports_gain
 
     def state(self, name: str) -> DeviceState:
         return self.__get_device(name).state()

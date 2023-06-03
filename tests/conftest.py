@@ -2,11 +2,18 @@ import json
 import logging
 import os
 import re
+import threading
 from pathlib import Path
+from queue import SimpleQueue
+from threading import Thread
+from time import sleep
+from typing import List, Optional, Callable
 
 import pytest
+import yaml
 from pytest_httpserver import HTTPServer
 
+from apis.ws import WsServer, WsServerFactory
 from ezbeq import main
 from ezbeq.config import Config
 
@@ -139,6 +146,20 @@ def minidsp_shd_client(minidsp_shd_app):
     return minidsp_shd_app.test_client()
 
 
+@pytest.fixture
+def camilladsp_app(httpserver: HTTPServer, tmp_path):
+    """Create and configure a new app instance for each test."""
+    cfg = CamillaDspSpyConfig(httpserver.host, httpserver.port, tmp_path, channels=[4])
+    app, ws = main.create_app(cfg, cfg.msg_spy)
+    yield app
+
+
+@pytest.fixture
+def camilladsp_client(camilladsp_app):
+    """A test client for the app."""
+    return camilladsp_app.test_client()
+
+
 CONFIG_PATTERN = re.compile(r'config ([0-3])')
 GAIN_PATTERN = re.compile(r'gain -- ([-+]?\d*\.\d+|\d+)')
 
@@ -251,3 +272,163 @@ class MinidspSpyConfig(Config):
     @property
     def version(self):
         return '1.2.3'
+
+
+class CamillaDspSpy:
+
+    def __init__(self, base_cfg: dict):
+        from camilladsp import CamillaDsp
+        self.__listener: Optional[CamillaDsp] = None
+        self.__inited = threading.Event()
+        self.__inited.clear()
+        self.__slot = 1
+        self.__mv = 0.0
+        self.__mmute = False
+        self.__gain = 0.0
+        self.__mute = False
+        self.__current_cfg = base_cfg
+        self.__cmd_queue = SimpleQueue()
+
+    @property
+    def inited(self) -> bool:
+        return self.__inited.is_set()
+
+    def take_commands(self):
+        cmds = []
+        while True:
+            try:
+                cmd = self.__cmd_queue.get(block=False)
+                if cmd:
+                    cmds.append(cmd)
+                else:
+                    break
+            except:
+                break
+        return cmds
+
+    @property
+    def listener(self):
+        return self.__listener
+
+    @listener.setter
+    def listener(self, listener):
+        self.__listener = listener
+        thread = Thread(target=self.__do_init)
+        thread.start()
+
+    def __do_init(self):
+        sleep(0.5)
+        self.__listener.on_open()
+        self.__inited.set()
+
+    def send(self, msg: str):
+        payload = json.loads(msg)
+        if payload == 'GetConfigJson':
+            self.__cmd_queue.put('GetConfigJson')
+            self.listener.on_get_config({'result': 'Ok', 'value': json.dumps(self.__current_cfg)})
+        elif payload == 'GetVolume':
+            self.__cmd_queue.put('GetVolume')
+            self.listener.on_get_volume({'result': 'Ok', 'value': self.__mv})
+        elif payload == 'GetMute':
+            self.__cmd_queue.put('GetMute')
+            self.listener.on_get_mute({'result': 'Ok', 'value': self.__mmute})
+        elif payload == 'Reload':
+            self.__cmd_queue.put('Reload')
+            self.listener.on_reload('Ok')
+        elif 'SetMute' in payload:
+            self.__cmd_queue.put(payload)
+            self.__mmute = payload['SetMute']
+        elif 'SetVolume' in payload:
+            self.__cmd_queue.put(payload)
+            self.__mv = payload['SetVolume']
+        elif 'SetConfigJson' in payload:
+            self.__cmd_queue.put('SetConfigJson')
+            self.__current_cfg = json.loads(payload['SetConfigJson'])
+            self.listener.on_set_config('Ok')
+        elif 'SetUpdateInterval' in payload:
+            self.__cmd_queue.put('SetUpdateInterval')
+
+    def __repr__(self):
+        return 'CamillaDspSpy'
+
+
+class CamillaDspSpyConfig(Config):
+
+    def __init__(self, host: str, port: int, tmp_path, cfg_name: str = 'simple.yaml', channels: List[int] = None):
+        self.channels = channels if channels else [3]
+        super().__init__('spy', beqcatalogue_url=f"http://{host}:{port}/")
+        with open(os.path.join(__location__, cfg_name), 'r') as yml:
+            self.spy = CamillaDspSpy(yaml.load(yml, Loader=yaml.FullLoader))
+        self.msg_spy = CapturingWsServer()
+        self.__tmp_path = tmp_path
+
+    def load_config(self):
+        vals = {
+            'debug': False,
+            'debugLogging': False,
+            'accessLogging': False,
+            'port': 8080,
+            'host': self.default_hostname,
+            'useTwisted': False,
+            'iconPath': str(Path.home()),
+            'devices': {
+                'master': {
+                    'type': 'camilladsp',
+                    'ip': '127.0.0.1',
+                    'port': 5432,
+                    'channels': self.channels,
+                    'make_wsclient': self.create_ws_client
+                }
+            }
+        }
+        return vals
+
+    def create_ws_client(self, ip: str, port: int, listener):
+        self.spy.listener = listener
+        return self.spy
+
+    @property
+    def config_path(self):
+        return self.__tmp_path
+
+    @property
+    def version(self):
+        return '1.2.3'
+
+
+class CapturingWsServerFactory(WsServerFactory):
+
+    def __init__(self, msg_queue: SimpleQueue):
+        self.__msg_queue = msg_queue
+
+    def init(self, state_provider: Callable[[], str]):
+        pass
+
+    def broadcast(self, msg: str):
+        self.__msg_queue.put(msg)
+
+    def has_levels_client(self, device: str) -> bool:
+        pass
+
+    def set_levels_provider(self, name: str, broadcaster: Callable[[], None]):
+        pass
+
+
+class CapturingWsServer(WsServer[CapturingWsServerFactory]):
+
+    def __init__(self):
+        self.__msg_queue = SimpleQueue()
+        super().__init__(CapturingWsServerFactory(self.__msg_queue))
+
+    def take_messages(self):
+        msgs = []
+        while True:
+            try:
+                cmd = self.__msg_queue.get(block=False)
+                if cmd:
+                    msgs.append(cmd)
+                else:
+                    break
+            except:
+                break
+        return msgs

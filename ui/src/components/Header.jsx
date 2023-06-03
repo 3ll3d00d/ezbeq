@@ -136,13 +136,14 @@ const Header = ({
     return (
         <Box sx={{flexGrow: 1}}>
             <AppBar position="static" sx={{marginLeft: '0px', marginTop: '0px'}}>
-                <Toolbar>
+                <Toolbar disableGutters={true}>
                     <Avatar alt="beqcatalogue"
                             variant="rounded"
                             src={beqcIcon}
                             sx={{width: 32, height: 32}}/>
                     <Box sx={{flexGrow: 0.5}}/>
                     {children}
+                    <Box sx={{flexGrow: 0.5, flexShrink: 2}}/>
                     <Box sx={{display: {xs: 'none', md: 'flex'}}}>
                         {
                             shouldShowMenu

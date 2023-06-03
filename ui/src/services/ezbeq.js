@@ -158,8 +158,10 @@ class EzBeqService {
             id: String(slotId)
         }
         if (gains.hasOwnProperty('gains')) {
-            slot.gains = gains.gains.map(g => ({id: g.id, value: parseFloat(g.value)}));
-            slot.mutes = gains.mutes;
+            slot.gains = gains.gains.map(g => ({id: String(g.id), value: parseFloat(g.value)}));
+        }
+        if (gains.hasOwnProperty('mutes')) {
+            slot.mutes = gains.mutes.map(g => ({id: String(g.id), value: Boolean(g.value)}));
         }
         if (entryId) {
             payload.slots = [Object.assign({}, slot, {entry: entryId})]

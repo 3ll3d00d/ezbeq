@@ -9,7 +9,7 @@ from flask_compress import Compress
 from flask_restx import Api
 
 from ezbeq.apis import search, version, devices, authors, audiotypes, years, contenttypes, languages, meta, catalogue as cat_api
-from ezbeq.apis.ws import WsServer
+from ezbeq.apis.ws import WsServer, AutobahnWsServer
 from ezbeq.catalogue import CatalogueProvider
 from ezbeq.config import Config
 from ezbeq.device import DeviceRepository
@@ -21,8 +21,8 @@ if hasattr(faulthandler, 'register'):
     faulthandler.register(signal.SIGUSR2, all_threads=True)
 
 
-def create_app(config: Config) -> Tuple[Flask, 'WsServer']:
-    ws_server = WsServer()
+def create_app(config: Config, ws: WsServer = AutobahnWsServer()) -> Tuple[Flask, WsServer]:
+    ws_server = ws
     catalogue = CatalogueProvider(config)
     resource_args = {
         'config': config,

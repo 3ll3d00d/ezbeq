@@ -1,7 +1,8 @@
+import abc
 import json
 import logging
 from collections import defaultdict
-from typing import Callable, Optional, List, Dict
+from typing import Callable, Optional, List, Dict, TypeVar, Generic
 
 from autobahn.exception import Disconnected
 from autobahn.twisted import WebSocketServerProtocol, WebSocketServerFactory
@@ -11,23 +12,25 @@ SUBSCRIBE_LEVELS_CMD = 'subscribe levels'
 logger = logging.getLogger('ezbeq.ws')
 
 
-class WsServer:
-
-    def __init__(self):
-        self.__factory = WsServerFactory()
-
-    @property
-    def factory(self) -> 'WsServerFactory':
-        return self.__factory
-
+class WsServerFactory(abc.ABC):
+    @abc.abstractmethod
     def broadcast(self, msg: str):
-        self.__factory.broadcast(msg)
+        pass
 
-    def levels(self, device: str, levels: dict) -> bool:
-        return self.__factory.send_levels(device, json.dumps({'message': 'Levels', 'data': levels}))
-
+    @abc.abstractmethod
     def has_levels_client(self, device: str) -> bool:
-        return self.__factory.has_levels_client(device)
+        pass
+
+    @abc.abstractmethod
+    def set_levels_provider(self, name: str, broadcaster: Callable[[], None]):
+        pass
+
+    @abc.abstractmethod
+    def init(self, state_provider: Callable[[], str]):
+        pass
+
+
+T = TypeVar("T", bound=WsServerFactory)
 
 
 class WsProtocol(WebSocketServerProtocol):
@@ -54,11 +57,11 @@ class WsProtocol(WebSocketServerProtocol):
             logger.exception('Message received failure')
 
 
-class WsServerFactory(WebSocketServerFactory):
+class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
     protocol = WsProtocol
 
     def __init__(self, *args, **kwargs):
-        super(WsServerFactory, self).__init__(*args, **kwargs)
+        super(AutobahnWsServerFactory, self).__init__(*args, **kwargs)
         self.__clients: List[WsProtocol] = []
         self.__levels_client: Dict[str, List[WsProtocol]] = defaultdict(list)
         self.__state_provider: Optional[Callable[[], str]] = None
@@ -152,3 +155,28 @@ class WsServerFactory(WebSocketServerFactory):
 
     def has_levels_client(self, device: str):
         return len(self.__levels_client.get(device, [])) > 0
+
+
+class WsServer(abc.ABC, Generic[T]):
+
+    def __init__(self, factory: T):
+        self.__factory = factory
+
+    @property
+    def factory(self) -> T:
+        return self.__factory
+
+    def broadcast(self, msg: str):
+        self.factory.broadcast(msg)
+
+    def levels(self, device: str, levels: dict) -> bool:
+        return self.factory.send_levels(device, json.dumps({'message': 'Levels', 'data': levels}))
+
+    def has_levels_client(self, device: str) -> bool:
+        return self.factory.has_levels_client(device)
+
+
+class AutobahnWsServer(WsServer[AutobahnWsServerFactory]):
+
+    def __init__(self):
+        super().__init__(AutobahnWsServerFactory())

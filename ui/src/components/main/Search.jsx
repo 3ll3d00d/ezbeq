@@ -40,7 +40,7 @@ const StyledInputBase = styled(InputBase)(({theme}) => ({
         transition: theme.transitions.create('width'),
         width: '100%',
         [theme.breakpoints.up('sm')]: {
-            width: '40ch',
+            width: '33ch',
         },
         [theme.breakpoints.up('md')]: {
             width: '60ch',
@@ -79,7 +79,6 @@ const Search = ({txtFilter, setTxtFilter, showFilters, toggleShowFilters}) => {
                                       size={'small'}
                                       color="default"/>
                           }/>
-        <Box sx={{flexGrow: 0.5}}/>
     </>;
 };
 export default Search;

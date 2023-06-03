@@ -107,6 +107,9 @@ class Config:
         for name, device in cfg['devices'].items():
             if device['type'] == 'minidsp':
                 device['make_runner'] = self.create_minidsp_runner
+            elif device['type'] == 'camilladsp':
+                device['make_wsclient'] = self.create_ws_client
+
         return cfg
 
     def __store_config(self, config, config_path):
@@ -187,6 +190,10 @@ class Config:
         from plumbum import local
         cmd = local[exe]
         return cmd[options.split(' ')] if options else cmd
+
+    def create_ws_client(self, ip: str, port: int, listener):
+        from ezbeq.camilladsp import CamillaDspClient
+        return CamillaDspClient(ip, port, listener)
 
     @property
     def version(self):
