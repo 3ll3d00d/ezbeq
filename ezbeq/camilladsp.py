@@ -81,8 +81,8 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         if not self.__beq_channels:
             raise ValueError(f'No channels supplied for CamillaDSP {name} - {self.__ip}:{self.__port}')
         self.__ws_client = cfg['make_wsclient'](self.__ip, self.__port, self)
-        self.__playback_peak: float = 0.0
-        self.__playback_rms: float = 0.0
+        self.__playback_peak: List[float] = []
+        self.__playback_rms: List[float] = []
         ws_server.factory.set_levels_provider(name, self.start_broadcast_levels)
 
     @property
@@ -397,12 +397,12 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
 
     def on_get_playback_rms(self, msg):
         if msg['result'] == 'Ok':
-            self.__playback_rms = msg['value']
+            self.__playback_rms = [v if not math.isclose(v, -1000.0) else -144.0 for v in msg['value']]
             self.ws_server.levels(self.name, self.levels())
 
     def on_get_playback_peak(self, msg):
         if msg['result'] == 'Ok':
-            self.__playback_peak = msg['value']
+            self.__playback_peak = [v if not math.isclose(v, -1000.0) else -144.0 for v in msg['value']]
 
 
 class CamillaDspClient:

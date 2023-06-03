@@ -140,11 +140,11 @@ const Header = ({
                     <Avatar alt="beqcatalogue"
                             variant="rounded"
                             src={beqcIcon}
-                            sx={{width: 32, height: 32}}/>
+                            sx={{width: 32, height: 32, marginLeft: '12px'}}/>
                     <Box sx={{flexGrow: 0.5}}/>
                     {children}
                     <Box sx={{flexGrow: 0.5, flexShrink: 2}}/>
-                    <Box sx={{display: {xs: 'none', md: 'flex'}}}>
+                    <Box sx={{display: {xs: 'none', md: 'flex'}, marginRight: '8px'}}>
                         {
                             shouldShowMenu
                                 ?
@@ -162,7 +162,7 @@ const Header = ({
                                 null
                         }
                     </Box>
-                    <Box sx={{display: {xs: 'flex', md: 'none'}}}>
+                    <Box sx={{display: {xs: 'flex', md: 'none'}, marginRight: '8px'}}>
                         {
                             shouldShowMenu
                                 ?

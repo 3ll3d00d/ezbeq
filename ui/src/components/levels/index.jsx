@@ -58,8 +58,7 @@ const Levels = ({
                 time: false,
             },
             "dB": {
-                auto: false,
-                range: [-96, 0],
+                auto: true
             }
         },
     };
