@@ -13,6 +13,8 @@ from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueProvider, CatalogueEntry
 from ezbeq.device import SlotState, DeviceState, PersistentDevice
 
+BEQ_FILTER_NAME_PATTERN = r'^BEQ_(Gain_\d+|\d+_[a-zA-Z0-9]+)$'
+
 SLOT_ID = 'CamillaDSP'
 
 logger = logging.getLogger('ezbeq.camilladsp')
@@ -153,7 +155,7 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
                                 if match:
                                     mv = 0.0
                                     if 'gains' in slot and slot['gains']:
-                                        mv = float(slot['gains'][0])
+                                        mv = float(slot['gains'][0]['value'])
                                     self.load_filter(SLOT_ID, match, mv)
                                     any_update = True
                             else:
@@ -162,13 +164,30 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
                         elif 'gains' in slot or 'mutes' in slot:
                             merged = defaultdict(dict)
                             for g in slot.get('gains', []):
-                                merged[int(g['id'])]['gain'] = g['value']
+                                c_id = int(g['id'])
+                                if c_id in self.__beq_channels:
+                                    merged[c_id]['gain'] = g['value']
+                                else:
+                                    raise ValueError(f'Invalid channel id for gain setting {c_id}')
                             for g in slot.get('mutes', []):
-                                merged[int(g['id'])]['mute'] = g['value']
+                                c_id = int(g['id'])
+                                if c_id in self.__beq_channels:
+                                    merged[c_id]['mute'] = g['value']
+                                else:
+                                    raise ValueError(f'Invalid channel id for gain setting {c_id}')
 
                             def completed(success: bool):
                                 logger.log(logging.INFO if success else logging.WARNING,
                                            f'Completed gain update {success}')
+                                if success:
+                                    css = self._current_state.slot
+                                    for k, v in merged.items():
+                                        if 'gain' in v:
+                                            to_update = next(g for g in css.gains if g['id'] == k)
+                                            to_update['value'] = v['gain']
+                                        if 'mute' in v:
+                                            to_update = next(g for g in css.mutes if g['id'] == k)
+                                            to_update['value'] = v['mute']
 
                             self.__update_channel_levels(merged,
                                                          lambda b: self._hydrate_cache_broadcast(lambda: completed(b)))
@@ -196,7 +215,10 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
 
     def __send_filter(self, entry: Optional[CatalogueEntry], mv_adjust: float, on_complete: Callable[[bool], None]):
         if self.__config_updater is None:
-            logger.info(f"Sending {len(entry.filters)} filters for {entry.formatted_title}")
+            if entry:
+                logger.info(f"Sending {len(entry.filters)} filters for {entry.formatted_title}")
+            else:
+                logger.info(f"Clearing filters")
             self.__config_updater = LoadConfig(entry, self.__beq_channels, mv_adjust, self.ws_server, self.__ws_client,
                                                on_complete)
             self.__config_updater.send_get_config()
@@ -232,6 +254,10 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
             def completed(success: bool):
                 if success:
                     self._current_state.slot.last = entry.formatted_title if entry else 'Empty'
+                    for g in self._current_state.slot.gains:
+                        g['value'] = mv_adjust
+                    for g in self._current_state.slot.mutes:
+                        g['value'] = False
                 else:
                     self._current_state.slot.last = 'ERROR'
 
@@ -476,22 +502,22 @@ def create_cfg_for_entry(entry: Optional[CatalogueEntry], base_cfg: dict, beq_ch
                          mute: bool) -> dict:
     from copy import deepcopy
     new_cfg = deepcopy(base_cfg)
-    if 'filters' not in new_cfg:
-        new_cfg['filters'] = {}
     beq_filters = entry.filters if entry else []
-    filters = {k: v for k, v in new_cfg['filters'].items() if not k.startswith('BEQ_')}
+    filters = {k: v for k, v in new_cfg.get('filters', {}).items() if not k.startswith('BEQ_')}
+    new_cfg['filters'] = filters
     filter_names = []
-    for c in beq_channels:
-        name = f'BEQ_Gain_{c}'
-        filter_names.append(name)
-        filters[name] = {
-            'type': 'Gain',
-            'parameters': {
-                'gain': mv_adjust,
-                'inverted': False,
-                'mute': mute
+    if entry or not math.isclose(mv_adjust, 0.0) or mute is True:
+        for c in beq_channels:
+            name = f'BEQ_Gain_{c}'
+            filter_names.append(name)
+            filters[name] = {
+                'type': 'Gain',
+                'parameters': {
+                    'gain': mv_adjust,
+                    'inverted': False,
+                    'mute': mute
+                }
             }
-        }
     for i, peq in enumerate(beq_filters):
         name = f'BEQ_{i}_{entry.digest}'
         filters[name] = {
@@ -516,7 +542,8 @@ def create_cfg_for_entry(entry: Optional[CatalogueEntry], base_cfg: dict, beq_ch
                 existing = empty_filter
                 pipeline.append(existing)
             import re
-            existing['names'] = [n for n in existing['names'] if re.match(r'^BEQ_.*_\d$', n) is None] + filter_names
+            new_names = [n for n in existing['names'] if re.match(BEQ_FILTER_NAME_PATTERN, n) is None] + filter_names
+            existing['names'] = new_names
     else:
         raise ValueError(f'Unable to load BEQ, dsp config has no pipeline declared')
     return new_cfg
@@ -562,7 +589,7 @@ def create_cfg_for_gains(values: Dict[int, dict], base_cfg: dict) -> dict:
                     pipeline.append(existing)
                 import re
                 if gain_filter_name not in existing['names']:
-                    insert_at = next((i for i, n in enumerate(existing['names']) if re.match(r'^BEQ_.*_\d$', n) is not None), -1)
+                    insert_at = next((i for i, n in enumerate(existing['names']) if re.match(BEQ_FILTER_NAME_PATTERN, n) is not None), -1)
                     if insert_at == -1:
                         existing['names'].append(gain_filter_name)
                     else:

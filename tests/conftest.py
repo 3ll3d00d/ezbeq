@@ -149,7 +149,7 @@ def minidsp_shd_client(minidsp_shd_app):
 @pytest.fixture
 def camilladsp_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new app instance for each test."""
-    cfg = CamillaDspSpyConfig(httpserver.host, httpserver.port, tmp_path, channels=[4])
+    cfg = CamillaDspSpyConfig(httpserver.host, httpserver.port, tmp_path, channels=[1])
     app, ws = main.create_app(cfg, cfg.msg_spy)
     yield app
 
@@ -342,7 +342,7 @@ class CamillaDspSpy:
             self.__cmd_queue.put(payload)
             self.__mv = payload['SetVolume']
         elif 'SetConfigJson' in payload:
-            self.__cmd_queue.put('SetConfigJson')
+            self.__cmd_queue.put(payload)
             self.__current_cfg = json.loads(payload['SetConfigJson'])
             self.listener.on_set_config('Ok')
         elif 'SetUpdateInterval' in payload:
