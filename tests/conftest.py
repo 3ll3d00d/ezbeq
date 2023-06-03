@@ -277,7 +277,7 @@ class MinidspSpyConfig(Config):
 class CamillaDspSpy:
 
     def __init__(self, base_cfg: dict):
-        from camilladsp import CamillaDsp
+        from ezbeq.camilladsp import CamillaDsp
         self.__listener: Optional[CamillaDsp] = None
         self.__inited = threading.Event()
         self.__inited.clear()
