@@ -13,9 +13,9 @@ import pytest
 import yaml
 from pytest_httpserver import HTTPServer
 
-from apis.ws import WsServer, WsServerFactory
 from ezbeq import main
 from ezbeq.config import Config
+from ezbeq.apis.ws import WsServer, WsServerFactory
 
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
