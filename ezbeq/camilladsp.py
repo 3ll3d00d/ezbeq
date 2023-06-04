@@ -519,10 +519,11 @@ def create_cfg_for_entry(entry: Optional[CatalogueEntry], base_cfg: dict, beq_ch
     filters = {k: v for k, v in new_cfg.get('filters', {}).items() if not k.startswith('BEQ_')}
     new_cfg['filters'] = filters
     filter_names = []
+    gain_filter_names = {}
     if entry or not math.isclose(mv_adjust, 0.0) or mute is True:
         for c in beq_channels:
             name = f'BEQ_Gain_{c}'
-            filter_names.append(name)
+            gain_filter_names[c] = name
             filters[name] = {
                 'type': 'Gain',
                 'parameters': {
@@ -555,7 +556,10 @@ def create_cfg_for_entry(entry: Optional[CatalogueEntry], base_cfg: dict, beq_ch
                 existing = empty_filter
                 pipeline.append(existing)
             import re
-            new_names = [n for n in existing['names'] if re.match(BEQ_FILTER_NAME_PATTERN, n) is None] + filter_names
+            new_names = [n for n in existing['names'] if re.match(BEQ_FILTER_NAME_PATTERN, n) is None]
+            if channel in gain_filter_names:
+                new_names.append(gain_filter_names[channel])
+            new_names.extend(filter_names)
             existing['names'] = new_names
     else:
         raise ValueError(f'Unable to load BEQ, dsp config has no pipeline declared')

@@ -1,0 +1,60 @@
+---
+devices:
+  samplerate: 44100
+  chunksize: 1024
+  target_level: 512
+  silence_threshold: -90
+  silence_timeout: 3.0
+  capture:
+    type: Alsa
+    channels: 4
+    device: "plughw:Loopback,1,0"
+    format: S32LE
+  playback:
+    type: Alsa
+    channels: 4
+    device: "plughw:Loopback_1,0,0"
+    format: S32LE
+
+filters:
+  vol:
+    type: Volume
+    parameters:
+      ramp_time: 200
+
+mixers:
+  input:
+    channels:
+      in: 4
+      out: 4
+    mapping:
+      - dest: 0
+        sources:
+          - channel: 0
+            gain: 0
+            inverted: false
+      - dest: 1
+        sources:
+          - channel: 1
+            gain: 0
+            inverted: false
+      - dest: 2
+        sources:
+          - channel: 2
+            gain: 0
+            inverted: false
+      - dest: 3
+        sources:
+          - channel: 3
+            gain: 0
+            inverted: false
+
+pipeline:
+  - type: Filter
+    channel: 2
+    names:
+    - vol
+  - type: Filter
+    channel: 3
+    names:
+    - vol

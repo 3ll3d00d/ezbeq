@@ -147,17 +147,31 @@ def minidsp_shd_client(minidsp_shd_app):
 
 
 @pytest.fixture
-def camilladsp_app(httpserver: HTTPServer, tmp_path):
+def single_camilladsp_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new app instance for each test."""
-    cfg = CamillaDspSpyConfig(httpserver.host, httpserver.port, tmp_path, channels=[1])
+    cfg = CamillaDspSpyConfig(httpserver.host, httpserver.port, tmp_path, cfg_name='single.yaml', channels=[1])
     app, ws = main.create_app(cfg, cfg.msg_spy)
     yield app
 
 
 @pytest.fixture
-def camilladsp_client(camilladsp_app):
+def single_camilladsp_client(single_camilladsp_app):
     """A test client for the app."""
-    return camilladsp_app.test_client()
+    return single_camilladsp_app.test_client()
+
+
+@pytest.fixture
+def multi_camilladsp_app(httpserver: HTTPServer, tmp_path):
+    """Create and configure a new app instance for each test."""
+    cfg = CamillaDspSpyConfig(httpserver.host, httpserver.port, tmp_path, cfg_name='multi.yaml', channels=[2,3])
+    app, ws = main.create_app(cfg, cfg.msg_spy)
+    yield app
+
+
+@pytest.fixture
+def multi_camilladsp_client(multi_camilladsp_app):
+    """A test client for the app."""
+    return multi_camilladsp_app.test_client()
 
 
 CONFIG_PATTERN = re.compile(r'config ([0-3])')
@@ -354,7 +368,7 @@ class CamillaDspSpy:
 
 class CamillaDspSpyConfig(Config):
 
-    def __init__(self, host: str, port: int, tmp_path, cfg_name: str = 'simple.yaml', channels: List[int] = None):
+    def __init__(self, host: str, port: int, tmp_path, cfg_name: str, channels: List[int] = None):
         self.channels = channels if channels else [3]
         super().__init__('spy', beqcatalogue_url=f"http://{host}:{port}/")
         with open(os.path.join(__location__, cfg_name), 'r') as yml:
