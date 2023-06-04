@@ -87,7 +87,7 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, selec
     if (entries.length > 0) {
         const topNav = 64;
         const gain = 56;
-        const deviceRowHeight = 59;
+        const deviceRowHeight = 75;
         const deviceRows = selectedDevice && selectedDevice.slots ? Math.ceil(selectedDevice.slots.length / 2) : 0;
         const upperNavHeight = topNav + (['minidsp', 'camilladsp'].indexOf(selectedDevice.type) === -1 ? 0 : gain) + (deviceRows * deviceRowHeight);
         const bottomNavHeight = 24;

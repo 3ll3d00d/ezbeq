@@ -34,7 +34,7 @@
   "scripts": {
     "localdev": "vite",
     "dev": "vite --host",
-    "build": "vite build",
+    "build": "vite build --emptyOutDir",
     "serve": "vite preview",
     "test:unit": "vitest"
   },
