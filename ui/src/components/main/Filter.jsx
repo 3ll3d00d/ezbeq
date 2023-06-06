@@ -2,6 +2,7 @@ import MultiSelect from "./MultiSelect";
 import React, {useEffect, useState} from "react";
 import {pushData} from "../../services/util";
 import ezbeq from "../../services/ezbeq";
+import Box from "@mui/material/Box";
 
 const Filter = ({
                     visible,
@@ -81,7 +82,7 @@ const Filter = ({
 
     if (visible) {
         return (
-            <>
+            <Box sx={{margin: '8px'}}>
                 <MultiSelect items={contentTypes}
                              selectedValues={selectedContentTypes}
                              label="Content Types"
@@ -121,7 +122,7 @@ const Filter = ({
                              onCreateOption={value => addSelectedLanguages(value)}
                              onClearOptions={() => setSelectedLanguages([])}
                              isInView={v => filteredLanguages.length === 0 || filteredLanguages.indexOf(v) > -1}/>
-            </>
+            </Box>
         )
     } else {
         return null;
