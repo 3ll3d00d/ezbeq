@@ -46,6 +46,12 @@ const App = () => {
     // errors
     const [err, setErr] = useState(null);
 
+    // catalogue data
+    const [entries, setEntries] = useState([]);
+    // view selection
+    const [selectedDevice, setSelectedDevice] = useState(null);
+    const [selectedNav, setSelectedNav] = useState('catalogue');
+
     // device state
     const [availableDevices, setAvailableDevices] = useState({});
     const [selectedSlotId, setSelectedSlotId] = useState(null);
@@ -57,12 +63,6 @@ const App = () => {
     useEffect(() => {
         ss.init(setErr, replaceDevice);
     }, [setErr, replaceDevice]);
-
-    // catalogue data
-    const [entries, setEntries] = useState([]);
-    // view selection
-    const [selectedDevice, setSelectedDevice] = useState(null);
-    const [selectedNav, setSelectedNav] = useState('catalogue');
 
     const levelsService = useMemo(() => {
         return new LevelsService(setErr, `ws://${window.location.host}/ws`, theme);

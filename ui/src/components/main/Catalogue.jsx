@@ -89,7 +89,8 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, selec
         const gain = 56;
         const deviceRowHeight = 75;
         const deviceRows = selectedDevice && selectedDevice.slots ? Math.ceil(selectedDevice.slots.length / 2) : 0;
-        const upperNavHeight = topNav + (['minidsp', 'camilladsp'].indexOf(selectedDevice.type) === -1 ? 0 : gain) + (deviceRows * deviceRowHeight);
+        const gainHeight = selectedDevice ? (['minidsp', 'camilladsp'].indexOf(selectedDevice.type) === -1 ? 0 : gain) : 0;
+        const upperNavHeight = topNav + gainHeight + (deviceRows * deviceRowHeight);
         const bottomNavHeight = 24;
         // portrait mode so reduce space allocated to the grid
         const halfHeight = selectedEntryId !== -1 && !useWide;
