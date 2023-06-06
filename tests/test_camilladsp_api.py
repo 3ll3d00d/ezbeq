@@ -75,6 +75,7 @@ def test_load_known_entry_and_then_clear(single_camilladsp_client, single_camill
         assert isinstance(cmds[1], dict)
         assert 'SetConfigJson' in cmds[1]
         beq_is_loaded(json.loads(cmds[1]['SetConfigJson']), 0.0)
+        has_one_filter(json.loads(cmds[1]['SetConfigJson']), 0, 1)
         assert cmds[2] == 'Reload'
 
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_loaded').until_asserted(beq_loaded)
@@ -96,6 +97,7 @@ def test_load_known_entry_and_then_clear(single_camilladsp_client, single_camill
         assert isinstance(cmds[1], dict)
         assert 'SetConfigJson' in cmds[1]
         beq_is_unloaded(json.loads(cmds[1]['SetConfigJson']))
+        has_one_filter(json.loads(cmds[1]['SetConfigJson']), 0, 1)
         assert cmds[2] == 'Reload'
 
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_unloaded').until_asserted(
@@ -125,6 +127,7 @@ def test_load_known_entry_with_gain_and_then_clear(single_camilladsp_client, sin
         assert isinstance(cmds[1], dict)
         assert 'SetConfigJson' in cmds[1]
         beq_is_loaded(json.loads(cmds[1]['SetConfigJson']), -1.5)
+        has_one_filter(json.loads(cmds[1]['SetConfigJson']), 0, 1)
         assert cmds[2] == 'Reload'
 
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_loaded').until_asserted(beq_loaded)
@@ -137,6 +140,78 @@ def test_load_known_entry_with_gain_and_then_clear(single_camilladsp_client, sin
 
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('entry_is_shown').until_asserted(
         entry_is_shown)
+
+    r = single_camilladsp_client.delete(f"/api/1/devices/master/filter/CamillaDSP")
+    assert r.status_code == 200
+
+    def beq_unloaded():
+        cmds = config.spy.take_commands()
+        assert len(cmds) == 3
+        assert cmds[0] == 'GetConfigJson'
+        assert isinstance(cmds[1], dict)
+        assert 'SetConfigJson' in cmds[1]
+        beq_is_unloaded(json.loads(cmds[1]['SetConfigJson']))
+        has_one_filter(json.loads(cmds[1]['SetConfigJson']), 0, 1)
+        assert cmds[2] == 'Reload'
+
+    wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_unloaded').until_asserted(
+        beq_unloaded)
+
+    def entry_is_removed():
+        device_states = take_device_states(config)
+        assert device_states[-1]['slots'][0]['last'] == 'Empty'
+        assert device_states[-1]['slots'][0]['gains'] == [{'id': 1, 'value': 0.0}]
+        assert device_states[-1]['slots'][0]['mutes'] == [{'id': 1, 'value': False}]
+
+    wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('entry_is_removed').until_asserted(
+        entry_is_removed)
+
+
+def test_load_known_entry_then_load_gain_and_then_clear(single_camilladsp_client, single_camilladsp_app):
+    config: CamillaDspSpyConfig = single_camilladsp_app.config['APP_CONFIG']
+    assert isinstance(config, CamillaDspSpyConfig)
+    ensure_inited(config)
+
+    payload = {"slots": [{"id": "CamillaDSP", "entry": "123456_0"}]}
+    r = single_camilladsp_client.patch(f"/api/2/devices/master", data=json.dumps(payload), content_type='application/json')
+    assert r.status_code == 200
+
+    def beq_loaded():
+        cmds = config.spy.take_commands()
+        assert len(cmds) == 3
+        assert cmds[0] == 'GetConfigJson'
+        assert isinstance(cmds[1], dict)
+        assert 'SetConfigJson' in cmds[1]
+        beq_is_loaded(json.loads(cmds[1]['SetConfigJson']), 0.0)
+        has_one_filter(json.loads(cmds[1]['SetConfigJson']), 0, 1)
+        assert cmds[2] == 'Reload'
+
+    wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_loaded').until_asserted(beq_loaded)
+
+    def entry_is_shown():
+        device_states = take_device_states(config)
+        assert device_states[-1]['slots'][0]['last'] == 'Alien Resurrection'
+        assert device_states[-1]['slots'][0]['gains'] == [{'id': 1, 'value': 0.0}]
+        assert device_states[-1]['slots'][0]['mutes'] == [{'id': 1, 'value': False}]
+
+    wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('entry_is_shown').until_asserted(
+        entry_is_shown)
+
+    payload = {"slots": [{"id": "CamillaDSP", "gains": [{"id": "1", "value": -1.5}]}]}
+    r = single_camilladsp_client.patch(f"/api/2/devices/master", data=json.dumps(payload), content_type='application/json')
+    assert r.status_code == 200
+
+    def gain_changed():
+        cmds = config.spy.take_commands()
+        assert len(cmds) == 3
+        assert cmds[0] == 'GetConfigJson'
+        assert isinstance(cmds[1], dict)
+        assert 'SetConfigJson' in cmds[1]
+        beq_is_loaded(json.loads(cmds[1]['SetConfigJson']), -1.5)
+        has_one_filter(json.loads(cmds[1]['SetConfigJson']), 0, 1)
+        assert cmds[2] == 'Reload'
+
+    wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_loaded').until_asserted(gain_changed)
 
     r = single_camilladsp_client.delete(f"/api/1/devices/master/filter/CamillaDSP")
     assert r.status_code == 200
@@ -189,6 +264,7 @@ def test_input_gain_and_mute(single_camilladsp_client, single_camilladsp_app):
         assert new_filters['BEQ_Gain_1'] == {'parameters': {'gain': -1.5, 'inverted': False, 'mute': True},
                                              'type': 'Gain'}
         assert len(list(new_filters.keys())) == 2
+        has_one_filter(json.loads(cmds[1]['SetConfigJson']), 0, 1)
         assert cmds[2] == 'Reload'
 
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_loaded').until_asserted(gain_changed)
@@ -238,6 +314,8 @@ def test_load_known_entry_to_multiple_channels_with_gain_and_then_clear(multi_ca
         cfg = json.loads(cmds[1]['SetConfigJson'])
         beq_is_loaded(cfg, -1.5, target_channel=2, extra_filters=1)
         beq_is_loaded(cfg, -1.5, target_channel=3, extra_filters=1)
+        has_no_filter(json.loads(cmds[1]['SetConfigJson']), 0, 1)
+        has_one_filter(json.loads(cmds[1]['SetConfigJson']), 2, 3)
         assert cmds[2] == 'Reload'
 
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_loaded').until_asserted(beq_loaded)
@@ -262,6 +340,8 @@ def test_load_known_entry_to_multiple_channels_with_gain_and_then_clear(multi_ca
         assert 'SetConfigJson' in cmds[1]
         beq_is_unloaded(json.loads(cmds[1]['SetConfigJson']), target_channel=2)
         beq_is_unloaded(json.loads(cmds[1]['SetConfigJson']), target_channel=3)
+        has_no_filter(json.loads(cmds[1]['SetConfigJson']), 0, 1)
+        has_one_filter(json.loads(cmds[1]['SetConfigJson']), 2, 3)
         assert cmds[2] == 'Reload'
 
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_unloaded').until_asserted(
@@ -347,3 +427,15 @@ def beq_is_unloaded(new_config, target_channel: int = 1):
     assert 'BEQ_3_abcdefghijklm' not in new_filters
     assert 'BEQ_4_abcdefghijklm' not in new_filters
     assert len(list(new_filters.keys())) == 1
+
+
+def has_one_filter(new_config: dict, *channels: int):
+    pipeline_filters = [f for f in new_config['pipeline'] if f['type'] == 'Filter']
+    for c in channels:
+        assert len([f for f in pipeline_filters if f['channel'] == c]) == 1
+
+
+def has_no_filter(new_config: dict, *channels: int):
+    pipeline_filters = [f for f in new_config['pipeline'] if f['type'] == 'Filter']
+    for c in channels:
+        assert len([f for f in pipeline_filters if f['channel'] == c]) == 0

@@ -597,20 +597,17 @@ def create_cfg_for_gains(values: Dict[int, dict], base_cfg: dict) -> dict:
         if 'pipeline' in new_cfg:
             pipeline = new_cfg['pipeline']
             empty_filter = {'type': 'Filter', 'channel': ch, 'names': []}
-            existing = None
-            for f in pipeline:
-                if f['type'] == 'Filter' and f['channel'] == ch:
-                    existing = f
-                if existing is None:
-                    existing = empty_filter
-                    pipeline.append(existing)
-                import re
-                if gain_filter_name not in existing['names']:
-                    insert_at = next((i for i, n in enumerate(existing['names']) if re.match(BEQ_FILTER_NAME_PATTERN, n) is not None), -1)
-                    if insert_at == -1:
-                        existing['names'].append(gain_filter_name)
-                    else:
-                        existing['names'].insert(insert_at, gain_filter_name)
+            existing = next((f for f in pipeline if f['type'] == 'Filter' and f['channel'] == ch), None)
+            if existing is None:
+                existing = empty_filter
+                pipeline.append(existing)
+            import re
+            if gain_filter_name not in existing['names']:
+                insert_at = next((i for i, n in enumerate(existing['names']) if re.match(BEQ_FILTER_NAME_PATTERN, n) is not None), -1)
+                if insert_at == -1:
+                    existing['names'].append(gain_filter_name)
+                else:
+                    existing['names'].insert(insert_at, gain_filter_name)
         else:
             raise ValueError(f'Unable to load BEQ, dsp config has no pipeline declared')
     return new_cfg
