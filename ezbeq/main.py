@@ -45,6 +45,7 @@ def create_app(config: Config, ws: WsServer = AutobahnWsServer()) -> Tuple[Flask
     decorate_ns(devices.device_api)
     decorate_ns(devices.v1_api)
     decorate_ns(devices.v2_api)
+    decorate_ns(devices.v3_api)
     decorate_ns(search.api)
     decorate_ns(version.api)
     decorate_ns(authors.api)

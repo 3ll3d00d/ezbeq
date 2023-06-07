@@ -60,11 +60,12 @@ def text_to_commands(command_type: str, lines: List[str]) -> Tuple[str, Union[Li
                         fc = float(m.group(4))
                         g = float(m.group(5))
                         q = float(m.group(6))
-                        commands[filt_idx-1] = convert_to_bq(ft, fc, g, q)
+                        commands[filt_idx - 1] = convert_to_bq(ft, fc, g, q)
                         if m.group(2) == 'OFF':
-                            commands[filt_idx-1]['BYPASS'] = True
+                            commands[filt_idx - 1]['BYPASS'] = True
                     else:
-                        raise InvalidRequestError(f"Filter line {idx} specifies filter {filt_idx} which is out of range")
+                        raise InvalidRequestError(
+                            f"Filter line {idx} specifies filter {filt_idx} which is out of range")
                 else:
                     raise InvalidRequestError(f"Filter line {idx} does not match - {line}")
         return 'bq', commands
@@ -248,10 +249,11 @@ def set_gain(bridge: DeviceRepository, device_name: str, slot: Optional[str], va
 
 v1_api = Namespace('1/devices', description='Device related operations')
 v2_api = Namespace('2/devices', description='Device related operations')
+v3_api = Namespace('3/devices', description='Device related operations')
 
 
 @v1_api.route('')
-class Devices(Resource):
+class DevicesV1(Resource):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -265,7 +267,7 @@ class Devices(Resource):
 
 
 @v2_api.route('')
-class Devices(Resource):
+class DevicesV2(Resource):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -275,25 +277,15 @@ class Devices(Resource):
         return {n: d.serialise() for n, d in self.__bridge.all_devices(refresh=True).items()}
 
 
-gain_model = v2_api.model('Gain', {
-    'id': fields.String(required=True),
-    'value': fields.Float(required=True)
-})
-
-mute_model = v2_api.model('Mute', {
-    'id': fields.String(required=True),
-    'value': fields.Boolean(required=True)
-})
-
-slot_model_v2 = v2_api.model('Slot', {
+slot_model_v2 = v2_api.model('SlotV2', {
     'id': fields.String(required=True),
     'active': fields.Boolean(required=False),
-    'gains': fields.List(fields.Nested(gain_model), required=False),
-    'mutes': fields.List(fields.Nested(mute_model), required=False),
+    'gains': fields.List(fields.Float, required=False),
+    'mutes': fields.List(fields.Boolean, required=False),
     'entry': fields.String(required=False)
 })
 
-device_model_v2 = v2_api.model('Device', {
+device_model_v2 = v2_api.model('DeviceV2', {
     'mute': fields.Boolean(required=False),
     'masterVolume': fields.Float(required=False),
     'slots': fields.List(fields.Nested(slot_model_v2), required=False)
@@ -301,7 +293,7 @@ device_model_v2 = v2_api.model('Device', {
 
 
 @v2_api.route('/<string:device_name>')
-class Device(Resource):
+class DeviceV2(Resource):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -309,6 +301,53 @@ class Device(Resource):
         self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
 
     @v2_api.expect(device_model_v2, validate=True)
+    def patch(self, device_name: str):
+        payload = request.get_json()
+        for slot in payload.get('slots', []):
+            if 'gains' in slot:
+                slot['gains'] = [{'id': str(i + 1), 'value': v} for i, v in enumerate(slot['gains'])]
+            if 'mutes' in slot:
+                slot['mutes'] = [{'id': str(i + 1), 'value': v} for i, v in enumerate(slot['mutes'])]
+        logger.info(f"PATCHing {device_name} with {payload}")
+        if not self.__bridge.update(device_name, payload):
+            logger.info(f"PATCH {device_name} was a nop")
+        return self.__bridge.state(device_name).serialise()
+
+
+gain_model_v3 = v3_api.model('GainV3', {
+    'id': fields.String(required=True),
+    'value': fields.Float(required=True)
+})
+
+mute_model_v3 = v3_api.model('MuteV3', {
+    'id': fields.String(required=True),
+    'value': fields.Boolean(required=True)
+})
+
+slot_model_v3 = v3_api.model('SlotV3', {
+    'id': fields.String(required=True),
+    'active': fields.Boolean(required=False),
+    'gains': fields.List(fields.Nested(gain_model_v3), required=False),
+    'mutes': fields.List(fields.Nested(mute_model_v3), required=False),
+    'entry': fields.String(required=False)
+})
+
+device_model_v3 = v3_api.model('DeviceV3', {
+    'mute': fields.Boolean(required=False),
+    'masterVolume': fields.Float(required=False),
+    'slots': fields.List(fields.Nested(slot_model_v3), required=False)
+})
+
+
+@v3_api.route('/<string:device_name>')
+class DeviceV3(Resource):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__bridge: DeviceRepository = kwargs['device_bridge']
+        self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
+
+    @v3_api.expect(device_model_v3, validate=True)
     def patch(self, device_name: str):
         payload = request.get_json()
         logger.info(f"PATCHing {device_name} with {payload}")
@@ -350,7 +389,7 @@ class ActiveSlot(Resource):
         return activate_slot(self.__bridge, device_name, slot)
 
 
-gain_model = v1_api.model('Gain', {
+gain_model_v1 = v1_api.model('GainV1', {
     'gain': fields.Float
 })
 
@@ -370,7 +409,7 @@ class SetGain(Resource):
         super().__init__(*args, **kwargs)
         self.__bridge: DeviceRepository = kwargs['device_bridge']
 
-    @v1_api.expect(gain_model, validate=True)
+    @v1_api.expect(gain_model_v1, validate=True)
     def put(self, device_name: str, slot: Optional[str] = None, channel: Optional[int] = None) -> Tuple[dict, int]:
         return set_gain(self.__bridge, device_name, slot, request.get_json()['gain'], channel)
 
@@ -400,7 +439,7 @@ class Mute(Resource):
         return mute_device(self.__bridge, device_name, slot, False, channel)
 
 
-biquad_model = v1_api.model('Biquad', {
+biquad_model = v1_api.model('BiquadV1', {
     'overwrite': fields.Boolean,
     'slot': fields.String,
     'inputs': fields.List(fields.Integer),
@@ -429,7 +468,7 @@ class LoadBiquads(Resource):
         return load_biquads(self.__bridge, device_name, str(slot), overwrite, inputs, outputs, biquads)
 
 
-command_model = v1_api.model('Command', {
+command_model = v1_api.model('CommandV1', {
     'overwrite': fields.Boolean,
     'slot': fields.String,
     'inputs': fields.List(fields.Integer),
@@ -460,7 +499,7 @@ class LoadCommands(Resource):
         return load_commands(self.__bridge, device_name, str(slot), overwrite, inputs, outputs, command_type, commands)
 
 
-filter_model = v1_api.model('Filter', {
+filter_model = v1_api.model('FilterV1', {
     'entryId': fields.String
 })
 

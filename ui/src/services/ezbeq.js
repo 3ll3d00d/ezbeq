@@ -132,7 +132,7 @@ class EzBeqService {
     };
 
     doPatch = async(device, payload) => {
-        const response = await fetch(`${API_PREFIX}/2/devices/${device}`, {
+        const response = await fetch(`${API_PREFIX}/3/devices/${device}`, {
             method: 'PATCH',
             body: JSON.stringify(payload),
             headers: {
