@@ -478,6 +478,54 @@ def test_search_no_match(minidsp_client, minidsp_app):
     assert len(catalogue) == 0
 
 
+def test_search_title(minidsp_client, minidsp_app):
+    r = minidsp_client.get(f"/api/1/search", query_string={'text': 'Resur'})
+    assert r.status_code == 200
+    catalogue = r.json
+    assert catalogue
+    assert len(catalogue) == 1
+    entry = catalogue[0]
+    assert entry['id'] == '123456_0'
+    assert entry['title'] == 'Alien Resurrection'
+
+    r = minidsp_client.get(f"/api/1/search", query_string={'text': 'Resurrrrr'})
+    assert r.status_code == 200
+    catalogue = r.json
+    assert len(catalogue) == 0
+
+
+def test_search_alt_title(minidsp_client, minidsp_app):
+    r = minidsp_client.get(f"/api/1/search", query_string={'text': 'err'})
+    assert r.status_code == 200
+    catalogue = r.json
+    assert catalogue
+    assert len(catalogue) == 1
+    entry = catalogue[0]
+    assert entry['id'] == '123456_0'
+    assert entry['title'] == 'Alien Resurrection'
+
+    r = minidsp_client.get(f"/api/1/search", query_string={'text': 'errrr'})
+    assert r.status_code == 200
+    catalogue = r.json
+    assert len(catalogue) == 0
+
+
+def test_search_collection(minidsp_client, minidsp_app):
+    r = minidsp_client.get(f"/api/1/search", query_string={'text': 'Olle'})
+    assert r.status_code == 200
+    catalogue = r.json
+    assert catalogue
+    assert len(catalogue) == 1
+    entry = catalogue[0]
+    assert entry['id'] == '123456_0'
+    assert entry['title'] == 'Alien Resurrection'
+
+    r = minidsp_client.get(f"/api/1/search", query_string={'text': 'Ollt'})
+    assert r.status_code == 200
+    catalogue = r.json
+    assert len(catalogue) == 0
+
+
 def test_authors(minidsp_client):
     r = minidsp_client.get(f"/api/1/authors")
     assert r.status_code == 200

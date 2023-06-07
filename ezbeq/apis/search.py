@@ -21,11 +21,13 @@ class CatalogueSearch(Resource):
         self.__parser.add_argument('audiotypes', action='append')
         self.__parser.add_argument('contenttypes', action='append')
         self.__parser.add_argument('fields', action='append')
+        self.__parser.add_argument('text')
 
     @api.param('authors', 'The author of the BEQ filter, if multiple values provided any match will be returned')
     @api.param('years', 'The production year of the entry, if multiple values provided any match will be returned')
     @api.param('audiotypes', 'The audio type of the entry, if multiple values provided any match will be returned')
     @api.param('authors', 'The content type of the entry, if multiple values provided any match will be returned')
+    @api.param('text', 'Provides a case insensitive search against the following fields: formattedTitle, altTitle, collection. Value is returned if the supplied text is contained in any of those fields.')
     @api.param('fields', 'The entry fields to return in the output')
     def get(self):
         catalogue = self.__provider.catalogue
@@ -34,9 +36,10 @@ class CatalogueSearch(Resource):
         years = args.get('years')
         audio_types = args.get('audiotypes')
         content_types = args.get('contenttypes')
+        text = args.get('text')
         fields = args.get('fields')
         return [self.__filter_fields(c.for_search, fields)
-                for c in catalogue if c.matches(authors, years, audio_types, content_types)]
+                for c in catalogue if c.matches(authors, years, audio_types, content_types, text)]
 
     @staticmethod
     def __filter_fields(entry: dict, fields: list):

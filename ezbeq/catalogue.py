@@ -45,7 +45,7 @@ class CatalogueEntry:
         self.the_movie_db = vals.get('theMovieDB', '')
         self.rating = vals.get('rating', '')
         self.genres = vals.get('genres', [])
-        self.altTitle = vals.get('altTitle', '')
+        self.alt_title = vals.get('altTitle', '')
         self.created_at = vals.get('created_at', 0)
         self.updated_at = vals.get('updated_at', 0)
         self.digest = vals.get('digest', '')
@@ -118,8 +118,8 @@ class CatalogueEntry:
             self.for_search['runtime'] = self.runtime
         if self.genres:
             self.for_search['genres'] = self.genres
-        if self.altTitle:
-            self.for_search['altTitle'] = self.altTitle
+        if self.alt_title:
+            self.for_search['altTitle'] = self.alt_title
         if self.note:
             self.for_search['note'] = self.note
         if self.warning:
@@ -127,12 +127,20 @@ class CatalogueEntry:
         if self.collection and 'name' in self.collection:
             self.for_search['collection'] = self.collection['name']
 
-    def matches(self, authors: List[str], years: List[int], audio_types: List[str], content_types: List[str]):
+    def matches(self, authors: List[str], years: List[int], audio_types: List[str], content_types: List[str],
+                text: Optional[str]):
         if not authors or self.author in authors:
             if not years or self.year in years:
                 if not audio_types or any(a_t in audio_types for a_t in self.audio_types):
-                    return not content_types or self.content_type in content_types
+                    if not content_types or self.content_type in content_types:
+                        return not text or self.__text_match(text)
         return False
+
+    def __text_match(self, text: str):
+        t = text.lower()
+        return t in self.formatted_title.lower() \
+            or t in self.alt_title \
+            or t in self.for_search.get('collection', '').lower()
 
     def __repr__(self):
         return f"[{self.content_type}] {self.title} / {self.audio_types} / {self.year}"
