@@ -159,7 +159,7 @@ const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotI
     }, [selectedEntry]);
 
     useEffect(() => {
-        const slot = selectedDevice.slots ? selectedDevice.slots.find(s => s.id === uploadSlotId) : null;
+        const slot = selectedDevice && selectedDevice.slots ? selectedDevice.slots.find(s => s.id === uploadSlotId) : null;
         const accepted = slot && slot.gains && Object.keys(slot.gains).length > 0;
         setAcceptGain(accepted);
     }, [selectedDevice, uploadSlotId]);
@@ -171,12 +171,16 @@ const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotI
     }, [uploadSlotId, selectedSlotId]);
 
     const upload = async () => {
-        if (selectedDevice.slots) {
+        if (selectedDevice && selectedDevice.slots) {
             const slot = selectedDevice.slots.find(s => s.id === uploadSlotId);
             if (slot) {
                 const gains = {
-                    'gains': slot.gains.map(g => { return {id: g.id, value: sendGain ? parseFloat(selectedEntry.mvAdjust) : 0.0}; }),
-                    'mutes': sendGain ? slot.mutes.map(m => { return {id: m.id, value: false}; }) : []
+                    'gains': slot.gains.map(g => {
+                        return {id: g.id, value: sendGain ? parseFloat(selectedEntry.mvAdjust) : 0.0};
+                    }),
+                    'mutes': sendGain ? slot.mutes.map(m => {
+                        return {id: m.id, value: false};
+                    }) : []
                 };
                 setPending(true);
                 try {
@@ -242,7 +246,7 @@ const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotI
                     {formatWarning(selectedEntry)}
                 </Typography>
             </CardContent>;
-        const uploadAction =
+        const uploadAction = selectedDevice ?
             <CardContent>
                 <Uploader setUploadSlotId={setUploadSlotId}
                           uploadSlotId={uploadSlotId}
@@ -253,7 +257,8 @@ const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotI
                           pending={pending}
                           acceptGain={acceptGain}
                           upload={upload}/>
-            </CardContent>;
+            </CardContent>
+            : null;
         const links =
             <FormGroup row>
                 {
