@@ -201,12 +201,18 @@ class CatalogueProvider:
         self.__catalogue = []
         self.__executor.submit(self.__reload).result(timeout=60)
 
-    def find(self, entry_id: str, match_on_idx: bool = True) -> Optional[CatalogueEntry]:
-        if match_on_idx:
-            m = lambda ce: ce.idx == entry_id
+    def find(self, entry_id: str, match_on_idx: Optional[bool] = None) -> Optional[CatalogueEntry]:
+        if match_on_idx is None:
+            m = self.find(entry_id, True)
+            if not m:
+                m = self.find(entry_id, False)
+            return m
         else:
-            m = lambda ce: ce.digest == entry_id
-        return next((c for c in self.catalogue if m(c)), None)
+            if match_on_idx is True:
+                m = lambda ce: ce.idx == entry_id
+            else:
+                m = lambda ce: ce.digest == entry_id
+            return next((c for c in self.catalogue if m(c)), None)
 
     def __reload(self):
         logger.info('Reloading catalogue')

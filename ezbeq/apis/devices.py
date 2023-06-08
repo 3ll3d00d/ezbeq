@@ -278,17 +278,20 @@ class DevicesV2(Resource):
 
 
 slot_model_v2 = v2_api.model('SlotV2', {
-    'id': fields.String(required=True),
-    'active': fields.Boolean(required=False),
-    'gains': fields.List(fields.Float, required=False),
-    'mutes': fields.List(fields.Boolean, required=False),
-    'entry': fields.String(required=False)
+    'id': fields.String(required=True, description='The slot id'),
+    'active': fields.Boolean(required=False, description='(Optional) if set to true will activate this slot (minidsp)'),
+    'gains': fields.List(fields.Float, required=False,
+                         description='(Optional) gains to set on each input channel (minidsp, camilladsp)'),
+    'mutes': fields.List(fields.Boolean, required=False,
+                         description='(Optional) allows each input channel to be muted or unmuted individually (minidsp, camilladsp)'),
+    'entry': fields.String(required=False, description='(Optional) Accepts value from either the id or digest fields')
 })
 
 device_model_v2 = v2_api.model('DeviceV2', {
-    'mute': fields.Boolean(required=False),
-    'masterVolume': fields.Float(required=False),
-    'slots': fields.List(fields.Nested(slot_model_v2), required=False)
+    'mute': fields.Boolean(required=False,
+                           description='(Optional) True if mute the entire output, false to unmute (minidsp, camilladsp)'),
+    'masterVolume': fields.Float(required=False, description='(Optional) The master gain in dB (minidsp, camilladsp)'),
+    'slots': fields.List(fields.Nested(slot_model_v2), required=False, description='(Optional) Allows updates to be applied to individual DSP slots')
 })
 
 
@@ -315,27 +318,31 @@ class DeviceV2(Resource):
 
 
 gain_model_v3 = v3_api.model('GainV3', {
-    'id': fields.String(required=True),
-    'value': fields.Float(required=True)
+    'id': fields.String(required=True, description='The channel id'),
+    'value': fields.Float(required=True, description='gain in dB')
 })
 
 mute_model_v3 = v3_api.model('MuteV3', {
-    'id': fields.String(required=True),
-    'value': fields.Boolean(required=True)
+    'id': fields.String(required=True, description='The channel id'),
+    'value': fields.Boolean(required=True, description='true to mute, false to unmute')
 })
 
 slot_model_v3 = v3_api.model('SlotV3', {
-    'id': fields.String(required=True),
-    'active': fields.Boolean(required=False),
-    'gains': fields.List(fields.Nested(gain_model_v3), required=False),
-    'mutes': fields.List(fields.Nested(mute_model_v3), required=False),
-    'entry': fields.String(required=False)
+    'id': fields.String(required=True, description='The slot id'),
+    'active': fields.Boolean(required=False,
+                             description='(Optional) if set to true will activate this slot (minidsp)'),
+    'gains': fields.List(fields.Nested(gain_model_v3), required=False,
+                         description='(Optional) gains to set on the specified input channels (minidsp, camilladsp)'),
+    'mutes': fields.List(fields.Nested(mute_model_v3), required=False,
+                         description='(Optional) allows each input channel to be muted or unmuted individually (minidsp, camilladsp)'),
+    'entry': fields.String(required=False, description='(Optional) Accepts value from either the id or digest fields')
 })
 
 device_model_v3 = v3_api.model('DeviceV3', {
-    'mute': fields.Boolean(required=False),
-    'masterVolume': fields.Float(required=False),
-    'slots': fields.List(fields.Nested(slot_model_v3), required=False)
+    'mute': fields.Boolean(required=False,
+                           description='(Optional) True if mute the entire output, false to unmute (minidsp, camilladsp)'),
+    'masterVolume': fields.Float(required=False, description='(Optional) The master gain in dB (minidsp, camilladsp)'),
+    'slots': fields.List(fields.Nested(slot_model_v3), required=False, description='(Optional) Allows updates to be applied to individual DSP slots')
 })
 
 
@@ -390,7 +397,7 @@ class ActiveSlot(Resource):
 
 
 gain_model_v1 = v1_api.model('GainV1', {
-    'gain': fields.Float
+    'gain': fields.Float(description='Gain in dB')
 })
 
 
@@ -440,11 +447,11 @@ class Mute(Resource):
 
 
 biquad_model = v1_api.model('BiquadV1', {
-    'overwrite': fields.Boolean,
-    'slot': fields.String,
-    'inputs': fields.List(fields.Integer),
-    'outputs': fields.List(fields.Integer),
-    'biquads': fields.String
+    'overwrite': fields.Boolean(description='If true, all existing biquads will be overwritten. If false, anything not specified will be left as is.'),
+    'slot': fields.String(description='The slot id'),
+    'inputs': fields.List(fields.Integer, description='The input channels to apply the biquads to'),
+    'outputs': fields.List(fields.Integer, description='The output channels to apply the biquads to'),
+    'biquads': fields.String(description='List of biquad coefficients in minidsp compatible format')
 })
 
 
@@ -469,12 +476,12 @@ class LoadBiquads(Resource):
 
 
 command_model = v1_api.model('CommandV1', {
-    'overwrite': fields.Boolean,
-    'slot': fields.String,
-    'inputs': fields.List(fields.Integer),
-    'outputs': fields.List(fields.Integer),
-    'commandType': fields.String,
-    'commands': fields.String
+    'overwrite': fields.Boolean(description='If true, all existing filters will be overwritten. If false, anything not specified will be left as is.'),
+    'slot': fields.String(description='The slot id'),
+    'inputs': fields.List(fields.Integer, description='The input channels to apply to'),
+    'outputs': fields.List(fields.Integer, description='The output channels to apply to'),
+    'commandType': fields.String(description='Valid values: bq (biquad coefficients), rs (minidsp rs commands), filt (equalizer apo filters)'),
+    'commands': fields.String(description='The commands to execute')
 })
 
 
@@ -500,7 +507,7 @@ class LoadCommands(Resource):
 
 
 filter_model = v1_api.model('FilterV1', {
-    'entryId': fields.String
+    'entryId': fields.String(description='Accepts value from the id field only')
 })
 
 

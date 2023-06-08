@@ -20,7 +20,7 @@ class EntryLoad(Resource):
         self.__provider: CatalogueProvider = kwargs['catalogue']
 
     def get(self, entry_id: str):
-        entry = self.__provider.find(entry_id, False)
+        entry = self.__provider.find(entry_id, match_on_idx=False)
         if entry:
             return {**entry.for_search, 'filters': entry.filters}, 200
         else:
@@ -38,7 +38,7 @@ class FilterLoad(Resource):
         self.__provider: CatalogueProvider = kwargs['catalogue']
 
     def get(self, entry_id: str):
-        entry = self.__provider.find(entry_id, False)
+        entry = self.__provider.find(entry_id, match_on_idx=False)
         if entry:
             return {
                 'digest': entry.digest,
