@@ -117,7 +117,7 @@ def test_load_known_entry_with_gain_and_then_clear(single_camilladsp_client, sin
     ensure_inited(config)
 
     payload = {"slots": [{"id": "CamillaDSP", "gains": [{"id": "1", "value": -1.5}], "mutes": [], "entry": "123456_0"}]}
-    r = single_camilladsp_client.patch(f"/api/2/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = single_camilladsp_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
 
     def beq_loaded():
@@ -173,7 +173,7 @@ def test_load_known_entry_then_load_gain_and_then_clear(single_camilladsp_client
     ensure_inited(config)
 
     payload = {"slots": [{"id": "CamillaDSP", "entry": "123456_0"}]}
-    r = single_camilladsp_client.patch(f"/api/2/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = single_camilladsp_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
 
     def beq_loaded():
@@ -198,7 +198,7 @@ def test_load_known_entry_then_load_gain_and_then_clear(single_camilladsp_client
         entry_is_shown)
 
     payload = {"slots": [{"id": "CamillaDSP", "gains": [{"id": "1", "value": -1.5}]}]}
-    r = single_camilladsp_client.patch(f"/api/2/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = single_camilladsp_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
 
     def gain_changed():
@@ -244,7 +244,7 @@ def test_input_gain_and_mute(single_camilladsp_client, single_camilladsp_app):
     ensure_inited(config)
 
     payload = {"slots": [{"id": "CamillaDSP", "gains": [{"id": "1", "value": -1.5}], "mutes": [{"id": "1", "value": True}]}]}
-    r = single_camilladsp_client.patch(f"/api/2/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = single_camilladsp_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
 
     def gain_changed():
@@ -285,7 +285,7 @@ def test_input_gain_and_mute_on_unsupported_channel(single_camilladsp_client, si
     ensure_inited(config)
 
     payload = {"slots": [{"id": "CamillaDSP", "gains": [{"id": "0", "value": -1.5}], "mutes": [{"id": "0", "value": True}]}]}
-    r = single_camilladsp_client.patch(f"/api/2/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = single_camilladsp_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 500
 
 
@@ -302,7 +302,7 @@ def test_load_known_entry_to_multiple_channels_with_gain_and_then_clear(multi_ca
             "entry": "123456_0"
         }
     ]}
-    r = multi_camilladsp_client.patch(f"/api/2/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = multi_camilladsp_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
 
     def beq_loaded():
