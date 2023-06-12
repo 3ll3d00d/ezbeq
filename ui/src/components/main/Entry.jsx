@@ -174,17 +174,17 @@ const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotI
         if (selectedDevice && selectedDevice.slots) {
             const slot = selectedDevice.slots.find(s => s.id === uploadSlotId);
             if (slot) {
-                const gains = {
+                const gains = acceptGain ? {
                     'gains': slot.gains.map(g => {
                         return {id: g.id, value: sendGain ? parseFloat(selectedEntry.mvAdjust) : 0.0};
                     }),
                     'mutes': sendGain ? slot.mutes.map(m => {
                         return {id: m.id, value: false};
                     }) : []
-                };
+                } : null;
                 setPending(true);
                 try {
-                    const call = acceptGain
+                    const call = gains
                         ? () => ezbeq.loadWithMV(selectedDevice.name, selectedEntry.id, uploadSlotId, gains)
                         : () => ezbeq.sendFilter(selectedDevice.name, selectedEntry.id, uploadSlotId);
                     const device = await call();
