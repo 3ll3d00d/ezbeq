@@ -7,8 +7,8 @@ import {useLocalStorage} from "../../services/util";
 
 const Levels = ({
                     availableDevices,
-                    selectedDevice,
-                    setSelectedDevice,
+                    selectedDeviceName,
+                    setSelectedDeviceName,
                     levelsService,
                     setSelectedNav,
                     selectedNav,
@@ -76,8 +76,8 @@ const Levels = ({
     }, [levelsService, activeDuration]);
 
     useEffect(() => {
-        levelsService.setActiveDevice(selectedDevice);
-    }, [levelsService, selectedDevice]);
+        levelsService.setActiveDevice(selectedDeviceName);
+    }, [levelsService, selectedDeviceName]);
 
     const chartOpts = Object.assign({}, opts, {
         width: window.innerWidth - 16,
@@ -86,8 +86,8 @@ const Levels = ({
     return (
         <>
             <Header availableDevices={availableDevices}
-                    setSelectedDevice={setSelectedDevice}
-                    selectedDevice={selectedDevice}
+                    setSelectedDevice={setSelectedDeviceName}
+                    selectedDevice={selectedDeviceName}
                     selectedNav={selectedNav}
                     setSelectedNav={setSelectedNav}/>
             <Controls duration={duration}

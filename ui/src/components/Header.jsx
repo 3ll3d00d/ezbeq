@@ -13,8 +13,8 @@ import {Check} from "@mui/icons-material";
 
 const Header = ({
                     availableDevices,
-                    setSelectedDevice,
-                    selectedDevice,
+                    setSelectedDeviceName,
+                    selectedDeviceName,
                     selectedNav,
                     setSelectedNav,
                     children
@@ -39,10 +39,10 @@ const Header = ({
         setMainMenuAnchorEl(null);
     };
     const tabNames = ['Catalogue'];
-    if (selectedDevice && (selectedDevice.type === 'minidsp' || selectedDevice.type === 'camilladsp')) {
+    if (selectedDeviceName && availableDevices && (availableDevices[selectedDeviceName].type === 'minidsp' || availableDevices[selectedDeviceName].type === 'camilladsp')) {
         tabNames.push('Levels');
     }
-    if (selectedDevice && selectedDevice.type === 'minidsp') {
+    if (selectedDeviceName && availableDevices && availableDevices[selectedDeviceName].type === 'minidsp') {
         tabNames.push('Control');
     }
     const tabIcons = {
@@ -60,13 +60,13 @@ const Header = ({
         ? Object.keys(availableDevices).map(d =>
             <MenuItem value={d}
                       key={d}
-                      onClick={e => setSelectedDevice(availableDevices[d])}>
+                      onClick={e => setSelectedDeviceName(availableDevices[d].name)}>
                 {
-                    selectedDevice && d === selectedDevice.name
+                    selectedDeviceName && d === selectedDeviceName
                         ? <ListItemIcon><Check/></ListItemIcon>
                         : null
                 }
-                <ListItemText inset={!selectedDevice || d !== selectedDevice.name}>{d}</ListItemText>
+                <ListItemText inset={!selectedDeviceName || d !== selectedDeviceName}>{d}</ListItemText>
             </MenuItem>
         ) : null;
 

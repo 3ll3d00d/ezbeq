@@ -102,8 +102,8 @@ const SelectableSlots = ({
 
 const Minidsp = ({
                      availableDevices,
-                     setSelectedDevice,
-                     selectedDevice,
+                     setSelectedDeviceName,
+                     selectedDeviceName,
                      selectedSlotId,
                      setErr,
                      setSelectedNav,
@@ -111,9 +111,9 @@ const Minidsp = ({
                      theme
                  }) => {
     const classes = useStyles();
-    const [inputs, setInputs] = useLocalStorage(`minidspInputs.${selectedDevice.name}.${selectedSlotId}`, []);
-    const [outputs, setOutputs] = useLocalStorage(`minidspOutputs.${selectedDevice.name}.${selectedSlotId}`, []);
-    const [commandType, setCommandType] = useLocalStorage(`minidsp.${selectedDevice.name}.commandType`, 'bq')
+    const [inputs, setInputs] = useLocalStorage(`minidspInputs.${selectedDeviceName}.${selectedSlotId}`, []);
+    const [outputs, setOutputs] = useLocalStorage(`minidspOutputs.${selectedDeviceName}.${selectedSlotId}`, []);
+    const [commandType, setCommandType] = useLocalStorage(`minidsp.${selectedDeviceName}.commandType`, 'bq')
     const [config, setConfig] = useState(selectedSlotId);
     const [commands, setCommands] = useState('');
     const [overwrite, setOverwrite] = useState(true);
@@ -124,7 +124,7 @@ const Minidsp = ({
     const uploadTextCommands = async () => {
         setPending(true);
         try {
-            const response = await ezbeq.sendTextCommands(selectedDevice.name, config, inputs, outputs, commandType, commands, overwrite);
+            const response = await ezbeq.sendTextCommands(selectedDeviceName, config, inputs, outputs, commandType, commands, overwrite);
             console.debug(response);
         } catch (e) {
             setErr(e);
@@ -134,12 +134,12 @@ const Minidsp = ({
     };
 
     useEffect(() => {
-        if (availableDevices && selectedDevice && selectedSlotId) {
-            const slot = availableDevices[selectedDevice.name].slots.find(s => s.id === selectedSlotId);
+        if (availableDevices && selectedDeviceName && selectedSlotId) {
+            const slot = availableDevices[selectedDeviceName].slots.find(s => s.id === selectedSlotId);
             setInputChannels(Array.from(Array(slot.inputs).keys()).map(i => i + 1));
             setOutputChannels(Array.from(Array(slot.outputs).keys()).map(i => i + 1));
         }
-    }, [availableDevices, selectedDevice, selectedSlotId]);
+    }, [availableDevices, selectedDeviceName, selectedSlotId]);
 
     useEffect(() => {
         if (inputs.some(i => !inputChannels.includes(i))) {
@@ -155,8 +155,8 @@ const Minidsp = ({
 
     return <>
         <Header availableDevices={availableDevices}
-                setSelectedDevice={setSelectedDevice}
-                selectedDevice={selectedDevice}
+                setSelectedDeviceName={setSelectedDeviceName}
+                selectedDeviceName={selectedDeviceName}
                 selectedNav={selectedNav}
                 setSelectedNav={setSelectedNav}
         />

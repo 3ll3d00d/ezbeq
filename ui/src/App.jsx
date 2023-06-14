@@ -49,7 +49,7 @@ const App = () => {
     // catalogue data
     const [entries, setEntries] = useState([]);
     // view selection
-    const [selectedDevice, setSelectedDevice] = useState(null);
+    const [selectedDeviceName, setSelectedDeviceName] = useState(null);
     const [selectedNav, setSelectedNav] = useState('catalogue');
 
     // device state
@@ -82,13 +82,13 @@ const App = () => {
     }, []);
 
     useEffect(() => {
-        if (selectedDevice && selectedDevice.hasOwnProperty('slots')) {
-            const slot = selectedDevice.slots.find(s => s.active === true);
+        if (selectedDeviceName && availableDevices[selectedDeviceName].hasOwnProperty('slots')) {
+            const slot = availableDevices[selectedDeviceName].slots.find(s => s.active === true);
             if (slot) {
                 setSelectedSlotId(slot.id);
             }
         }
-    }, [selectedDevice, availableDevices]);
+    }, [selectedDeviceName, availableDevices]);
 
     const useWide = useMediaQuery('(orientation: landscape) and (min-height: 580px)');
 
@@ -112,8 +112,8 @@ const App = () => {
                                           }
                                       }}
                                       availableDevices={availableDevices}
-                                      selectedDevice={selectedDevice}
-                                      setSelectedDevice={setSelectedDevice}
+                                      selectedDeviceName={selectedDeviceName}
+                                      setSelectedDeviceName={setSelectedDeviceName}
                                       selectedSlotId={selectedSlotId}
                                       setSelectedSlotId={setSelectedSlotId}
                                       useWide={useWide}
@@ -124,8 +124,8 @@ const App = () => {
                             selectedNav === 'levels'
                                 ?
                                 <Levels availableDevices={availableDevices}
-                                        selectedDevice={selectedDevice}
-                                        setSelectedDevice={setSelectedDevice}
+                                        selectedDeviceName={selectedDeviceName}
+                                        setSelectedDeviceName={setSelectedDeviceName}
                                         levelsService={levelsService}
                                         selectedNav={selectedNav}
                                         setSelectedNav={setSelectedNav}
@@ -133,8 +133,8 @@ const App = () => {
                                 />
                                 :
                                 <Minidsp availableDevices={availableDevices}
-                                         selectedDevice={selectedDevice}
-                                         setSelectedDevice={setSelectedDevice}
+                                         selectedDeviceName={selectedDeviceName}
+                                         setSelectedDeviceName={setSelectedDeviceName}
                                          selectedSlotId={selectedSlotId}
                                          setErr={setErr}
                                          selectedNav={selectedNav}

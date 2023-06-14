@@ -14,8 +14,8 @@ const MainView = ({
                       availableDevices,
                       setErr,
                       replaceDevice,
-                      selectedDevice,
-                      setSelectedDevice,
+                      selectedDeviceName,
+                      setSelectedDeviceName,
                       selectedSlotId,
                       setSelectedSlotId,
                       useWide,
@@ -41,11 +41,11 @@ const MainView = ({
     useEffect(() => {
         if (availableDevices) {
             const deviceNames = Object.keys(availableDevices);
-            if (deviceNames.length > 0 && !selectedDevice) {
-                setSelectedDevice(availableDevices[deviceNames[0]]);
+            if (deviceNames.length > 0 && !selectedDeviceName) {
+                setSelectedDeviceName(deviceNames[0]);
             }
         }
-    }, [availableDevices, selectedDevice, setSelectedDevice]);
+    }, [availableDevices, selectedDeviceName, setSelectedDeviceName]);
 
     useEffect(() => {
         const txtMatch = e => {
@@ -85,16 +85,16 @@ const MainView = ({
     }, [entries, selectedAudioTypes, selectedYears, selectedAuthors, selectedContentTypes, selectedFreshness, selectedLanguages, txtFilter, setErr]);
 
     useEffect(() => {
-        const d = selectedDevice;
+        const d = availableDevices[selectedDeviceName];
         if (d && userDriven && d.hasOwnProperty('slots')) {
             const slot = d.slots.find(s => s.id === selectedSlotId);
             if (slot && slot.last && slot.last !== "ERROR" && slot.last !== "Empty") {
                 setTxtFilter(slot.last);
             }
         }
-    }, [selectedDevice, selectedSlotId, setTxtFilter, userDriven]);
+    }, [availableDevices, selectedDeviceName, selectedSlotId, setTxtFilter, userDriven]);
 
-    const devices = <Slots selectedDevice={selectedDevice}
+    const devices = <Slots selectedDevice={availableDevices[selectedDeviceName]}
                            selectedEntryId={selectedEntryId}
                            selectedSlotId={selectedSlotId}
                            useWide={useWide}
@@ -106,8 +106,8 @@ const MainView = ({
                                  setSelectedEntryId={setSelectedEntryId}
                                  selectedEntryId={selectedEntryId}
                                  useWide={useWide}
-                                 selectedDevice={selectedDevice}/>;
-    const entry = <Entry selectedDevice={selectedDevice}
+                                 selectedDevice={availableDevices[selectedDeviceName]}/>;
+    const entry = <Entry selectedDevice={availableDevices[selectedDeviceName]}
                          selectedEntry={selectedEntryId ? entries.find(e => e.id === selectedEntryId) : null}
                          useWide={useWide}
                          setDevice={d => replaceDevice(d)}
@@ -117,8 +117,8 @@ const MainView = ({
     return (
         <>
             <Header availableDevices={availableDevices}
-                    setSelectedDevice={setSelectedDevice}
-                    selectedDevice={selectedDevice}
+                    setSelectedDeviceName={setSelectedDeviceName}
+                    selectedDeviceName={selectedDeviceName}
                     selectedNav={selectedNav}
                     setSelectedNav={setSelectedNav}>
                 <Search txtFilter={txtFilter}

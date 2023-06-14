@@ -164,12 +164,12 @@ class LevelsService {
         }
     };
 
-    setActiveDevice = (device) => {
-        if (device) {
-            if (this.devices.indexOf(device.name) > -1) {
-                this.activeDeviceName = device.name;
+    setActiveDevice = (deviceName) => {
+        if (deviceName) {
+            if (this.devices.indexOf(deviceName) > -1) {
+                this.activeDeviceName = deviceName;
             } else {
-                this.setErr(new Error(`Unknown device ${device.name}`));
+                this.setErr(new Error(`Unknown device ${deviceName}`));
             }
         }
     };
