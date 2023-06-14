@@ -128,12 +128,13 @@ class CatalogueEntry:
             self.for_search['collection'] = self.collection['name']
 
     def matches(self, authors: List[str], years: List[int], audio_types: List[str], content_types: List[str],
-                text: Optional[str]):
-        if not authors or self.author in authors:
-            if not years or self.year in years:
-                if not audio_types or any(a_t in audio_types for a_t in self.audio_types):
-                    if not content_types or self.content_type in content_types:
-                        return not text or self.__text_match(text)
+                tmdb_id: str, text: Optional[str]):
+        if not tmdb_id or self.the_movie_db == tmdb_id:
+            if not authors or self.author in authors:
+                if not years or self.year in years:
+                    if not audio_types or any(a_t in audio_types for a_t in self.audio_types):
+                        if not content_types or self.content_type in content_types:
+                            return not text or self.__text_match(text)
         return False
 
     def __text_match(self, text: str):

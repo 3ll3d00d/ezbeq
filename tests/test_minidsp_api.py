@@ -494,6 +494,22 @@ def test_search_title(minidsp_client, minidsp_app):
     assert len(catalogue) == 0
 
 
+def test_search_tmdbid(minidsp_client, minidsp_app):
+    r = minidsp_client.get(f"/api/1/search", query_string={'tmdbid': '8078'})
+    assert r.status_code == 200
+    catalogue = r.json
+    assert catalogue
+    assert len(catalogue) == 1
+    entry = catalogue[0]
+    assert entry['id'] == '123456_0'
+    assert entry['title'] == 'Alien Resurrection'
+
+    r = minidsp_client.get(f"/api/1/search", query_string={'tmdbid': '807'})
+    assert r.status_code == 200
+    catalogue = r.json
+    assert len(catalogue) == 0
+
+
 def test_search_alt_title(minidsp_client, minidsp_app):
     r = minidsp_client.get(f"/api/1/search", query_string={'text': 'err'})
     assert r.status_code == 200
