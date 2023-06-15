@@ -131,7 +131,7 @@ const Header = ({
         </Menu>
     );
 
-    const shouldShowMenu = availableDevices.length > 1 || tabNames.length > 1;
+    const shouldShowMenu = (availableDevices && Object.keys(availableDevices).length > 1) || tabNames.length > 1;
 
     return (
         <Box sx={{flexGrow: 1}}>

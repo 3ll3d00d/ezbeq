@@ -86,8 +86,8 @@ const Levels = ({
     return (
         <>
             <Header availableDevices={availableDevices}
-                    setSelectedDevice={setSelectedDeviceName}
-                    selectedDevice={selectedDeviceName}
+                    setSelectedDeviceName={setSelectedDeviceName}
+                    selectedDeviceName={selectedDeviceName}
                     selectedNav={selectedNav}
                     setSelectedNav={setSelectedNav}/>
             <Controls duration={duration}
