@@ -189,7 +189,6 @@ class CatalogueEntry:
             return f"{self.title} {self.__format_tv_meta()}"
         return self.title
 
-
 class CatalogueProvider:
 
     def __init__(self, config: Config):
@@ -216,7 +215,7 @@ class CatalogueProvider:
             return next((c for c in self.catalogue if m(c)), None)
 
     def __reload(self):
-        logger.info('Reloading catalogue')
+        logger.debug('Reloading catalogue')
         downloader = DatabaseDownloader(self.__config.beqcatalogue_url, self.__catalogue_file,
                                         self.__catalogue_version_file)
         reload_required = downloader.run()
@@ -227,6 +226,7 @@ class CatalogueProvider:
                                         for idx, c in enumerate(json.load(infile))]
                     self.__loaded_at = datetime.now()
                     self.__version = downloader.version
+                    logger.info(f'Reloaded {len(self.__catalogue)} entries from version {self.__version}')
             else:
                 raise ValueError(f"No catalogue available at {self.__catalogue_file}")
         else:

@@ -2092,6 +2092,29 @@ gain -- -10.20"""
             verify_slot(s, idx + 1)
 
 
+def test_patch_v3_unknown_entry(minidsp_client, minidsp_app):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+    # when: set various things with a bad entry
+    payload = {
+        'masterVolume': -10.2,
+        'slots': [
+            {
+                'id': '3',
+                'entry': 'xyz',
+                'gains': [{'id': '1', 'value': -1.1}, {'id': '2', 'value': -1.1}],
+                'mutes': [{'id': '1', 'value': False}, {'id': '2', 'value': False}]
+            }
+        ]
+    }
+    r = minidsp_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
+
+    # then: no commands are sent
+    assert r.status_code == 400
+    cmds = config.spy.take_commands()
+    assert len(cmds) == 0
+
+
 @pytest.mark.parametrize('entry_id', ['123456_0', 'abcdefghijklm'])
 def test_patch_v3_multiple_slots(minidsp_client, minidsp_app, entry_id):
     config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']

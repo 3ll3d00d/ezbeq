@@ -5,7 +5,7 @@ import os
 import time
 from concurrent.futures.thread import ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import List, Optional, Union, Dict
+from typing import List, Optional, Union
 
 import yaml
 from autobahn.exception import Disconnected
@@ -14,7 +14,7 @@ from twisted.internet.protocol import ReconnectingClientFactory
 
 from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
-from ezbeq.device import InvalidRequestError, SlotState, PersistentDevice, DeviceState
+from ezbeq.device import InvalidRequestError, SlotState, PersistentDevice, DeviceState, UnableToPatchDeviceError
 
 INPUT_NAME = 'input'
 OUTPUT_NAME = 'output'
@@ -650,6 +650,13 @@ class Minidsp(PersistentDevice[MinidspState]):
     def __update_slot(self, slot: dict) -> bool:
         any_update = False
         current_slot = self._current_state.get_slot(slot['id'])
+        if not current_slot:
+            raise UnableToPatchDeviceError(f'Unknown device slot {slot["id"]}', True)
+        match: Optional[CatalogueEntry] = None
+        if 'entry' in slot and slot['entry']:
+            match = self.__catalogue.find(slot['entry'])
+            if not match:
+                raise UnableToPatchDeviceError(f'Unknown catalogue entry {slot["entry"]}', True)
         if 'gains' in slot:
             for gain in slot['gains']:
                 self.set_gain(current_slot.slot_id, int(gain['id']), gain['value'])
@@ -663,10 +670,8 @@ class Minidsp(PersistentDevice[MinidspState]):
                 any_update = True
         if 'entry' in slot:
             if slot['entry']:
-                match = self.__catalogue.find(slot['entry'])
-                if match:
-                    self.load_filter(current_slot.slot_id, match)
-                    any_update = True
+                self.load_filter(current_slot.slot_id, match)
+                any_update = True
             else:
                 self.clear_filter(current_slot.slot_id)
         if 'active' in slot:

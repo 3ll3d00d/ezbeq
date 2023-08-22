@@ -266,3 +266,13 @@ class PersistentDevice(Device, ABC, Generic[T]):
     @property
     def ws_server(self) -> WsServer:
         return self.__ws_server
+
+
+class UnableToPatchDeviceError(Exception):
+    def __init__(self, msg: str, invalid_request: bool):
+        self.msg = msg
+        self.invalid_request = invalid_request
+
+    @property
+    def code(self) -> int:
+        return 400 if self.invalid_request else 500

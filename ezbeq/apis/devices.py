@@ -7,7 +7,7 @@ from flask import request
 from flask_restx import Resource, Namespace, fields
 
 from ezbeq.catalogue import CatalogueProvider, CatalogueEntry
-from ezbeq.device import DeviceRepository, InvalidRequestError
+from ezbeq.device import DeviceRepository, InvalidRequestError, UnableToPatchDeviceError
 from ezbeq.iir import PeakingEQ, LowShelf, HighShelf
 
 logger = logging.getLogger('ezbeq.devices')
@@ -355,12 +355,19 @@ class DeviceV3(Resource):
         self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
 
     @v3_api.expect(device_model_v3, validate=True)
-    def patch(self, device_name: str):
+    def patch(self, device_name: str) -> Tuple[dict, int]:
         payload = request.get_json()
         logger.info(f"PATCHing {device_name} with {payload}")
-        if not self.__bridge.update(device_name, payload):
-            logger.info(f"PATCH {device_name} was a nop")
-        return self.__bridge.state(device_name).serialise()
+        try:
+            updated = self.__bridge.update(device_name, payload)
+            if updated:
+                logger.info(f"PATCHed {device_name}")
+            else:
+                logger.info(f"PATCH {device_name} was a nop")
+        except UnableToPatchDeviceError as e:
+            logger.exception(f'PATCH {device_name} failure')
+            return {'message': f'Update failed : {e.msg}'}, e.code
+        return self.__bridge.state(device_name).serialise(), 200
 
 
 @v1_api.route('/<string:device_name>/levels')
