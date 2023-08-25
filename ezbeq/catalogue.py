@@ -228,7 +228,7 @@ class Catalogues:
         except:
             logger.exception(f'Failed to load catalogue at startup from {self.__catalogue_file}')
         from twisted.internet.task import LoopingCall
-        logger.info('Scheduling reload to run every 60s')
+        logger.info(f'Scheduling reload to run every {self.__refresh_interval}s')
         from twisted.internet import task
         self.__reload_task = task.LoopingCall(self.__reload)
         self.__reload_task.start(self.__refresh_interval, now=True)
