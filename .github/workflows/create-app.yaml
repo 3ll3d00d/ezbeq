@@ -103,6 +103,14 @@ jobs:
         with:
           user: __token__
           password: ${{ secrets.PYPI_API_TOKEN }}
+      - uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{owner}/{repo}/dispatches
+          owner: 3ll3d00d
+          repo: ezbeq-jr
+          event_type: 'trigger'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   buildpyinstaller:
     name: Publish to Github
     needs: create_release
