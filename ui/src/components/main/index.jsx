@@ -20,7 +20,8 @@ const MainView = ({
                       setSelectedSlotId,
                       useWide,
                       setSelectedNav,
-                      selectedNav
+                      selectedNav,
+                      meta
                   }) => {
     const [selectedAuthors, setSelectedAuthors] = useLocalStorage('selectedAuthors', []);
     const [selectedLanguages, setSelectedLanguages] = useState([]);
@@ -113,7 +114,7 @@ const MainView = ({
                          setDevice={d => replaceDevice(d)}
                          selectedSlotId={selectedSlotId}
                          setError={setErr}/>;
-    const footer = <Footer/>;
+    const footer = <Footer meta={meta}/>;
     return (
         <>
             <Header availableDevices={availableDevices}

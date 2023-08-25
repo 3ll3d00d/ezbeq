@@ -10,7 +10,7 @@ import yaml
 
 class Config:
 
-    def __init__(self, name, default_port=8080, beqcatalogue_url='http://beqcatalogue.readthedocs.io/en/latest/'):
+    def __init__(self, name, default_port=8080, beqcatalogue_url='https://raw.githubusercontent.com/3ll3d00d/beqcatalogue/master/docs/'):
         self._name = name
         self.logger = logging.getLogger(name + '.config')
         self.config = self.load_config()
@@ -19,6 +19,7 @@ class Config:
         self.__port = self.config.get('port', default_port)
         self.__service_url = f"http://{self.hostname}:{self.port}"
         self.__beqcatalogue_url = beqcatalogue_url
+        self.__catalogue_refresh_interval = self.config.get('catalogueRefreshSeconds', 60.0)
         if 'catalogueUrl' in self.config:
             self.__beqcatalogue_url = self.config['catalogueUrl']
             self.logger.warning(f"Loading catalogue from custom location {self.__beqcatalogue_url}")
@@ -34,6 +35,10 @@ class Config:
     @property
     def beqcatalogue_url(self) -> str:
         return self.__beqcatalogue_url
+
+    @property
+    def catalogue_refresh_interval(self) -> float:
+        return self.__catalogue_refresh_interval
 
     @property
     def default_hostname(self):

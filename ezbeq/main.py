@@ -23,7 +23,7 @@ if hasattr(faulthandler, 'register'):
 
 def create_app(config: Config, ws: WsServer = AutobahnWsServer()) -> Tuple[Flask, WsServer]:
     ws_server = ws
-    catalogue = CatalogueProvider(config)
+    catalogue = CatalogueProvider(config, ws)
     resource_args = {
         'config': config,
         'ws_server': ws_server,
@@ -61,8 +61,8 @@ def create_app(config: Config, ws: WsServer = AutobahnWsServer()) -> Tuple[Flask
 def main(args=None):
     """ The main routine. """
     cfg = Config('ezbeq')
-    app, ws_server = create_app(cfg)
     logger = cfg.configure_logger()
+    app, ws_server = create_app(cfg)
 
     if cfg.use_twisted:
         import logging

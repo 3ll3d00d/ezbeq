@@ -48,6 +48,9 @@ const App = () => {
 
     // catalogue data
     const [entries, setEntries] = useState([]);
+    const [meta, setMeta] = useState({});
+    const [version, setVersion] = useState(null);
+
     // view selection
     const [selectedDeviceName, setSelectedDeviceName] = useState(null);
     const [selectedNav, setSelectedNav] = useState('catalogue');
@@ -61,17 +64,23 @@ const App = () => {
     }, [setAvailableDevices, availableDevices]);
 
     useEffect(() => {
-        ss.init(setErr, replaceDevice);
-    }, [setErr, replaceDevice]);
+        if (meta && meta.version !== version) {
+            setVersion(meta.version);
+        }
+    }, [meta, version, setVersion]);
+
+    useEffect(() => {
+        ss.init(setErr, replaceDevice, setMeta);
+    }, [setErr, replaceDevice, setMeta]);
 
     const levelsService = useMemo(() => {
         return new LevelsService(setErr, `ws://${window.location.host}/ws`, theme);
     }, [setErr]);
 
-    // initial data load
+    // load when version changes
     useEffect(() => {
         pushData(setEntries, ezbeq.load, setErr);
-    }, []);
+    }, [version]);
 
     useEffect(() => {
         levelsService.loadDevices(Object.keys(availableDevices));
@@ -79,6 +88,10 @@ const App = () => {
 
     useEffect(() => {
         pushData(setAvailableDevices, ezbeq.getDevices, setErr);
+    }, []);
+
+    useEffect(() => {
+        pushData(setMeta, ezbeq.getMeta);
     }, []);
 
     useEffect(() => {
@@ -99,48 +112,53 @@ const App = () => {
                 <Root>
                     <ErrorSnack err={err} setErr={setErr}/>
                     {
-                        selectedNav === 'catalogue'
-                            ?
-                            <MainView entries={entries}
-                                      setErr={setErr}
-                                      replaceDevice={d => {
-                                          if (ss && ss.isConnected()) {
-                                              console.debug(`Discarding update, ws is connected`);
-                                          } else {
-                                              console.debug(`Accepting update, ws is disconnected`);
-                                              replaceDevice(d);
-                                          }
-                                      }}
-                                      availableDevices={availableDevices}
-                                      selectedDeviceName={selectedDeviceName}
-                                      setSelectedDeviceName={setSelectedDeviceName}
-                                      selectedSlotId={selectedSlotId}
-                                      setSelectedSlotId={setSelectedSlotId}
-                                      useWide={useWide}
-                                      selectedNav={selectedNav}
-                                      setSelectedNav={setSelectedNav}
-                            />
-                            :
-                            selectedNav === 'levels'
+                        meta
+                        ?
+                            selectedNav === 'catalogue'
                                 ?
-                                <Levels availableDevices={availableDevices}
-                                        selectedDeviceName={selectedDeviceName}
-                                        setSelectedDeviceName={setSelectedDeviceName}
-                                        levelsService={levelsService}
-                                        selectedNav={selectedNav}
-                                        setSelectedNav={setSelectedNav}
-                                        theme={theme}
+                                <MainView entries={entries}
+                                          setErr={setErr}
+                                          replaceDevice={d => {
+                                              if (ss && ss.isConnected()) {
+                                                  console.debug(`Discarding update, ws is connected`);
+                                              } else {
+                                                  console.debug(`Accepting update, ws is disconnected`);
+                                                  replaceDevice(d);
+                                              }
+                                          }}
+                                          availableDevices={availableDevices}
+                                          selectedDeviceName={selectedDeviceName}
+                                          setSelectedDeviceName={setSelectedDeviceName}
+                                          selectedSlotId={selectedSlotId}
+                                          setSelectedSlotId={setSelectedSlotId}
+                                          useWide={useWide}
+                                          selectedNav={selectedNav}
+                                          setSelectedNav={setSelectedNav}
+                                          meta={meta}
                                 />
                                 :
-                                <Minidsp availableDevices={availableDevices}
-                                         selectedDeviceName={selectedDeviceName}
-                                         setSelectedDeviceName={setSelectedDeviceName}
-                                         selectedSlotId={selectedSlotId}
-                                         setErr={setErr}
-                                         selectedNav={selectedNav}
-                                         setSelectedNav={setSelectedNav}
-                                         theme={theme}
-                                />
+                                selectedNav === 'levels'
+                                    ?
+                                    <Levels availableDevices={availableDevices}
+                                            selectedDeviceName={selectedDeviceName}
+                                            setSelectedDeviceName={setSelectedDeviceName}
+                                            levelsService={levelsService}
+                                            selectedNav={selectedNav}
+                                            setSelectedNav={setSelectedNav}
+                                            theme={theme}
+                                    />
+                                    :
+                                    <Minidsp availableDevices={availableDevices}
+                                             selectedDeviceName={selectedDeviceName}
+                                             setSelectedDeviceName={setSelectedDeviceName}
+                                             selectedSlotId={selectedSlotId}
+                                             setErr={setErr}
+                                             selectedNav={selectedNav}
+                                             setSelectedNav={setSelectedNav}
+                                             theme={theme}
+                                    />
+                            :
+                            null
                     }
                 </Root>
             </ThemeProvider>

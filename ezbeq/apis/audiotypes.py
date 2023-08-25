@@ -13,5 +13,5 @@ class Authors(Resource):
         self.__provider: CatalogueProvider = kwargs['catalogue']
 
     def get(self):
-        catalogue = self.__provider.catalogue
+        catalogue = self.__provider.catalogue_entries
         return list(sorted({a_t for audio_types in [c.audio_types for c in catalogue] for a_t in audio_types}))

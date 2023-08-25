@@ -13,5 +13,5 @@ class Years(Resource):
         self.__provider: CatalogueProvider = kwargs['catalogue']
 
     def get(self):
-        catalogue = self.__provider.catalogue
+        catalogue = self.__provider.catalogue_entries
         return list(sorted({c.year for c in catalogue}, reverse=True))

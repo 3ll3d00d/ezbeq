@@ -13,5 +13,5 @@ class ContentTypes(Resource):
         self.__provider: CatalogueProvider = kwargs['catalogue']
 
     def get(self):
-        catalogue = self.__provider.catalogue
+        catalogue = self.__provider.catalogue_entries
         return list(sorted({c.content_type for c in catalogue}))

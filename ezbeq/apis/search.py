@@ -32,7 +32,7 @@ class CatalogueSearch(Resource):
     @api.param('fields', 'The entry fields to return in the output')
     @api.param('tmdbid', 'TheMovieDB id')
     def get(self):
-        catalogue = self.__provider.catalogue
+        catalogue = self.__provider.catalogue_entries
         args = self.__parser.parse_args()
         authors = args.get('authors')
         years = args.get('years')

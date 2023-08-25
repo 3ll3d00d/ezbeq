@@ -1,13 +1,14 @@
 import json
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor
+import time
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional, List
 
 import requests
-import time
 
+from ezbeq.apis.ws import WsServer
 from ezbeq.config import Config
 
 TWO_WEEKS_AGO_SECONDS = 2 * 7 * 24 * 60 * 60
@@ -189,69 +190,137 @@ class CatalogueEntry:
             return f"{self.title} {self.__format_tv_meta()}"
         return self.title
 
-class CatalogueProvider:
 
-    def __init__(self, config: Config):
-        self.__config = config
-        self.__catalogue_file = os.path.join(config.config_path, 'database.json')
-        self.__catalogue_version_file = os.path.join(config.config_path, 'version.txt')
-        self.__executor = ThreadPoolExecutor(max_workers=1)
-        self.__version = None
-        self.__loaded_at = None
-        self.__catalogue = []
-        self.__executor.submit(self.__reload).result(timeout=60)
+@dataclass(frozen=True)
+class Catalogue:
+    entries: List[CatalogueEntry]
+    version: str
+    loaded_at: datetime = None
 
-    def find(self, entry_id: str, match_on_idx: Optional[bool] = None) -> Optional[CatalogueEntry]:
+    def __len__(self):
+        return len(self.entries)
+
+    @property
+    def stale(self):
+        return (datetime.now() - self.loaded_at) > timedelta(minutes=1)
+
+    def json(self) -> dict:
+        return {
+            'version': self.version,
+            'loaded': int(self.loaded_at.timestamp()),
+            'count': len(self)
+        }
+
+
+class Catalogues:
+    def __init__(self, catalogue_file: str, version_file: str, catalogue_url: str, ws: WsServer,
+                 refresh_seconds: float):
+        self.__catalogue_url = catalogue_url
+        self.__version_file = version_file
+        self.__catalogue_file = catalogue_file
+        self.__catalogues: List[Catalogue] = []
+        self.__refresh_interval = refresh_seconds
+        self.__ws = ws
+        try:
+            if os.path.exists(self.__catalogue_file) and os.path.exists(self.__version_file):
+                with open(self.__version_file) as f:
+                    self.__load_cached_catalogue(f.read().strip())
+        except:
+            logger.exception(f'Failed to load catalogue at startup from {self.__catalogue_file}')
+        from twisted.internet.task import LoopingCall
+        logger.info('Scheduling reload to run every 60s')
+        from twisted.internet import task
+        self.__reload_task = task.LoopingCall(self.__reload)
+        self.__reload_task.start(self.__refresh_interval, now=True)
+
+    @property
+    def latest(self) -> Optional[Catalogue]:
+        return self.__catalogues[-1] if self.loaded else None
+
+    def find_version(self, version: str) -> Optional[Catalogue]:
+        return next((i for i in self.__catalogues if i.version == version), None)
+
+    def append(self, catalogue: Catalogue):
+        one_day_ago = datetime.now() - timedelta(days=1)
+        if self.__catalogues:
+            self.__catalogues = [i for i in self.__catalogues if i.loaded_at and i.loaded_at >= one_day_ago]
+        self.__catalogues.append(catalogue)
+
+    def find_entry(self, entry_id: str, match_on_idx: Optional[bool] = None) -> Optional[CatalogueEntry]:
         if match_on_idx is None:
-            m = self.find(entry_id, True)
+            m = self.find_entry(entry_id, True)
             if not m:
-                m = self.find(entry_id, False)
+                m = self.find_entry(entry_id, False)
             return m
         else:
+            target_version = None
             if match_on_idx is True:
                 m = lambda ce: ce.idx == entry_id
+                target_version = entry_id.split('_')[0]
             else:
                 m = lambda ce: ce.digest == entry_id
-            return next((c for c in self.catalogue if m(c)), None)
+            for catalogue in reversed(self.__catalogues):
+                if catalogue and (target_version is None or catalogue.version == target_version):
+                    return next((c for c in catalogue.entries if m(c)), None)
+        return None
+    @property
+    def loaded(self) -> bool:
+        if not self.__catalogues:
+            return False
+        current = self.__catalogues[-1]
+        return current.version != '' and current.entries
 
     def __reload(self):
-        logger.debug('Reloading catalogue')
-        downloader = DatabaseDownloader(self.__config.beqcatalogue_url, self.__catalogue_file,
-                                        self.__catalogue_version_file)
+        prefix = 'Rel' if self.loaded else 'L'
+        logger.debug(f'{prefix}oading catalogue')
+        downloader = DatabaseDownloader(self.__catalogue_url, self.__catalogue_file, self.__version_file)
         reload_required = downloader.run()
-        if reload_required or not self.__catalogue:
+        if reload_required or not self.loaded:
             if os.path.exists(self.__catalogue_file):
-                with open(self.__catalogue_file, 'r') as infile:
-                    self.__catalogue = [CatalogueEntry(f"{downloader.version}_{idx}", c)
-                                        for idx, c in enumerate(json.load(infile))]
-                    self.__loaded_at = datetime.now()
-                    self.__version = downloader.version
-                    logger.info(f'Reloaded {len(self.__catalogue)} entries from version {self.__version}')
+                self.__load_cached_catalogue(downloader.version)
             else:
                 raise ValueError(f"No catalogue available at {self.__catalogue_file}")
         else:
-            logger.debug(f"No reload required")
+            logger.debug(f"No {prefix.lower()}oad required")
 
-    @property
-    def loaded_at(self) -> Optional[datetime]:
-        return self.__loaded_at
+    def __load_cached_catalogue(self, version: str):
+        with open(self.__catalogue_file, 'r') as infile:
+            entries = [CatalogueEntry(f"{version}_{idx}", c) for idx, c in enumerate(json.load(infile))]
+            catalogue = Catalogue(entries, version, datetime.now())
+            self.__catalogues.append(catalogue)
+            self.__ws.broadcast(json.dumps({'message': 'Catalogue', 'data': catalogue.json()}))
+            logger.info(f'Loaded {len(catalogue)} entries from version {version}')
 
-    @property
-    def version(self) -> Optional[str]:
-        return self.__version
-
-    @property
-    def catalogue(self) -> List[CatalogueEntry]:
-        self.__executor.submit(self.__refresh_catalogue_if_stale)
-        return self.__catalogue
-
-    def __refresh_catalogue_if_stale(self):
-        if self.__loaded_at is None or (datetime.now() - self.__loaded_at) > timedelta(minutes=15):
+    def refresh_if_stale(self):
+        if not self.loaded or self.latest.stale:
             try:
                 self.__reload()
             except Exception as e:
-                logger.exception(f"Failed to refresh catalogue,[last loaded at {self.__loaded_at}]", e)
-                self.__loaded_at = None
+                logger.exception(f"Failed to refresh catalogue", e)
+
+
+class CatalogueProvider:
+
+    def __init__(self, config: Config, ws: WsServer):
+        self.__catalogues: Catalogues = Catalogues(os.path.join(config.config_path, 'database.json'),
+                                                   os.path.join(config.config_path, 'version.txt'),
+                                                   config.beqcatalogue_url,
+                                                   ws,
+                                                   config.catalogue_refresh_interval)
+
+    def find(self, entry_id: str, match_on_idx: Optional[bool] = None) -> Optional[CatalogueEntry]:
+        return self.__catalogues.find_entry(entry_id, match_on_idx)
+
+    @property
+    def catalogue(self) -> Optional[Catalogue]:
+        return self.__catalogues.latest
+
+    @property
+    def catalogue_entries(self) -> List[CatalogueEntry]:
+        from twisted.internet import reactor
+        reactor.callLater(0, self.__catalogues.refresh_if_stale)
+        latest = self.__catalogues.latest
+        return latest.entries if latest else []
 
 
 class DatabaseDownloader:
@@ -313,7 +382,8 @@ class DatabaseDownloader:
         try:
             r = requests.get(self.__version_url, allow_redirects=True)
             if r.status_code == 200:
-                return r.text
+                txt = r.text
+                return txt.strip() if txt else txt
             else:
                 logger.warning(f"Unable to get {self.__version_url}, response was {r.status_code}")
         except:

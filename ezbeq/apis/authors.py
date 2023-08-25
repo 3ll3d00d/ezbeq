@@ -13,5 +13,5 @@ class Authors(Resource):
         self.__provider: CatalogueProvider = kwargs['catalogue']
 
     def get(self):
-        catalogue = self.__provider.catalogue
+        catalogue = self.__provider.catalogue_entries
         return list(sorted({c.author for c in catalogue}))

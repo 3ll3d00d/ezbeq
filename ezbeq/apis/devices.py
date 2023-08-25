@@ -532,7 +532,7 @@ class ManageFilter(Resource):
 
     @v1_api.expect(filter_model, validate=True)
     def put(self, device_name: str, slot: str) -> Tuple[dict, int]:
-        return load_filter(self.__catalogue_provider.catalogue, self.__bridge, device_name, slot,
+        return load_filter(self.__catalogue_provider.catalogue_entries, self.__bridge, device_name, slot,
                            request.get_json()['entryId'])
 
     def delete(self, device_name: str, slot: str) -> Tuple[dict, int]:
@@ -581,7 +581,7 @@ class DeviceSender(Resource):
             cmd = payload['command']
             if cmd == 'load':
                 if 'id' in payload:
-                    return load_filter(self.__catalogue_provider.catalogue, self.__bridge, 'master', slot,
+                    return load_filter(self.__catalogue_provider.catalogue_entries, self.__bridge, 'master', slot,
                                        payload['id'])
             elif cmd == 'activate':
                 return activate_slot(self.__bridge, 'master', slot)

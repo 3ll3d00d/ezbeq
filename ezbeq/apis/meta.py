@@ -13,10 +13,13 @@ class CatalogueMeta(Resource):
         self.__provider: CatalogueProvider = kwargs['catalogue']
 
     def get(self):
-        version = self.__provider.version
-        loaded_at = self.__provider.loaded_at
+        catalogue = self.__provider.catalogue
         return {
-            'version': version,
-            'loaded': int(loaded_at.timestamp()) if loaded_at is not None else None,
-            'count': len(self.__provider.catalogue)
+            'version': catalogue.version,
+            'loaded': int(catalogue.loaded_at.timestamp()),
+            'count': len(catalogue)
+        } if catalogue else {
+            'version': 'N/A',
+            'loaded': None,
+            'count': 0
         }

@@ -8,7 +8,7 @@ class Version(Resource):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__v = kwargs['version']
+        self.__v = kwargs['version'].strip()
 
     def get(self):
         return {'version': self.__v}

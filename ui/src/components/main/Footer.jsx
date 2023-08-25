@@ -11,9 +11,8 @@ const useStyles = makeStyles((theme) => ({
     }
 }));
 
-const Footer = () => {
+const Footer = ({meta}) => {
     const classes = useStyles();
-    const [meta, setMeta] = useState({});
     const [version, setVersion] = useState({});
 
     const padZero = n => n.toString().padStart(2, '0');
@@ -25,10 +24,6 @@ const Footer = () => {
         }
         return '?';
     }
-
-    useEffect(() => {
-        pushData(setMeta, ezbeq.getMeta);
-    }, []);
 
     useEffect(() => {
         pushData(setVersion, ezbeq.getVersion);
