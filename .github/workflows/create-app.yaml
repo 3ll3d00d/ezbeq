@@ -110,7 +110,7 @@ jobs:
           repo: ezbeq-jr
           event_type: 'trigger'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.EZBEQJR }}
   buildpyinstaller:
     name: Publish to Github
     needs: create_release
