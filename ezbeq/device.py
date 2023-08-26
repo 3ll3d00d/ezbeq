@@ -229,7 +229,7 @@ class PersistentDevice(Device, ABC, Generic[T]):
             else:
                 logger.info(f"No cached state found at {self.__file_name}")
             if refresh is False:
-                self.__ws_server.factory.init(self.__get_state_msg)
+                self.__ws_server.factory.init_state_provider(self.__get_state_msg)
                 self.__hydrated = True
             return True
         return False

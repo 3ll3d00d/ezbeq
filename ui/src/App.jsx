@@ -64,7 +64,7 @@ const App = () => {
     }, [setAvailableDevices, availableDevices]);
 
     useEffect(() => {
-        if (meta && meta.version !== version) {
+        if (meta && (!version || meta.version !== version)) {
             setVersion(meta.version);
         }
     }, [meta, version, setVersion]);
@@ -79,7 +79,9 @@ const App = () => {
 
     // load when version changes
     useEffect(() => {
-        pushData(setEntries, ezbeq.load, setErr);
+        if (version) {
+            pushData(setEntries, ezbeq.load, setErr);
+        }
     }, [version]);
 
     useEffect(() => {
@@ -88,10 +90,6 @@ const App = () => {
 
     useEffect(() => {
         pushData(setAvailableDevices, ezbeq.getDevices, setErr);
-    }, []);
-
-    useEffect(() => {
-        pushData(setMeta, ezbeq.getMeta);
     }, []);
 
     useEffect(() => {
@@ -112,7 +110,7 @@ const App = () => {
                 <Root>
                     <ErrorSnack err={err} setErr={setErr}/>
                     {
-                        meta
+                        entries.length > 0
                         ?
                             selectedNav === 'catalogue'
                                 ?

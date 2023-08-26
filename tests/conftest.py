@@ -415,7 +415,10 @@ class CapturingWsServerFactory(WsServerFactory):
     def __init__(self, msg_queue: SimpleQueue):
         self.__msg_queue = msg_queue
 
-    def init(self, state_provider: Callable[[], str]):
+    def init_state_provider(self, state_provider: Callable[[], str]):
+        pass
+
+    def init_meta_provider(self, meta_provider: Callable[[], str]):
         pass
 
     def broadcast(self, msg: str):

@@ -26,7 +26,11 @@ class WsServerFactory(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def init(self, state_provider: Callable[[], str]):
+    def init_state_provider(self, state_provider: Callable[[], str]):
+        pass
+
+    @abc.abstractmethod
+    def init_meta_provider(self, meta_provider: Callable[[], str]):
         pass
 
 
@@ -65,10 +69,14 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
         self.__clients: List[WsProtocol] = []
         self.__levels_client: Dict[str, List[WsProtocol]] = defaultdict(list)
         self.__state_provider: Optional[Callable[[], str]] = None
+        self.__meta_provider: Optional[Callable[[], str]] = None
         self.__levels_provider: Dict[str, Callable[[], None]] = {}
 
-    def init(self, state_provider: Callable[[], str]):
+    def init_state_provider(self, state_provider: Callable[[], str]):
         self.__state_provider = state_provider
+
+    def init_meta_provider(self, meta_provider: Callable[[], str]):
+        self.__meta_provider = meta_provider
 
     def set_levels_provider(self, name: str, broadcaster: Callable[[], None]):
         self.__levels_provider[name] = broadcaster
@@ -77,10 +85,14 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
         if client not in self.__clients:
             logger.info(f"Registered client {client.peer}")
             self.__clients.append(client)
+            if self.__meta_provider:
+                msg = self.__meta_provider()
+                if msg:
+                    client.sendMessage(msg.encode('utf8'), isBinary=False)
             if self.__state_provider:
-                state = self.__state_provider()
-                if state:
-                    client.sendMessage(state.encode('utf8'), isBinary=False)
+                msg = self.__state_provider()
+                if msg:
+                    client.sendMessage(msg.encode('utf8'), isBinary=False)
         else:
             logger.info(f"Ignoring duplicate client {client.peer}")
 

@@ -211,6 +211,10 @@ class Catalogue:
             'count': len(self)
         }
 
+    @property
+    def meta_msg(self) -> str:
+        return json.dumps({'message': 'Catalogue', 'data': self.json()})
+
 
 class Catalogues:
     def __init__(self, catalogue_file: str, version_file: str, catalogue_url: str, ws: WsServer,
@@ -221,6 +225,7 @@ class Catalogues:
         self.__catalogues: List[Catalogue] = []
         self.__refresh_interval = refresh_seconds
         self.__ws = ws
+        self.__ws.factory.init_meta_provider(lambda: self.latest.meta_msg if self.latest else None)
         try:
             if os.path.exists(self.__catalogue_file) and os.path.exists(self.__version_file):
                 with open(self.__version_file) as f:
@@ -244,7 +249,7 @@ class Catalogues:
         one_day_ago = datetime.now() - timedelta(days=1)
         if self.__catalogues:
             self.__catalogues = [i for i in self.__catalogues if i.loaded_at and i.loaded_at >= one_day_ago]
-        self.__catalogues.append(catalogue)
+        self.__on_catalogue_update(catalogue)
 
     def find_entry(self, entry_id: str, match_on_idx: Optional[bool] = None) -> Optional[CatalogueEntry]:
         if match_on_idx is None:
@@ -287,9 +292,12 @@ class Catalogues:
         with open(self.__catalogue_file, 'r') as infile:
             entries = [CatalogueEntry(f"{version}_{idx}", c) for idx, c in enumerate(json.load(infile))]
             catalogue = Catalogue(entries, version, datetime.now())
-            self.__catalogues.append(catalogue)
-            self.__ws.broadcast(json.dumps({'message': 'Catalogue', 'data': catalogue.json()}))
+            self.__on_catalogue_update(catalogue)
             logger.info(f'Loaded {len(catalogue)} entries from version {version}')
+
+    def __on_catalogue_update(self, catalogue: Catalogue):
+        self.__catalogues.append(catalogue)
+        self.__ws.broadcast(catalogue.meta_msg)
 
     def refresh_if_stale(self):
         if not self.loaded or self.latest.stale:
