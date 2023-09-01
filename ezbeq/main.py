@@ -73,6 +73,7 @@ def main(args=None):
         from twisted.web.wsgi import WSGIResource
         from twisted.application import service
         from twisted.internet import endpoints
+        from prometheus_client.twisted import MetricsResource
 
         class ReactApp:
             """
@@ -120,6 +121,7 @@ def main(args=None):
                     uiRoot = os.path.join(os.path.dirname(__file__), 'ui')
                 logger.info('Serving ui from ' + str(uiRoot))
                 self.react = ReactApp(uiRoot)
+                self.metrics = MetricsResource()
                 self.static = static.File(os.path.join(uiRoot, 'static'))
                 self.icons = static.File(cfg.icon_path)
                 ws_server.factory.startFactory()
@@ -150,6 +152,8 @@ def main(args=None):
                     return self.static
                 elif path == b'icons':
                     return self.icons
+                elif path == b'metrics':
+                    return self.metrics
                 else:
                     return self.react.get_file(path)
 
