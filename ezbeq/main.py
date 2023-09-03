@@ -23,10 +23,6 @@ if hasattr(faulthandler, 'register'):
     faulthandler.register(signal.SIGUSR2, all_threads=True)
 
 
-# Store 25 frames
-tracemalloc.start(25)
-
-
 def create_app(config: Config, ws: WsServer = AutobahnWsServer()) -> Tuple[Flask, WsServer]:
     ws_server = ws
     catalogue = CatalogueProvider(config, ws)
@@ -61,7 +57,8 @@ def create_app(config: Config, ws: WsServer = AutobahnWsServer()) -> Tuple[Flask
     decorate_ns(languages.api)
     decorate_ns(meta.api)
     decorate_ns(cat_api.api)
-    decorate_ns(diagnostics.api)
+    if tracemalloc.is_tracing():
+        decorate_ns(diagnostics.api)
     return app, ws_server
 
 
