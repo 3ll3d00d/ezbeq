@@ -31,7 +31,7 @@ class Diagnostics(Resource):
             'traceback': self.__traceback(snapshot)
         }
         after = time.time()
-        from minidsp import to_millis
+        from ezbeq.minidsp import to_millis
         logger.info(f'Generated diagnostics in {to_millis(before, after)}ms')
         return diag
 
