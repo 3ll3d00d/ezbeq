@@ -1,14 +1,16 @@
+import faulthandler
 import os
+import tracemalloc
 from os import path
 from typing import Tuple
 
-import faulthandler
 from autobahn.twisted.resource import WebSocketResource
 from flask import Flask
 from flask_compress import Compress
 from flask_restx import Api
 
-from ezbeq.apis import search, version, devices, authors, audiotypes, years, contenttypes, languages, meta, catalogue as cat_api
+from ezbeq.apis import search, version, devices, authors, audiotypes, years, contenttypes, languages, meta, \
+    catalogue as cat_api, diagnostics
 from ezbeq.apis.ws import WsServer, AutobahnWsServer
 from ezbeq.catalogue import CatalogueProvider
 from ezbeq.config import Config
@@ -19,6 +21,10 @@ if hasattr(faulthandler, 'register'):
     import signal
 
     faulthandler.register(signal.SIGUSR2, all_threads=True)
+
+
+# Store 25 frames
+tracemalloc.start(25)
 
 
 def create_app(config: Config, ws: WsServer = AutobahnWsServer()) -> Tuple[Flask, WsServer]:
@@ -55,6 +61,7 @@ def create_app(config: Config, ws: WsServer = AutobahnWsServer()) -> Tuple[Flask
     decorate_ns(languages.api)
     decorate_ns(meta.api)
     decorate_ns(cat_api.api)
+    decorate_ns(diagnostics.api)
     return app, ws_server
 
 
