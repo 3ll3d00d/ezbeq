@@ -31,23 +31,24 @@ class CatalogueSearch(Resource):
     @api.param('text', 'Provides a case insensitive search against the following fields: formattedTitle, altTitle, collection. Value is returned if the supplied text is contained in any of those fields.')
     @api.param('fields', 'The entry fields to return in the output')
     @api.param('tmdbid', 'TheMovieDB id')
+    @api.param('limit', 'max number of results to return, if unset defaults to 200')
     def get(self):
-        catalogue = self.__provider.catalogue_entries
         args = self.__parser.parse_args()
-        authors = args.get('authors')
-        years = args.get('years')
-        audio_types = args.get('audiotypes')
-        content_types = args.get('contenttypes')
-        text = args.get('text')
-        tmdb_id = args.get('tmdbid')
-        fields = args.get('fields')
-        return [self.__filter_fields(c.for_search, fields)
-                for c in catalogue if c.matches(authors, years, audio_types, content_types, tmdb_id, text)]
-
-    @staticmethod
-    def __filter_fields(entry: dict, fields: list):
-        if fields:
-            return {k: v for k, v in entry.items() if k in fields}
+        authors = args.get('authors', [])
+        years = args.get('years', [])
+        audio_types = args.get('audiotypes', [])
+        content_types = args.get('contenttypes', [])
+        text = args.get('text', [])
+        tmdb_id = args.get('tmdbid', [])
+        fields = args.get('fields', [])
+        limit = args.get('limit')
+        if limit == 'all':
+            limit = None
+        elif limit:
+            try:
+                limit = int(limit)
+            except ValueError:
+                return f'Invalid limit {limit}', 400
         else:
-            return entry
-
+            limit = 100
+        return self.__provider.search(authors, years, audio_types, content_types, tmdb_id, text, fields, limit=limit)

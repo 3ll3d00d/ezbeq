@@ -47,7 +47,7 @@ const App = () => {
     const [err, setErr] = useState(null);
 
     // catalogue data
-    const [entries, setEntries] = useState([]);
+    const [entries, setEntries] = useState({});
     const [meta, setMeta] = useState({});
     const [version, setVersion] = useState(null);
 
@@ -63,6 +63,10 @@ const App = () => {
         setAvailableDevices(Object.assign({}, availableDevices, {[replacement.name]: replacement}));
     }, [setAvailableDevices, availableDevices]);
 
+    const loadEntries = useMemo(() => newEntries => {
+        setEntries(Object.assign({}, entries, newEntries));
+    }, [setEntries, entries]);
+
     useEffect(() => {
         if (meta && (!version || meta.version !== version)) {
             setVersion(meta.version);
@@ -70,8 +74,8 @@ const App = () => {
     }, [meta, version, setVersion]);
 
     useEffect(() => {
-        ss.init(setErr, replaceDevice, setMeta);
-    }, [setErr, replaceDevice, setMeta]);
+        ss.init(setErr, replaceDevice, setMeta, loadEntries);
+    }, [setErr, replaceDevice, setMeta, loadEntries]);
 
     const levelsService = useMemo(() => {
         return new LevelsService(setErr, `ws://${window.location.host}/ws`, theme);
@@ -80,7 +84,7 @@ const App = () => {
     // load when version changes
     useEffect(() => {
         if (version) {
-            pushData(setEntries, ezbeq.load, setErr);
+            ss.loadCatalogue();
         }
     }, [version]);
 
@@ -110,11 +114,11 @@ const App = () => {
                 <Root>
                     <ErrorSnack err={err} setErr={setErr}/>
                     {
-                        entries.length > 0
+                        Object.keys(entries).length > 0
                         ?
                             selectedNav === 'catalogue'
                                 ?
-                                <MainView entries={entries}
+                                <MainView entries={Object.keys(entries).map(e => entries[e])}
                                           setErr={setErr}
                                           replaceDevice={d => {
                                               if (ss && ss.isConnected()) {

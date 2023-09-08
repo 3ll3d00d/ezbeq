@@ -1,66 +1,145 @@
 import json
 import logging
 import os
+import sqlite3
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import Optional, List, Callable, Union
 
 import requests
 
 from ezbeq.apis.ws import WsServer
 from ezbeq.config import Config
+from ezbeq import to_millis
+
+logger = logging.getLogger('ezbeq.catalogue')
+
+ID = 'id'
+TITLE = 'title'
+YEAR = 'year'
+AUDIO_TYPES = 'audioTypes'
+CONTENT_TYPE = 'content_type'
+AUTHOR = 'author'
+CATALOGUE_URL = 'catalogue_url'
+FILTERS = 'filters'
+IMAGES = 'images'
+WARNING = 'warning'
+SEASON = 'season'
+EPISODE = 'episode'
+AVS_URL = 'avs'
+SORT_TITLE = 'sortTitle'
+EDITION = 'edition'
+NOTE = 'note'
+LANGUAGE = 'language'
+SOURCE = 'source'
+OVERVIEW = 'overview'
+THE_MOVIE_DB = 'theMovieDB'
+RATING = 'rating'
+GENRES = 'genres'
+ALT_TITLE = 'altTitle'
+CREATED_AT = 'created_at'
+UPDATED_AT = 'updated_at'
+DIGEST = 'digest'
+COLLECTION_ID = 'collection_id'
+COLLECTION = 'collection'
+FORMATTED_TITLE = 'formattedTitle'
+RUNTIME = 'runtime'
+MV_ADJUST = 'mv'
+FRESHNESS = 'freshness'
 
 TWO_WEEKS_AGO_SECONDS = 2 * 7 * 24 * 60 * 60
 
-logger = logging.getLogger('ezbeq.catalogue')
+FIELDS = [
+    ID,
+    TITLE,
+    YEAR,
+    AUDIO_TYPES,
+    CONTENT_TYPE,
+    AUTHOR,
+    CATALOGUE_URL,
+    FILTERS,
+    IMAGES,
+    WARNING,
+    SEASON,
+    EPISODE,
+    AVS_URL,
+    SORT_TITLE,
+    EDITION,
+    NOTE,
+    LANGUAGE,
+    SOURCE,
+    OVERVIEW,
+    THE_MOVIE_DB,
+    RATING,
+    GENRES,
+    ALT_TITLE,
+    CREATED_AT,
+    UPDATED_AT,
+    DIGEST,
+    COLLECTION_ID,
+    COLLECTION,
+    RUNTIME,
+    MV_ADJUST,
+    FORMATTED_TITLE
+]
+
+FIELDS_STR = ','.join(FIELDS)
 
 
 class CatalogueEntry:
 
     def __init__(self, idx: str, vals: dict):
-        self.idx = idx
-        self.title = vals.get('title', '')
+        self.id = idx
+        self.title = vals.get(TITLE, '')
         y = 0
         try:
-            y = int(vals.get('year', 0))
+            y = int(vals.get(YEAR, 0))
         except:
-            logger.error(f"Invalid year {vals.get('year', 0)} in {self.title}")
+            logger.error(f"Invalid year {vals.get(YEAR, 0)} in {self.title}")
         self.year = y
-        self.audio_types = vals.get('audioTypes', [])
-        self.content_type = vals.get('content_type', 'film')
-        self.author = vals.get('author', '')
-        self.beqc_url = vals.get('catalogue_url', '')
-        self.filters: List[dict] = vals.get('filters', [])
-        self.images = vals.get('images', [])
-        self.warning = vals.get('warning', [])
-        self.season = vals.get('season', '')
-        self.episodes = vals.get('episode', '')
-        self.avs_url = vals.get('avs', '')
-        self.sort_title = vals.get('sortTitle', '')
-        self.edition = vals.get('edition', '')
-        self.note = vals.get('note', '')
-        self.language = vals.get('language', '')
-        self.source = vals.get('source', '')
-        self.overview = vals.get('overview', '')
-        self.the_movie_db = vals.get('theMovieDB', '')
-        self.rating = vals.get('rating', '')
-        self.genres = vals.get('genres', [])
-        self.alt_title = vals.get('altTitle', '')
-        self.created_at = vals.get('created_at', 0)
-        self.updated_at = vals.get('updated_at', 0)
-        self.digest = vals.get('digest', '')
-        self.collection = vals.get('collection', {})
-        self.formatted_title = self.__format_title()
-        now = time.time()
-        if self.created_at >= (now - TWO_WEEKS_AGO_SECONDS):
-            self.freshness = 'Fresh'
-        elif self.updated_at >= (now - TWO_WEEKS_AGO_SECONDS):
-            self.freshness = 'Updated'
+
+        def split_list(v):
+            return v[1:-1].split('|') if isinstance(v, str) else v
+
+        self.audio_types = split_list(vals.get(AUDIO_TYPES, []))
+        self.content_type = vals.get(CONTENT_TYPE, 'film')
+        self.author = vals.get(AUTHOR, '')
+        self.catalogue_url = vals.get(CATALOGUE_URL, '')
+        f = vals.get(FILTERS, [])
+        self.filters = json.loads(f) if isinstance(f, str) else f
+        self.images = split_list(vals.get(IMAGES, []))
+        self.warning = split_list(vals.get(WARNING, []))
+        self.season = vals.get(SEASON, '')
+        self.episodes = vals.get(EPISODE, '')
+        self.avs_url = vals.get(AVS_URL, '')
+        self.sort_title = vals.get(SORT_TITLE, '')
+        self.edition = vals.get(EDITION, '')
+        self.note = vals.get(NOTE, '')
+        self.language = vals.get(LANGUAGE, '')
+        self.source = vals.get(SOURCE, '')
+        self.overview = vals.get(OVERVIEW, '')
+        self.the_movie_db = vals.get(THE_MOVIE_DB, '')
+        self.rating = vals.get(RATING, '')
+        self.genres = split_list(vals.get(GENRES, []))
+        self.alt_title = vals.get(ALT_TITLE, '')
+        self.created_at = vals.get(CREATED_AT, 0)
+        self.updated_at = vals.get(UPDATED_AT, 0)
+        self.digest = vals.get(DIGEST, '')
+        c = vals.get(COLLECTION, None)
+        if isinstance(c, dict):
+            self.collection_id = c.get('id', None)
+            self.collection_name = c.get('name', None)
+        elif isinstance(c, str):
+            self.collection_id = vals.get(COLLECTION_ID)
+            self.collection_name = c
         else:
-            self.freshness = 'Stale'
+            self.collection_id = None
+            self.collection_name = None
+        self.formatted_title = self.__format_title()
         try:
-            r = int(vals.get('runtime', 0))
+            r = int(vals.get(RUNTIME, 0))
         except:
             logger.error(f"Invalid runtime {vals.get('runtime', 0)} in {self.title}")
             r = 0
@@ -72,80 +151,13 @@ class CatalogueEntry:
                 self.mv_adjust = float(v)
             except:
                 logger.error(f"Unknown mv_adjust value in {self.title} - {vals['mv']}")
-                pass
-        self.for_search = {
-            'id': self.idx,
-            'title': self.title,
-            'year': self.year,
-            'sortTitle': self.sort_title,
-            'audioTypes': self.audio_types,
-            'contentType': self.content_type,
-            'author': self.author,
-            'created_at': self.created_at,
-            'updated_at': self.updated_at,
-            'freshness': self.freshness,
-            'digest': self.digest,
-            'formattedTitle': self.formatted_title
-        }
-        if self.beqc_url:
-            self.for_search['beqcUrl'] = self.beqc_url
-        if self.images:
-            self.for_search['images'] = self.images
-        if self.warning:
-            self.for_search['warning'] = self.warning
-        if self.season:
-            self.for_search['season'] = self.season
-        if self.episodes:
-            self.for_search['episodes'] = self.episodes
-        if self.mv_adjust:
-            self.for_search['mvAdjust'] = self.mv_adjust
-        if self.avs_url:
-            self.for_search['avsUrl'] = self.avs_url
-        if self.edition:
-            self.for_search['edition'] = self.edition
-        if self.note:
-            self.for_search['note'] = self.note
-        if self.language:
-            self.for_search['language'] = self.language
-        if self.source:
-            self.for_search['source'] = self.source
-        if self.overview:
-            self.for_search['overview'] = self.overview
-        if self.the_movie_db:
-            self.for_search['theMovieDB'] = self.the_movie_db
-        if self.rating:
-            self.for_search['rating'] = self.rating
-        if self.runtime:
-            self.for_search['runtime'] = self.runtime
-        if self.genres:
-            self.for_search['genres'] = self.genres
-        if self.alt_title:
-            self.for_search['altTitle'] = self.alt_title
-        if self.note:
-            self.for_search['note'] = self.note
-        if self.warning:
-            self.for_search['warning'] = self.warning
-        if self.collection and 'name' in self.collection:
-            self.for_search['collection'] = self.collection['name']
-
-    def matches(self, authors: List[str], years: List[int], audio_types: List[str], content_types: List[str],
-                tmdb_id: str, text: Optional[str]):
-        if not tmdb_id or self.the_movie_db == tmdb_id:
-            if not authors or self.author in authors:
-                if not years or self.year in years:
-                    if not audio_types or any(a_t in audio_types for a_t in self.audio_types):
-                        if not content_types or self.content_type in content_types:
-                            return not text or self.__text_match(text)
-        return False
-
-    def __text_match(self, text: str):
-        t = text.lower()
-        return t in self.formatted_title.lower() \
-            or t in self.alt_title \
-            or t in self.for_search.get('collection', '').lower()
-
-    def __repr__(self):
-        return f"[{self.content_type}] {self.title} / {self.audio_types} / {self.year}"
+        now = time.time()
+        if self.created_at >= (now - TWO_WEEKS_AGO_SECONDS):
+            self.freshness = 'Fresh'
+        elif self.updated_at >= (now - TWO_WEEKS_AGO_SECONDS):
+            self.freshness = 'Updated'
+        else:
+            self.freshness = 'Stale'
 
     @staticmethod
     def __format_episodes(formatted, working):
@@ -190,15 +202,54 @@ class CatalogueEntry:
             return f"{self.title} {self.__format_tv_meta()}"
         return self.title
 
+    @property
+    def values(self) -> tuple:
+        def format_list(vals) -> str:
+            return "|" + '|'.join(vals) + "|" if vals else ""
+
+        return (
+            self.id,
+            self.title,
+            self.year,  # int
+            format_list(self.audio_types),
+            self.content_type,  # 5
+            self.author,
+            self.catalogue_url,
+            json.dumps(self.filters),  # json
+            format_list(self.images),
+            format_list(self.warning),  # 10
+            self.season,
+            self.episodes,
+            self.avs_url,
+            self.sort_title,
+            self.edition,  # 15
+            self.note,
+            self.language,
+            self.source,
+            self.overview,
+            self.the_movie_db,  # 20
+            self.rating,
+            format_list(self.genres),
+            self.alt_title,
+            self.created_at,  # int
+            self.updated_at,  # 25 int
+            self.digest,
+            self.collection_id,
+            self.collection_name,
+            self.runtime,  #  int
+            self.mv_adjust,  # 30 float
+            self.formatted_title
+        )
+
+    def __repr__(self):
+        return f"[{self.content_type}] {self.title} / {self.audio_types} / {self.year}"
+
 
 @dataclass(frozen=True)
 class Catalogue:
-    entries: List[CatalogueEntry]
+    count: int
     version: str
     loaded_at: datetime = None
-
-    def __len__(self):
-        return len(self.entries)
 
     @property
     def stale(self):
@@ -208,7 +259,7 @@ class Catalogue:
         return {
             'version': self.version,
             'loaded': int(self.loaded_at.timestamp()),
-            'count': len(self)
+            'count': self.count
         }
 
     @property
@@ -217,26 +268,188 @@ class Catalogue:
 
 
 class Catalogues:
-    def __init__(self, catalogue_file: str, version_file: str, catalogue_url: str, ws: WsServer,
-                 refresh_seconds: float):
+    def __init__(self, config_path: str, catalogue_url: str, ws: WsServer, refresh_seconds: float):
         self.__catalogue_url = catalogue_url
-        self.__version_file = version_file
-        self.__catalogue_file = catalogue_file
-        self.__catalogues: List[Catalogue] = []
+        self.__version_file = os.path.join(config_path, 'version.txt')
+        self.__catalogue_file = os.path.join(config_path, 'database.json')
+        self.__db = os.path.join(config_path, 'ezbeq.db')
+        logger.info(f'Using database at {self.__db}')
+        self.__ensure_db()
         self.__refresh_interval = refresh_seconds
         self.__ws = ws
         self.__ws.factory.init_meta_provider(lambda: self.latest.meta_msg if self.latest else None)
-        try:
-            if os.path.exists(self.__catalogue_file) and os.path.exists(self.__version_file):
-                with open(self.__version_file) as f:
-                    self.__load_cached_catalogue(f.read().strip())
-        except:
-            logger.exception(f'Failed to load catalogue at startup from {self.__catalogue_file}')
-        from twisted.internet.task import LoopingCall
+        self.__ws.factory.init_catalogue_loader(self.__send_chunked_catalogue)
+        self.__catalogues = self.__load_catalogues()
+        if self.__catalogues:
+            self.__ws.broadcast(self.__catalogues[-1].meta_msg)
         logger.info(f'Scheduling reload to run every {self.__refresh_interval}s')
         from twisted.internet import task
         self.__reload_task = task.LoopingCall(self.__reload)
         self.__reload_task.start(self.__refresh_interval, now=True)
+
+    def __send_chunked_catalogue(self, sender: Callable[[str], None]):
+        catalogue = self.latest
+        if not catalogue:
+            return
+        count_sql = f"SELECT COUNT({ID}) FROM catalogue_entry WHERE version = '{catalogue.version}'"
+        with db_ops(self.__db) as cur:
+            res = cur.execute(count_sql).fetchone()
+            if res:
+                vals = {'count': res[0], 'limit': 500, 'offset': 0, 'start': time.time()}
+                from twisted.internet import reactor
+                reactor.callLater(0, lambda: self.__load_next_chunk(sender, catalogue.version, **vals))
+            else:
+                logger.error(f'Failed to get count of entries in version {catalogue.version}, load aborted')
+
+    def __load_next_chunk(self, publisher: Callable[[str], None], version: str, count: int = 100, limit: int = 500,
+                          offset: int = 0, start: float = 0):
+        if offset >= count:
+            logger.info(f'Load complete for {version} in {to_millis(start, time.time())}ms')
+        else:
+            begin = time.time()
+            next_offset = offset + limit
+            select = f"SELECT {FIELDS_STR} FROM catalogue_entry WHERE version = '{version}'"
+            publisher(json.dumps({
+                'message': 'CatalogueEntries',
+                'data': {e['id']: e for e in self.__fetch_entries(select, FIELDS, limit, offset)}
+            }))
+            end = time.time()
+            logger.info(f'Loaded chunk from {offset} to {next_offset} in {to_millis(begin, end)}ms')
+            from twisted.internet import reactor
+            vals = {'count': count, 'limit': limit, 'offset': next_offset, 'start': start}
+            reactor.callLater(0, lambda: self.__load_next_chunk(publisher, version, **vals))
+
+    def __ensure_db(self):
+        with db_ops(self.__db) as cur:
+            cur.execute("CREATE TABLE IF NOT EXISTS catalogue_entry("
+                        f"{ID} TEXT PRIMARY KEY, "
+                        f"{TITLE} TEXT, "
+                        f"{YEAR} INT, "
+                        f"{AUDIO_TYPES} TEXT, "
+                        f"{CONTENT_TYPE} TEXT, "
+                        f"{AUTHOR} TEXT, "
+                        f"{CATALOGUE_URL} TEXT, "
+                        f"{FILTERS} TEXT, "
+                        f"{IMAGES} TEXT, "
+                        f"{WARNING} TEXT, "
+                        f"{SEASON} TEXT, "
+                        f"{EPISODE} TEXT, "
+                        f"{AVS_URL} TEXT, "
+                        f"{SORT_TITLE} TEXT, "
+                        f"{EDITION} TEXT, "
+                        f"{NOTE} TEXT, "
+                        f"{LANGUAGE} TEXT, "
+                        f"{SOURCE} TEXT, "
+                        f"{OVERVIEW} TEXT, "
+                        f"{THE_MOVIE_DB} TEXT, "
+                        f"{RATING} TEXT, "
+                        f"{GENRES} TEXT, "
+                        f"{ALT_TITLE} TEXT, "
+                        f"{CREATED_AT} INT, "
+                        f"{UPDATED_AT} INT, "
+                        f"{DIGEST} TEXT NOT NULL, "
+                        f"{COLLECTION_ID} TEXT, "
+                        f"{COLLECTION} TEXT, "
+                        f"{FORMATTED_TITLE} TEXT, "
+                        f"{RUNTIME} INT, "
+                        f"{MV_ADJUST} FLOAT, "
+                        f"version TEXT NOT NULL, "
+                        f"loaded_at INT NOT NULL"
+                        ");")
+            cur.execute(f"CREATE INDEX IF NOT EXISTS entry_digest ON catalogue_entry ({DIGEST});")
+            cur.execute("CREATE TABLE IF NOT EXISTS catalogue_meta("
+                        "meta_type TEXT NOT NULL, "
+                        "value TEXT NOT NULL, "
+                        "version TEXT NOT NULL"
+                        ");")
+            cur.execute("CREATE INDEX IF NOT EXISTS meta_key ON catalogue_meta (meta_type, version);")
+
+    def __get_latest_catalogue_version(self):
+        with db_ops(self.__db) as cur:
+            res = cur.execute("SELECT DISTINCT version "
+                              "FROM catalogue_entry "
+                              "WHERE loaded_at = (SELECT max(loaded_at) FROM catalogue_entry);").fetchone()
+            return res[0] if res else None
+
+    def __load_catalogues(self) -> List[Catalogue]:
+        with db_ops(self.__db) as cur:
+            res = cur.execute("SELECT version, MAX(loaded_at), COUNT(id) FROM catalogue_entry GROUP BY version")
+            catalogues: List[Catalogue] = [Catalogue(row[2], row[0], datetime.utcfromtimestamp(row[1] / 1000)) for row
+                                           in res.fetchall()]
+            if catalogues:
+                logger.info(f"{len(catalogues)} versions available in {self.__db}")
+            else:
+                try:
+                    if os.path.exists(self.__catalogue_file) and os.path.exists(self.__version_file):
+                        with open(self.__version_file) as f:
+                            catalogue = self.__insert_catalogue(f.read().strip())
+                            if catalogue:
+                                catalogues.append(catalogue)
+                except:
+                    logger.exception(
+                        f'Failed to load catalogue at startup from {self.__catalogue_file} into {self.__db}')
+        return catalogues
+
+    def __insert_catalogue(self, version: str) -> Optional[Catalogue]:
+        now = int(datetime.now().timestamp() * 1000)
+        audio_types = set()
+        authors = set()
+        contenttypes = set()
+        languages = set()
+        years = set()
+        extra_vals: tuple = (version, now)
+        with open(self.__catalogue_file, 'r') as infile:
+            with db_ops(self.__db) as cur:
+                values = []
+                count = 0
+                insert_sql = f"INSERT INTO catalogue_entry({FIELDS_STR},version,loaded_at) VALUES({', '.join(['?'] * (len(FIELDS)+2))})"
+                for idx, c in enumerate(json.load(infile)):
+                    count = count + 1
+                    entry = CatalogueEntry(f"{version}_{idx}", c)
+                    for v in entry.audio_types:
+                        audio_types.add(v)
+                    if entry.author:
+                        authors.add(entry.author)
+                    if entry.content_type:
+                        contenttypes.add(entry.content_type)
+                    if entry.language:
+                        languages.add(entry.language)
+                    if entry.year:
+                        years.add(entry.year)
+                    values.append(entry.values + extra_vals)
+                    if len(values) % 100 == 0:
+                        cur.executemany(insert_sql, values)
+                        cur.connection.commit()
+                        values = []
+                if values:
+                    cur.executemany(insert_sql, values)
+                    cur.connection.commit()
+                    logger.info(f'Inserted {count} entries into {self.__db} for version {version}')
+
+                def insert_if(meta_type: str, vals: set):
+                    if vals:
+                        cur.executemany("INSERT INTO catalogue_meta VALUES(?, ?, ?)",
+                                        [(meta_type, v, version) for v in vals])
+                        logger.info(f'Inserted {len(vals)} {meta_type} entries into {self.__db} for version {version}')
+                        cur.connection.commit()
+
+                insert_if(AUDIO_TYPES, audio_types)
+                insert_if(AUTHOR, authors)
+                insert_if(CONTENT_TYPE, contenttypes)
+                insert_if(LANGUAGE, languages)
+                insert_if(YEAR, years)
+
+                return Catalogue(count, version, datetime.utcfromtimestamp(now / 1000)) if count else None
+
+    def load_meta(self, version: str, meta_type: str) -> List[str]:
+        with db_ops(self.__db) as cur:
+            before = time.time()
+            res = cur.execute(
+                f"SELECT value FROM catalogue_meta WHERE version = '{version}' AND meta_type = '{meta_type}';")
+            values = [row[0] for row in res.fetchmany(size=1000)]
+            after = time.time()
+            logger.info(f'Loaded {len(values)} {meta_type} entries from db in {to_millis(before, after)} ms')
+            return values
 
     @property
     def latest(self) -> Optional[Catalogue]:
@@ -245,35 +458,12 @@ class Catalogues:
     def find_version(self, version: str) -> Optional[Catalogue]:
         return next((i for i in self.__catalogues if i.version == version), None)
 
-    def append(self, catalogue: Catalogue):
-        one_day_ago = datetime.now() - timedelta(days=1)
-        if self.__catalogues:
-            self.__catalogues = [i for i in self.__catalogues if i.loaded_at and i.loaded_at >= one_day_ago]
-        self.__on_catalogue_update(catalogue)
-
-    def find_entry(self, entry_id: str, match_on_idx: Optional[bool] = None) -> Optional[CatalogueEntry]:
-        if match_on_idx is None:
-            m = self.find_entry(entry_id, True)
-            if not m:
-                m = self.find_entry(entry_id, False)
-            return m
-        else:
-            target_version = None
-            if match_on_idx is True:
-                m = lambda ce: ce.idx == entry_id
-                target_version = entry_id.split('_')[0]
-            else:
-                m = lambda ce: ce.digest == entry_id
-            for catalogue in reversed(self.__catalogues):
-                if catalogue and (target_version is None or catalogue.version == target_version):
-                    return next((c for c in catalogue.entries if m(c)), None)
-        return None
     @property
     def loaded(self) -> bool:
         if not self.__catalogues:
             return False
         current = self.__catalogues[-1]
-        return current.version != '' and current.entries
+        return current.version != '' and current.count
 
     def __reload(self):
         prefix = 'Rel' if self.loaded else 'L'
@@ -282,22 +472,33 @@ class Catalogues:
         reload_required = downloader.run()
         if reload_required or not self.loaded:
             if os.path.exists(self.__catalogue_file):
-                self.__load_cached_catalogue(downloader.version)
+                catalogue = self.__insert_catalogue(downloader.version)
+                if catalogue:
+                    self.__on_catalogue_update(catalogue)
             else:
                 raise ValueError(f"No catalogue available at {self.__catalogue_file}")
         else:
             logger.debug(f"No {prefix.lower()}oad required")
 
-    def __load_cached_catalogue(self, version: str):
-        with open(self.__catalogue_file, 'r') as infile:
-            entries = [CatalogueEntry(f"{version}_{idx}", c) for idx, c in enumerate(json.load(infile))]
-            catalogue = Catalogue(entries, version, datetime.now())
-            self.__on_catalogue_update(catalogue)
-            logger.info(f'Loaded {len(catalogue)} entries from version {version}')
-
     def __on_catalogue_update(self, catalogue: Catalogue):
         self.__catalogues.append(catalogue)
+        one_day_ago = datetime.now() - timedelta(days=1)
+        pre_count = len(self.__catalogues)
+        old_versions = [c.version for c in self.__catalogues if c.loaded_at and c.loaded_at < one_day_ago]
+        self.__catalogues = [i for i in self.__catalogues if i.version not in old_versions]
         self.__ws.broadcast(catalogue.meta_msg)
+        if len(self.__catalogues) < pre_count:
+            self.__prune_entries(old_versions)
+
+    def __prune_entries(self, versions: List[str]):
+        logger.info(f'Pruning catalogues {",".join(versions)}')
+        with db_ops(self.__db) as cur:
+            before = time.time()
+            for v in versions:
+                cur.execute(f"DELETE FROM catalogue_entry WHERE version = '{v}';")
+                cur.connection.commit()
+            end = time.time()
+            logger.info(f'Pruned {len(versions)} versions in {to_millis(before, end)}ms')
 
     def refresh_if_stale(self):
         if not self.loaded or self.latest.stale:
@@ -306,29 +507,162 @@ class Catalogues:
             except Exception as e:
                 logger.exception(f"Failed to refresh catalogue", e)
 
+    def find_by_id(self, entry_id: str, as_dict: bool = False) -> Optional[CatalogueEntry]:
+        catalogue = self.latest
+        if not catalogue:
+            return None
+        sql = f"SELECT {FIELDS_STR} FROM catalogue_entry WHERE {ID} = '{entry_id}'"
+        results = self.__fetch_entries(sql, FIELDS, 1)
+        if results:
+            return results[0] if as_dict else CatalogueEntry(results[0][ID], results[0])
+        else:
+            return None
+
+    def find_by_digest(self, digest: str, as_dict: bool = False) -> Optional[CatalogueEntry]:
+        catalogue = self.latest
+        if not catalogue:
+            return None
+        sql = f"SELECT {FIELDS_STR} FROM catalogue_entry WHERE {DIGEST} = '{digest}'"
+        results = self.__fetch_entries(sql, FIELDS, 1)
+        if results:
+            return results[0] if as_dict else CatalogueEntry(results[0][ID], results[0])
+        else:
+            return None
+
+    def search(self, authors: List[str], years: List[int], audio_types: List[str], content_types: List[str],
+               tmdb_id: str, text: Optional[str], fields: List[str], limit: Optional[int]) -> List[dict]:
+        catalogue = self.latest
+        if not catalogue:
+            return []
+        if fields:
+            fields_str = ','.join(fields)
+        else:
+            fields = FIELDS
+            fields_str = FIELDS_STR
+
+        sql = f"SELECT {fields_str} FROM catalogue_entry WHERE version = '{catalogue.version}'"
+
+        def in_clause(vals: List[str], field: str) -> str:
+            filt = '"' + '","'.join(vals) + '"'
+            return f'{field} IN ({filt})'
+
+        if authors:
+            sql = f'{sql} AND {in_clause(authors, AUTHOR)}'
+        if years:
+            sql = f'{sql} AND {YEAR} IN ({",".join([str(y) for y in years])})'
+        if audio_types:
+            if len(audio_types) == 1:
+                sql = f'{sql} AND {AUDIO_TYPES} LIKE "%|{audio_types[0]}|%"'
+            else:
+                sql = f'{sql} AND ('
+                for idx, audio_type in enumerate(audio_types):
+                    prefix = ' OR ' if idx != 0 else ' '
+                    sql = f'{sql}{prefix}{AUDIO_TYPES} LIKE "%|{audio_type}|%"'
+                sql = f'{sql})'
+        if content_types:
+            sql = f'{sql} AND {in_clause(content_types, CONTENT_TYPE)}'
+        if tmdb_id:
+            sql = f'{sql} AND {THE_MOVIE_DB} = "{tmdb_id}"'
+        if text:
+            t = text.lower()
+            sql = (f'{sql} AND ('
+                   f'LOWER({FORMATTED_TITLE}) LIKE "%{t}%" OR '
+                   f'LOWER({ALT_TITLE}) LIKE "%{t}%" OR '
+                   f'LOWER({COLLECTION}) LIKE "%{t}%"'
+                   ')')
+        return self.__fetch_entries(sql, fields, limit)
+
+    def __fetch_entries(self, select: str, fields: List[str], limit: Optional[int], offset: Optional[int] = None) -> \
+    List[dict]:
+        if limit:
+            select = f'{select} LIMIT {limit}'
+        if offset:
+            select = f'{select} OFFSET {offset}'
+
+        def reformat(i, v):
+            f = fields[i]
+            is_list = f == AUDIO_TYPES or f == IMAGES or f == WARNING or f == GENRES
+            if is_list:
+                return v[1:-1].split('|') if v else []
+            elif f == FILTERS:
+                return json.loads(v)
+            else:
+                return v if v is not None else ''
+
+        with db_ops(self.__db) as cur:
+            before = time.time()
+            logger.debug(f'>>> {select}')
+            entries: List[dict] = []
+            res = cur.execute(select)
+            for row in res.fetchmany(size=limit if limit else 20000):
+                entries.append({fields[i]: reformat(i, r) for i, r in enumerate(row)})
+            after = time.time()
+            logger.info(f'Loaded {len(entries)} entries from db in {to_millis(before, after)} ms')
+            return entries
+
 
 class CatalogueProvider:
 
     def __init__(self, config: Config, ws: WsServer):
-        self.__catalogues: Catalogues = Catalogues(os.path.join(config.config_path, 'database.json'),
-                                                   os.path.join(config.config_path, 'version.txt'),
+        self.__catalogues: Catalogues = Catalogues(config.config_path,
                                                    config.beqcatalogue_url,
                                                    ws,
                                                    config.catalogue_refresh_interval)
 
-    def find(self, entry_id: str, match_on_idx: Optional[bool] = None) -> Optional[CatalogueEntry]:
-        return self.__catalogues.find_entry(entry_id, match_on_idx)
+    def find(self, entry_id: str, match_on_idx: Optional[bool] = None, as_dict: bool = False) -> Optional[Union[CatalogueEntry, dict]]:
+        v = None
+        if match_on_idx is None or match_on_idx is True:
+            v = self.__catalogues.find_by_id(entry_id, as_dict)
+        if not v:
+            v = self.__catalogues.find_by_digest(entry_id, as_dict)
+        return v
 
     @property
     def catalogue(self) -> Optional[Catalogue]:
         return self.__catalogues.latest
 
     @property
-    def catalogue_entries(self) -> List[CatalogueEntry]:
+    def authors(self) -> List[str]:
+        return self.__load_meta_if_present(AUTHOR)
+
+    @property
+    def audio_types(self) -> List[str]:
+        return self.__load_meta_if_present(AUDIO_TYPES)
+
+    @property
+    def content_types(self) -> List[str]:
+        return self.__load_meta_if_present(CONTENT_TYPE)
+
+    @property
+    def languages(self) -> List[str]:
+        return self.__load_meta_if_present(LANGUAGE)
+
+    @property
+    def years(self) -> List[str]:
+        return self.__load_meta_if_present(YEAR)
+
+    def search(self, authors: List[str], years: List[int], audio_types: List[str], content_types: List[str],
+               tmdb_id: str, text: Optional[str], fields: List[str], limit: Optional[int] = 100) -> List[dict]:
+        from twisted.internet import reactor
+        reactor.callLater(0, self.__catalogues.refresh_if_stale)
+        return self.__catalogues.search(authors, years, audio_types, content_types, tmdb_id, text, fields, limit)
+
+    def find_by_id(self, entry_id: str) -> Optional[CatalogueEntry]:
+        return self.__find_by(entry_id, self.__catalogues.find_by_id)
+
+    def find_by_digest(self, digest: str) -> Optional[CatalogueEntry]:
+        return self.__find_by(digest, self.__catalogues.find_by_digest)
+
+    def __find_by(self, val: str, finder: Callable[[str], Optional[CatalogueEntry]]) -> Optional[CatalogueEntry]:
+        from twisted.internet import reactor
+        reactor.callLater(0, self.__catalogues.refresh_if_stale)
+        return finder(val)
+
+    def __load_meta_if_present(self, meta_type: str):
         from twisted.internet import reactor
         reactor.callLater(0, self.__catalogues.refresh_if_stale)
         latest = self.__catalogues.latest
-        return latest.entries if latest else []
+        return self.__catalogues.load_meta(latest.version, meta_type) if latest else []
 
 
 class DatabaseDownloader:
@@ -397,3 +731,18 @@ class DatabaseDownloader:
         except:
             logger.exception(f"Failed to get {self.__version_url}")
         return None
+
+
+@contextmanager
+def db_ops(db_name):
+    conn = sqlite3.connect(db_name)
+    try:
+        cur = conn.cursor()
+        yield cur
+    except Exception as e:
+        conn.rollback()
+        raise e
+    else:
+        conn.commit()
+    finally:
+        conn.close()

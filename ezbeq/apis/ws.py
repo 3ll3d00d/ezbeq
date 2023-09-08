@@ -9,6 +9,8 @@ from autobahn.twisted import WebSocketServerProtocol, WebSocketServerFactory
 
 SUBSCRIBE_LEVELS_CMD = 'subscribe levels'
 
+LOAD_CATALOGUE_CMD = 'load catalogue'
+
 logger = logging.getLogger('ezbeq.ws')
 
 
@@ -31,6 +33,10 @@ class WsServerFactory(abc.ABC):
 
     @abc.abstractmethod
     def init_meta_provider(self, meta_provider: Callable[[], str]):
+        pass
+
+    @abc.abstractmethod
+    def init_catalogue_loader(self, loader: Callable[[Callable[[str], None]], None]):
         pass
 
 
@@ -57,6 +63,8 @@ class WsProtocol(WebSocketServerProtocol):
             if s.startswith(SUBSCRIBE_LEVELS_CMD):
                 device_name = s[len(SUBSCRIBE_LEVELS_CMD) + 1:].rstrip()
                 self.factory.register_for_levels(device_name, self)
+            elif s.startswith(LOAD_CATALOGUE_CMD):
+                self.factory.send_catalogue(self)
         except:
             logger.exception('Message received failure')
 
@@ -70,6 +78,7 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
         self.__levels_client: Dict[str, List[WsProtocol]] = defaultdict(list)
         self.__state_provider: Optional[Callable[[], str]] = None
         self.__meta_provider: Optional[Callable[[], str]] = None
+        self.__catalogue_loader: Optional[Callable[[Callable[[str], None]], None]] = None
         self.__levels_provider: Dict[str, Callable[[], None]] = {}
 
     def init_state_provider(self, state_provider: Callable[[], str]):
@@ -77,6 +86,9 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
 
     def init_meta_provider(self, meta_provider: Callable[[], str]):
         self.__meta_provider = meta_provider
+
+    def init_catalogue_loader(self, loader: Callable[[Callable[[str], None]], None]):
+        self.__catalogue_loader = loader
 
     def set_levels_provider(self, name: str, broadcaster: Callable[[], None]):
         self.__levels_provider[name] = broadcaster
@@ -95,6 +107,16 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
                     client.sendMessage(msg.encode('utf8'), isBinary=False)
         else:
             logger.info(f"Ignoring duplicate client {client.peer}")
+
+    def send_catalogue(self, client: WsProtocol):
+        if client not in self.__clients:
+            logger.warning(f'Ignoring request for catalogue from unregistered client {client.peer}')
+            return
+        if self.__catalogue_loader:
+            logger.info(f'Sending catalogue to {client.peer}')
+            self.__catalogue_loader(lambda msg: client.sendMessage(msg.encode('utf8'), isBinary=False))
+        else:
+            logger.error(f'Unable to send catalogue to {client.peer}, no loader available')
 
     def register_for_levels(self, device: str, client: WsProtocol):
         if device in self.__levels_provider:

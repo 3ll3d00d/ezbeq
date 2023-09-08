@@ -15,6 +15,7 @@ from twisted.internet.protocol import ReconnectingClientFactory
 from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
 from ezbeq.device import InvalidRequestError, SlotState, PersistentDevice, DeviceState, UnableToPatchDeviceError
+from ezbeq import to_millis
 
 INPUT_NAME = 'input'
 OUTPUT_NAME = 'output'
@@ -905,16 +906,6 @@ def tmp_file(cmds: List[str]):
     finally:
         if tmp_name:
             os.unlink(tmp_name)
-
-
-def to_millis(start, end, precision=1):
-    '''
-    Calculates the differences in time in millis.
-    :param start: start time in seconds.
-    :param end: end time in seconds.
-    :return: delta in millis.
-    '''
-    return round((end - start) * 1000, precision)
 
 
 class MinidspRsClient:

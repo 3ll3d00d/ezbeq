@@ -19,7 +19,7 @@ class Config:
         self.__port = self.config.get('port', default_port)
         self.__service_url = f"http://{self.hostname}:{self.port}"
         self.__beqcatalogue_url = beqcatalogue_url
-        self.__catalogue_refresh_interval = self.config.get('catalogueRefreshSeconds', 60.0)
+        self.__catalogue_refresh_interval = self.config.get('catalogueRefreshSeconds', 300.0)
         if 'catalogueUrl' in self.config:
             self.__beqcatalogue_url = self.config['catalogueUrl']
             self.logger.warning(f"Loading catalogue from custom location {self.__beqcatalogue_url}")

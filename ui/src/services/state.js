@@ -5,6 +5,7 @@ class StateService {
         this.ws = new WebSocket(url);
         this.setErr = null;
         this.replaceDevice = null;
+        this.loadEntries = null;
         this.setMeta = null;
         this.ws.onerror = e => {
             const msg = `Failed to connect to ${this.url}`;
@@ -36,19 +37,28 @@ class StateService {
                         this.setMeta(payload.data);
                     }
                     break;
+                case 'CatalogueEntries':
+                    if (payload.data) {
+                        console.debug(`Received ${Object.keys(payload.data).length} catalogue entries`)
+                        this.loadEntries(payload.data);
+                    }
+                    break;
                 default:
                     console.warn(`Unknown ws message ${event.data}`)
             }
         };
     }
 
-    init = (setErr, replaceDevice, setMeta) => {
+    init = (setErr, replaceDevice, setMeta, loadEntries) => {
         this.setErr = setErr;
         this.replaceDevice = replaceDevice;
         this.setMeta = setMeta;
+        this.loadEntries = loadEntries;
     }
 
     isConnected = () => this.ws.readyState === 1;
+
+    loadCatalogue = () => this.ws.send('load catalogue');
 
     close = () => {
         this.ws.close();

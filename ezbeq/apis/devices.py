@@ -153,30 +153,27 @@ def load_commands(bridge: DeviceRepository, device_name: str, slot: str, overwri
         return bridge.state(device_name).serialise(), 500
 
 
-def load_filter(catalogue: List[CatalogueEntry], bridge: DeviceRepository, device_name: str,
-                slot: str, entry_id: str) -> Tuple[dict, int]:
+def load_filter(entry: Optional[CatalogueEntry], bridge: DeviceRepository, device_name: str,
+                slot: str) -> Tuple[dict, int]:
     '''
     Attempts to find the supplied entry in the catalogue and load it into the given slot.
-    :param catalogue: the catalogue.
+    :param entry: the catalogue entry.
     :param bridge: the bridge to the device.
     :param device_name: the device name.
     :param slot: the slot.
-    :param entry_id: the catalogue entry id.
     :return: current state after load, 200 if loaded, 400 if no such entry, 500 if unable to load
     '''
-    logger.info(f"Sending {entry_id} to Slot {slot}")
-    matching_entry: CatalogueEntry = next((c for c in catalogue if c.idx == entry_id), None)
-    if not matching_entry:
-        logger.warning(f"No title with ID {entry_id} in catalogue")
-        return {'message': 'Title not found, please refresh.'}, 404
+    if not entry:
+        return {'message': 'No such entry, please refresh.'}, 404
     try:
-        bridge.load_filter(device_name, slot, matching_entry)
+        logger.info(f"Sending {entry.id} to Slot {slot}")
+        bridge.load_filter(device_name, slot, entry)
         return bridge.state(device_name).serialise(), 200
     except InvalidRequestError as e:
-        logger.exception(f"Invalid request {entry_id} to Slot {slot}")
+        logger.exception(f"Invalid request {entry.id} to Slot {slot}")
         return bridge.state(device_name).serialise(), 400
     except Exception as e:
-        logger.exception(f"Failed to write {entry_id} to Slot {slot}")
+        logger.exception(f"Failed to write {entry.id} to Slot {slot}")
         return bridge.state(device_name).serialise(), 500
 
 
@@ -532,8 +529,8 @@ class ManageFilter(Resource):
 
     @v1_api.expect(filter_model, validate=True)
     def put(self, device_name: str, slot: str) -> Tuple[dict, int]:
-        return load_filter(self.__catalogue_provider.catalogue_entries, self.__bridge, device_name, slot,
-                           request.get_json()['entryId'])
+        entry = self.__catalogue_provider.find_by_id(request.get_json()['entryId'])
+        return load_filter(entry, self.__bridge, device_name, slot)
 
     def delete(self, device_name: str, slot: str) -> Tuple[dict, int]:
         return delete_filter(self.__bridge, device_name, slot)
@@ -581,8 +578,8 @@ class DeviceSender(Resource):
             cmd = payload['command']
             if cmd == 'load':
                 if 'id' in payload:
-                    return load_filter(self.__catalogue_provider.catalogue_entries, self.__bridge, 'master', slot,
-                                       payload['id'])
+                    entry = self.__catalogue_provider.find_by_id(payload['id'])
+                    return load_filter(entry, self.__bridge, 'master', slot)
             elif cmd == 'activate':
                 return activate_slot(self.__bridge, 'master', slot)
             elif cmd == 'mute' or cmd == 'gain':

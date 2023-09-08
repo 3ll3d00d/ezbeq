@@ -20,9 +20,9 @@ class EntryLoad(Resource):
         self.__provider: CatalogueProvider = kwargs['catalogue']
 
     def get(self, entry_id: str):
-        entry = self.__provider.find(entry_id, match_on_idx=False)
+        entry = self.__provider.find(entry_id, match_on_idx=False, as_dict=True)
         if entry:
-            return {**entry.for_search, 'filters': entry.filters}, 200
+            return entry, 200
         else:
             return None, 404
 

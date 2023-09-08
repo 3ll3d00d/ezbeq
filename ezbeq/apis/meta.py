@@ -17,7 +17,7 @@ class CatalogueMeta(Resource):
         return {
             'version': catalogue.version,
             'loaded': int(catalogue.loaded_at.timestamp()),
-            'count': len(catalogue)
+            'count': catalogue.count
         } if catalogue else {
             'version': 'N/A',
             'loaded': None,
