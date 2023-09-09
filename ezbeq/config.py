@@ -17,6 +17,7 @@ class Config:
         self.icon_path = self.config.get('iconPath')
         self.__hostname = self.config.get('host', self.default_hostname)
         self.__port = self.config.get('port', default_port)
+        self.__enable_metrics = self.config.get('metrics', False)
         self.__service_url = f"http://{self.hostname}:{self.port}"
         self.__beqcatalogue_url = beqcatalogue_url
         self.__catalogue_refresh_interval = self.config.get('catalogueRefreshSeconds', 300.0)
@@ -25,12 +26,15 @@ class Config:
             self.logger.warning(f"Loading catalogue from custom location {self.__beqcatalogue_url}")
         self.devices = self.config['devices']
         self.webapp_path = self.config.get('webappPath', None)
-        self.use_twisted = self.config.get('useTwisted', True)
 
     @staticmethod
     def ensure_dir_exists(d) -> None:
         if not os.path.exists(d):
             os.makedirs(d)
+
+    @property
+    def enable_metrics(self) -> bool:
+        return self.__enable_metrics
 
     @property
     def beqcatalogue_url(self) -> str:

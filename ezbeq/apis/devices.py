@@ -1,6 +1,7 @@
 import decimal
 import logging
 import re
+import time
 from typing import List, Tuple, Optional, Union
 
 from flask import request
@@ -271,7 +272,11 @@ class DevicesV2(Resource):
         self.__bridge: DeviceRepository = kwargs['device_bridge']
 
     def get(self):
-        return {n: d.serialise() for n, d in self.__bridge.all_devices(refresh=True).items()}
+        from ezbeq import to_millis
+        start = time.time()
+        v = {n: d.serialise() for n, d in self.__bridge.all_devices(refresh=True).items()}
+        logger.info(f'Loaded device state in {to_millis(start, time.time())}ms')
+        return v
 
 
 slot_model_v2 = v2_api.model('SlotV2', {

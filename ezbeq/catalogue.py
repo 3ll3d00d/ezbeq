@@ -4,9 +4,9 @@ import os
 import sqlite3
 import time
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Optional, List, Callable, Union
+from typing import Optional, List, Callable, Union, Set
 
 import requests
 
@@ -83,6 +83,14 @@ FIELDS = [
     RUNTIME,
     MV_ADJUST,
     FORMATTED_TITLE
+]
+
+META_FIELDS = [
+    AUDIO_TYPES,
+    AUTHOR,
+    CONTENT_TYPE,
+    LANGUAGE,
+    YEAR
 ]
 
 FIELDS_STR = ','.join(FIELDS)
@@ -236,7 +244,7 @@ class CatalogueEntry:
             self.digest,
             self.collection_id,
             self.collection_name,
-            self.runtime,  #  int
+            self.runtime,  # int
             self.mv_adjust,  # 30 float
             self.formatted_title
         )
@@ -245,10 +253,11 @@ class CatalogueEntry:
         return f"[{self.content_type}] {self.title} / {self.audio_types} / {self.year}"
 
 
-@dataclass(frozen=True)
+@dataclass
 class Catalogue:
     count: int
     version: str
+    meta: dict = None
     loaded_at: datetime = None
 
     @property
@@ -297,7 +306,7 @@ class Catalogues:
             if res:
                 vals = {'count': res[0], 'limit': 500, 'offset': 0, 'start': time.time()}
                 from twisted.internet import reactor
-                reactor.callLater(0, lambda: self.__load_next_chunk(sender, catalogue.version, **vals))
+                reactor.callInThread(lambda: self.__load_next_chunk(sender, catalogue.version, **vals))
             else:
                 logger.error(f'Failed to get count of entries in version {catalogue.version}, load aborted')
 
@@ -309,15 +318,17 @@ class Catalogues:
             begin = time.time()
             next_offset = offset + limit
             select = f"SELECT {FIELDS_STR} FROM catalogue_entry WHERE version = '{version}'"
-            publisher(json.dumps({
+            msg = json.dumps({
                 'message': 'CatalogueEntries',
                 'data': {e['id']: e for e in self.__fetch_entries(select, FIELDS, limit, offset)}
-            }))
+            })
             end = time.time()
             logger.info(f'Loaded chunk from {offset} to {next_offset} in {to_millis(begin, end)}ms')
+            publisher(msg)
+            logger.info(f'Published chunk from {offset} to {next_offset} in {to_millis(end, time.time())}ms')
             from twisted.internet import reactor
             vals = {'count': count, 'limit': limit, 'offset': next_offset, 'start': start}
-            reactor.callLater(0, lambda: self.__load_next_chunk(publisher, version, **vals))
+            reactor.callInThread(lambda: self.__load_next_chunk(publisher, version, **vals))
 
     def __ensure_db(self):
         with db_ops(self.__db) as cur:
@@ -374,10 +385,12 @@ class Catalogues:
     def __load_catalogues(self) -> List[Catalogue]:
         with db_ops(self.__db) as cur:
             res = cur.execute("SELECT version, MAX(loaded_at), COUNT(id) FROM catalogue_entry GROUP BY version")
-            catalogues: List[Catalogue] = [Catalogue(row[2], row[0], datetime.utcfromtimestamp(row[1] / 1000)) for row
-                                           in res.fetchall()]
+            catalogues = [Catalogue(row[2], row[0], loaded_at=datetime.utcfromtimestamp(row[1] / 1000)) for row in
+                          res.fetchall()]
             if catalogues:
                 logger.info(f"{len(catalogues)} versions available in {self.__db}")
+                v = catalogues[-1].version
+                catalogues[-1].meta = {t: self.load_meta(v, t) for t in META_FIELDS}
             else:
                 try:
                     if os.path.exists(self.__catalogue_file) and os.path.exists(self.__version_file):
@@ -402,7 +415,7 @@ class Catalogues:
             with db_ops(self.__db) as cur:
                 values = []
                 count = 0
-                insert_sql = f"INSERT INTO catalogue_entry({FIELDS_STR},version,loaded_at) VALUES({', '.join(['?'] * (len(FIELDS)+2))})"
+                insert_sql = f"INSERT INTO catalogue_entry({FIELDS_STR},version,loaded_at) VALUES({', '.join(['?'] * (len(FIELDS) + 2))})"
                 for idx, c in enumerate(json.load(infile)):
                     count = count + 1
                     entry = CatalogueEntry(f"{version}_{idx}", c)
@@ -439,7 +452,9 @@ class Catalogues:
                 insert_if(LANGUAGE, languages)
                 insert_if(YEAR, years)
 
-                return Catalogue(count, version, datetime.utcfromtimestamp(now / 1000)) if count else None
+                return Catalogue(count, version, {AUDIO_TYPES: audio_types, AUTHOR: authors, CONTENT_TYPE: contenttypes,
+                                                  LANGUAGE: languages, YEAR: years},
+                                 datetime.utcfromtimestamp(now / 1000)) if count else None
 
     def load_meta(self, version: str, meta_type: str) -> List[str]:
         with db_ops(self.__db) as cur:
@@ -483,22 +498,27 @@ class Catalogues:
     def __on_catalogue_update(self, catalogue: Catalogue):
         self.__catalogues.append(catalogue)
         one_day_ago = datetime.now() - timedelta(days=1)
-        pre_count = len(self.__catalogues)
         old_versions = [c.version for c in self.__catalogues if c.loaded_at and c.loaded_at < one_day_ago]
         self.__catalogues = [i for i in self.__catalogues if i.version not in old_versions]
         self.__ws.broadcast(catalogue.meta_msg)
-        if len(self.__catalogues) < pre_count:
-            self.__prune_entries(old_versions)
+        self.__prune_entries(int(one_day_ago.timestamp() * 1000))
 
-    def __prune_entries(self, versions: List[str]):
-        logger.info(f'Pruning catalogues {",".join(versions)}')
+    def __prune_entries(self, min_loaded_at: int):
+        logger.info('Pruning catalogues')
         with db_ops(self.__db) as cur:
             before = time.time()
-            for v in versions:
-                cur.execute(f"DELETE FROM catalogue_entry WHERE version = '{v}';")
-                cur.connection.commit()
+            cur.execute(f"DELETE FROM catalogue_entry WHERE loaded_at <= {min_loaded_at};")
+            entries_deleted = cur.rowcount
+            cur.connection.commit()
+            cur.execute(
+                f"DELETE FROM catalogue_meta WHERE version NOT IN (SELECT DISTINCT version FROM catalogue_entry);")
+            meta_deleted = cur.rowcount
+            cur.connection.commit()
             end = time.time()
-            logger.info(f'Pruned {len(versions)} versions in {to_millis(before, end)}ms')
+            if entries_deleted or meta_deleted:
+                logger.info(f'Pruned {entries_deleted} entries and {meta_deleted} meta in {to_millis(before, end)}ms')
+            else:
+                logger.info(f'Nothing to prune')
 
     def refresh_if_stale(self):
         if not self.loaded or self.latest.stale:
@@ -507,22 +527,17 @@ class Catalogues:
             except Exception as e:
                 logger.exception(f"Failed to refresh catalogue", e)
 
-    def find_by_id(self, entry_id: str, as_dict: bool = False) -> Optional[CatalogueEntry]:
-        catalogue = self.latest
-        if not catalogue:
-            return None
-        sql = f"SELECT {FIELDS_STR} FROM catalogue_entry WHERE {ID} = '{entry_id}'"
-        results = self.__fetch_entries(sql, FIELDS, 1)
-        if results:
-            return results[0] if as_dict else CatalogueEntry(results[0][ID], results[0])
-        else:
-            return None
+    def find_by_id(self, entry_id: str, as_dict: bool = False) -> Optional[Union[CatalogueEntry, dict]]:
+        return self.__find(f"{ID} = '{entry_id}'", as_dict)
 
-    def find_by_digest(self, digest: str, as_dict: bool = False) -> Optional[CatalogueEntry]:
+    def find_by_digest(self, digest: str, as_dict: bool = False) -> Optional[Union[CatalogueEntry, dict]]:
+        return self.__find(f"{DIGEST} = '{digest}'", as_dict)
+
+    def __find(self, clause: str, as_dict: bool) -> Optional[Union[CatalogueEntry, dict]]:
         catalogue = self.latest
         if not catalogue:
             return None
-        sql = f"SELECT {FIELDS_STR} FROM catalogue_entry WHERE {DIGEST} = '{digest}'"
+        sql = f"SELECT {FIELDS_STR} FROM catalogue_entry WHERE {clause}"
         results = self.__fetch_entries(sql, FIELDS, 1)
         if results:
             return results[0] if as_dict else CatalogueEntry(results[0][ID], results[0])
@@ -573,7 +588,7 @@ class Catalogues:
         return self.__fetch_entries(sql, fields, limit)
 
     def __fetch_entries(self, select: str, fields: List[str], limit: Optional[int], offset: Optional[int] = None) -> \
-    List[dict]:
+            List[dict]:
         if limit:
             select = f'{select} LIMIT {limit}'
         if offset:
@@ -609,7 +624,8 @@ class CatalogueProvider:
                                                    ws,
                                                    config.catalogue_refresh_interval)
 
-    def find(self, entry_id: str, match_on_idx: Optional[bool] = None, as_dict: bool = False) -> Optional[Union[CatalogueEntry, dict]]:
+    def find(self, entry_id: str, match_on_idx: Optional[bool] = None, as_dict: bool = False) -> Optional[
+        Union[CatalogueEntry, dict]]:
         v = None
         if match_on_idx is None or match_on_idx is True:
             v = self.__catalogues.find_by_id(entry_id, as_dict)
@@ -644,7 +660,7 @@ class CatalogueProvider:
     def search(self, authors: List[str], years: List[int], audio_types: List[str], content_types: List[str],
                tmdb_id: str, text: Optional[str], fields: List[str], limit: Optional[int] = 100) -> List[dict]:
         from twisted.internet import reactor
-        reactor.callLater(0, self.__catalogues.refresh_if_stale)
+        reactor.callInThread(self.__catalogues.refresh_if_stale)
         return self.__catalogues.search(authors, years, audio_types, content_types, tmdb_id, text, fields, limit)
 
     def find_by_id(self, entry_id: str) -> Optional[CatalogueEntry]:
@@ -655,14 +671,15 @@ class CatalogueProvider:
 
     def __find_by(self, val: str, finder: Callable[[str], Optional[CatalogueEntry]]) -> Optional[CatalogueEntry]:
         from twisted.internet import reactor
-        reactor.callLater(0, self.__catalogues.refresh_if_stale)
+        reactor.callInThread(self.__catalogues.refresh_if_stale)
         return finder(val)
 
     def __load_meta_if_present(self, meta_type: str):
+        logger.info(f'Loading meta for {meta_type}')
         from twisted.internet import reactor
-        reactor.callLater(0, self.__catalogues.refresh_if_stale)
+        reactor.callInThread(self.__catalogues.refresh_if_stale)
         latest = self.__catalogues.latest
-        return self.__catalogues.load_meta(latest.version, meta_type) if latest else []
+        return latest.meta[meta_type]
 
 
 class DatabaseDownloader:

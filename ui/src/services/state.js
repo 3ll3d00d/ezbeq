@@ -39,7 +39,7 @@ class StateService {
                     break;
                 case 'CatalogueEntries':
                     if (payload.data) {
-                        console.debug(`Received ${Object.keys(payload.data).length} catalogue entries`)
+                        console.debug(`Received ${Object.keys(payload.data).length} catalogue entries at ${new Date(Date.now()).toISOString()}`);
                         this.loadEntries(payload.data);
                     }
                     break;
