@@ -387,6 +387,7 @@ class Catalogues:
                 logger.info(f"{len(catalogues)} versions available in {self.__db}")
                 v = catalogues[-1].version
                 catalogues[-1].meta = {t: self.load_meta(v, t) for t in META_FIELDS}
+                self.__prune_entries()
             else:
                 try:
                     if os.path.exists(self.__catalogue_file) and os.path.exists(self.__version_file):
@@ -498,9 +499,10 @@ class Catalogues:
         old_versions = [c.version for c in self.__catalogues if c.loaded_at and c.loaded_at < one_day_ago]
         self.__catalogues = [i for i in self.__catalogues if i.version not in old_versions]
         self.__ws.broadcast(catalogue.meta_msg)
-        self.__prune_entries(int(one_day_ago.timestamp() * 1000))
+        self.__prune_entries()
 
-    def __prune_entries(self, min_loaded_at: int):
+    def __prune_entries(self):
+        min_loaded_at = int((datetime.now() - timedelta(days=1)).timestamp() * 1000)
         logger.info('Pruning catalogues')
         with db_ops(self.__db) as cur:
             before = time.time()
