@@ -86,6 +86,10 @@ FIELDS = [
     FORMATTED_TITLE
 ]
 
+IGNORE_FIELDS = [FILTERS, DIGEST]
+
+UI_FIELDS = [x for x in FIELDS if x not in IGNORE_FIELDS]
+
 META_FIELDS = [
     AUDIO_TYPES,
     AUTHOR,
@@ -95,6 +99,7 @@ META_FIELDS = [
 ]
 
 FIELDS_STR = ','.join(FIELDS)
+UI_FIELDS_STR = ','.join(UI_FIELDS)
 
 
 class CatalogueEntry:
@@ -313,10 +318,10 @@ class Catalogues:
         else:
             begin = time.time()
             next_offset = offset + limit
-            select = f"SELECT {FIELDS_STR} FROM catalogue_entry WHERE version = '{version}'"
+            select = f"SELECT {UI_FIELDS_STR} FROM catalogue_entry WHERE version = '{version}'"
             msg = json.dumps({
                 'message': 'CatalogueEntries',
-                'data': self.__fetch_entries(select, FIELDS, limit, offset)
+                'data': self.__fetch_entries(select, UI_FIELDS, limit, offset)
             })
             end = time.time()
             logger.info(f'Loaded chunk from {offset} to {next_offset} in {to_millis(begin, end)}ms')
