@@ -159,13 +159,7 @@ class CatalogueEntry:
                 self.mv_adjust = float(v)
             except:
                 logger.error(f"Unknown mv_adjust value in {self.title} - {vals['mv']}")
-        now = time.time()
-        if self.created_at >= (now - TWO_WEEKS_AGO_SECONDS):
-            self.freshness = 'Fresh'
-        elif self.updated_at >= (now - TWO_WEEKS_AGO_SECONDS):
-            self.freshness = 'Updated'
-        else:
-            self.freshness = 'Stale'
+        self.freshness = compute_freshness(self.created_at, self.updated_at)
 
     @staticmethod
     def __format_episodes(formatted, working):
@@ -320,7 +314,7 @@ class Catalogues:
             select = f"SELECT {FIELDS_STR} FROM catalogue_entry WHERE version = '{version}'"
             msg = json.dumps({
                 'message': 'CatalogueEntries',
-                'data': {e['id']: e for e in self.__fetch_entries(select, FIELDS, limit, offset)}
+                'data': self.__fetch_entries(select, FIELDS, limit, offset)
             })
             end = time.time()
             logger.info(f'Loaded chunk from {offset} to {next_offset} in {to_millis(begin, end)}ms')
@@ -598,7 +592,7 @@ class Catalogues:
             f = fields[i]
             is_list = f == AUDIO_TYPES or f == IMAGES or f == WARNING or f == GENRES
             if is_list:
-                return v[1:-1].split('|') if v else []
+                return [x for x in v[1:-1].split('|') if x] if v else []
             elif f == FILTERS:
                 return json.loads(v)
             else:
@@ -610,7 +604,15 @@ class Catalogues:
             entries: List[dict] = []
             res = cur.execute(select)
             for row in res.fetchmany(size=limit if limit else 20000):
-                entries.append({fields[i]: reformat(i, r) for i, r in enumerate(row)})
+                vals = {k: v for k, v in {fields[i]: reformat(i, r) for i, r in enumerate(row)}.items() if v}
+                if UPDATED_AT in vals and CREATED_AT in vals:
+                    vals[FRESHNESS] = compute_freshness(vals[CREATED_AT], vals[UPDATED_AT])
+                else:
+                    vals[FRESHNESS] = 'Unknown'
+                if CONTENT_TYPE in vals:
+                    # compatibility hack
+                    vals['contentType'] = vals[CONTENT_TYPE]
+                entries.append(vals)
             after = time.time()
             logger.info(f'Loaded {len(entries)} entries from db in {to_millis(before, after)} ms')
             return entries
@@ -763,3 +765,13 @@ def db_ops(db_name):
         conn.commit()
     finally:
         conn.close()
+
+
+def compute_freshness(created_at, updated_at):
+    now = time.time()
+    if created_at >= (now - TWO_WEEKS_AGO_SECONDS):
+        return 'Fresh'
+    elif updated_at >= (now - TWO_WEEKS_AGO_SECONDS):
+        return 'Updated'
+    else:
+        return 'Stale'

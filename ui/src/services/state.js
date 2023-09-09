@@ -39,8 +39,10 @@ class StateService {
                     break;
                 case 'CatalogueEntries':
                     if (payload.data) {
-                        console.debug(`Received ${Object.keys(payload.data).length} catalogue entries at ${new Date(Date.now()).toISOString()}`);
-                        this.loadEntries(payload.data);
+                        console.debug(`Received ${payload.data.length} catalogue entries at ${new Date(Date.now()).toISOString()}`);
+                        this.loadEntries(Object.assign({}, ...payload.data.map(d => {
+                            return {[d.id]: d};
+                        })));
                     }
                     break;
                 default:
