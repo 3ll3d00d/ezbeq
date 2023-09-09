@@ -305,7 +305,7 @@ class Catalogues:
         with db_ops(self.__db) as cur:
             res = cur.execute(count_sql).fetchone()
             if res:
-                vals = {'count': res[0], 'limit': self.__chunk_size, 'offset': 0, 'start': time.time()}
+                vals = {'count': res[0], 'limit': 1000, 'offset': 0, 'start': time.time()}
                 from twisted.internet import reactor
                 reactor.callInThread(lambda: self.__load_next_chunk(sender, catalogue.version, **vals))
             else:
@@ -328,7 +328,7 @@ class Catalogues:
             publisher(msg)
             logger.info(f'Published chunk from {offset} to {next_offset} in {to_millis(end, time.time())}ms')
             from twisted.internet import reactor
-            vals = {'count': count, 'limit': limit, 'offset': next_offset, 'start': start}
+            vals = {'count': count, 'limit': self.__chunk_size, 'offset': next_offset, 'start': start}
             reactor.callInThread(lambda: self.__load_next_chunk(publisher, version, **vals))
 
     def __ensure_db(self):
