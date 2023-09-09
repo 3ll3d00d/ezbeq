@@ -37,6 +37,10 @@ class Config:
         return self.__enable_metrics
 
     @property
+    def chunk_size(self) -> int:
+        return self.config.get('chunk_size', 1000)
+
+    @property
     def beqcatalogue_url(self) -> str:
         return self.__beqcatalogue_url
 
