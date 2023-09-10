@@ -148,7 +148,6 @@ class Config:
             'accessLogging': False,
             'port': 8080,
             'host': self.default_hostname,
-            'useTwisted': True,
             'iconPath': str(Path.home()),
             'devices': {
                 'master': {
@@ -221,6 +220,10 @@ class Config:
             with open(v_name, 'r') as f:
                 v = f.read()
         return v
+
+    @property
+    def load_catalogue_at_startup(self):
+        return False
 
     @staticmethod
     def __migrate(cfg):

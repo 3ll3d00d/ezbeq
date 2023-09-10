@@ -277,7 +277,8 @@ class Catalogue:
 
 
 class Catalogues:
-    def __init__(self, config_path: str, catalogue_url: str, ws: WsServer, refresh_seconds: float, chunk_size: int):
+    def __init__(self, config_path: str, catalogue_url: str, ws: WsServer, refresh_seconds: float, chunk_size: int,
+                 sync_load: bool):
         self.__catalogue_url = catalogue_url
         self.__version_file = os.path.join(config_path, 'version.txt')
         self.__catalogue_file = os.path.join(config_path, 'database.json')
@@ -290,6 +291,8 @@ class Catalogues:
         self.__ws = ws
         self.__ws.factory.init_meta_provider(lambda: self.latest.meta_msg if self.latest else None)
         self.__ws.factory.init_catalogue_loader(self.__send_chunked_catalogue)
+        if sync_load:
+            self.__download()
         self.__catalogues = self.__load_catalogues()
         if self.__catalogues:
             self.__ws.broadcast(self.__catalogues[-1].meta_msg)
@@ -308,7 +311,8 @@ class Catalogues:
             if res:
                 vals = {'count': res[0], 'limit': 1000, 'offset': 0, 'start': time.time()}
                 from twisted.internet import threads
-                threads.deferToThread(lambda: self.__load_next_chunk(sender, catalogue.version, **vals)).addCallback(sender)
+                threads.deferToThread(lambda: self.__load_next_chunk(sender, catalogue.version, **vals)).addCallback(
+                    sender)
             else:
                 logger.error(f'Failed to get count of entries in version {catalogue.version}, load aborted')
 
@@ -484,6 +488,11 @@ class Catalogues:
         current = self.__catalogues[-1]
         return current.version != '' and current.count
 
+    def __download(self):
+        downloader = DatabaseDownloader(self.__catalogue_url, self.__catalogue_file, self.__version_file)
+        reload_required = downloader.run()
+        return downloader.version, reload_required
+
     def __reload(self):
         now = time.time()
         since_last = now - self.__last_refresh_check
@@ -493,8 +502,7 @@ class Catalogues:
 
         prefix = 'Rel' if self.loaded else 'L'
         logger.debug(f'{prefix}oading catalogue')
-        downloader = DatabaseDownloader(self.__catalogue_url, self.__catalogue_file, self.__version_file)
-        reload_required = downloader.run()
+        version, reload_required = self.__download()
         if reload_required or not self.loaded:
             if os.path.exists(self.__catalogue_file):
 
@@ -503,7 +511,7 @@ class Catalogues:
                         self.__on_catalogue_update(c)
 
                 from twisted.internet import threads
-                threads.deferToThread(lambda: self.__insert_catalogue(downloader.version)).addCallback(on_cat)
+                threads.deferToThread(lambda: self.__insert_catalogue(version)).addCallback(on_cat)
             else:
                 raise ValueError(f"No catalogue available at {self.__catalogue_file}")
         else:
@@ -648,7 +656,8 @@ class CatalogueProvider:
                                                    config.beqcatalogue_url,
                                                    ws,
                                                    config.catalogue_refresh_interval,
-                                                   config.chunk_size)
+                                                   config.chunk_size,
+                                                   config.load_catalogue_at_startup)
 
     def find(self, entry_id: str, match_on_idx: Optional[bool] = None, as_dict: bool = False) -> Optional[
         Union[CatalogueEntry, dict]]:

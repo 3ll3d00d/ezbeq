@@ -252,6 +252,10 @@ class MinidspSpyConfig(Config):
         self.spy = MinidspSpy()
         self.__tmp_path = tmp_path
 
+    @property
+    def load_catalogue_at_startup(self):
+        return True
+
     def load_config(self):
         vals = {
             'debug': False,
@@ -259,7 +263,6 @@ class MinidspSpyConfig(Config):
             'accessLogging': False,
             'port': 8080,
             'host': self.default_hostname,
-            'useTwisted': False,
             'iconPath': str(Path.home()),
             'devices': {
                 'master': {
@@ -376,6 +379,10 @@ class CamillaDspSpyConfig(Config):
         self.msg_spy = CapturingWsServer()
         self.__tmp_path = tmp_path
 
+    @property
+    def load_catalogue_at_startup(self):
+        return True
+
     def load_config(self):
         vals = {
             'debug': False,
@@ -383,7 +390,6 @@ class CamillaDspSpyConfig(Config):
             'accessLogging': False,
             'port': 8080,
             'host': self.default_hostname,
-            'useTwisted': False,
             'iconPath': str(Path.home()),
             'devices': {
                 'master': {
