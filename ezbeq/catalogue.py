@@ -286,6 +286,7 @@ class Catalogues:
         logger.info(f'Using database at {self.__db}')
         self.__ensure_db()
         self.__refresh_interval = refresh_seconds
+        self.__last_refresh_check: float = 0
         self.__ws = ws
         self.__ws.factory.init_meta_provider(lambda: self.latest.meta_msg if self.latest else None)
         self.__ws.factory.init_catalogue_loader(self.__send_chunked_catalogue)
@@ -306,13 +307,13 @@ class Catalogues:
             res = cur.execute(count_sql).fetchone()
             if res:
                 vals = {'count': res[0], 'limit': 1000, 'offset': 0, 'start': time.time()}
-                from twisted.internet import reactor
-                reactor.callInThread(lambda: self.__load_next_chunk(sender, catalogue.version, **vals))
+                from twisted.internet import threads
+                threads.deferToThread(lambda: self.__load_next_chunk(sender, catalogue.version, **vals)).addCallback(sender)
             else:
                 logger.error(f'Failed to get count of entries in version {catalogue.version}, load aborted')
 
     def __load_next_chunk(self, publisher: Callable[[str], None], version: str, count: int = 100, limit: int = 500,
-                          offset: int = 0, start: float = 0):
+                          offset: int = 0, start: float = 0) -> str:
         if offset >= count:
             logger.info(f'Load complete for {version} in {to_millis(start, time.time())}ms')
         else:
@@ -322,14 +323,13 @@ class Catalogues:
             msg = json.dumps({
                 'message': 'CatalogueEntries',
                 'data': self.__fetch_entries(select, UI_FIELDS, limit, offset)
-            })
+            }, ensure_ascii=False)
             end = time.time()
             logger.info(f'Loaded chunk from {offset} to {next_offset} in {to_millis(begin, end)}ms')
-            publisher(msg)
-            logger.info(f'Published chunk from {offset} to {next_offset} in {to_millis(end, time.time())}ms')
-            from twisted.internet import reactor
             vals = {'count': count, 'limit': self.__chunk_size, 'offset': next_offset, 'start': start}
-            reactor.callInThread(lambda: self.__load_next_chunk(publisher, version, **vals))
+            from twisted.internet import threads
+            threads.deferToThread(lambda: self.__load_next_chunk(publisher, version, **vals)).addCallback(publisher)
+            return msg
 
     def __ensure_db(self):
         with db_ops(self.__db) as cur:
@@ -440,7 +440,8 @@ class Catalogues:
                 if values:
                     cur.executemany(insert_sql, values)
                     cur.connection.commit()
-                logger.info(f'Inserted {count} entries into {self.__db} for version {version} in {to_millis(start, time.time())}ms')
+                logger.info(
+                    f'Inserted {count} entries into {self.__db} for version {version} in {to_millis(start, time.time())}ms')
 
                 def insert_if(meta_type: str, vals: set):
                     if vals:
@@ -484,21 +485,33 @@ class Catalogues:
         return current.version != '' and current.count
 
     def __reload(self):
+        now = time.time()
+        since_last = now - self.__last_refresh_check
+        if since_last < 60:
+            logger.debug(f'Suppressing reload check, {since_last:.3g}s since last check')
+            return
+
         prefix = 'Rel' if self.loaded else 'L'
         logger.debug(f'{prefix}oading catalogue')
         downloader = DatabaseDownloader(self.__catalogue_url, self.__catalogue_file, self.__version_file)
         reload_required = downloader.run()
         if reload_required or not self.loaded:
             if os.path.exists(self.__catalogue_file):
-                catalogue = self.__insert_catalogue(downloader.version)
-                if catalogue:
-                    self.__on_catalogue_update(catalogue)
+
+                def on_cat(c):
+                    if c:
+                        self.__on_catalogue_update(c)
+
+                from twisted.internet import threads
+                threads.deferToThread(lambda: self.__insert_catalogue(downloader.version)).addCallback(on_cat)
             else:
                 raise ValueError(f"No catalogue available at {self.__catalogue_file}")
         else:
             logger.debug(f"No {prefix.lower()}oad required")
+        self.__last_refresh_check = now
 
     def __on_catalogue_update(self, catalogue: Catalogue):
+        logger.info(f'Caching fresh catalogue {catalogue.version}')
         self.__catalogues.append(catalogue)
         one_day_ago = datetime.now() - timedelta(days=1)
         old_versions = [c.version for c in self.__catalogues if c.loaded_at and c.loaded_at < one_day_ago]

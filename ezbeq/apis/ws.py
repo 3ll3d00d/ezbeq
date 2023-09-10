@@ -114,7 +114,12 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
             return
         if self.__catalogue_loader:
             logger.info(f'Sending catalogue to {client.peer}')
-            self.__catalogue_loader(lambda msg: client.sendMessage(msg.encode('utf8'), isBinary=False))
+
+            def encode_and_send(msg):
+                if msg:
+                    client.sendMessage(msg.encode('utf8'), isBinary=False)
+
+            self.__catalogue_loader(encode_and_send)
         else:
             logger.error(f'Unable to send catalogue to {client.peer}, no loader available')
 
@@ -170,7 +175,7 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
                 try:
                     c.sendMessage(msg.encode('utf8'), isBinary=False)
                 except Disconnected as e:
-                    logger.exception(f"Failed to send to disconnectd client {c.peer}, discarding")
+                    logger.exception(f"Failed to send to disconnected client {c.peer}, discarding")
                     disconnected_clients.append(c)
             for c in disconnected_clients:
                 self.unregister(c)
