@@ -59,7 +59,7 @@ class WsProtocol(WebSocketServerProtocol):
     def onMessage(self, payload, is_binary):
         try:
             s = payload.decode('utf-8')
-            logger.info(f"Received {s}")
+            logger.info(f"Received '{s}'")
             if s.startswith(SUBSCRIBE_LEVELS_CMD):
                 device_name = s[len(SUBSCRIBE_LEVELS_CMD) + 1:].rstrip()
                 self.factory.register_for_levels(device_name, self)
@@ -117,6 +117,7 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
 
             def encode_and_send(msg):
                 if msg:
+                    logger.info(f'Sending catalogue msg (len {len(msg)}b)')
                     client.sendMessage(msg.encode('utf8'), isBinary=False)
 
             self.__catalogue_loader(encode_and_send)
