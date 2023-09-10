@@ -305,20 +305,9 @@ class Catalogues:
         catalogue = self.latest
         if not catalogue:
             return
+        vals = {'count': catalogue.count, 'limit': 250, 'offset': 0, 'start': time.time()}
         from twisted.internet import threads
-
-        def count_then_run():
-            count_sql = f"SELECT COUNT({ID}) FROM catalogue_entry WHERE version = '{catalogue.version}'"
-            with db_ops(self.__db) as cur:
-                res = cur.execute(count_sql).fetchone()
-                if res:
-                    vals = {'count': res[0], 'limit': 1000, 'offset': 0, 'start': time.time()}
-                    threads.deferToThread(
-                        lambda: self.__load_next_chunk(sender, catalogue.version, **vals)).addCallback(sender)
-                else:
-                    logger.error(f'Failed to get count of entries in version {catalogue.version}, load aborted')
-
-        threads.deferToThread(count_then_run)
+        threads.deferToThread(lambda: self.__load_next_chunk(sender, catalogue.version, **vals)).addCallback(sender)
 
     def __load_next_chunk(self, publisher: Callable[[str], None], version: str, count: int = 100, limit: int = 500,
                           offset: int = 0, start: float = 0) -> str:
