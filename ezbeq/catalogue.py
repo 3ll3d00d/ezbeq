@@ -262,7 +262,7 @@ class Catalogue:
 
     @property
     def stale(self):
-        return (datetime.now() - self.loaded_at) > timedelta(minutes=1)
+        return (datetime.now() - self.loaded_at) > timedelta(minutes=5)
 
     def json(self) -> dict:
         return {
@@ -523,7 +523,7 @@ class Catalogues:
             self.__prune_entries(self.__catalogues[-1].version)
 
     def __prune_entries(self, keep_version: str):
-        min_loaded_at = int((datetime.now() - timedelta(seconds=1)).timestamp() * 1000)
+        min_loaded_at = int((datetime.now() - timedelta(days=1)).timestamp() * 1000)
         logger.info(f'Pruning catalogues older than {datetime.fromtimestamp(min_loaded_at / 1000).strftime("%c")} except version {keep_version}')
         with db_ops(self.__db) as cur:
             before = time.time()
