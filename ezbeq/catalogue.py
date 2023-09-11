@@ -314,8 +314,6 @@ class Catalogues:
         if offset >= count:
             logger.info(f'Load complete for {version} in {to_millis(start, time.time())}ms')
         else:
-            if offset == 0:
-                time.sleep(1)
             begin = time.time()
             next_offset = offset + limit
             select = f"SELECT {UI_FIELDS_STR} FROM catalogue_entry WHERE version = '{version}'"
@@ -391,7 +389,8 @@ class Catalogues:
                 logger.info(f"{len(catalogues)} versions available in {self.__db}")
                 v = catalogues[-1].version
                 catalogues[-1].meta = {t: self.load_meta(v, t) for t in META_FIELDS}
-                self.__prune_entries()
+                if len(catalogues) > 1:
+                    self.__prune_entries(catalogues[-1].version)
             else:
                 try:
                     if os.path.exists(self.__catalogue_file) and os.path.exists(self.__version_file):
@@ -520,18 +519,19 @@ class Catalogues:
         old_versions = [c.version for c in self.__catalogues if c.loaded_at and c.loaded_at < one_day_ago]
         self.__catalogues = [i for i in self.__catalogues if i.version not in old_versions]
         self.__ws.broadcast(catalogue.meta_msg)
-        self.__prune_entries()
+        if len(self.__catalogues) > 1:
+            self.__prune_entries(self.__catalogues[-1].version)
 
-    def __prune_entries(self):
-        min_loaded_at = int((datetime.now() - timedelta(days=1)).timestamp() * 1000)
-        logger.info('Pruning catalogues')
+    def __prune_entries(self, keep_version: str):
+        min_loaded_at = int((datetime.now() - timedelta(seconds=1)).timestamp() * 1000)
+        logger.info(f'Pruning catalogues older than {datetime.fromtimestamp(min_loaded_at / 1000).strftime("%c")} except version {keep_version}')
         with db_ops(self.__db) as cur:
             before = time.time()
-            cur.execute(f"DELETE FROM catalogue_entry WHERE loaded_at <= {min_loaded_at};")
+            cur.execute(f"DELETE FROM catalogue_entry WHERE loaded_at <= {min_loaded_at} AND version <> '{keep_version}';")
             entries_deleted = cur.rowcount
             cur.connection.commit()
             cur.execute(
-                f"DELETE FROM catalogue_meta WHERE version NOT IN (SELECT DISTINCT version FROM catalogue_entry);")
+                f"DELETE FROM catalogue_meta WHERE version NOT IN (SELECT DISTINCT version FROM catalogue_entry WHERE version <> '{keep_version}');")
             meta_deleted = cur.rowcount
             cur.connection.commit()
             end = time.time()
