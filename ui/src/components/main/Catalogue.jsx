@@ -84,44 +84,40 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, selec
             sortable: false
         }
     ];
-    if (entries.length > 0) {
-        const topNav = 64;
-        const gain = 56;
-        const deviceRowHeight = 75;
-        const deviceRows = selectedDevice && selectedDevice.slots ? Math.ceil(selectedDevice.slots.length / 2) : 0;
-        const gainHeight = selectedDevice ? (['minidsp', 'camilladsp'].indexOf(selectedDevice.type) === -1 ? 0 : gain) : 0;
-        const upperNavHeight = topNav + gainHeight + (deviceRows * deviceRowHeight);
-        const bottomNavHeight = 24;
-        // portrait mode so reduce space allocated to the grid
-        const halfHeight = selectedEntryId !== -1 && !useWide;
-        const gridHeight = Math.max(260, (window.innerHeight - upperNavHeight - bottomNavHeight) / (halfHeight ? 2 : 1));
-        // console.debug(`showBottom: ${hasMultipleTabs} / ${selectedEntryId} / ${useWide} / ${deviceRows} * ${deviceRowHeight} / ${halfHeight}`);
-        // console.debug(`numerator: ${window.innerHeight} - ${upperNavHeight} - ${bottomNavHeight} = ${window.innerHeight - upperNavHeight - bottomNavHeight}`);
-        // console.debug(`denominator: ${halfHeight ? 2 : 1}`);
-        // console.debug(`Grid Height: ${gridHeight}`);
-        const authors = new Set(entries.map(e => e.author));
-        const grid =
-            <Grid item style={{
-                height: `${gridHeight}px`,
-                width: '100%'
-            }}>
-                <UnpaddedDataGrid rows={entries}
-                                  columns={catalogueGridColumns}
-                                  pageSize={50}
-                                  density={'compact'}
-                                  initialState={{sorting: {sortModel: [{field: 'sortTitle', sort: 'asc'}]}}}
-                                  onRowSelectionModelChange={e => setSelectedEntryId(e[0])}
-                                  columnVisibilityModel={{sortTitle: false, edition: useWide, author: authors.size > 1}}
-                                  sx={{p: 0, '& .avatar': { paddingLeft: '0px', paddingRight: '0px' }}}
-                                  disableColumnMenu={true}
-                                  getCellClassName={(params) => params.field === 'author' ? 'avatar' : ''}
-                                  hideFooterSelectedRowCount={true}
-                />
-            </Grid>;
-        return useWide ? grid : <Grid container sx={{ml: 0}}>{grid}</Grid>;
-    } else {
-        return null;
-    }
+    const topNav = 64;
+    const gain = 56;
+    const deviceRowHeight = 75;
+    const deviceRows = selectedDevice && selectedDevice.slots ? Math.ceil(selectedDevice.slots.length / 2) : 0;
+    const gainHeight = selectedDevice ? (['minidsp', 'camilladsp'].indexOf(selectedDevice.type) === -1 ? 0 : gain) : 0;
+    const upperNavHeight = topNav + gainHeight + (deviceRows * deviceRowHeight);
+    const bottomNavHeight = 24;
+    // portrait mode so reduce space allocated to the grid
+    const halfHeight = selectedEntryId !== -1 && !useWide;
+    const gridHeight = Math.max(260, (window.innerHeight - upperNavHeight - bottomNavHeight) / (halfHeight ? 2 : 1));
+    // console.debug(`showBottom: ${hasMultipleTabs} / ${selectedEntryId} / ${useWide} / ${deviceRows} * ${deviceRowHeight} / ${halfHeight}`);
+    // console.debug(`numerator: ${window.innerHeight} - ${upperNavHeight} - ${bottomNavHeight} = ${window.innerHeight - upperNavHeight - bottomNavHeight}`);
+    // console.debug(`denominator: ${halfHeight ? 2 : 1}`);
+    // console.debug(`Grid Height: ${gridHeight}`);
+    const authors = new Set(entries.map(e => e.author));
+    const grid =
+        <Grid item style={{
+            height: `${gridHeight}px`,
+            width: '100%'
+        }}>
+            <UnpaddedDataGrid rows={entries}
+                              columns={catalogueGridColumns}
+                              pageSize={50}
+                              density={'compact'}
+                              initialState={{sorting: {sortModel: [{field: 'sortTitle', sort: 'asc'}]}}}
+                              onRowSelectionModelChange={e => setSelectedEntryId(e[0])}
+                              columnVisibilityModel={{sortTitle: false, edition: useWide, author: authors.size > 1}}
+                              sx={{p: 0, '& .avatar': { paddingLeft: '0px', paddingRight: '0px' }}}
+                              disableColumnMenu={true}
+                              getCellClassName={(params) => params.field === 'author' ? 'avatar' : ''}
+                              hideFooterSelectedRowCount={true}
+            />
+        </Grid>;
+    return useWide ? grid : <Grid container sx={{ml: 0}}>{grid}</Grid>;
 };
 
 export default Catalogue;

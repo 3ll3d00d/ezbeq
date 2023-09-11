@@ -277,13 +277,13 @@ class Catalogue:
 
 
 class Catalogues:
-    def __init__(self, config_path: str, catalogue_url: str, ws: WsServer, refresh_seconds: float, chunk_size: int,
-                 sync_load: bool):
+    def __init__(self, config_path: str, catalogue_url: str, ws: WsServer, refresh_seconds: float,
+                 first_chunk_size: int, chunk_size: int, sync_load: bool):
         self.__catalogue_url = catalogue_url
         self.__version_file = os.path.join(config_path, 'version.txt')
         self.__catalogue_file = os.path.join(config_path, 'database.json')
         self.__db = os.path.join(config_path, 'ezbeq.db')
-        self.__chunk_size = chunk_size
+        self.__chunk_sizes = (first_chunk_size, chunk_size)
         logger.info(f'Using database at {self.__db}')
         self.__ensure_db()
         self.__refresh_interval = refresh_seconds
@@ -305,7 +305,7 @@ class Catalogues:
         catalogue = self.latest
         if not catalogue:
             return
-        vals = {'count': catalogue.count, 'limit': 250, 'offset': 0, 'start': time.time()}
+        vals = {'count': catalogue.count, 'limit': self.__chunk_sizes[0], 'offset': 0, 'start': time.time()}
         from twisted.internet import threads
         threads.deferToThread(lambda: self.__load_next_chunk(sender, catalogue.version, **vals)).addCallback(sender)
 
@@ -314,6 +314,8 @@ class Catalogues:
         if offset >= count:
             logger.info(f'Load complete for {version} in {to_millis(start, time.time())}ms')
         else:
+            if offset == 0:
+                time.sleep(1)
             begin = time.time()
             next_offset = offset + limit
             select = f"SELECT {UI_FIELDS_STR} FROM catalogue_entry WHERE version = '{version}'"
@@ -323,7 +325,7 @@ class Catalogues:
             }, ensure_ascii=False)
             end = time.time()
             logger.info(f'Loaded chunk from {offset} to {next_offset} in {to_millis(begin, end)}ms')
-            vals = {'count': count, 'limit': self.__chunk_size, 'offset': next_offset, 'start': start}
+            vals = {'count': count, 'limit': self.__chunk_sizes[1], 'offset': next_offset, 'start': start}
             from twisted.internet import threads
             threads.deferToThread(lambda: self.__load_next_chunk(publisher, version, **vals)).addCallback(publisher)
             return msg
@@ -649,6 +651,7 @@ class CatalogueProvider:
                                                    config.beqcatalogue_url,
                                                    ws,
                                                    config.catalogue_refresh_interval,
+                                                   config.first_chunk_size,
                                                    config.chunk_size,
                                                    config.load_catalogue_at_startup)
 

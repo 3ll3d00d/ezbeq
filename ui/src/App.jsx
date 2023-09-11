@@ -114,53 +114,49 @@ const App = () => {
                 <Root>
                     <ErrorSnack err={err} setErr={setErr}/>
                     {
-                        Object.keys(entries).length > 0
-                        ?
-                            selectedNav === 'catalogue'
+                        selectedNav === 'catalogue'
+                            ?
+                            <MainView entries={Object.keys(entries).map(e => entries[e])}
+                                      setErr={setErr}
+                                      replaceDevice={d => {
+                                          if (ss && ss.isConnected()) {
+                                              console.debug(`Discarding update, ws is connected`);
+                                          } else {
+                                              console.debug(`Accepting update, ws is disconnected`);
+                                              replaceDevice(d);
+                                          }
+                                      }}
+                                      availableDevices={availableDevices}
+                                      selectedDeviceName={selectedDeviceName}
+                                      setSelectedDeviceName={setSelectedDeviceName}
+                                      selectedSlotId={selectedSlotId}
+                                      setSelectedSlotId={setSelectedSlotId}
+                                      useWide={useWide}
+                                      selectedNav={selectedNav}
+                                      setSelectedNav={setSelectedNav}
+                                      meta={meta}
+                            />
+                            :
+                            selectedNav === 'levels'
                                 ?
-                                <MainView entries={Object.keys(entries).map(e => entries[e])}
-                                          setErr={setErr}
-                                          replaceDevice={d => {
-                                              if (ss && ss.isConnected()) {
-                                                  console.debug(`Discarding update, ws is connected`);
-                                              } else {
-                                                  console.debug(`Accepting update, ws is disconnected`);
-                                                  replaceDevice(d);
-                                              }
-                                          }}
-                                          availableDevices={availableDevices}
-                                          selectedDeviceName={selectedDeviceName}
-                                          setSelectedDeviceName={setSelectedDeviceName}
-                                          selectedSlotId={selectedSlotId}
-                                          setSelectedSlotId={setSelectedSlotId}
-                                          useWide={useWide}
-                                          selectedNav={selectedNav}
-                                          setSelectedNav={setSelectedNav}
-                                          meta={meta}
+                                <Levels availableDevices={availableDevices}
+                                        selectedDeviceName={selectedDeviceName}
+                                        setSelectedDeviceName={setSelectedDeviceName}
+                                        levelsService={levelsService}
+                                        selectedNav={selectedNav}
+                                        setSelectedNav={setSelectedNav}
+                                        theme={theme}
                                 />
                                 :
-                                selectedNav === 'levels'
-                                    ?
-                                    <Levels availableDevices={availableDevices}
-                                            selectedDeviceName={selectedDeviceName}
-                                            setSelectedDeviceName={setSelectedDeviceName}
-                                            levelsService={levelsService}
-                                            selectedNav={selectedNav}
-                                            setSelectedNav={setSelectedNav}
-                                            theme={theme}
-                                    />
-                                    :
-                                    <Minidsp availableDevices={availableDevices}
-                                             selectedDeviceName={selectedDeviceName}
-                                             setSelectedDeviceName={setSelectedDeviceName}
-                                             selectedSlotId={selectedSlotId}
-                                             setErr={setErr}
-                                             selectedNav={selectedNav}
-                                             setSelectedNav={setSelectedNav}
-                                             theme={theme}
-                                    />
-                            :
-                            null
+                                <Minidsp availableDevices={availableDevices}
+                                         selectedDeviceName={selectedDeviceName}
+                                         setSelectedDeviceName={setSelectedDeviceName}
+                                         selectedSlotId={selectedSlotId}
+                                         setErr={setErr}
+                                         selectedNav={selectedNav}
+                                         setSelectedNav={setSelectedNav}
+                                         theme={theme}
+                                />
                     }
                 </Root>
             </ThemeProvider>

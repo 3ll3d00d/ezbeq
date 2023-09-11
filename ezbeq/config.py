@@ -38,7 +38,11 @@ class Config:
 
     @property
     def chunk_size(self) -> int:
-        return self.config.get('chunk_size', 4000)
+        return max(self.config.get('chunk_size', 4000), 1)
+
+    @property
+    def first_chunk_size(self) -> int:
+        return max(self.config.get('first_chunk_size', self.chunk_size), 1)
 
     @property
     def beqcatalogue_url(self) -> str:
