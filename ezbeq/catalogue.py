@@ -635,9 +635,11 @@ class Catalogues:
                     vals[FRESHNESS] = compute_freshness(vals[CREATED_AT], vals[UPDATED_AT])
                 else:
                     vals[FRESHNESS] = 'Unknown'
+                # compatibility hacks
                 if CONTENT_TYPE in vals:
-                    # compatibility hack
                     vals['contentType'] = vals[CONTENT_TYPE]
+                if MV_ADJUST in vals:
+                    vals['mvAdjust'] = vals[MV_ADJUST]
                 entries.append(vals)
             after = time.time()
             logger.info(f'Loaded {len(entries)} entries from db in {to_millis(before, after)} ms')
