@@ -385,17 +385,23 @@ class Catalogues:
             res = cur.execute("SELECT version, MAX(loaded_at), COUNT(id) FROM catalogue_entry GROUP BY version")
             catalogues = [Catalogue(row[2], row[0], loaded_at=datetime.utcfromtimestamp(row[1] / 1000)) for row in
                           res.fetchall()]
+            loaded = 0
             if catalogues:
+                loaded = 1
                 logger.info(f"{len(catalogues)} versions available in {self.__db}")
                 v = catalogues[-1].version
                 catalogues[-1].meta = {t: self.load_meta(v, t) for t in META_FIELDS}
                 if len(catalogues) > 1:
                     self.__prune_entries(catalogues[-1].version)
-            else:
+                for f, vals in catalogues[-1].meta.items():
+                    if not vals:
+                        logger.warning(f'No meta values found for {f} in catalogue {v}, will reload from disk')
+                        loaded = 2
+            if loaded != 1:
                 try:
                     if os.path.exists(self.__catalogue_file) and os.path.exists(self.__version_file):
                         with open(self.__version_file) as f:
-                            catalogue = self.__insert_catalogue(f.read().strip())
+                            catalogue = self.__insert_catalogue(f.read().strip(), meta_only=loaded == 2)
                             if catalogue:
                                 catalogues.append(catalogue)
                 except:
@@ -403,7 +409,7 @@ class Catalogues:
                         f'Failed to load catalogue at startup from {self.__catalogue_file} into {self.__db}')
         return catalogues
 
-    def __insert_catalogue(self, version: str) -> Optional[Catalogue]:
+    def __insert_catalogue(self, version: str, meta_only: bool = False) -> Optional[Catalogue]:
         now = int(datetime.now().timestamp() * 1000)
         audio_types = set()
         authors = set()
@@ -431,15 +437,16 @@ class Catalogues:
                     if entry.year:
                         years.add(entry.year)
                     values.append(entry.values + extra_vals)
-                    if len(values) % 100 == 0:
+                    if len(values) % 100 == 0 and not meta_only:
                         cur.executemany(insert_sql, values)
                         cur.connection.commit()
                         values = []
-                if values:
+                if values and not meta_only:
                     cur.executemany(insert_sql, values)
                     cur.connection.commit()
-                logger.info(
-                    f'Inserted {count} entries into {self.__db} for version {version} in {to_millis(start, time.time())}ms')
+                if not meta_only:
+                    logger.info(
+                        f'Inserted {count} entries into {self.__db} for version {version} in {to_millis(start, time.time())}ms')
 
                 def insert_if(meta_type: str, vals: set):
                     if vals:
@@ -462,7 +469,7 @@ class Catalogues:
         with db_ops(self.__db) as cur:
             before = time.time()
             res = cur.execute(
-                f"SELECT value FROM catalogue_meta WHERE version = '{version}' AND meta_type = '{meta_type}';")
+                f"SELECT DISTINCT value FROM catalogue_meta WHERE version = '{version}' AND meta_type = '{meta_type}';")
             values = [row[0] for row in res.fetchmany(size=1000)]
             after = time.time()
             logger.info(f'Loaded {len(values)} {meta_type} entries from db in {to_millis(before, after)} ms')
@@ -531,7 +538,7 @@ class Catalogues:
             entries_deleted = cur.rowcount
             cur.connection.commit()
             cur.execute(
-                f"DELETE FROM catalogue_meta WHERE version NOT IN (SELECT DISTINCT version FROM catalogue_entry WHERE version <> '{keep_version}');")
+                f"DELETE FROM catalogue_meta WHERE version <> '{keep_version}';")
             meta_deleted = cur.rowcount
             cur.connection.commit()
             end = time.time()
