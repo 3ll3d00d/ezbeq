@@ -382,7 +382,7 @@ class Catalogues:
 
     def __load_catalogues(self) -> List[Catalogue]:
         with db_ops(self.__db) as cur:
-            res = cur.execute("SELECT version, MAX(loaded_at), COUNT(id) FROM catalogue_entry GROUP BY version")
+            res = cur.execute("SELECT version, MAX(loaded_at), COUNT(id) FROM catalogue_entry GROUP BY version ORDER BY MAX(loaded_at) ASC")
             catalogues = [Catalogue(row[2], row[0], loaded_at=datetime.utcfromtimestamp(row[1] / 1000)) for row in
                           res.fetchall()]
             loaded = 0
