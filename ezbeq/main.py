@@ -10,9 +10,9 @@ from flask_compress import Compress
 from flask_restx import Api
 
 from ezbeq.apis import search, version, devices, authors, audiotypes, years, contenttypes, languages, meta, \
-    catalogue as cat_api, diagnostics
+    catalogue as cat_api, diagnostics, load
 from ezbeq.apis.ws import WsServer, AutobahnWsServer
-from ezbeq.catalogue import CatalogueProvider
+from ezbeq.catalogue import CatalogueProvider, LoadTester
 from ezbeq.config import Config
 from ezbeq.device import DeviceRepository
 
@@ -31,7 +31,8 @@ def create_app(config: Config, ws: WsServer = AutobahnWsServer()) -> Tuple[Flask
         'ws_server': ws_server,
         'device_bridge': DeviceRepository(config, ws_server, catalogue),
         'catalogue': catalogue,
-        'version': config.version
+        'version': config.version,
+        'load': LoadTester(os.path.join(config.config_path, 'ezbeq.db'))
     }
     app = Flask('ezbeq')
     app.config['APP_CONFIG'] = config
@@ -52,6 +53,7 @@ def create_app(config: Config, ws: WsServer = AutobahnWsServer()) -> Tuple[Flask
     decorate_ns(version.api)
     decorate_ns(authors.api)
     decorate_ns(audiotypes.api)
+    decorate_ns(load.api)
     decorate_ns(years.api)
     decorate_ns(contenttypes.api)
     decorate_ns(languages.api)

@@ -1,12 +1,13 @@
 import json
 import logging
 import os
+import random
 import sqlite3
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Optional, List, Callable, Union, Set
+from typing import Optional, List, Callable, Union, Set, Tuple
 
 import ijson
 import requests
@@ -382,7 +383,8 @@ class Catalogues:
 
     def __load_catalogues(self) -> List[Catalogue]:
         with db_ops(self.__db) as cur:
-            res = cur.execute("SELECT version, MAX(loaded_at), COUNT(id) FROM catalogue_entry GROUP BY version ORDER BY MAX(loaded_at) ASC")
+            res = cur.execute(
+                "SELECT version, MAX(loaded_at), COUNT(id) FROM catalogue_entry GROUP BY version ORDER BY MAX(loaded_at) ASC")
             catalogues = [Catalogue(row[2], row[0], loaded_at=datetime.utcfromtimestamp(row[1] / 1000)) for row in
                           res.fetchall()]
             loaded = 0
@@ -531,10 +533,12 @@ class Catalogues:
 
     def __prune_entries(self, keep_version: str):
         min_loaded_at = int((datetime.now() - timedelta(days=1)).timestamp() * 1000)
-        logger.info(f'Pruning catalogues older than {datetime.fromtimestamp(min_loaded_at / 1000).strftime("%c")} except version {keep_version}')
+        logger.info(
+            f'Pruning catalogues older than {datetime.fromtimestamp(min_loaded_at / 1000).strftime("%c")} except version {keep_version}')
         with db_ops(self.__db) as cur:
             before = time.time()
-            cur.execute(f"DELETE FROM catalogue_entry WHERE loaded_at <= {min_loaded_at} AND version <> '{keep_version}';")
+            cur.execute(
+                f"DELETE FROM catalogue_entry WHERE loaded_at <= {min_loaded_at} AND version <> '{keep_version}';")
             entries_deleted = cur.rowcount
             cur.connection.commit()
             cur.execute(
@@ -813,3 +817,69 @@ def compute_freshness(created_at, updated_at):
         return 'Updated'
     else:
         return 'Stale'
+
+
+class LoadTester:
+
+    def __init__(self, db_file: str):
+        self.db_file = db_file
+        self.chunk_sizes = [25, 50, 100, 200, 400, 800, 1600, 3200, 6400]
+        with db_ops(self.db_file) as cur:
+            res = cur.execute("SELECT version, MAX(loaded_at), COUNT(id) "
+                              "FROM catalogue_entry "
+                              "GROUP BY version "
+                              "ORDER BY MAX(loaded_at) DESC")
+            self.catalogues = [Catalogue(row[2], row[0], loaded_at=datetime.utcfromtimestamp(row[1] / 1000)) for row in
+                               res.fetchall()]
+            if not self.catalogues:
+                raise ValueError("No catalogues available for testing")
+
+    def run(self) -> dict:
+        catalogue = self.catalogues[-1]
+        results = []
+        for chunk_size in self.chunk_sizes:
+            # warm up 5 times
+            for i in range(5):
+                offset = random.randint(0, catalogue.count - chunk_size + 1)
+                count, ts = self.__load(catalogue.version, offset, chunk_size)
+                logger.info(f'WARM,{chunk_size},{count},{ts},{offset}')
+            # load 10 times
+            res = []
+            total_ts = 0
+            total_count = 0
+            for i in range(10):
+                offset = random.randint(0, catalogue.count - chunk_size + 1)
+                count, t = self.__load(catalogue.version, 0, chunk_size)
+                ts = round(t * 1000, 3)
+                logger.info(f'RUN,{chunk_size},{count},{ts},{offset}')
+                res += [{'count': count, 'ts': ts, 'offset': offset}]
+                total_ts += ts
+                total_count += count
+            results.append({
+                'chunk': chunk_size,
+                'avg_ts': total_ts / 10,
+                'max_ts': max(r['ts'] for r in res),
+                'min_ts': min(r['ts'] for r in res),
+                'runs': res
+            })
+        return {
+            'total_count': sum(c.count for c in self.catalogues),
+            'version': catalogue.version,
+            'version_count': catalogue.count,
+            'results': results
+        }
+
+    def __load(self, version: str, offset: int, limit: int) -> Tuple[int, float]:
+        select = f"SELECT {UI_FIELDS_STR} FROM catalogue_entry WHERE version = '{version}'"
+        if limit:
+            select = f'{select} LIMIT {limit}'
+        if offset:
+            select = f'{select} OFFSET {offset}'
+        begin = time.time()
+        count = 0
+        with db_ops(self.db_file) as cur:
+            res = cur.execute(select)
+            for _ in res.fetchmany(size=limit if limit else 20000):
+                count = count + 1
+        end = time.time()
+        return count, (end - begin)
