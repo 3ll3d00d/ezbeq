@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import random
 import sqlite3
 import time
 from contextlib import contextmanager
@@ -840,7 +839,7 @@ class LoadTester:
         for chunk_size in self.chunk_sizes:
             # warm up 5 times
             for i in range(5):
-                offset = random.randint(0, catalogue.count - chunk_size + 1)
+                offset = 0
                 count, ts = self.__load(catalogue.version, offset, chunk_size)
                 logger.info(f'WARM,{chunk_size},{count},{ts},{offset}')
             # load 10 times
@@ -848,7 +847,7 @@ class LoadTester:
             total_ts = 0
             total_count = 0
             for i in range(10):
-                offset = random.randint(0, catalogue.count - chunk_size + 1)
+                offset = 0
                 count, t = self.__load(catalogue.version, 0, chunk_size)
                 ts = round(t * 1000, 3)
                 logger.info(f'RUN,{chunk_size},{count},{ts},{offset}')
