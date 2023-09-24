@@ -293,6 +293,7 @@ class Catalogues:
         self.__ws.factory.init_catalogue_loader(self.__send_chunked_catalogue)
         if sync_load:
             self.__download()
+            self.__last_refresh_check = time.time()
         self.__catalogues = self.__load_catalogues()
         if self.__catalogues:
             self.__ws.broadcast(self.__catalogues[-1].meta_msg)
@@ -497,11 +498,17 @@ class Catalogues:
 
     def __reload(self):
         now = time.time()
-        since_last = now - self.__last_refresh_check
+        last_refresh = self.__last_refresh_check
+        since_last = now - last_refresh
         if since_last < 60:
             logger.debug(f'Suppressing reload check, {since_last:.3g}s since last check')
             return
+        logger.info(f'Triggering reload check, {since_last:.3g}s since last check')
+        self.__last_refresh_check = now
+        from twisted.internet import reactor
+        reactor.callInThread(self.__do_reload)
 
+    def __do_reload(self):
         prefix = 'Rel' if self.loaded else 'L'
         logger.debug(f'{prefix}oading catalogue')
         version, reload_required = self.__download()
@@ -518,7 +525,6 @@ class Catalogues:
                 raise ValueError(f"No catalogue available at {self.__catalogue_file}")
         else:
             logger.debug(f"No {prefix.lower()}oad required")
-        self.__last_refresh_check = now
 
     def __on_catalogue_update(self, catalogue: Catalogue):
         logger.info(f'Caching fresh catalogue {catalogue.version}')
@@ -703,7 +709,7 @@ class CatalogueProvider:
     def search(self, authors: List[str], years: List[int], audio_types: List[str], content_types: List[str],
                tmdb_id: str, text: Optional[str], fields: List[str], limit: Optional[int] = 100) -> List[dict]:
         from twisted.internet import reactor
-        reactor.callInThread(self.__catalogues.refresh_if_stale)
+        reactor.callLater(0, self.__catalogues.refresh_if_stale)
         return self.__catalogues.search(authors, years, audio_types, content_types, tmdb_id, text, fields, limit)
 
     def find_by_id(self, entry_id: str) -> Optional[CatalogueEntry]:
@@ -714,13 +720,13 @@ class CatalogueProvider:
 
     def __find_by(self, val: str, finder: Callable[[str], Optional[CatalogueEntry]]) -> Optional[CatalogueEntry]:
         from twisted.internet import reactor
-        reactor.callInThread(self.__catalogues.refresh_if_stale)
+        reactor.callLater(0, self.__catalogues.refresh_if_stale)
         return finder(val)
 
     def __load_meta_if_present(self, meta_type: str):
         logger.info(f'Loading meta for {meta_type}')
         from twisted.internet import reactor
-        reactor.callInThread(self.__catalogues.refresh_if_stale)
+        reactor.callLater(0, self.__catalogues.refresh_if_stale)
         latest = self.__catalogues.latest
         return latest.meta[meta_type]
 
