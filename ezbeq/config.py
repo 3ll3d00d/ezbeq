@@ -58,13 +58,6 @@ class Config:
         return socket.getfqdn()
 
     @property
-    def run_in_debug(self):
-        """
-        :return: if debug mode is on, defaults to False.
-        """
-        return self.config.get('debug', False)
-
-    @property
     def is_debug_logging(self):
         """
         :return: if debug logging mode is on, defaults to False.
@@ -181,8 +174,8 @@ class Config:
         Configures the python logging system to log to a debug file and to stdout for warn and above.
         :return: the base logger.
         """
-        base_log_level = logging.DEBUG if self.is_debug_logging else logging.INFO
-        console_log_level = logging.INFO if self.is_debug_logging else logging.WARN
+        base_log_level = logging.DEBUG if self.is_debug_logging is True else logging.INFO
+        console_log_level = logging.INFO if self.is_debug_logging is True else logging.WARN
         # create root logger
         logger = logging.getLogger()
         logger.setLevel(base_log_level)

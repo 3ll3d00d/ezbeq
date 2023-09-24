@@ -841,7 +841,7 @@ class LoadTester:
             for i in range(5):
                 offset = 0
                 count, ts = self.__load(catalogue.version, offset, chunk_size)
-                logger.info(f'WARM,{chunk_size},{count},{ts},{offset}')
+                logger.debug(f'WARM,{chunk_size},{count},{ts},{offset}')
             # load 10 times
             res = []
             total_ts = 0
@@ -849,7 +849,7 @@ class LoadTester:
             for i in range(10):
                 offset = 0
                 count, ts = self.__load(catalogue.version, 0, chunk_size)
-                logger.info(f'RUN,{chunk_size},{count},{ts},{offset}')
+                logger.debug(f'RUN,{chunk_size},{count},{ts},{offset}')
                 res += [{'count': count, 'ts': ts, 'offset': offset}]
                 total_ts += ts
                 total_count += count
@@ -860,6 +860,21 @@ class LoadTester:
                 'min_ts': min(r['ts'] for r in res),
                 'runs': res
             })
+        c1 = None
+        t1 = None
+        scaling = []
+        for r in results:
+            c2 = r['chunk']
+            t2 = r['avg_ts']
+            if c1 is not None:
+                cm = c2 / c1
+                tm = t2 / t1
+                scaling.append(f'{tm / cm:.3g}')
+            c1 = c2
+            t1 = t2
+        logger.info(f"{','.join([str(r['chunk']) for r in results])}")
+        logger.info(f"{','.join([str(round(r['avg_ts'], 3)) for r in results])}")
+        logger.info(f"{','.join(scaling)}")
         return {
             'total_count': sum(c.count for c in self.catalogues),
             'version': catalogue.version,
@@ -875,7 +890,7 @@ class LoadTester:
             select = f'{select} OFFSET {offset}'
         begin = time.time()
         count = 0
-        logger.info(f">>> {select}")
+        logger.debug(f">>> {select}")
         with db_ops(self.db_file) as cur:
             res = cur.execute(select)
             for _ in res.fetchmany(size=limit if limit else 20000):
