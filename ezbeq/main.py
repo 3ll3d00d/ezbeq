@@ -122,10 +122,13 @@ def main(args=None):
                 uiRoot = cfg.webapp_path
             else:
                 uiRoot = os.path.join(os.path.dirname(__file__), 'ui')
-            logger.info('Serving ui from ' + str(uiRoot))
-            self.react = ReactApp(uiRoot)
+            if os.path.exists(uiRoot):
+                logger.info(f'Serving ui from {uiRoot}')
+                self.react = ReactApp(uiRoot)
+                self.static = static.File(os.path.join(uiRoot, 'static'))
+            else:
+                logger.error(f'No UI available in {uiRoot}')
             self.metrics = None
-            self.static = static.File(os.path.join(uiRoot, 'static'))
             self.icons = static.File(cfg.icon_path)
             ws_server.factory.startFactory()
             self.ws_resource = WebSocketResource(ws_server.factory)
