@@ -224,7 +224,19 @@ class Config:
 
     @property
     def db_mmap_mb(self) -> int:
-        return self.config.get('db_mmap_mb', 150)
+        mmap_mb = 0
+        try:
+            import psutil
+            t = psutil.virtual_memory().total / (1024 * 1024 * 1024)
+            if t >= 0.8:
+                mmap_mb = 150
+            elif t >= 0.4:
+                mmap_mb = 50
+            else:
+                mmap_mb = 0
+        except:
+            self.logger.exception(f'Unable to get total physical memory, will default to 0')
+        return self.config.get('db_mmap_mb', mmap_mb)
 
     @staticmethod
     def __migrate(cfg):
@@ -263,3 +275,4 @@ class Config:
                 del cfg['jriver']
             changed = True
         return cfg, changed
+

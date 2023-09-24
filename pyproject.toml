@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ezbeq"
-version = "2.0.0a22"
+version = "2.0.0a23"
 description = "A webapp which can send beqcatalogue filters to a DSP device"
 authors = ["3ll3d00d <mattkhan+ezbeq@gmail.com>"]
 license = "MIT"
@@ -26,6 +26,7 @@ semver = "^3.0.0"
 flask-restx = "^1.1.0"
 prometheus-client = "^0.17.1"
 ijson = "^3.2.3"
+psutil = "^5.9.5"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
