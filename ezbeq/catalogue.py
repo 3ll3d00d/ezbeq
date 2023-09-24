@@ -553,6 +553,10 @@ class Catalogues:
             end = time.time()
             if entries_deleted or meta_deleted:
                 logger.info(f'Pruned {entries_deleted} entries and {meta_deleted} meta in {to_millis(before, end)}ms')
+                before = time.time()
+                cur.execute("VACUUM;")
+                after = time.time()
+                logger.info(f'Vacuumed DB in {to_millis(before, after)} ms')
             else:
                 logger.info(f'Nothing to prune')
 
@@ -843,7 +847,7 @@ class LoadTester:
                 raise ValueError("No catalogues available for testing")
 
     def run(self) -> dict:
-        catalogue = self.catalogues[-1]
+        catalogue = self.catalogues[0]
         results = []
         for chunk_size in self.chunk_sizes:
             # warm up 5 times
