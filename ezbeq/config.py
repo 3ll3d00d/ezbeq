@@ -222,6 +222,10 @@ class Config:
     def load_catalogue_at_startup(self):
         return False
 
+    @property
+    def db_mmap_mb(self) -> int:
+        return self.config.get('db_mmap_mb', 150)
+
     @staticmethod
     def __migrate(cfg):
         changed = False

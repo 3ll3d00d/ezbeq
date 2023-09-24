@@ -278,11 +278,12 @@ class Catalogue:
 
 class Catalogues:
     def __init__(self, config_path: str, catalogue_url: str, ws: WsServer, refresh_seconds: float,
-                 first_chunk_size: int, chunk_size: int, sync_load: bool):
+                 first_chunk_size: int, chunk_size: int, sync_load: bool, mmap_mb: int = 0):
         self.__catalogue_url = catalogue_url
         self.__version_file = os.path.join(config_path, 'version.txt')
         self.__catalogue_file = os.path.join(config_path, 'database.json')
         self.__db = os.path.join(config_path, 'ezbeq.db')
+        self.__mmap_mb = mmap_mb
         self.__chunk_sizes = (first_chunk_size, chunk_size)
         logger.info(f'Using database at {self.__db}')
         self.__ensure_db()
@@ -644,7 +645,7 @@ class Catalogues:
             else:
                 return v if v is not None else ''
 
-        with db_ops(self.__db) as cur:
+        with db_ops(self.__db, mmap_size=self.__mmap_mb * 1024 * 1024) as cur:
             before = time.time()
             logger.debug(f'>>> {select}')
             entries: List[dict] = []
@@ -678,7 +679,8 @@ class CatalogueProvider:
                                                    config.catalogue_refresh_interval,
                                                    config.first_chunk_size,
                                                    config.chunk_size,
-                                                   config.load_catalogue_at_startup)
+                                                   config.load_catalogue_at_startup,
+                                                   config.db_mmap_mb)
 
     def find(self, entry_id: str, match_on_idx: Optional[bool] = None, as_dict: bool = False) -> Optional[
         Union[CatalogueEntry, dict]]:
@@ -807,9 +809,14 @@ class DatabaseDownloader:
 
 
 @contextmanager
-def db_ops(db_name):
+def db_ops(db_name, cache_size: int = None, mmap_size: int = None):
     conn = sqlite3.connect(db_name)
     try:
+        if cache_size:
+            conn.execute(f'pragma cache_size=-{cache_size}')
+        if mmap_size:
+            logger.debug(f'mmap_size={mmap_size}')
+            conn.execute(f'pragma mmap_size={mmap_size}')
         cur = conn.cursor()
         yield cur
     except Exception as e:
