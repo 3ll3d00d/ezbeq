@@ -848,8 +848,7 @@ class LoadTester:
             total_count = 0
             for i in range(10):
                 offset = 0
-                count, t = self.__load(catalogue.version, 0, chunk_size)
-                ts = round(t * 1000, 3)
+                count, ts = self.__load(catalogue.version, 0, chunk_size)
                 logger.info(f'RUN,{chunk_size},{count},{ts},{offset}')
                 res += [{'count': count, 'ts': ts, 'offset': offset}]
                 total_ts += ts
@@ -876,9 +875,10 @@ class LoadTester:
             select = f'{select} OFFSET {offset}'
         begin = time.time()
         count = 0
+        logger.info(f">>> {select}")
         with db_ops(self.db_file) as cur:
             res = cur.execute(select)
             for _ in res.fetchmany(size=limit if limit else 20000):
                 count = count + 1
         end = time.time()
-        return count, (end - begin)
+        return count, to_millis(begin, end, 3)
