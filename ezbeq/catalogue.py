@@ -645,7 +645,10 @@ class Catalogues:
             logger.debug(f'>>> {select}')
             entries: List[dict] = []
             res = cur.execute(select)
-            for row in res.fetchmany(size=limit if limit else 20000):
+            rows = res.fetchmany(size=limit if limit else 20000)
+            after_load = time.time()
+            logger.info(f'Loaded {len(rows)} entries from db in {to_millis(before, after_load)} ms')
+            for row in rows:
                 vals = {k: v for k, v in {fields[i]: reformat(i, r) for i, r in enumerate(row)}.items() if v}
                 if UPDATED_AT in vals and CREATED_AT in vals:
                     vals[FRESHNESS] = compute_freshness(vals[CREATED_AT], vals[UPDATED_AT])
@@ -658,7 +661,7 @@ class Catalogues:
                     vals['mvAdjust'] = vals[MV_ADJUST]
                 entries.append(vals)
             after = time.time()
-            logger.info(f'Loaded {len(entries)} entries from db in {to_millis(before, after)} ms')
+            logger.info(f'Parsed {len(entries)} entries from db in {to_millis(after_load, after)} ms, total time {to_millis(before, after)} ms')
             return entries
 
 
