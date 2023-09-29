@@ -69,9 +69,10 @@ const App = () => {
 
     useEffect(() => {
         if (meta && (!version || meta.version !== version)) {
+            setEntries({});
             setVersion(meta.version);
         }
-    }, [meta, version, setVersion]);
+    }, [meta, version, setVersion, setEntries]);
 
     useEffect(() => {
         ss.init(setErr, replaceDevice, setMeta, loadEntries);

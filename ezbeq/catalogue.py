@@ -395,7 +395,8 @@ class Catalogues:
                 v = catalogues[-1].version
                 catalogues[-1].meta = {t: self.load_meta(v, t) for t in META_FIELDS}
                 if len(catalogues) > 1:
-                    self.__prune_entries(catalogues[-1].version)
+                    from twisted.internet import reactor
+                    reactor.callInThread(lambda: self.__prune_entries(catalogues[-1].version))
                 for f, vals in catalogues[-1].meta.items():
                     if not vals:
                         logger.warning(f'No meta values found for {f} in catalogue {v}, will reload from disk')
@@ -535,7 +536,8 @@ class Catalogues:
         self.__catalogues = [i for i in self.__catalogues if i.version not in old_versions]
         self.__ws.broadcast(catalogue.meta_msg)
         if len(self.__catalogues) > 1:
-            self.__prune_entries(self.__catalogues[-1].version)
+            from twisted.internet import reactor
+            reactor.callInThread(lambda: self.__prune_entries(self.__catalogues[-1].version))
 
     def __prune_entries(self, keep_version: str):
         min_loaded_at = int((datetime.now() - timedelta(days=1)).timestamp() * 1000)
