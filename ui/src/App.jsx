@@ -64,15 +64,18 @@ const App = () => {
     }, [setAvailableDevices, availableDevices]);
 
     const loadEntries = useMemo(() => newEntries => {
-        setEntries(Object.assign({}, entries, newEntries));
-    }, [setEntries, entries]);
+        setEntries(e => {
+            const prefix = `${version}_`;
+            const current = e ? Object.fromEntries(Object.entries(e).filter(([key]) => key.startsWith(prefix))) : {};
+            return Object.assign({}, current, newEntries)
+        });
+    }, [version, setEntries, entries]);
 
     useEffect(() => {
         if (meta && (!version || meta.version !== version)) {
-            setEntries({});
             setVersion(meta.version);
         }
-    }, [meta, version, setVersion, setEntries]);
+    }, [meta, version, setVersion]);
 
     useEffect(() => {
         ss.init(setErr, replaceDevice, setMeta, loadEntries);
