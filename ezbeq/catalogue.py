@@ -845,6 +845,9 @@ class LoadTester:
     def __init__(self, db_file: str):
         self.db_file = db_file
         self.chunk_sizes = [25, 50, 100, 200, 400, 800, 1600, 3200, 6400]
+        self.catalogues: List[Catalogue] = []
+
+    def run(self) -> dict:
         with db_ops(self.db_file) as cur:
             res = cur.execute("SELECT version, MAX(loaded_at), COUNT(id) "
                               "FROM catalogue_entry "
@@ -855,7 +858,6 @@ class LoadTester:
             if not self.catalogues:
                 raise ValueError("No catalogues available for testing")
 
-    def run(self) -> dict:
         catalogue = self.catalogues[0]
         results = []
         for chunk_size in self.chunk_sizes:
