@@ -87,10 +87,7 @@ class Qsys(PersistentDevice[QsysState]):
         while len(to_load) < 10:
             to_load.append(PEQ(100, 1, 0, 'PeakingEQ'))
         if to_load:
-            controls = []
-            for idx, peq in enumerate(to_load):
-                controls += peq.to_rpc(idx + 1)
-            self.__send_to_socket(controls, entry)
+            self.__send_to_socket(to_load, entry)
         else:
             logger.warning(f"Nothing to send")
 
@@ -112,35 +109,42 @@ class Qsys(PersistentDevice[QsysState]):
             return data.decode('utf-8').strip(TERMINATOR)
         return ''
 
-    def __send_to_socket(self, controls: list, entry: CatalogueEntry):
-        logger.info(f"Sending {controls} to {self.__ip}:{self.__port}")
+    def __send_to_socket(self, peqs: List['PEQ'], entry: CatalogueEntry):
+        logger.info(f"Sending {peqs} to {self.__ip}:{self.__port}")
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(self.__timeout_srcs)
         try:
             sock.connect((self.__ip, self.__port))
             for c in self.__components:
+                controls = []
+                for idx, peq in enumerate(peqs):
+                    controls += peq.to_rpc(idx + 1)
                 self.__send_component(c, controls, sock)
             for c in self.__content_info:
                 for component_name, mappings in c.items():
                     text_controls = []
                     for k, v in mappings.items():
-                        m = re.match(r'(.*)\[(\d+)\]', v)
-                        if m:
-                            val = getattr(entry, m.group(1))
+                        if v == 'filters':
+                            val = json.dumps([coeff for p in peqs for coeff in p.coeffs])
                         else:
-                            val = getattr(entry, v)
-                        if isinstance(val, list):
+                            m = re.match(r'(.*)\[(\d+)\]', v)
                             if m:
-                                idx = int(m.group(2))
-                                if len(val) > idx:
-                                    val = val[idx]
-                                else:
-                                    logger.info(f"'{entry.title} {m.group(1)} has length {len(val)}, no value to supply for {k}")
-                                    val = ''
+                                val = getattr(entry, m.group(1))
                             else:
-                                val = ', '.join(val)
-                        else:
-                            val = str(val)
+                                val = getattr(entry, v)
+                            if isinstance(val, list):
+                                if m:
+                                    idx = int(m.group(2))
+                                    if len(val) > idx:
+                                        val = val[idx]
+                                    else:
+                                        logger.info(f"'{entry.title} {m.group(1)} has length {len(val)}, "
+                                                    f"no value to supply for {k}")
+                                        val = ''
+                                else:
+                                    val = ', '.join(val)
+                            else:
+                                val = str(val)
                         text_controls.append({'Name': k, 'Value': val})
                     self.__send_component(component_name, text_controls, sock)
         finally:
@@ -213,7 +217,8 @@ class Qsys(PersistentDevice[QsysState]):
 
 class PEQ:
 
-    def __init__(self, fc: float, q: float, gain: float, filter_type_name: str):
+    def __init__(self, fc: float, q: float, gain: float, filter_type_name: str, fs: int = 48000):
+        self.fs = fs
         self.fc = fc
         self.q = q
         self.gain = gain
@@ -227,6 +232,19 @@ class PEQ:
             {"Name": f"q.factor.{slot}", "Value": self.q},
             {"Name": f"type.{slot}", "Value": self.filter_type}
         ]
+
+    @property
+    def coeffs(self) -> List[float]:
+        if self.filter_type_name == 2.0:
+            from iir import LowShelf
+            filt = LowShelf(self.fs, self.fc, self.q, self.gain)
+        elif self.filter_type_name == 1.0:
+            from iir import PeakingEQ
+            filt = PeakingEQ(self.fs, self.fc, self.q, self.gain)
+        else:
+            from iir import HighShelf
+            filt = HighShelf(self.fs, self.fc, self.q, self.gain)
+        return filt.b + filt.a
 
     def __repr__(self):
         return f"{self.filter_type_name} {self.fc} Hz {self.gain} dB {self.q}"

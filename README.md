@@ -259,16 +259,27 @@ This information is **not** validated, it is left to the user to configure the o
 
 Configuration of the audio pipeline in Q-Sys Designer is left as an exercise for the user. 
 
-The component referred to in the configuration is a [Parametric Equaliser](https://q-syshelp.qsc.com/Content/Schematic_Library/equalizer_parametric.htm) which should be configured with:
+2 alternative implementations are possible.
+
+One uses a [IIR Custom Filter](https://q-syshelp.qsc.com/Index.htm#Schematic_Library/filter_IIR.htm) component which must be connected to component which provides a text field.
+
+This can be implemented using either a [Text Controller](https://q-syshelp.qsc.com/Index.htm#Schematic_Library/device_controller_script.htm?TocPath=Design%257CSchematic%2520Elements%257CComponents%257CScripting%2520Components%257C_____3) or a [Custom Control](https://q-syshelp.qsc.com/Index.htm#Schematic_Library/custom_controls.htm).
+
+This component allows for a mapping of a text field control key to a `CatalogueEntry` field name.
+
+Two fields have special treatment:
+
+* filters: will be set in a format that can be linked to a IIR Custom Filter and feeds it with the required biquad coefficients.
+* images: there can be a variable number of images so each individual image can be specified in a separate field
+
+The alternative approache uses a [Parametric Equaliser](https://q-syshelp.qsc.com/Content/Schematic_Library/equalizer_parametric.htm) component which should be configured with:
 
 * at least 10 bands
 * q factor
 
 The component name should be supplied in the configuration above.
 
-An optional `content_info` list of components can also be supplied. Each named component listed (`beq_movie_info` in the example above) is a [Custom Control](https://q-syshelp.qsc.com/Index.htm#Schematic_Library/custom_controls.htm) component which contains 1 or more text fields. The listed fields are a mapping of control key to `CatalogueEntry` field name.
-
-The images field has special treatment as there can be a variable number of images, may be multiple images
+Note that this format does not support variable Q shelf filters.
 
 #### CamillaDSP
 
