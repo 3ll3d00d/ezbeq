@@ -2,7 +2,7 @@ import json
 import logging
 import re
 import socket
-from typing import Optional, List
+from typing import Optional, List, Union
 
 from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
@@ -82,7 +82,7 @@ class Qsys(PersistentDevice[QsysState]):
                             any_update = True
         return any_update
 
-    def __send(self, to_load: List['PEQ'], entry: CatalogueEntry):
+    def __send(self, to_load: List['PEQ'], entry: Union[CatalogueEntry, str]):
         logger.info(f"Sending {len(to_load)} filters")
         while len(to_load) < 10:
             to_load.append(PEQ(100, 1, 0, 'PeakingEQ'))
@@ -109,7 +109,7 @@ class Qsys(PersistentDevice[QsysState]):
             return data.decode('utf-8').strip(TERMINATOR)
         return ''
 
-    def __send_to_socket(self, peqs: List['PEQ'], entry: CatalogueEntry):
+    def __send_to_socket(self, peqs: List['PEQ'], entry: Union[CatalogueEntry, str]):
         logger.info(f"Sending {peqs} to {self.__ip}:{self.__port}")
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(self.__timeout_srcs)
@@ -126,7 +126,7 @@ class Qsys(PersistentDevice[QsysState]):
                     for k, v in mappings.items():
                         if v == 'filters':
                             val = json.dumps([coeff for p in peqs for coeff in p.coeffs])
-                        else:
+                        elif isinstance(entry, CatalogueEntry):
                             m = re.match(r'(.*)\[(\d+)\]', v)
                             if m:
                                 val = getattr(entry, m.group(1))
@@ -145,6 +145,8 @@ class Qsys(PersistentDevice[QsysState]):
                                     val = ', '.join(val)
                             else:
                                 val = str(val)
+                        else:
+                            val = ''
                         text_controls.append({'Name': k, 'Value': val})
                     self.__send_component(component_name, text_controls, sock)
         finally:
@@ -190,10 +192,10 @@ class Qsys(PersistentDevice[QsysState]):
         to_load = [PEQ(f['freq'], f['q'], f['gain'], f['type']) for f in entry.filters]
         self._hydrate_cache_broadcast(lambda: self.__do_it(to_load, entry))
 
-    def __do_it(self, to_load: List['PEQ'], entry: CatalogueEntry):
+    def __do_it(self, to_load: List['PEQ'], entry: Union[CatalogueEntry, str]):
         try:
             self.__send(to_load, entry)
-            self._current_state.slot.last = entry.formatted_title
+            self._current_state.slot.last = entry.formatted_title if isinstance(entry, CatalogueEntry) else entry
         except Exception as e:
             self._current_state.slot.last = 'ERROR'
             raise e
