@@ -285,7 +285,7 @@ class Catalogues:
         self.__db = os.path.join(config_path, 'ezbeq.db')
         self.__mmap_mb = mmap_mb
         self.__chunk_sizes = (first_chunk_size, chunk_size)
-        logger.info(f'Using database at {self.__db}')
+        logger.info(f'[{self.__db}] Using database')
         self.__ensure_db()
         self.__refresh_interval = refresh_seconds
         self.__last_refresh_check: float = 0
@@ -314,7 +314,7 @@ class Catalogues:
     def __load_next_chunk(self, publisher: Callable[[str], None], version: str, count: int = 100, limit: int = 500,
                           offset: int = 0, start: float = 0) -> str:
         if offset >= count:
-            logger.info(f'Load complete for {version} in {to_millis(start, time.time())}ms')
+            logger.info(f'[{version}] Load complete in {to_millis(start, time.time())}ms')
         else:
             begin = time.time()
             next_offset = offset + limit
@@ -391,7 +391,7 @@ class Catalogues:
             loaded = 0
             if catalogues:
                 loaded = 1
-                logger.info(f"{len(catalogues)} versions available in {self.__db}")
+                logger.info(f"[{self.__db}] {len(catalogues)} versions available")
                 v = catalogues[-1].version
                 catalogues[-1].meta = {t: self.load_meta(v, t) for t in META_FIELDS}
                 if len(catalogues) > 1:
@@ -410,7 +410,7 @@ class Catalogues:
                                 catalogues.append(catalogue)
                 except:
                     logger.exception(
-                        f'Failed to load catalogue at startup from {self.__catalogue_file} into {self.__db}')
+                        f'[{self.__db}] Failed to load catalogue at startup from {self.__catalogue_file}')
         return catalogues
 
     def __insert_catalogue(self, version: str, meta_only: bool = False) -> Optional[Catalogue]:
@@ -421,6 +421,14 @@ class Catalogues:
         languages = set()
         years = set()
         extra_vals: tuple = (version, now)
+
+        def insert_commit(v: list, c: int, sql: str):
+            s1 = time.time()
+            cur.executemany(sql, v)
+            cur.connection.commit()
+            s2 = time.time()
+            logger.info(f'[{self.__db} / {version}] Inserted {len(v)} (of {c}) entries in {to_millis(s1, s2)}ms')
+
         with open(self.__catalogue_file, 'rb') as infile:
             with db_ops(self.__db) as cur:
                 values = []
@@ -441,23 +449,25 @@ class Catalogues:
                     if entry.year:
                         years.add(entry.year)
                     values.append(entry.values + extra_vals)
-                    if len(values) % 100 == 0 and not meta_only:
-                        cur.executemany(insert_sql, values)
-                        cur.connection.commit()
+                    if len(values) % 1000 == 0 and not meta_only:
+                        insert_commit(values, count, insert_sql)
                         values = []
                 if values and not meta_only:
-                    cur.executemany(insert_sql, values)
-                    cur.connection.commit()
+                    insert_commit(values, count, insert_sql)
                 if not meta_only:
                     logger.info(
-                        f'Inserted {count} entries into {self.__db} for version {version} in {to_millis(start, time.time())}ms')
+                        f'[{self.__db} / {version}] Inserted {count} entries in {to_millis(start, time.time())}ms')
 
                 def insert_if(meta_type: str, vals: set):
                     if vals:
+                        s1 = time.time()
                         cur.executemany("INSERT INTO catalogue_meta VALUES(?, ?, ?)",
                                         [(meta_type, v, version) for v in vals])
-                        logger.info(f'Inserted {len(vals)} {meta_type} entries into {self.__db} for version {version}')
                         cur.connection.commit()
+                        s2 = time.time()
+                        logger.info(f'[{self.__db} / {version}] Inserted {len(vals)} {meta_type} entries in {to_millis(s1, s2)}ms')
+                    else:
+                        logger.info(f'[{self.__db} / {version}] No {meta_type} entries to insert')
 
                 insert_if(AUDIO_TYPES, audio_types)
                 insert_if(AUTHOR, authors)
