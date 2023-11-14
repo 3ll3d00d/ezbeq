@@ -128,6 +128,10 @@ Found 2x4HD with serial 911111 at ws://localhost/devices/0/ws [hw_id: 10, dsp_ve
 Found 2x4HD with serial 911112 at ws://localhost/devices/1/ws [hw_id: 10, dsp_version: 100]
 ```
 
+Using, and controlling, multiple devices independently is supported but does require use of the `options` key in order to direct commands to the right device. Precise configuration of this option depends on the minidsp-rs setup so is out of scope of this readme. Typical configuration would involve use of the `--tcp` option combined with changes to `minidsp.toml` as mentioned in the [minidsp-rs docs](https://minidsp-rs.pages.dev/daemon/tcp#multiple-devices). 
+
+For reference, a community provided example configuration guide can be found via [avs](https://www.avsforum.com/threads/ezbeq-use-and-development-discussion.3181732/page-170#post-62257128)
+
 A full list of supported models is provided below.
 
 ##### Minidsp Variants
