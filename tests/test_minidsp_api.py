@@ -7,7 +7,7 @@ import pytest
 from conftest import MinidspSpyConfig, MinidspSpy
 
 
-def verify_slot(slot: dict, idx: int, active: bool = False, gain = (0.0, 0.0), mute = (False, False), last: str = 'Empty'):
+def verify_slot(slot: dict, idx: int, active: bool = False, gain = (0.0, 0.0), mute = (False, False), last: str = 'Empty', author: str = None):
     assert slot['id'] == str(idx)
     assert slot['active'] == active
     if gain:
@@ -2201,6 +2201,7 @@ def test_reload_from_cache(minidsp_client, tmp_path):
     slot.gains[0]['value'] = 4.8
     slot.active = True
     slot.last = 'Testing'
+    slot.last_author = 'Me'
     with open(os.path.join(tmp_path, 'master.json'), 'w') as f:
         json.dump(expected.serialise(), f, sort_keys=True)
 
@@ -2210,7 +2211,7 @@ def test_reload_from_cache(minidsp_client, tmp_path):
     slots = verify_master_device_state(r.json)
     for idx, s in enumerate(slots):
         if idx == 1:
-            verify_slot(s, idx + 1, active=True, gain=(4.8, 0.0), mute=(True, True), last='Testing')
+            verify_slot(s, idx + 1, active=True, gain=(4.8, 0.0), mute=(True, True), last='Testing', author='Me')
         else:
             verify_slot(s, idx + 1)
 

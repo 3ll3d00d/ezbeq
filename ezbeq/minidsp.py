@@ -57,8 +57,10 @@ class MinidspState(DeviceState):
     def mute(self) -> bool:
         return self.__mute
 
-    def load(self, slot_id: str, title: str):
-        self.get_slot(slot_id).last = title
+    def load(self, slot_id: str, title: str, author: str = None):
+        slot = self.get_slot(slot_id)
+        slot.last = title
+        slot.last_author = author
         self.activate(slot_id)
 
     def get_slot(self, slot_id) -> 'MinidspSlotState':
@@ -69,10 +71,13 @@ class MinidspState(DeviceState):
         slot.unmute(None)
         slot.set_gain(None, 0.0)
         slot.last = 'Empty'
+        slot.last_author = None
         self.activate(slot_id)
 
     def error(self, slot_id):
-        self.get_slot(slot_id).last = 'ERROR'
+        slot = self.get_slot(slot_id)
+        slot.last = 'ERROR'
+        slot.last_author = None
         self.activate(slot_id)
 
     def gain(self, slot_id: Optional[str], channel: Optional[int], gain: float):
@@ -521,7 +526,7 @@ class Minidsp(PersistentDevice[MinidspState]):
             cmds = MinidspBeqCommandGenerator.filt(entry, self.__descriptor)
             try:
                 self.__send_cmds(target_slot_idx, cmds)
-                self._current_state.load(slot, entry.formatted_title)
+                self._current_state.load(slot, entry.formatted_title, entry.author)
             except Exception as e:
                 self._current_state.error(slot)
                 raise e

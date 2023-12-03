@@ -60,6 +60,8 @@ class Qsys(PersistentDevice[QsysState]):
                     if slot['id'] == 'Qsys':
                         if slot['last']:
                             loaded.slot.last = slot['last']
+                        if slot['author']:
+                            loaded.slot.author = slot['author']
         return loaded
 
     @property
@@ -195,9 +197,15 @@ class Qsys(PersistentDevice[QsysState]):
     def __do_it(self, to_load: List['PEQ'], entry: Union[CatalogueEntry, str]):
         try:
             self.__send(to_load, entry)
-            self._current_state.slot.last = entry.formatted_title if isinstance(entry, CatalogueEntry) else entry
+            if isinstance(entry, CatalogueEntry):
+                self._current_state.slot.last = entry.formatted_title
+                self._current_state.slot.last_author = entry.author
+            else:
+                self._current_state.slot.last = entry
+                self._current_state.slot.last_author = None
         except Exception as e:
             self._current_state.slot.last = 'ERROR'
+            self._current_state.slot.last_author = None
             raise e
 
     def clear_filter(self, slot: str) -> None:

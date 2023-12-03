@@ -146,6 +146,8 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
                     if slot['id'] == SLOT_ID:
                         if slot['last']:
                             loaded.slot.last = slot['last']
+                        if slot['author']:
+                            loaded.slot.last_author = slot['author']
                         if slot['gains']:
                             loaded.slot.gains = slot['gains']
                         if slot['mutes']:
@@ -263,16 +265,23 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
     def __do_load_filter(self, entry: Optional[CatalogueEntry], mv_adjust: float = 0.0):
         try:
             self._current_state.slot.last = 'Loading' if entry else 'Clearing'
+            self._current_state.slot.last_author = None
 
             def completed(success: bool):
                 if success:
-                    self._current_state.slot.last = entry.formatted_title if entry else 'Empty'
+                    if entry:
+                        self._current_state.slot.last = entry.formatted_title
+                        self._current_state.slot.last_author = entry.author
+                    else:
+                        self._current_state.slot.last = 'Empty'
+                        self._current_state.slot.last_author = None
                     for g in self._current_state.slot.gains:
                         g['value'] = mv_adjust
                     for g in self._current_state.slot.mutes:
                         g['value'] = False
                 else:
                     self._current_state.slot.last = 'ERROR'
+                    self._current_state.slot.last_author = None
 
             self.__send_filter(entry, mv_adjust, lambda b: self._hydrate_cache_broadcast(lambda: completed(b)))
         except Exception as e:

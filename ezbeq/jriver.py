@@ -40,10 +40,11 @@ class JRiverState(DeviceState):
         slot = self.__slots.get(zone, None)
         return slot.zone_id if slot else None
 
-    def set_title(self, zone: str, title: str, ignore: bool = False):
+    def set_title(self, zone: str, title: str, ignore: bool = False, author: str = None):
         slot = self.__slots.get(zone, None)
         if slot:
             slot.last = title
+            slot.last_author = author
         elif not ignore:
             raise KeyError(f"No zone {zone}")
 
@@ -53,6 +54,7 @@ class JRiverState(DeviceState):
 
     def error(self, zone: str):
         self.__slots[zone].last = 'ERROR'
+        self.__slots[zone].last_author = None
 
     def serialise(self) -> dict:
         return {
@@ -91,7 +93,7 @@ class JRiver(PersistentDevice[JRiverState]):
         if 'slots' in cached:
             for slot in cached['slots']:
                 if 'id' in slot and 'last' in slot:
-                    loaded.set_title(slot['id'], slot['last'], ignore=True)
+                    loaded.set_title(slot['id'], slot['last'], author=slot.get('author', None), ignore=True)
         return loaded
 
     def activate(self, slot: str) -> None:
@@ -132,9 +134,10 @@ class JRiver(PersistentDevice[JRiverState]):
             logger.info(new_config_txt)
             try:
                 self.__mcws.set_dsp(zone_id, new_config_txt)
-                self._current_state.set_title(slot, entry.formatted_title)
+                self._current_state.set_title(slot, entry.formatted_title, entry.author)
             except Exception as e:
                 self._current_state.slot.last = 'ERROR'
+                self._current_state.slot.last_author = None
                 raise e
         self._hydrate_cache_broadcast(__do_it)
 

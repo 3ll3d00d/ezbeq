@@ -59,6 +59,8 @@ class Htp1(PersistentDevice[Htp1State]):
                     if slot['id'] == 'HTP1':
                         if slot['last']:
                             loaded.slot.last = slot['last']
+                        if slot['author']:
+                            loaded.slot.last_author = slot['author']
         return loaded
 
     @property
@@ -108,14 +110,16 @@ class Htp1(PersistentDevice[Htp1State]):
     def load_filter(self, slot: str, entry: CatalogueEntry, mv_adjust: float = 0.0) -> None:
         to_load = [PEQ(idx, fc=f['freq'], q=f['q'], gain=f['gain'], filter_type_name=f['type'])
                    for idx, f in enumerate(entry.filters)]
-        self._hydrate_cache_broadcast(lambda: self.__do_it(to_load, entry.formatted_title))
+        self._hydrate_cache_broadcast(lambda: self.__do_it(to_load, entry.formatted_title, entry.author))
 
-    def __do_it(self, to_load: List['PEQ'], title: str):
+    def __do_it(self, to_load: List['PEQ'], title: str, author: str = None):
         try:
             self.__send(to_load)
             self._current_state.slot.last = title
+            self._current_state.slot.last_author = author
         except Exception as e:
             self._current_state.slot.last = 'ERROR'
+            self._current_state.slot.last_author = None
             raise e
 
     def clear_filter(self, slot: str) -> None:

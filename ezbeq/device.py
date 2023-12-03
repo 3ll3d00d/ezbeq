@@ -20,6 +20,7 @@ class SlotState(Generic[S]):
     def __init__(self, slot_id: str):
         self.__slot_id = slot_id
         self.last = 'Empty'
+        self.last_author = None
         self.active = False
 
     @property
@@ -33,15 +34,18 @@ class SlotState(Generic[S]):
             self.active = bool(state['active'])
         else:
             self.active = False
+        if 'author' in state:
+            self.last_author = state['author']
 
     def as_dict(self) -> dict:
-        return {'id': self.slot_id, 'last': self.last, 'active': self.active}
+        return {'id': self.slot_id, 'last': self.last, 'active': self.active, 'author': self.last_author}
 
     def __repr__(self):
         return f"{'*' if self.active else ''} {self.slot_id} - {self.last}"
 
     def clear(self):
         self.last = 'Empty'
+        self.last_author = None
 
 
 class DeviceState(ABC):
