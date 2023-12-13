@@ -95,7 +95,8 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
 
         def upd():
             prev = self._current_state.has_volume
-            if 'filters' in cfg:
+            has_filters = 'filters' in cfg and cfg['filters']
+            if has_filters:
                 vol_filter_name = next((k for k, v in cfg['filters'].items() if v['type'] == 'Volume'), None)
                 if vol_filter_name and 'pipeline' in cfg:
                     self._current_state.has_volume = any(f for f in cfg['pipeline']
@@ -103,10 +104,11 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
             if prev != self._current_state.has_volume:
                 logger.info(f'[{self.name}] current config has volume filter? {self._current_state.has_volume}')
 
-            if 'pipeline' in cfg:
+            if 'pipeline' in cfg and cfg['pipeline']:
                 gains = [{'id': c, 'value': 0.0} for c in self.__beq_channels]
                 mutes = [{'id': c, 'value': False} for c in self.__beq_channels]
-                for k, v in cfg.get('filters', {}).items():
+                filters = cfg['filters'] if has_filters else {}
+                for k, v in filters.items():
                     if k.startswith('BEQ_Gain_'):
                         channel = int(k[9:])
                         muted = v.get('mute', False)
@@ -525,7 +527,9 @@ def create_cfg_for_entry(entry: Optional[CatalogueEntry], base_cfg: dict, beq_ch
     from copy import deepcopy
     new_cfg = deepcopy(base_cfg)
     beq_filters = entry.filters if entry else []
-    filters = {k: v for k, v in new_cfg.get('filters', {}).items() if not k.startswith('BEQ_')}
+    new_filters = new_cfg.get('filters', None)
+    new_filters = new_filters if new_filters else {}
+    filters = {k: v for k, v in new_filters.items() if not k.startswith('BEQ_')}
     new_cfg['filters'] = filters
     filter_names = []
     gain_filter_names = {}
@@ -553,7 +557,7 @@ def create_cfg_for_entry(entry: Optional[CatalogueEntry], base_cfg: dict, beq_ch
             }
         }
         filter_names.append(name)
-    if 'pipeline' in new_cfg:
+    if 'pipeline' in new_cfg and new_cfg['pipeline']:
         pipeline = new_cfg['pipeline']
         for channel in beq_channels:
             empty_filter = {'type': 'Filter', 'channel': channel, 'names': []}
