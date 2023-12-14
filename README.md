@@ -208,10 +208,14 @@ TODO
     ip: 192.168.1.181
     channels:
     - sub1
+    autoclear: true
 ```
+
+BEQ filters are loaded into the bottom 10 slots of the specified channels only. 
 
 * ip: ip address of the HTP1
 * channels: list of channels to apply filters to (sub1, sub2 and sub3 are the standard subwoofer channels in the HTP1)
+* autoclear: if set to true, BEQ filters will be reset on power state or input change
 
 #### JRiver Media Center
 

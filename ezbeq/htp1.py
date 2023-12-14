@@ -45,6 +45,9 @@ class Htp1(PersistentDevice[Htp1State]):
         self.__channels = cfg['channels']
         self.__peq = {}
         self.__supports_shelf = True
+        self.__powered_on = False
+        self.__active_input = None
+        self.__clear_beq_on_change = cfg['autoclear']
         if not self.__channels:
             raise ValueError('No channels supplied for HTP-1')
         self.__client = Htp1Client(self.__ip, self)
@@ -85,7 +88,7 @@ class Htp1(PersistentDevice[Htp1State]):
 
     def __send(self, to_load: List['PEQ']):
         logger.info(f"Sending {len(to_load)} filters")
-        while len(to_load) < 16:
+        while len(to_load) < 10:
             peq = PEQ(len(to_load), fc=100, q=1, gain=0, filter_type_name='PeakingEQ')
             to_load.append(peq)
         ops = [peq.as_ops(c, use_shelf=self.__supports_shelf) for peq in to_load for c in self.__peq.keys()]
@@ -140,6 +143,10 @@ class Htp1(PersistentDevice[Htp1State]):
 
     def on_mso(self, mso: dict):
         logger.info(f"Received {mso}")
+
+        self.__powered_on = mso['powerIsOn']
+        self.__active_input = mso['input']
+
         version = mso['versions']['swVer']
         version = version[1:] if version[0] == 'v' or version[0] == 'V' else version
         try:
@@ -179,8 +186,31 @@ class Htp1(PersistentDevice[Htp1State]):
             else:
                 logger.info(f"Discarding filter channel {c} - {filters[c]}")
 
-    def on_msoupdate(self, msoupdate: dict):
-        logger.info(f"Received {msoupdate}")
+    def on_msoupdate(self, msoupdate: list[dict]):
+        for upd in msoupdate:
+            if upd['path'] == '/powerIsOn':
+                logger.info(f"Received {upd}")
+                self.__on_power_state(upd['value'])
+            elif upd['path'] == '/input':
+                logger.info(f"Received {upd}")
+                self.__on_active_input(upd['value'])
+            else:
+                logger.debug(f"Ignoring {upd}")
+
+    def __on_power_state(self, new_value: bool):
+        if self.__powered_on != new_value:
+            self.__powered_on = new_value
+            self.__clear_beq('power state')
+
+    def __on_active_input(self, new_value: str):
+        if self.__active_input != new_value:
+            self.__active_input = new_value
+            self.__clear_beq('active input')
+
+    def __clear_beq(self, reason: str):
+        if self.__clear_beq_on_change:
+            logger.info(f"Clearing BEQ on {reason} change")
+            self.clear_filter('HTP1')
 
 
 class Htp1Client:
