@@ -134,7 +134,7 @@ class JRiver(PersistentDevice[JRiverState]):
             logger.info(new_config_txt)
             try:
                 self.__mcws.set_dsp(zone_id, new_config_txt)
-                self._current_state.set_title(slot, entry.formatted_title, entry.author)
+                self._current_state.set_title(slot, entry.formatted_title, author=entry.author)
             except Exception as e:
                 self._current_state.slot.last = 'ERROR'
                 self._current_state.slot.last_author = None
