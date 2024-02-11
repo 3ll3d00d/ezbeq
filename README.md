@@ -33,7 +33,8 @@ Example is provided for rpi users
 
 See [examples](examples)
 
-|| Type || File ||
+| Type | File |
+| ---- | ---- |
 | J River Media Center | [ezbeq_mc.yml](examples/ezbeq_mc.yml) |
 | Minidsp 2x4HD | [ezbeq_md.yml](examples/ezbeq_md.yml) or [using multiple devices](examples/ezbeq_md2.yml) |
 | Minidsp 4x10 | [ezbeq_4x10.yml](examples/ezbeq_4x10.yml) |
