@@ -1,0 +1,9 @@
+accessLogging: false
+debugLogging: true
+devices:
+  dsp1:
+    cmdTimeout: 10
+    exe: minidsp
+    options: ''
+    type: minidsp
+port: 8080

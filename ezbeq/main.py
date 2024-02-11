@@ -129,7 +129,6 @@ def main(args=None):
             else:
                 logger.error(f'No UI available in {uiRoot}')
             self.metrics = None
-            self.icons = static.File(cfg.icon_path)
             ws_server.factory.startFactory()
             self.ws_resource = WebSocketResource(ws_server.factory)
 
@@ -156,8 +155,6 @@ def main(args=None):
                 return self.wsgi
             elif path == b'static':
                 return self.static
-            elif path == b'icons':
-                return self.icons
             elif path == b'metrics' and cfg.enable_metrics:
                 from prometheus_client.twisted import MetricsResource
                 if not self.metrics:

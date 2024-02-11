@@ -1,0 +1,15 @@
+accessLogging: false
+debugLogging: true
+devices:
+  dsp1:
+    ip: 127.0.0.17
+    port: 1710
+    content_info:
+     - BEQ_Text:
+        text.1: filters
+        text.2: title
+        text.3: overview
+        text.4: mv_adjust
+    type: qsys
+    zone: Player
+port: 8080

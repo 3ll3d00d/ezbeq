@@ -14,11 +14,8 @@ class Config:
         self._name = name
         self.logger = logging.getLogger(name + '.config')
         self.config = self.load_config()
-        self.icon_path = self.config.get('iconPath')
-        self.__hostname = self.config.get('host', self.default_hostname)
         self.__port = self.config.get('port', default_port)
         self.__enable_metrics = self.config.get('metrics', False)
-        self.__service_url = f"http://{self.hostname}:{self.port}"
         self.__beqcatalogue_url = beqcatalogue_url
         self.__catalogue_refresh_interval = self.config.get('catalogueRefreshSeconds', 300.0)
         if 'catalogueUrl' in self.config:
@@ -53,11 +50,6 @@ class Config:
         return self.__catalogue_refresh_interval
 
     @property
-    def default_hostname(self):
-        import socket
-        return socket.getfqdn()
-
-    @property
     def is_debug_logging(self):
         """
         :return: if debug logging mode is on, defaults to False.
@@ -72,25 +64,11 @@ class Config:
         return self.config.get('accessLogging', False)
 
     @property
-    def hostname(self):
-        """
-        :return: the host the device is running on, defaults to that found by a call to socket.getfqdn()
-        """
-        return self.__hostname
-
-    @property
     def port(self):
         """
         :return: the port to listen on, defaults to 8080
         """
         return self.__port
-
-    @property
-    def service_url(self):
-        """
-        :return: the address on which this service is listening.
-        """
-        return self.__service_url
 
     @property
     def ignore_retcode(self):
@@ -138,14 +116,10 @@ class Config:
         Creates a default config bundle.
         :return: the bundle.
         """
-        from pathlib import Path
         return {
-            'debug': True,
             'debugLogging': True,
             'accessLogging': False,
             'port': 8080,
-            'host': self.default_hostname,
-            'iconPath': str(Path.home()),
             'devices': {
                 'master': {
                     'type': 'minidsp',

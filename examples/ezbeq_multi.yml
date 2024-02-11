@@ -1,0 +1,36 @@
+accessLogging: false
+debugLogging: true
+devices:
+  cinema:
+    address: 127.0.0.29:63412
+    auth:
+      pass: mypass
+      user: myuser
+    block: 2
+    channels:
+    - SL
+    - SW
+    type: jriver
+    zone: Films
+  games:
+    address: 127.0.0.17:52199
+    auth:
+      pass: mypass
+      user: myuser
+    block: 2
+    channels:
+    - SW
+    type: jriver
+    zone: Player
+  proc:
+    channels:
+    - sub1
+    - sub2
+    ip: 127.0.0.1:1880
+    type: htp1
+  tactile:
+    cmdTimeout: 10
+    exe: minidsp
+    options: ''
+    type: minidsp
+port: 8080

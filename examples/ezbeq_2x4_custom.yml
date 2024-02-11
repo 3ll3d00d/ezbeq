@@ -1,0 +1,27 @@
+accessLogging: false
+debugLogging: true
+devices:
+  dsp1:
+    cmdTimeout: 10
+    exe: minidsp
+    options: ''
+    type: minidsp
+    wsDeviceId: 1
+    descriptor:
+      name: 2x4
+      fs: 96000
+      routes:
+      - name: input
+        biquads: 10
+        channels: [0]
+        slots: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+      - name: crossover
+        biquads: 4
+        channels: [0, 1, 2, 3]
+        slots: []
+        groups: [0, 1]
+      - name: output
+        biquads: 10
+        channels: [0, 1, 2, 3]
+        slots: []
+port: 8080

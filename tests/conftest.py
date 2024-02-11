@@ -258,12 +258,9 @@ class MinidspSpyConfig(Config):
 
     def load_config(self):
         vals = {
-            'debug': False,
             'debugLogging': False,
             'accessLogging': False,
             'port': 8080,
-            'host': self.default_hostname,
-            'iconPath': str(Path.home()),
             'devices': {
                 'master': {
                     'type': 'minidsp',
@@ -385,12 +382,9 @@ class CamillaDspSpyConfig(Config):
 
     def load_config(self):
         vals = {
-            'debug': False,
             'debugLogging': False,
             'accessLogging': False,
             'port': 8080,
-            'host': self.default_hostname,
-            'iconPath': str(Path.home()),
             'devices': {
                 'master': {
                     'type': 'camilladsp',

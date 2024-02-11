@@ -1,0 +1,15 @@
+accessLogging: false
+debugLogging: true
+devices:
+  dsp1:
+    address: 127.0.0.29:63412
+    auth:
+      pass: mypass
+      user: myuser
+    block: 2
+    channels:
+    - SL
+    - SW
+    type: jriver
+    zone: Player
+port: 8080

@@ -1,0 +1,11 @@
+accessLogging: false
+debugLogging: true
+devices:
+  dsp1:
+    channels:
+    - sub1
+    - sub2
+    ip: 127.0.0.1:1880
+    type: htp1
+    autoclear: true
+port: 8080

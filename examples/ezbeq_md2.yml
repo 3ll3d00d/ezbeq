@@ -1,0 +1,16 @@
+accessLogging: false
+debugLogging: false
+devices:
+  dsp1:
+    cmdTimeout: 10
+    exe: minidsp
+    options: '--tcp 127.0.0.1:5333'
+    type: minidsp
+    wsDeviceId: 0
+  dsp2:
+    cmdTimeout: 10
+    exe: minidsp
+    options: '--tcp 127.0.0.1:5334'
+    type: minidsp
+    wsDeviceId: 1
+port: 8080
