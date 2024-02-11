@@ -29,9 +29,13 @@ Example is provided for rpi users
     $ . bin/activate
     $ pip install ezbeq
 
+### Example Config Files
+
+see [examples](examples)
+
 ### Using with a Minidsp
 
-Install minidsp-rs as per the provided instructionshttps://github.com/mrene/minidsp-rs#installation
+Install minidsp-rs as per the [provided instructions](https://github.com/mrene/minidsp-rs#installation)
 
 ### Using with a Monolith HTP-1
 
