@@ -33,20 +33,19 @@ Example is provided for rpi users
 
 See [examples](examples)
 
-| Type | File |
-| ---- | ---- |
-| J River Media Center | [ezbeq_mc.yml](examples/ezbeq_mc.yml) |
-| Minidsp 2x4HD | [ezbeq_md.yml](examples/ezbeq_md.yml) or [using multiple devices](examples/ezbeq_md2.yml) |
-| Minidsp 4x10 | [ezbeq_4x10.yml](examples/ezbeq_4x10.yml) |
-| Minidsp 10x10 | [without use of XO](examples/ezbeq_10x10.yml), [with](examples/ezbeq_10x10_xo.yml) or [using a custom mapping across input, output and xo](examples/ezbeq_10x10_custom)|
-| Minidsp CDSP | [ezbeq_cdsp.yml](examples/ezbeq_cdsp.yml) |
-| Minidsp DDRC-24 | [ezbeq_ddrc24.yml](examples/ezbeq_ddrc24.yml) |
-| Minidsp DDRC-88 | [ezbeq_ddrc88.yml](examples/ezbeq_ddrc88.yml) |
-| Minidsp DDRC-88 | [ezbeq_ddrc88.yml](examples/ezbeq_ddrc88.yml) |
-| Minidsp SHD | [ezbeq_shd.yml](examples/ezbeq_shd.yml) |
-| Monolith HTP-1 | [ezbeq_htp1.yml](examples/ezbeq_htp1.yml) |
-| Q-Sys | [ezbeq_qsys.yml](examples/ezbeq_qsys.yml) |
-| Multiple, different devices | [ezbeq_multi.yml](examples/ezbeq_multi.yml) |
+| Type                        | File                                                                                                                                                                        |
+|-----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Camilla DSP                 | [ezbeq_cdsp.yml](examples/ezbeq_cdsp.yml)                                                                                                                                   |
+| J River Media Center        | [ezbeq_mc.yml](examples/ezbeq_mc.yml)                                                                                                                                       |
+| Minidsp 2x4HD               | [ezbeq_md.yml](examples/ezbeq_md.yml) or [using multiple devices](examples/ezbeq_md2.yml)                                                                                   |
+| Minidsp 4x10                | [ezbeq_4x10.yml](examples/ezbeq_4x10.yml)                                                                                                                                   |
+| Minidsp 10x10               | [without use of XO](examples/ezbeq_10x10.yml), [with](examples/ezbeq_10x10_xo.yml) or [using a custom mapping across input, output and xo](examples/ezbeq_10x10_custom.yml) |
+| Minidsp DDRC-24             | [ezbeq_ddrc24.yml](examples/ezbeq_ddrc24.yml)                                                                                                                               |
+| Minidsp DDRC-88             | [ezbeq_ddrc88.yml](examples/ezbeq_ddrc88.yml)                                                                                                                               |
+| Minidsp SHD                 | [ezbeq_shd.yml](examples/ezbeq_shd.yml)                                                                                                                                     |
+| Monolith HTP-1              | [ezbeq_htp1.yml](examples/ezbeq_htp1.yml)                                                                                                                                   |
+| Q-Sys                       | [ezbeq_qsys.yml](examples/ezbeq_qsys.yml)                                                                                                                                   |
+| Multiple, different devices | [ezbeq_multi.yml](examples/ezbeq_multi.yml)                                                                                                                                 |
 
 ### Using with a Minidsp
 
