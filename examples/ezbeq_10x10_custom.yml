@@ -10,19 +10,12 @@ devices:
       name: 10x10
       fs: 48000
       routes:
-        - side: input
-          channels: 
-          - 0
-          - 1
-          - 2
-          - 3
+        - name: input
+          channels: [ 0, 1, 2, 3 ]
+          slots: [0,1,2,3]
           biquads: 6
-        - side: output
-          channels: 
-          - 0
+        - name: output
+          channels: [0]
           biquads: 6
-          beq:
-            - 3
-            - 4
-            - 5
+          slots: [ 0, 1, 2, 3, 4, 5 ]
 port: 8080
