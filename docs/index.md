@@ -28,7 +28,7 @@ NOTE – ezbeq and minidsp-rs will be modifying the INPUT settings of the MiniDS
 - Internet connection
 
 ### JRiver Media Center:
-- Functional Jriver Media Center installation version MC28 ([https://jriver.com](https://jriver.com))
+- Functional JRiver Media Center installation version MC28 ([https://jriver.com](https://jriver.com))
 - Windows or Linux based system (Raspberry Pi) with network connectivity
 - Network connectivity from ezbeq server to Jriver installation
 - Internet connection

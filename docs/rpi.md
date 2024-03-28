@@ -7,7 +7,7 @@ ezbeq is a web interface that works in conjunction with minidsp-rs, which allows
 ezbeq and minidsp-rs run on Linux, Windows, or Mac operating systems, but this document walks through the installation process on a Raspberry Pi. The following systems are required to follow this document:
 
 - MiniDSP 2x4HD
-- Raspberry Pi (RPi) – device should be accessible on the network, and already have Raspbian installed and updated. Raspbian Buster is used for this document.
+- Raspberry Pi (rpi) – device have RaspberryPi OS installed, functioning correctly and must tbe accessible on the network via a known IP address. Make note of whether the 64 or 32bit OS has been installed.
 - TV/Monitor/AVR with HDMI input and keyboard OR SSH connection to the Raspberry Pi
 - USB cable connecting the Raspberry Pi and MiniDSP 2x4HD
 - Internet connection
@@ -22,11 +22,11 @@ NOTE – ezbeq and minidsp-rs will be modifying the INPUT settings of the MiniDS
 
 minidsp-rs is a utility, written by mrene on avsforum.com, which allows the system to communicate with the MiniDSP 2x4HD, without using the proprietary minidsp plugin. Pre-compiled binaries are available for most operating systems, and there is an available Debian package.
 
-This document is based on minidsp-rs v0.1.1.
+This document is based on minidsp-rs v0.1.9.
 
 1\. Open a shell on the RPi, or SSH to the RPi.
 
-2\. Download the latest stable version (not a "pre" release) of minidsp-rs for Arm from [here](https://github.com/mrene/minidsp-rs/releases). Use the file URL with the "wget" command below to download the file. The filename will be in the form of "minidsp_version_armhf.deb".
+2\. Download the latest stable version (not a "pre" release) of minidsp-rs for Arm from [here](https://github.com/mrene/minidsp-rs/releases). Use the file URL with the "wget" command below to download the file. If using a 32bit OS, the filename will be in the form of "minidsp_version_armhf.deb". If using a 64bit OS, the filename will be in the form of "minidsp_version_arm64.deb". 
 ``` 
 wget https://github.com/mrene/minidsp-rs/releases/download/<version>/<filename>
 ```
@@ -41,6 +41,8 @@ sudo apt install ./<filename>
 
 4\. To confirm basic functionality, type `minidsp` and press Enter.
 ![Figure 3 – Example of &quot;minidsp&quot; output](./img/rpi03.png)
+
+If the command errors and just prints `Floating point exception`, it's likely the armhf package has been installed on a 64bit OS. Download and install the arm64.deb instead.
 
 5\. If the MiniDSP 2x4HD is connected properly, similar information to Figure 3 will be displayed. Note the &quot;preset: 1&quot; in the image. That indicates that the MiniDSP 2x4HD is set to Config slot 2. The minidsp-rs application starts at 0 for the config presets, so 0 = Config slot 1, and so on.
 
@@ -169,7 +171,7 @@ Updating minidsp-rs is the same process outline in section I above.
 
 1\. Open a shell on the RPi, either locally, or via SSH.
 
-2\. Download the latest Arm .deb package from [https://github.com/mrene/minidsp-rs/releases](https://github.com/mrene/minidsp-rs/releases)
+2\. Download the latest Arm .deb package from [https://github.com/mrene/minidsp-rs/releases](https://github.com/mrene/minidsp-rs/releases). Remember to use the armhf package for 32bit OS and arm64 for a 64bit OS.
 
 Example:
 ```
