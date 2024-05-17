@@ -10,8 +10,6 @@ jobs:
   create_release:
     name: Create Release
     runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python 3.11
@@ -118,6 +116,8 @@ jobs:
   buildpyinstaller:
     name: Publish to Github
     needs: create_release
+    permissions:
+      contents: write
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -181,11 +181,7 @@ jobs:
             echo "binary_content_type=application.vnd.microsoft.portable-executable" >> $GITHUB_OUTPUT
           fi
       - name: Upload asset
-        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create_release.outputs.upload_url }}
-          asset_name: ${{ steps.create_dist.outputs.binary_name }}
-          asset_path: ${{ steps.create_dist.outputs.binary_path }}
-          asset_content_type: ${{ steps.create_dist.outputs.binary_content_type }}
+        run: |
+            gh release upload ${{ github.ref_name }} ${{ steps.create_dist.outputs.binary_path }}
