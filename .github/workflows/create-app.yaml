@@ -24,7 +24,7 @@ jobs:
           virtualenvs-in-project: true
       - name: Load cached venv
         id: cached-poetry-dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
@@ -38,17 +38,17 @@ jobs:
           source .venv/bin/activate
           pytest --cov=./ezbeq --cov-report=xml
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           files: ./coverage.xml
       - name: Generate changelog
         id: changelog
-        uses: metcalfc/changelog-generator@v4.0.1
+        uses: metcalfc/changelog-generator@v4.3.1
         with:
           myToken: ${{ secrets.GITHUB_TOKEN }}
       - name: Create release
         id: create_release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -59,6 +59,11 @@ jobs:
     name: Publish to Pypi
     needs: create_release
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/ezbeq
+    permissions:
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - name: Use node.js lts
@@ -73,7 +78,7 @@ jobs:
         run: yarn build
       - name: Get latest release version number
         id: get_version
-        uses: battila7/get-version-action@v2
+        run: echo "version-without-v=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
       - name: Set version
         run: |
           echo ${{ steps.get_version.outputs.version-without-v }} > ezbeq/VERSION
@@ -87,7 +92,7 @@ jobs:
           virtualenvs-in-project: true
       - name: Load cached venv
         id: cached-poetry-dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
@@ -100,9 +105,6 @@ jobs:
         run: poetry build
       - name: Publish a Python distribution to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
       - uses: octokit/request-action@v2.x
         with:
           route: POST /repos/{owner}/{repo}/dispatches
@@ -133,7 +135,7 @@ jobs:
         run: yarn build
       - name: Get latest release version number
         id: get_version
-        uses: battila7/get-version-action@v2
+        run: echo "version-without-v=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
       - name: Set version
         run: |
           echo ${{ steps.get_version.outputs.version-without-v }} > ezbeq/VERSION
@@ -147,7 +149,7 @@ jobs:
           virtualenvs-in-project: true
       - name: Load cached venv
         id: cached-poetry-dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
