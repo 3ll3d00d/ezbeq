@@ -14,10 +14,10 @@ jobs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python 3.9
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: 3.9
+          python-version: 3.11
       - name: Install Poetry
         uses: snok/install-poetry@v1
         with:
@@ -62,7 +62,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Use node.js lts
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: lts/*
       - name: Setup node_modules
@@ -77,10 +77,10 @@ jobs:
       - name: Set version
         run: |
           echo ${{ steps.get_version.outputs.version-without-v }} > ezbeq/VERSION
-      - name: Set up Python 3.9
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: 3.9
+          python-version: 3.11
       - name: Install Poetry
         uses: snok/install-poetry@v1
         with:
@@ -122,7 +122,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Use node.js lts
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: lts/*
       - name: Setup node_modules
@@ -137,10 +137,10 @@ jobs:
       - name: Set version
         run: |
           echo ${{ steps.get_version.outputs.version-without-v }} > ezbeq/VERSION
-      - name: Set up Python 3.9
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: 3.9
+          python-version: 3.11
       - name: Install Poetry
         uses: snok/install-poetry@v1
         with:
