@@ -8,6 +8,8 @@ The web interface is usable from phones, tablets, laptops or desktops.
 
 ezbeq and minidsp-rs run on Linux, Windows, or Mac operating systems. Basic instructions are provided for installation and setup on Raspberry Pi (running RaspberryOS/raspbian) and Windows. The RPi documentation may also be used on an x86 machine running a Debian-based linux distribution (Debian, Ubuntu, Mint, etc), with some slight tweaks.
 
+NB: Python 3.11 is the minimum version supported.
+
 The following requirements should be met before attempting an installation:
 
 ### MiniDSP:

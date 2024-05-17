@@ -10,6 +10,7 @@ from typing import List, Optional, Union
 import yaml
 from autobahn.exception import Disconnected
 from autobahn.twisted import WebSocketClientFactory, WebSocketClientProtocol
+from plumbum import ProcessExecutionError
 from twisted.internet.protocol import ReconnectingClientFactory
 
 from ezbeq.apis.ws import WsServer
@@ -616,7 +617,10 @@ class Minidsp(PersistentDevice[MinidspState]):
             logger.info(
                 f"[{self.name}] Sending {len(config_cmds)} commands to slot {slot} using {exe} {kwargs if kwargs else ''}")
             start = time.time()
-            code, stdout, stderr = exe.run(timeout=self.__cmd_timeout, **kwargs)
+            try:
+                code, stdout, stderr = exe.run(timeout=self.__cmd_timeout, **kwargs)
+            except ProcessExecutionError as e:
+                raise UnableToPatchDeviceError(f'minidsp cmd failed due to : {e.stderr}', False) from e
             end = time.time()
             logger.info(
                 f"[{self.name}] Sent {len(config_cmds)} commands to slot {slot} in {to_millis(start, end)}ms - result is {code}")

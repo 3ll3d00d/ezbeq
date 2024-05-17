@@ -121,8 +121,18 @@ class EzBeqService {
         const response = await fetch(`${API_PREFIX}/1/devices/${device}/config/${slot}/active`, {
             method: 'PUT'
         });
+        return this._parse_resp(response);
+    }
+
+    _parse_resp = async (response) => {
         if (!response.ok) {
-            throw new Error(`EzBeq.activateSlot failed, HTTP status ${response.status}`);
+            if (response.status >= 500) {
+                const j = await response.json();
+                const txt = j && 'message' in j ? j.message : response.status;
+                throw new Error(`EzBeq.activateSlot failed, review ezbeq.log for full details - ${txt}`);
+            } else {
+                throw new Error(`EzBeq.activateSlot failed, invalid request (${response.status})`);
+            }
         }
         return response.json();
     }
@@ -140,10 +150,7 @@ class EzBeqService {
                 'Accept': 'application/json'
             },
         });
-        if (!response.ok) {
-            throw new Error(`EzBeq.activateSlot failed, HTTP status ${response.status}`);
-        }
-        return response.json();
+        return this._parse_resp(response);
     }
 
     createPatchPayload = (slotId, gains, entryId = null) => {
