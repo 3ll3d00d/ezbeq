@@ -246,13 +246,13 @@ class PEQ:
     @property
     def coeffs(self) -> List[float]:
         if self.filter_type_name == 2.0:
-            from iir import LowShelf
+            from ezbeq.iir import LowShelf
             filt = LowShelf(self.fs, self.fc, self.q, self.gain)
         elif self.filter_type_name == 1.0:
-            from iir import PeakingEQ
+            from ezbeq.iir import PeakingEQ
             filt = PeakingEQ(self.fs, self.fc, self.q, self.gain)
         else:
-            from iir import HighShelf
+            from ezbeq.iir import HighShelf
             filt = HighShelf(self.fs, self.fc, self.q, self.gain)
         return filt.b + filt.a
 

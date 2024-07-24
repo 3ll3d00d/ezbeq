@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ezbeq"
-version = "2.1.0a5"
+version = "2.1.0a6"
 description = "A webapp which can send beqcatalogue filters to a DSP device"
 authors = ["3ll3d00d <mattkhan+ezbeq@gmail.com>"]
 license = "MIT"
