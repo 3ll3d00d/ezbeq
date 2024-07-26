@@ -165,7 +165,9 @@ class Qsys(PersistentDevice[QsysState]):
             }
         }
         logger.info(f"Sending to component {name} with {len(controls)} controls")
-        sock.sendall(json.dumps(jsonrpc).encode('utf-8'))
+        encoded = json.dumps(jsonrpc).encode('utf-8')
+        logger.info(encoded)
+        sock.sendall(encoded)
         sock.sendall(TERMINATOR.encode('utf-8'))
         msg = self.__recvall(sock)
         if msg:
@@ -245,16 +247,19 @@ class PEQ:
 
     @property
     def coeffs(self) -> List[float]:
-        if self.filter_type_name == 2.0:
+        if self.filter_type_name == 'LowShelf':
             from ezbeq.iir import LowShelf
             filt = LowShelf(self.fs, self.fc, self.q, self.gain)
-        elif self.filter_type_name == 1.0:
+        elif self.filter_type_name == 'PeakingEQ':
             from ezbeq.iir import PeakingEQ
             filt = PeakingEQ(self.fs, self.fc, self.q, self.gain)
-        else:
+        elif self.filter_type_name == 'HighShelf':
             from ezbeq.iir import HighShelf
             filt = HighShelf(self.fs, self.fc, self.q, self.gain)
+        else:
+            raise ValueError(f"Filter type {self.filter_type_name} not supported")
         return filt.b + filt.a
 
     def __repr__(self):
         return f"{self.filter_type_name} {self.fc} Hz {self.gain} dB {self.q}"
+
