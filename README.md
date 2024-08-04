@@ -37,7 +37,7 @@ See [examples](examples)
 |-----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Camilla DSP                 | [ezbeq_cdsp.yml](examples/ezbeq_cdsp.yml)                                                                                                                                   |
 | J River Media Center        | [ezbeq_mc.yml](examples/ezbeq_mc.yml)                                                                                                                                       |
-| Minidsp 2x4HD               | [ezbeq_md.yml](examples/ezbeq_md.yml) or [using multiple devices](examples/ezbeq_md2.yml)                                                                                   |
+| Minidsp 2x4HD               | [ezbeq_md.yml](examples/ezbeq_md.yml), [using multiple devices](examples/ezbeq_md2.yml) or [with custom slot names](examples/ezbeq_named.yml)                               |
 | Minidsp 4x10                | [ezbeq_4x10.yml](examples/ezbeq_4x10.yml)                                                                                                                                   |
 | Minidsp 10x10               | [without use of XO](examples/ezbeq_10x10.yml), [with](examples/ezbeq_10x10_xo.yml) or [using a custom mapping across input, output and xo](examples/ezbeq_10x10_custom.yml) |
 | Minidsp DDRC-24             | [ezbeq_ddrc24.yml](examples/ezbeq_ddrc24.yml)                                                                                                                               |
@@ -150,7 +150,11 @@ Using, and controlling, multiple devices independently is supported but does req
 
 For reference, a community provided example configuration guide can be found via [avs](https://www.avsforum.com/threads/ezbeq-use-and-development-discussion.3181732/page-170#post-62257128)
 
-A full list of supported models is provided below.
+##### Naming Slots
+
+By default, the slots are numbered 1-4 as per the minidsp console. 
+
+To override, extend the device configuration with the `slotNames` key. It is not necessary to list every slot, just those that require an explicit name.
 
 ##### Minidsp Variants
 

@@ -6,4 +6,7 @@ devices:
     exe: minidsp
     options: ''
     type: minidsp
+    slotNames:
+      1: Hot
+      3: Normal
 port: 8080

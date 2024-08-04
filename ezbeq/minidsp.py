@@ -38,7 +38,9 @@ class MinidspState(DeviceState):
             MinidspSlotState(c_id,
                              c_id == self.active_slot,
                              0 if not descriptor.input else len(descriptor.input.channels),
-                             0 if not descriptor.output else len(descriptor.output.channels)) for c_id in slot_ids
+                             0 if not descriptor.output else len(descriptor.output.channels),
+                             slot_name=descriptor.slot_names.get(c_id, None))
+            for c_id in slot_ids
         ]
 
     def update_master_state(self, mute: bool, gain: float):
@@ -118,13 +120,14 @@ class MinidspState(DeviceState):
 
 class MinidspSlotState(SlotState['MinidspSlotState']):
 
-    def __init__(self, slot_id: str, active: bool, input_channels: int, output_channels: int):
+    def __init__(self, slot_id: str, active: bool, input_channels: int, output_channels: int, slot_name: str = None):
         super().__init__(slot_id)
         self.__input_channels = input_channels
         self.__output_channels = output_channels
         self.gains = self.__make_vals(0.0)
         self.mutes = self.__make_vals(False)
         self.active = active
+        self.slot_name = slot_name
 
     def clear(self):
         super().clear()
@@ -177,13 +180,15 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
 
     def as_dict(self) -> dict:
         sup = super().as_dict()
+        if self.slot_name:
+            sup['name'] = self.slot_name
         return {
             **sup,
             'gains': self.gains,
             'mutes': self.mutes,
             'canActivate': True,
             'inputs': self.__input_channels,
-            'outputs': self.__output_channels
+            'outputs': self.__output_channels,
         }
 
     def __repr__(self):
@@ -256,13 +261,14 @@ class BeqFilterAllocator:
 class MinidspDescriptor:
 
     def __init__(self, name: str, fs: str, i: Optional[PeqRoutes] = None, xo: Optional[PeqRoutes] = None,
-                 o: Optional[PeqRoutes] = None, extra: List[PeqRoutes] = None):
+                 o: Optional[PeqRoutes] = None, extra: List[PeqRoutes] = None, slot_names: dict[str, str] = None):
         self.name = name
         self.fs = str(int(fs))
         self.input = i
         self.crossover = xo
         self.output = o
         self.extra = extra
+        self.slot_names = slot_names if slot_names else {}
 
     @property
     def peq_routes(self) -> List[PeqRoutes]:
@@ -280,6 +286,8 @@ class MinidspDescriptor:
             s = f"{s}, crossovers: {self.crossover}"
         if self.output:
             s = f"{s}, outputs: {self.output}"
+        if self.slot_names:
+            s = f"{s}, slot_names: {self.slot_names}"
         return s
 
 
@@ -289,17 +297,18 @@ def zero_til(count: int) -> List[int]:
 
 class Minidsp24HD(MinidspDescriptor):
 
-    def __init__(self):
+    def __init__(self, slot_names: dict[str, str] = None):
         super().__init__('2x4HD',
                          '96000',
                          i=PeqRoutes(INPUT_NAME, 10, zero_til(2), zero_til(10)),
                          xo=PeqRoutes(CROSSOVER_NAME, 4, zero_til(4), [], groups=zero_til(2)),
-                         o=PeqRoutes(OUTPUT_NAME, 10, zero_til(4), []))
+                         o=PeqRoutes(OUTPUT_NAME, 10, zero_til(4), []),
+                         slot_names=slot_names)
 
 
 class MinidspDDRC24(MinidspDescriptor):
 
-    def __init__(self):
+    def __init__(self, slot_names: dict[str, str] = None):
         super().__init__('DDRC24',
                          '48000',
                          xo=PeqRoutes(CROSSOVER_NAME, 4, zero_til(4), [], zero_til(2)),
@@ -308,7 +317,7 @@ class MinidspDDRC24(MinidspDescriptor):
 
 class MinidspDDRC88(MinidspDescriptor):
 
-    def __init__(self, sw_channels: List[int] = None):
+    def __init__(self, slot_names: dict[str, str] = None, sw_channels: List[int] = None):
         c = sw_channels if sw_channels is not None else [3]
         if any(ch for ch in c if ch < 0 or ch > 7):
             raise ValueError(f"Invalid channels {c}")
@@ -322,7 +331,7 @@ class MinidspDDRC88(MinidspDescriptor):
 
 class Minidsp410(MinidspDescriptor):
 
-    def __init__(self):
+    def __init__(self, slot_names: dict[str, str] = None):
         super().__init__('4x10',
                          '96000',
                          i=PeqRoutes(INPUT_NAME, 5, zero_til(2), zero_til(5)),
@@ -331,7 +340,7 @@ class Minidsp410(MinidspDescriptor):
 
 class Minidsp1010(MinidspDescriptor):
 
-    def __init__(self, use_xo: Union[bool, int, str]):
+    def __init__(self, use_xo: Union[bool, int, str], slot_names: dict[str, str] = None):
         if use_xo is True:
             secondary = {'xo': PeqRoutes(CROSSOVER_NAME, 4, zero_til(8), zero_til(4), groups=[0])}
         elif use_xo is False:
@@ -351,20 +360,21 @@ class Minidsp1010(MinidspDescriptor):
 
 
 def make_peq_layout(cfg: dict) -> MinidspDescriptor:
+    slot_names: dict[str, str] = {str(k): str(v) for k,v in cfg.get('slotNames', {}).items()}
     if 'device_type' in cfg:
         device_type = cfg['device_type']
         if device_type == '24HD':
-            return Minidsp24HD()
+            return Minidsp24HD(slot_names=slot_names)
         elif device_type == 'DDRC24':
-            return MinidspDDRC24()
+            return MinidspDDRC24(slot_names=slot_names)
         elif device_type == 'DDRC88':
-            return MinidspDDRC88(sw_channels=cfg.get('sw_channels', None))
+            return MinidspDDRC88(sw_channels=cfg.get('sw_channels', None), slot_names=slot_names)
         elif device_type == '4x10':
-            return Minidsp410()
+            return Minidsp410(slot_names=slot_names)
         elif device_type == '10x10':
-            return Minidsp1010(cfg.get('use_xo', False))
+            return Minidsp1010(cfg.get('use_xo', False), slot_names=slot_names)
         elif device_type == 'SHD':
-            return MinidspDDRC24()
+            return MinidspDDRC24(slot_names=slot_names)
     elif 'descriptor' in cfg:
         desc: dict = cfg['descriptor']
         named_args = ['name', 'fs', 'routes']
@@ -408,9 +418,9 @@ def make_peq_layout(cfg: dict) -> MinidspDescriptor:
                 extra.append(route)
         if extra:
             routes_by_name['extra'] = extra
-        return MinidspDescriptor(desc['name'], str(desc['fs']), **routes_by_name)
+        return MinidspDescriptor(desc['name'], str(desc['fs']), **routes_by_name, slot_names=slot_names)
     else:
-        return Minidsp24HD()
+        return Minidsp24HD(slot_names=slot_names)
 
 
 class Minidsp(PersistentDevice[MinidspState]):

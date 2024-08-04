@@ -59,7 +59,7 @@ const Slot = ({selected, slot, onSelect, isPending, onClear}) => {
         <Paper className={`${classes.paper}`}>
             <Grid container justifyContent="space-between" alignItems="center">
                 <Grid item onClick={onSelect} xs={8} className={`${classes.content}`} zeroMinWidth>
-                    <Typography component="p" variant="body2">{slot.id}: {slot.last}{last_author}</Typography>
+                    <Typography component="p" variant="body2">{slot.name ? slot.name : slot.id}: {slot.last}{last_author}</Typography>
                 </Grid>
                 <Grid item xs={4} zeroMinWidth>
                     <IconButton
