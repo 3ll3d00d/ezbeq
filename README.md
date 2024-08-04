@@ -154,7 +154,7 @@ For reference, a community provided example configuration guide can be found via
 
 By default, the slots are numbered 1-4 as per the minidsp console. 
 
-To override, extend the device configuration with the `slotNames` key. It is not necessary to list every slot, just those that require an explicit name.
+To override, extend the device configuration with the `slotNames` key as illustrated in [this example](examples/ezbeq_named.yml). It is not necessary to list every slot, just those that require an explicit name.
 
 ##### Minidsp Variants
 
