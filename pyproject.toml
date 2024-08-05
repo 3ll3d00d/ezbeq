@@ -46,7 +46,7 @@ mkdocs-material-extensions = "^1.1.1"
 optional = true
 
 [tool.poetry.group.exe.dependencies]
-pyinstaller = {version = "^5.11.0", python = ">=3.9,<3.12" }
+pyinstaller = {version = "^6.9.0", python = ">=3.9,<3.13" }
 
 [tool.poetry.scripts]
 ezbeq = 'ezbeq.main:main'
