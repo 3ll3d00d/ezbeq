@@ -141,10 +141,10 @@ jobs:
       - name: Set version
         run: |
           echo ${{ steps.get_version.outputs.version-without-v }} > ezbeq/VERSION
-      - name: Set up Python 3.11
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: 3.11
+          python-version: 3.12
       - name: Install Poetry
         uses: snok/install-poetry@v1
         with:
