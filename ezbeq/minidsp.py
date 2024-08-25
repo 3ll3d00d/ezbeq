@@ -312,7 +312,8 @@ class MinidspDDRC24(MinidspDescriptor):
         super().__init__('DDRC24',
                          '48000',
                          xo=PeqRoutes(CROSSOVER_NAME, 4, zero_til(4), [], zero_til(2)),
-                         o=PeqRoutes(OUTPUT_NAME, 10, zero_til(4), zero_til(10)))
+                         o=PeqRoutes(OUTPUT_NAME, 10, zero_til(4), zero_til(10)),
+                         slot_names=slot_names)
 
 
 class MinidspDDRC88(MinidspDescriptor):
@@ -326,7 +327,8 @@ class MinidspDDRC88(MinidspDescriptor):
                          '48000',
                          xo=PeqRoutes(CROSSOVER_NAME, 8, zero_til(8), [], zero_til(2)),
                          o=PeqRoutes(OUTPUT_NAME, 10, c, zero_til(10)),
-                         extra=[PeqRoutes(OUTPUT_NAME, 10, non_sw, []) if non_sw else None])
+                         extra=[PeqRoutes(OUTPUT_NAME, 10, non_sw, []) if non_sw else None],
+                         slot_names=slot_names)
 
 
 class Minidsp410(MinidspDescriptor):
@@ -335,7 +337,8 @@ class Minidsp410(MinidspDescriptor):
         super().__init__('4x10',
                          '96000',
                          i=PeqRoutes(INPUT_NAME, 5, zero_til(2), zero_til(5)),
-                         o=PeqRoutes(OUTPUT_NAME, 5, zero_til(8), zero_til(5)))
+                         o=PeqRoutes(OUTPUT_NAME, 5, zero_til(8), zero_til(5)),
+                         slot_names=slot_names)
 
 
 class Minidsp1010(MinidspDescriptor):
@@ -356,6 +359,7 @@ class Minidsp1010(MinidspDescriptor):
         super().__init__('10x10',
                          '48000',
                          i=PeqRoutes(INPUT_NAME, 6, zero_til(8), zero_til(6)),
+                         slot_names=slot_names,
                          **secondary)
 
 
@@ -431,7 +435,7 @@ class Minidsp(PersistentDevice[MinidspState]):
         self.__executor = ThreadPoolExecutor(max_workers=1)
         self.__cmd_timeout = cfg.get('cmdTimeout', 10)
         self.__ignore_retcode = cfg.get('ignoreRetcode', False)
-        self.__slot_change_delay: Union[bool, int] = cfg.get('slotChangeDelay', False)
+        self.__slot_change_delay: Union[bool, int, float] = cfg.get('slotChangeDelay', False)
         self.__levels_interval = 1.0 / float(cfg.get('levelsFps', 10))
         self.__runner = cfg['make_runner'](cfg['exe'], cfg.get('options', ''))
         ws_device_id = cfg.get('wsDeviceId', None)
@@ -602,7 +606,7 @@ class Minidsp(PersistentDevice[MinidspState]):
         target_channel_idx = self.__as_idx(channel) if channel else None
         return target_channel_idx, target_slot_idx
 
-    def __do_run(self, config_cmds: List[str], slot: Optional[int], slot_change_delay: Union[bool, int]):
+    def __do_run(self, config_cmds: List[str], slot: Optional[int], slot_change_delay: Union[bool, int, float]):
         if slot is not None:
             change_slot = True
             current_state = self.__read_state_from_device()
