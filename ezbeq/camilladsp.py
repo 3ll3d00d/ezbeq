@@ -366,17 +366,11 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
                 self.__config_updater.on_set_config()
             else:
                 self.__config_updater.failed('SetConfig', result)
-                self.__config_updater = None
-
-    def on_reload(self, result: str):
-        if self.__config_updater is None:
-            logger.info(f'Received response to Reload but nothing to load, ignoring {result}')
-        else:
-            if result == 'Ok':
-                self.__config_updater.on_reload()
-            else:
-                self.__config_updater.failed('Reload', result)
             self.__config_updater = None
+
+    @staticmethod
+    def on_reload(result: str):
+        logger.warning(f'Received Reload {result}')
 
     def on_get_volume(self, msg):
         if msg['result'] == 'Ok':
@@ -656,11 +650,6 @@ class UpdateConfig:
         self.__client.send(json.dumps({'SetConfigJson': json.dumps(self.__create_cfg(self.__dsp_config))}))
 
     def on_set_config(self):
-        logger.info(f'[{self.__name}] Sending Reload')
-        self.__client.send(json.dumps('Reload'))
-
-    def on_reload(self):
-        logger.info(f'[{self.__name}] Reload completed')
         self.__on_complete(True)
 
     def failed(self, stage: str, payload):

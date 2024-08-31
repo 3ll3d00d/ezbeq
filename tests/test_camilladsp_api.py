@@ -19,9 +19,11 @@ def test_mute_master(single_camilladsp_client, single_camilladsp_app, mute_op):
 
     def was_muted():
         cmds = config.spy.take_commands()
-        assert len(cmds) == 2
-        assert cmds[0] == {'SetMute': mute_op}
-        assert cmds[1] == 'GetMute'
+        assert cmds
+        assert cmds.pop(0) == {'SetMute': mute_op}
+        assert cmds
+        assert cmds.pop(0) == 'GetMute'
+        assert not cmds
 
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('was_muted').until_asserted(was_muted)
 
@@ -45,9 +47,11 @@ def test_set_volume(single_camilladsp_client, single_camilladsp_app, volume):
 
     def volume_changed():
         cmds = config.spy.take_commands()
-        assert len(cmds) == 2
-        assert cmds[0] == {'SetVolume': volume}
-        assert cmds[1] == 'GetVolume'
+        assert cmds
+        assert cmds.pop(0) == {'SetVolume': volume}
+        assert cmds
+        assert cmds.pop(0) == 'GetVolume'
+        assert not cmds
 
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('volume_changed').until_asserted(
         volume_changed)
@@ -70,13 +74,15 @@ def test_load_known_entry_and_then_clear(single_camilladsp_client, single_camill
 
     def beq_loaded():
         cmds = config.spy.take_commands()
-        assert len(cmds) == 3
-        assert cmds[0] == 'GetConfigJson'
-        assert isinstance(cmds[1], dict)
-        assert 'SetConfigJson' in cmds[1]
-        beq_is_loaded(json.loads(cmds[1]['SetConfigJson']), 0.0)
-        has_one_filter(json.loads(cmds[1]['SetConfigJson']), 0, 1)
-        assert cmds[2] == 'Reload'
+        assert cmds
+        assert cmds.pop(0) == 'GetConfigJson'
+        assert cmds
+        n = cmds.pop(0)
+        assert isinstance(n, dict)
+        assert 'SetConfigJson' in n
+        beq_is_loaded(json.loads(n['SetConfigJson']), 0.0)
+        has_one_filter(json.loads(n['SetConfigJson']), 0, 1)
+        assert not cmds
 
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_loaded').until_asserted(beq_loaded)
 
@@ -92,13 +98,15 @@ def test_load_known_entry_and_then_clear(single_camilladsp_client, single_camill
 
     def beq_unloaded():
         cmds = config.spy.take_commands()
-        assert len(cmds) == 3
-        assert cmds[0] == 'GetConfigJson'
-        assert isinstance(cmds[1], dict)
-        assert 'SetConfigJson' in cmds[1]
-        beq_is_unloaded(json.loads(cmds[1]['SetConfigJson']))
-        has_one_filter(json.loads(cmds[1]['SetConfigJson']), 0, 1)
-        assert cmds[2] == 'Reload'
+        assert cmds
+        assert cmds.pop(0) == 'GetConfigJson'
+        assert cmds
+        n = cmds.pop(0)
+        assert isinstance(n, dict)
+        assert 'SetConfigJson' in n
+        beq_is_unloaded(json.loads(n['SetConfigJson']))
+        has_one_filter(json.loads(n['SetConfigJson']), 0, 1)
+        assert not cmds
 
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_unloaded').until_asserted(
         beq_unloaded)
@@ -122,13 +130,15 @@ def test_load_known_entry_with_gain_and_then_clear(single_camilladsp_client, sin
 
     def beq_loaded():
         cmds = config.spy.take_commands()
-        assert len(cmds) == 3
-        assert cmds[0] == 'GetConfigJson'
-        assert isinstance(cmds[1], dict)
-        assert 'SetConfigJson' in cmds[1]
-        beq_is_loaded(json.loads(cmds[1]['SetConfigJson']), -1.5)
-        has_one_filter(json.loads(cmds[1]['SetConfigJson']), 0, 1)
-        assert cmds[2] == 'Reload'
+        assert cmds
+        assert cmds.pop(0) == 'GetConfigJson'
+        assert cmds
+        n = cmds.pop(0)
+        assert isinstance(n, dict)
+        assert 'SetConfigJson' in n
+        beq_is_loaded(json.loads(n['SetConfigJson']), -1.5)
+        has_one_filter(json.loads(n['SetConfigJson']), 0, 1)
+        assert not cmds
 
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_loaded').until_asserted(beq_loaded)
 
@@ -146,13 +156,15 @@ def test_load_known_entry_with_gain_and_then_clear(single_camilladsp_client, sin
 
     def beq_unloaded():
         cmds = config.spy.take_commands()
-        assert len(cmds) == 3
-        assert cmds[0] == 'GetConfigJson'
-        assert isinstance(cmds[1], dict)
-        assert 'SetConfigJson' in cmds[1]
-        beq_is_unloaded(json.loads(cmds[1]['SetConfigJson']))
-        has_one_filter(json.loads(cmds[1]['SetConfigJson']), 0, 1)
-        assert cmds[2] == 'Reload'
+        assert cmds
+        assert cmds.pop(0) == 'GetConfigJson'
+        assert cmds
+        n = cmds.pop(0)
+        assert isinstance(n, dict)
+        assert 'SetConfigJson' in n
+        beq_is_unloaded(json.loads(n['SetConfigJson']))
+        has_one_filter(json.loads(n['SetConfigJson']), 0, 1)
+        assert not cmds
 
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_unloaded').until_asserted(
         beq_unloaded)
@@ -178,13 +190,15 @@ def test_load_known_entry_then_load_gain_and_then_clear(single_camilladsp_client
 
     def beq_loaded():
         cmds = config.spy.take_commands()
-        assert len(cmds) == 3
-        assert cmds[0] == 'GetConfigJson'
-        assert isinstance(cmds[1], dict)
-        assert 'SetConfigJson' in cmds[1]
-        beq_is_loaded(json.loads(cmds[1]['SetConfigJson']), 0.0)
-        has_one_filter(json.loads(cmds[1]['SetConfigJson']), 0, 1)
-        assert cmds[2] == 'Reload'
+        assert cmds
+        assert cmds.pop(0) == 'GetConfigJson'
+        assert cmds
+        n = cmds.pop(0)
+        assert isinstance(n, dict)
+        assert 'SetConfigJson' in n
+        beq_is_loaded(json.loads(n['SetConfigJson']), 0.0)
+        has_one_filter(json.loads(n['SetConfigJson']), 0, 1)
+        assert not cmds
 
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_loaded').until_asserted(beq_loaded)
 
@@ -203,13 +217,15 @@ def test_load_known_entry_then_load_gain_and_then_clear(single_camilladsp_client
 
     def gain_changed():
         cmds = config.spy.take_commands()
-        assert len(cmds) == 3
-        assert cmds[0] == 'GetConfigJson'
-        assert isinstance(cmds[1], dict)
-        assert 'SetConfigJson' in cmds[1]
-        beq_is_loaded(json.loads(cmds[1]['SetConfigJson']), -1.5)
-        has_one_filter(json.loads(cmds[1]['SetConfigJson']), 0, 1)
-        assert cmds[2] == 'Reload'
+        assert cmds
+        assert cmds.pop(0) == 'GetConfigJson'
+        assert cmds
+        n = cmds.pop(0)
+        assert isinstance(n, dict)
+        assert 'SetConfigJson' in n
+        beq_is_loaded(json.loads(n['SetConfigJson']), -1.5)
+        has_one_filter(json.loads(n['SetConfigJson']), 0, 1)
+        assert not cmds
 
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_loaded').until_asserted(gain_changed)
 
@@ -218,12 +234,14 @@ def test_load_known_entry_then_load_gain_and_then_clear(single_camilladsp_client
 
     def beq_unloaded():
         cmds = config.spy.take_commands()
-        assert len(cmds) == 3
-        assert cmds[0] == 'GetConfigJson'
-        assert isinstance(cmds[1], dict)
-        assert 'SetConfigJson' in cmds[1]
-        beq_is_unloaded(json.loads(cmds[1]['SetConfigJson']))
-        assert cmds[2] == 'Reload'
+        assert cmds
+        assert cmds.pop(0) == 'GetConfigJson'
+        assert cmds
+        n = cmds.pop(0)
+        assert isinstance(n, dict)
+        assert 'SetConfigJson' in n
+        beq_is_unloaded(json.loads(n['SetConfigJson']))
+        assert not cmds
 
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_unloaded').until_asserted(
         beq_unloaded)
@@ -249,11 +267,13 @@ def test_input_gain_and_mute(single_camilladsp_client, single_camilladsp_app):
 
     def gain_changed():
         cmds = config.spy.take_commands()
-        assert len(cmds) == 3
-        assert cmds[0] == 'GetConfigJson'
-        assert isinstance(cmds[1], dict)
-        assert 'SetConfigJson' in cmds[1]
-        new_config = json.loads(cmds[1]['SetConfigJson'])
+        assert cmds
+        assert cmds.pop(0) == 'GetConfigJson'
+        assert cmds
+        n = cmds.pop(0)
+        assert isinstance(n, dict)
+        assert 'SetConfigJson' in n
+        new_config = json.loads(n['SetConfigJson'])
         assert next(f for f in new_config['pipeline'] if f['type'] == 'Filter' and f['channel'] == 1)['names'] == [
             "vol",
             "BEQ_Gain_1"
@@ -264,8 +284,8 @@ def test_input_gain_and_mute(single_camilladsp_client, single_camilladsp_app):
         assert new_filters['BEQ_Gain_1'] == {'parameters': {'gain': -1.5, 'inverted': False, 'mute': True},
                                              'type': 'Gain'}
         assert len(list(new_filters.keys())) == 2
-        has_one_filter(json.loads(cmds[1]['SetConfigJson']), 0, 1)
-        assert cmds[2] == 'Reload'
+        has_one_filter(json.loads(n['SetConfigJson']), 0, 1)
+        assert not cmds
 
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_loaded').until_asserted(gain_changed)
 
@@ -307,16 +327,18 @@ def test_load_known_entry_to_multiple_channels_with_gain_and_then_clear(multi_ca
 
     def beq_loaded():
         cmds = config.spy.take_commands()
-        assert len(cmds) == 3
-        assert cmds[0] == 'GetConfigJson'
-        assert isinstance(cmds[1], dict)
-        assert 'SetConfigJson' in cmds[1]
-        cfg = json.loads(cmds[1]['SetConfigJson'])
+        assert cmds
+        assert cmds.pop(0) == 'GetConfigJson'
+        assert cmds
+        n = cmds.pop(0)
+        assert isinstance(n, dict)
+        assert 'SetConfigJson' in n
+        cfg = json.loads(n['SetConfigJson'])
         beq_is_loaded(cfg, -1.5, target_channel=2, extra_filters=1)
         beq_is_loaded(cfg, -1.5, target_channel=3, extra_filters=1)
-        has_no_filter(json.loads(cmds[1]['SetConfigJson']), 0, 1)
-        has_one_filter(json.loads(cmds[1]['SetConfigJson']), 2, 3)
-        assert cmds[2] == 'Reload'
+        has_no_filter(json.loads(n['SetConfigJson']), 0, 1)
+        has_one_filter(json.loads(n['SetConfigJson']), 2, 3)
+        assert not cmds
 
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_loaded').until_asserted(beq_loaded)
 
@@ -334,15 +356,17 @@ def test_load_known_entry_to_multiple_channels_with_gain_and_then_clear(multi_ca
 
     def beq_unloaded():
         cmds = config.spy.take_commands()
-        assert len(cmds) == 3
-        assert cmds[0] == 'GetConfigJson'
-        assert isinstance(cmds[1], dict)
-        assert 'SetConfigJson' in cmds[1]
-        beq_is_unloaded(json.loads(cmds[1]['SetConfigJson']), target_channel=2)
-        beq_is_unloaded(json.loads(cmds[1]['SetConfigJson']), target_channel=3)
-        has_no_filter(json.loads(cmds[1]['SetConfigJson']), 0, 1)
-        has_one_filter(json.loads(cmds[1]['SetConfigJson']), 2, 3)
-        assert cmds[2] == 'Reload'
+        assert cmds
+        assert cmds.pop(0) == 'GetConfigJson'
+        assert cmds
+        n = cmds.pop(0)
+        assert isinstance(n, dict)
+        assert 'SetConfigJson' in n
+        beq_is_unloaded(json.loads(n['SetConfigJson']), target_channel=2)
+        beq_is_unloaded(json.loads(n['SetConfigJson']), target_channel=3)
+        has_no_filter(json.loads(n['SetConfigJson']), 0, 1)
+        has_one_filter(json.loads(n['SetConfigJson']), 2, 3)
+        assert not cmds
 
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_unloaded').until_asserted(
         beq_unloaded)
@@ -371,11 +395,14 @@ def ensure_inited(config):
         assert config.spy.inited
         cmds = config.spy.take_commands()
         assert cmds
-        assert len(cmds) == 4
-        assert cmds[0] == 'GetConfigJson'
-        assert cmds[1] == 'GetVolume'
-        assert cmds[2] == 'GetMute'
-        assert cmds[3] == 'SetUpdateInterval'
+        assert cmds.pop(0) == 'GetConfigJson'
+        assert cmds
+        assert cmds.pop(0) == 'GetVolume'
+        assert cmds
+        assert cmds.pop(0) == 'GetMute'
+        assert cmds
+        assert cmds.pop(0) == 'SetUpdateInterval'
+        assert not cmds
 
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('inited').until_asserted(inited)
     config.msg_spy.take_messages()
