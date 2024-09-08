@@ -306,6 +306,17 @@ class Minidsp24HD(MinidspDescriptor):
                          slot_names=slot_names)
 
 
+class Minidsp812CDSP(MinidspDescriptor):
+
+    def __init__(self, slot_names: dict[str, str] = None):
+        super().__init__('8x12CDSP',
+                         '192000',
+                         i=PeqRoutes(INPUT_NAME, 10, zero_til(6), zero_til(10)),
+                         xo=PeqRoutes(CROSSOVER_NAME, 4, zero_til(12), [], groups=zero_til(2)),
+                         o=PeqRoutes(OUTPUT_NAME, 10, zero_til(12), []),
+                         slot_names=slot_names)
+
+
 class MinidspDDRC24(MinidspDescriptor):
 
     def __init__(self, slot_names: dict[str, str] = None):
@@ -369,6 +380,8 @@ def make_peq_layout(cfg: dict) -> MinidspDescriptor:
         device_type = cfg['device_type']
         if device_type == '24HD':
             return Minidsp24HD(slot_names=slot_names)
+        elif device_type == '8x12CDSP':
+            return Minidsp812CDSP(slot_names=slot_names)
         elif device_type == 'DDRC24':
             return MinidspDDRC24(slot_names=slot_names)
         elif device_type == 'DDRC88':

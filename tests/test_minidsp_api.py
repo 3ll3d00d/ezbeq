@@ -2602,6 +2602,7 @@ def test_get_by_digest_404(minidsp_client, minidsp_app, endpoint):
     ('10x10', 'Minidsp1010'),
     ('10x10xo', 'Minidsp1010'),
     ('SHD', 'MinidspDDRC24'),
+    ('8x12CDSP', 'Minidsp812CDSP'),
 ])
 def test_cfg_makes_known_minidsp(dt, exp):
     cfg = {'device_type': dt}

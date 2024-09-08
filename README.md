@@ -35,7 +35,7 @@ See [examples](examples)
 
 | Type                        | File                                                                                                                                                                        |
 |-----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Camilla DSP                 | [ezbeq_cdsp.yml](examples/ezbeq_cdsp.yml)                                                                                                                                   |
+| Camilla DSP                 | [ezbeq_camilladsp.yml](examples/ezbeq_camilladsp.yml)                                                                                                                       |
 | J River Media Center        | [ezbeq_mc.yml](examples/ezbeq_mc.yml)                                                                                                                                       |
 | Minidsp 2x4HD               | [ezbeq_md.yml](examples/ezbeq_md.yml), [using multiple devices](examples/ezbeq_md2.yml) or [with custom slot names](examples/ezbeq_named.yml)                               |
 | Minidsp 4x10                | [ezbeq_4x10.yml](examples/ezbeq_4x10.yml)                                                                                                                                   |
@@ -218,6 +218,12 @@ To avoid this, use the crossover biquads to hold the remaining beq biquads. This
 set `device_type: SHD` 
 
 BEQ filters are written to all output channels.
+
+###### [8x12 CDSP](https://www.minidsp.com/products/car-audio-dsp/c-dsp-8x12)
+
+set `device_type: 8x12CDSP`
+
+BEQ filters are written to all 6 input channels.
 
 ##### Custom Layouts
 
