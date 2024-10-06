@@ -32,6 +32,7 @@ class MinidspState(DeviceState):
         self.master_volume: float = kwargs['mv'] if 'mv' in kwargs else 0.0
         self.__mute: bool = kwargs['mute'] if 'mute' in kwargs else False
         self.__active_slot: str = kwargs['active_slot'] if 'active_slot' in kwargs else ''
+        self.__serials: list = kwargs['serials'] if 'serials' in kwargs else []
         self.__descriptor = descriptor
         slot_ids = [str(i + 1) for i in range(4)]
         self.__slots: List[MinidspSlotState] = [
@@ -102,13 +103,14 @@ class MinidspState(DeviceState):
             self.activate(slot_id)
 
     def serialise(self) -> dict:
+        serials = {'serials': self.__serials} if self.__serials else {}
         return {
             'type': 'minidsp',
             'name': self.__name,
             'masterVolume': self.master_volume,
             'mute': self.__mute,
-            'slots': [s.as_dict() for s in self.__slots]
-        }
+            'slots': [s.as_dict() for s in self.__slots],
+        } | serials
 
     def merge_with(self, cached: dict) -> None:
         saved_slots_by_id = {v['id']: v for v in cached.get('slots', [])}
@@ -483,6 +485,24 @@ class Minidsp(PersistentDevice[MinidspState]):
                     'mute': status['master']['mute'],
                     'mv': status['master']['volume']
                 }
+                try:
+                    output = self.__runner['probe'](timeout=self.__cmd_timeout, **kwargs)
+                    lines = output.splitlines()
+                    serials = []
+                    if lines:
+                        # 0: Found 2x4HD with serial 911111 at ws://localhost/devices/0/ws [hw_id: 10, dsp_version: 100]
+                        import re
+                        p = re.compile(r'(?P<device_idx>\d+): Found (?P<device_type>.*) with serial (?P<serial>.*) at.*')
+                        for line in lines:
+                            m = p.match(line)
+                            if m:
+                                serials.append(m.group('serial'))
+                            else:
+                                logger.debug(f'[{name}] Unexpected output from probe : {line}')
+                    if serials:
+                        values['serials'] = serials
+                except Exception as e:
+                    logger.warning(f'[{self.name}] Unable to probe')
                 return MinidspState(self.name, self.__descriptor, **values)
             else:
                 logger.error(f"[{self.name}] No output returned from device")
