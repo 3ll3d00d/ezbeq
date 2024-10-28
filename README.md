@@ -42,6 +42,7 @@ See [examples](examples)
 | Minidsp 10x10               | [without use of XO](examples/ezbeq_10x10.yml), [with](examples/ezbeq_10x10_xo.yml) or [using a custom mapping across input, output and xo](examples/ezbeq_10x10_custom.yml) |
 | Minidsp DDRC-24             | [ezbeq_ddrc24.yml](examples/ezbeq_ddrc24.yml)                                                                                                                               |
 | Minidsp DDRC-88             | [ezbeq_ddrc88.yml](examples/ezbeq_ddrc88.yml)                                                                                                                               |
+| Minidsp HTx                 | [ezbeq_htx.yml](examples/ezbeq_htx.yml)                                                                                                                                     |
 | Minidsp SHD                 | [ezbeq_shd.yml](examples/ezbeq_shd.yml)                                                                                                                                     |
 | Monolith HTP-1              | [ezbeq_htp1.yml](examples/ezbeq_htp1.yml)                                                                                                                                   |
 | Q-Sys                       | [ezbeq_qsys.yml](examples/ezbeq_qsys.yml)                                                                                                                                   |
@@ -185,6 +186,21 @@ BEQ filters are written to all output channels.
 ###### [DDRC-88](https://www.minidsp.com/products/dirac-series/ddrc-88a)
 
 set `device_type: DDRC88`
+
+BEQ filters are written to output channel 3 by default.
+
+Add the `sw_channels` config key to override this, provide a list of channel indexes (0 based) to which the filters should be written. For example to write to the last two output channels:
+
+    device_type: DDRC88
+    sw_channels:
+    - 6
+    - 7
+
+###### [HTx](https://www.minidsp.com/products/ht-series/flex-htx)
+
+requires [minidsp-rs 0.1.12](https://github.com/mrene/minidsp-rs/releases/tag/v0.1.12) or later 
+
+set `device_type: HTx`
 
 BEQ filters are written to output channel 3 by default.
 

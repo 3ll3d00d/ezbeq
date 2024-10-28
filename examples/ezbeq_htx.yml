@@ -1,0 +1,19 @@
+accessLogging: false
+debugLogging: true
+devices:
+  dsp1:
+    cmdTimeout: 10
+    exe: minidsp
+    options: ''
+    type: minidsp
+    device_type: HTx
+    sw_channels:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+port: 8080
