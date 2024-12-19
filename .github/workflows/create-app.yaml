@@ -109,7 +109,7 @@ jobs:
         with:
           route: POST /repos/{owner}/{repo}/dispatches
           owner: 3ll3d00d
-          repo: ezbeq-jr
+          repo: ezbeq-docker
           event_type: 'trigger'
         env:
           GITHUB_TOKEN: ${{ secrets.EZBEQJR }}
