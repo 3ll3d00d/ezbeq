@@ -29,7 +29,8 @@ const Root = ({children}) => {
     )
 }
 
-const ss = new StateService(`ws://${window.location.host}/ws`);
+const wsProtocol = `ws${window.location.protocol === 'https:' ? 's' : ''}`;
+const ss = new StateService(`${wsProtocol}://${window.location.host}/ws`);
 
 const App = () => {
     const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
@@ -82,7 +83,7 @@ const App = () => {
     }, [setErr, replaceDevice, setMeta, loadEntries]);
 
     const levelsService = useMemo(() => {
-        return new LevelsService(setErr, `ws://${window.location.host}/ws`, theme);
+        return new LevelsService(setErr, `${wsProtocol}://${window.location.host}/ws`, theme);
     }, [setErr]);
 
     // load when version changes
