@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from "react";
 import ezbeq from "../../services/ezbeq";
 import {pushData} from "../../services/util";
-import {Grid} from "@mui/material";
+import {Grid2} from "@mui/material";
 import Typography from "@mui/material/Typography";
 import {makeStyles} from "@mui/styles";
 
@@ -32,18 +32,18 @@ const Footer = ({meta}) => {
     if (meta || version) {
         const sha1 = meta && meta.version ? meta.version.substring(0, 7) : '';
         return (
-            <Grid container justifyContent="space-around" className={classes.noLeft}>
-                <Grid item>
+            <Grid2 container justifyContent="space-around" className={classes.noLeft}>
+                <Grid2>
                     <Typography variant={'caption'} color={'textSecondary'}>
                         {meta ? `${formatSeconds(meta.loaded)} / ${sha1}` : ''}
                     </Typography>
-                </Grid>
-                <Grid item>
+                </Grid2>
+                <Grid2>
                     <Typography variant={'caption'} color={'textSecondary'}>
                         {version.version !== 'UNKNOWN' ? `v${version.version}` : version.version}
                     </Typography>
-                </Grid>
-            </Grid>
+                </Grid2>
+            </Grid2>
         );
     } else {
         return null;
