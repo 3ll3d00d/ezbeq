@@ -41,7 +41,8 @@ def test_set_volume(single_camilladsp3_client, single_camilladsp3_app, volume):
     ensure_inited(config)
 
     payload = {'gain': volume}
-    r = single_camilladsp3_client.put(f"/api/1/devices/master/gain", data=json.dumps(payload), content_type='application/json')
+    r = single_camilladsp3_client.put(f"/api/1/devices/master/gain", data=json.dumps(payload),
+                                      content_type='application/json')
     assert r
     assert r.status_code == 200
 
@@ -68,7 +69,8 @@ def test_load_known_entry_and_then_clear(single_camilladsp3_client, single_camil
     assert isinstance(config, CamillaDspSpyConfig)
     ensure_inited(config)
 
-    r = single_camilladsp3_client.put(f"/api/1/devices/master/filter/CamillaDSP", data=json.dumps({'entryId': '123456_0'}),
+    r = single_camilladsp3_client.put(f"/api/1/devices/master/filter/CamillaDSP",
+                                      data=json.dumps({'entryId': '123456_0'}),
                                       content_type='application/json')
     assert r.status_code == 200
 
@@ -126,7 +128,8 @@ def test_load_known_entry_with_gain_and_then_clear(single_camilladsp3_client, si
     ensure_inited(config)
 
     payload = {"slots": [{"id": "CamillaDSP", "gains": [{"id": "1", "value": -1.5}], "mutes": [], "entry": "123456_0"}]}
-    r = single_camilladsp3_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = single_camilladsp3_client.patch(f"/api/3/devices/master", data=json.dumps(payload),
+                                        content_type='application/json')
     assert r.status_code == 200
 
     def beq_loaded():
@@ -186,7 +189,8 @@ def test_load_known_entry_then_load_gain_and_then_clear(single_camilladsp3_clien
     ensure_inited(config)
 
     payload = {"slots": [{"id": "CamillaDSP", "entry": "123456_0"}]}
-    r = single_camilladsp3_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = single_camilladsp3_client.patch(f"/api/3/devices/master", data=json.dumps(payload),
+                                        content_type='application/json')
     assert r.status_code == 200
 
     def beq_loaded():
@@ -213,7 +217,8 @@ def test_load_known_entry_then_load_gain_and_then_clear(single_camilladsp3_clien
         entry_is_shown)
 
     payload = {"slots": [{"id": "CamillaDSP", "gains": [{"id": "1", "value": -1.5}]}]}
-    r = single_camilladsp3_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = single_camilladsp3_client.patch(f"/api/3/devices/master", data=json.dumps(payload),
+                                        content_type='application/json')
     assert r.status_code == 200
 
     def gain_changed():
@@ -228,7 +233,8 @@ def test_load_known_entry_then_load_gain_and_then_clear(single_camilladsp3_clien
         has_one_filter(json.loads(n['SetConfigJson']), 0, 1)
         assert not cmds
 
-    wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_loaded').until_asserted(gain_changed)
+    wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_loaded').until_asserted(
+        gain_changed)
 
     r = single_camilladsp3_client.delete(f"/api/1/devices/master/filter/CamillaDSP")
     assert r.status_code == 200
@@ -262,8 +268,10 @@ def test_input_gain_and_mute(single_camilladsp3_client, single_camilladsp3_app):
     assert isinstance(config, CamillaDspSpyConfig)
     ensure_inited(config)
 
-    payload = {"slots": [{"id": "CamillaDSP", "gains": [{"id": "1", "value": -1.5}], "mutes": [{"id": "1", "value": True}]}]}
-    r = single_camilladsp3_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
+    payload = {
+        "slots": [{"id": "CamillaDSP", "gains": [{"id": "1", "value": -1.5}], "mutes": [{"id": "1", "value": True}]}]}
+    r = single_camilladsp3_client.patch(f"/api/3/devices/master", data=json.dumps(payload),
+                                        content_type='application/json')
     assert r.status_code == 200
 
     def gain_changed():
@@ -287,7 +295,8 @@ def test_input_gain_and_mute(single_camilladsp3_client, single_camilladsp3_app):
         has_one_filter(json.loads(n['SetConfigJson']), 0, 1)
         assert not cmds
 
-    wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_loaded').until_asserted(gain_changed)
+    wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('beq_loaded').until_asserted(
+        gain_changed)
 
     def entry_is_shown():
         device_states = take_device_states(config)
@@ -304,12 +313,15 @@ def test_input_gain_and_mute_on_unsupported_channel(single_camilladsp3_client, s
     assert isinstance(config, CamillaDspSpyConfig)
     ensure_inited(config)
 
-    payload = {"slots": [{"id": "CamillaDSP", "gains": [{"id": "0", "value": -1.5}], "mutes": [{"id": "0", "value": True}]}]}
-    r = single_camilladsp3_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
+    payload = {
+        "slots": [{"id": "CamillaDSP", "gains": [{"id": "0", "value": -1.5}], "mutes": [{"id": "0", "value": True}]}]}
+    r = single_camilladsp3_client.patch(f"/api/3/devices/master", data=json.dumps(payload),
+                                        content_type='application/json')
     assert r.status_code == 500
 
 
-def test_load_known_entry_to_multiple_channels_with_gain_and_then_clear(multi_camilladsp3_client, multi_camilladsp3_app):
+def test_load_known_entry_to_multiple_channels_with_gain_and_then_clear(multi_camilladsp3_client,
+                                                                        multi_camilladsp3_app):
     config: CamillaDspSpyConfig = multi_camilladsp3_app.config['APP_CONFIG']
     assert isinstance(config, CamillaDspSpyConfig)
     ensure_inited(config)
@@ -322,7 +334,8 @@ def test_load_known_entry_to_multiple_channels_with_gain_and_then_clear(multi_ca
             "entry": "123456_0"
         }
     ]}
-    r = multi_camilladsp3_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = multi_camilladsp3_client.patch(f"/api/3/devices/master", data=json.dumps(payload),
+                                       content_type='application/json')
     assert r.status_code == 200
 
     def beq_loaded():
@@ -334,7 +347,7 @@ def test_load_known_entry_to_multiple_channels_with_gain_and_then_clear(multi_ca
         assert isinstance(n, dict)
         assert 'SetConfigJson' in n
         cfg = json.loads(n['SetConfigJson'])
-        beq_is_loaded(cfg, -1.5, target_channels=[2,3], extra_filters=1)
+        beq_is_loaded(cfg, -1.5, target_channels=[2, 3], extra_filters=1, has_vol=True)
         has_no_filter(json.loads(n['SetConfigJson']), 0, 1)
         has_one_filter(json.loads(n['SetConfigJson']), 2, 3)
         assert not cmds
@@ -406,23 +419,24 @@ def ensure_inited(config):
     config.msg_spy.take_messages()
 
 
-def beq_is_loaded(new_config, expected_gain, target_channels=None, extra_filters: int = 0):
+def beq_is_loaded(new_config, expected_gain, target_channels=None, extra_filters: int = 0, has_vol: bool = False):
     if target_channels is None:
         target_channels = [1]
     gain_filter_names = [f'BEQ_Gain_{c}' for c in target_channels]
-    assert next(f for f in new_config['pipeline'] if f['type'] == 'Filter' and f['channels'] == target_channels)['names'] == ['vol'] + gain_filter_names + [
-        "BEQ_0_abcdefghijklm",
-        "BEQ_1_abcdefghijklm",
-        "BEQ_2_abcdefghijklm",
-        "BEQ_3_abcdefghijklm",
-        "BEQ_4_abcdefghijklm"
-    ]
+    assert next(f for f in new_config['pipeline'] if f['type'] == 'Filter' and f['channels'] == target_channels)[
+               'names'] == (['vol'] if has_vol else []) + gain_filter_names + [
+               "BEQ_0_abcdefghijklm",
+               "BEQ_1_abcdefghijklm",
+               "BEQ_2_abcdefghijklm",
+               "BEQ_3_abcdefghijklm",
+               "BEQ_4_abcdefghijklm"
+           ]
     new_filters = new_config['filters']
     assert 'vol' in new_filters
     for n in gain_filter_names:
         assert n in new_filters
         assert new_filters[n] == {'parameters': {'gain': expected_gain, 'inverted': False, 'mute': False},
-                                                 'type': 'Gain'}
+                                  'type': 'Gain'}
     assert 'BEQ_0_abcdefghijklm' in new_filters
     assert new_filters['BEQ_0_abcdefghijklm'] == {
         'parameters': {'freq': 33.0, 'gain': 5.0, 'q': 0.9, 'type': 'Lowshelf'}, 'type': 'Biquad'}
