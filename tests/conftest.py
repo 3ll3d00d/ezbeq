@@ -147,31 +147,59 @@ def minidsp_shd_client(minidsp_shd_app):
 
 
 @pytest.fixture
-def single_camilladsp_app(httpserver: HTTPServer, tmp_path):
+def single_camilladsp2_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new app instance for each test."""
-    cfg = CamillaDspSpyConfig(httpserver.host, httpserver.port, tmp_path, cfg_name='single.yaml', channels=[1])
+    cfg = CamillaDspSpyConfig(httpserver.host, httpserver.port, tmp_path, cfg_name='single2.yaml', version=2, channels=[1])
     app, ws = main.create_app(cfg, cfg.msg_spy)
     yield app
 
 
 @pytest.fixture
-def single_camilladsp_client(single_camilladsp_app):
+def single_camilladsp2_client(single_camilladsp2_app):
     """A test client for the app."""
-    return single_camilladsp_app.test_client()
+    return single_camilladsp2_app.test_client()
 
 
 @pytest.fixture
-def multi_camilladsp_app(httpserver: HTTPServer, tmp_path):
+def multi_camilladsp2_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new app instance for each test."""
-    cfg = CamillaDspSpyConfig(httpserver.host, httpserver.port, tmp_path, cfg_name='multi.yaml', channels=[2,3])
+    cfg = CamillaDspSpyConfig(httpserver.host, httpserver.port, tmp_path, cfg_name='multi2.yaml', version=2, channels=[2,3])
     app, ws = main.create_app(cfg, cfg.msg_spy)
     yield app
 
 
 @pytest.fixture
-def multi_camilladsp_client(multi_camilladsp_app):
+def multi_camilladsp2_client(multi_camilladsp2_app):
     """A test client for the app."""
-    return multi_camilladsp_app.test_client()
+    return multi_camilladsp2_app.test_client()
+
+
+@pytest.fixture
+def single_camilladsp3_app(httpserver: HTTPServer, tmp_path):
+    """Create and configure a new app instance for each test."""
+    cfg = CamillaDspSpyConfig(httpserver.host, httpserver.port, tmp_path, cfg_name='single3.yaml', version=3, channels=[1])
+    app, ws = main.create_app(cfg, cfg.msg_spy)
+    yield app
+
+
+@pytest.fixture
+def single_camilladsp3_client(single_camilladsp3_app):
+    """A test client for the app."""
+    return single_camilladsp3_app.test_client()
+
+
+@pytest.fixture
+def multi_camilladsp3_app(httpserver: HTTPServer, tmp_path):
+    """Create and configure a new app instance for each test."""
+    cfg = CamillaDspSpyConfig(httpserver.host, httpserver.port, tmp_path, cfg_name='multi3.yaml', version=3, channels=[2,3])
+    app, ws = main.create_app(cfg, cfg.msg_spy)
+    yield app
+
+
+@pytest.fixture
+def multi_camilladsp3_client(multi_camilladsp3_app):
+    """A test client for the app."""
+    return multi_camilladsp3_app.test_client()
 
 
 CONFIG_PATTERN = re.compile(r'config ([0-3])')
@@ -368,8 +396,9 @@ class CamillaDspSpy:
 
 class CamillaDspSpyConfig(Config):
 
-    def __init__(self, host: str, port: int, tmp_path, cfg_name: str, channels: List[int] = None):
+    def __init__(self, host: str, port: int, tmp_path, cfg_name: str, version: int, channels: List[int] = None):
         self.channels = channels if channels else [3]
+        self.__version = version
         super().__init__('spy', beqcatalogue_url=f"http://{host}:{port}/")
         with open(os.path.join(__location__, cfg_name), 'r') as yml:
             self.spy = CamillaDspSpy(yaml.load(yml, Loader=yaml.FullLoader))
@@ -381,6 +410,7 @@ class CamillaDspSpyConfig(Config):
         return True
 
     def load_config(self):
+        v = {'version': 2} if self.__version < 3 else {}
         vals = {
             'debugLogging': False,
             'accessLogging': False,
@@ -392,7 +422,7 @@ class CamillaDspSpyConfig(Config):
                     'port': 5432,
                     'channels': self.channels,
                     'make_wsclient': self.create_ws_client
-                }
+                } | v
             }
         }
         return vals

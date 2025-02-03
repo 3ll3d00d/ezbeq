@@ -1,0 +1,11 @@
+accessLogging: false
+debugLogging: true
+devices:
+  dsp1:
+    channels:
+    - 0
+    ip: 127.0.0.1
+    port: 5432
+    type: camilladsp
+    version: 2
+port: 8080

@@ -435,6 +435,7 @@ class Catalogues:
                 count = 0
                 insert_sql = f"INSERT INTO catalogue_entry({FIELDS_STR},version,loaded_at) VALUES({', '.join(['?'] * (len(FIELDS) + 2))})"
                 start = time.time()
+                t1 = start
                 for idx, c in enumerate(ijson.items(infile, 'item', use_float=True)):
                     count = count + 1
                     entry = CatalogueEntry(f"{version}_{idx}", c)
@@ -450,8 +451,11 @@ class Catalogues:
                         years.add(entry.year)
                     values.append(entry.values + extra_vals)
                     if len(values) % 1000 == 0 and not meta_only:
+                        t2 = time.time()
+                        logger.info(f'[{self.__db} / {version}] Parsed {len(v)} (of {c}) entries in {to_millis(t1, t2)}ms')
                         insert_commit(values, count, insert_sql)
                         values = []
+                        t1 = time.time()
                 if values and not meta_only:
                     insert_commit(values, count, insert_sql)
                 if not meta_only:
@@ -829,6 +833,9 @@ def db_ops(db_name, cache_size: int = None, mmap_size: int = None):
         if mmap_size:
             logger.debug(f'mmap_size={mmap_size}')
             conn.execute(f'pragma mmap_size={mmap_size}')
+        conn.execute('pragma journal_mode = WAL;')
+        conn.execute('pragma synchronous = normal;')
+        conn.execute('pragma temp_store = memory;')
         cur = conn.cursor()
         yield cur
     except Exception as e:
