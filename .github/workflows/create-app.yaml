@@ -72,7 +72,7 @@ jobs:
           node-version: lts/*
       - name: Setup node_modules
         working-directory: ./ui
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable --immutable-cache
       - name: Build UI
         working-directory: ./ui
         run: yarn build
