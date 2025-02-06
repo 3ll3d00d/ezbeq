@@ -1,32 +1,38 @@
-[tool.poetry]
+[project]
 name = "ezbeq"
-version = "2.3.0a3"
+version = "2.3.0a4"
 description = "A webapp which can send beqcatalogue filters to a DSP device"
-authors = ["3ll3d00d <mattkhan+ezbeq@gmail.com>"]
+authors = [
+    { name = "3ll3d00d", email = "mattkhan+ezbeq@gmail.com" }
+]
 license = "MIT"
 readme = "README.md"
 homepage = "https://ezbeq.readthedocs.io/"
 repository = "https://github.com/3ll3d00d/ezbeq"
-include = [
-    "LICENSE",
-    "ezbeq/ui/**/*",
-    "ezbeq/VERSION"
+requires-python = ">=3.11, <3.14"
+dependencies = [
+    "Flask-Compress >=1.13, <2.0",
+    "PyYAML >=6.0, <7.0",
+    "plumbum >=1.8.1, <2.0",
+    "Twisted >=24.3.0, <25.0",
+    "requests >=2.30.0, <3.0",
+    "python-dateutil >=2.8.2, <3.0",
+    "autobahn[twisted] >=24.4.2, <25.0",
+    "semver >=3.0.0, <4.0",
+    "flask-restx >=1.3.0, <2.0",
+    "prometheus-client >=0.17.1, <1.0",
+    "ijson >=3.2.3, <4.0",
+    "psutil >=5.9.5, <6.0"
 ]
+[project.scripts]
+ezbeq = 'ezbeq.main:main'
 
-[tool.poetry.dependencies]
-python = "^3.11"
-Flask-Compress = "^1.13"
-PyYAML = "^6.0"
-plumbum = "^1.8.1"
-Twisted = "^24.3.0"
-requests = "^2.30.0"
-python-dateutil = "^2.8.2"
-autobahn = {extras = ["twisted"], version = "^24.4.2"}
-semver = "^3.0.0"
-flask-restx = "^1.3.0"
-prometheus-client = "^0.17.1"
-ijson = "^3.2.3"
-psutil = "^5.9.5"
+[tool.poetry]
+include = [
+    { path = "LICENSE", format = "sdist" },
+    { path = "ezbeq/ui/**/*", format = ["sdist", "wheel"] },
+    { path = "ezbeq/VERSION", format = ["sdist", "wheel"] }
+]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
@@ -46,10 +52,7 @@ mkdocs-material-extensions = "^1.1.1"
 optional = true
 
 [tool.poetry.group.exe.dependencies]
-pyinstaller = {version = "^6.9.0", python = ">=3.11,<3.14" }
-
-[tool.poetry.scripts]
-ezbeq = 'ezbeq.main:main'
+pyinstaller = { version = "^6.9.0", python = ">=3.11,<3.14" }
 
 [build-system]
 requires = ["poetry-core"]
