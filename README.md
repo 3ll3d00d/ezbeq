@@ -335,7 +335,7 @@ Note that this format does not support variable Q shelf filters.
 
 #### CamillaDSP
 
-[CamillaDSP](https://github.com/HEnquist/camilladsp) is supported via its [websocket](https://github.com/HEnquist/camilladsp/blob/master/websocket.md) api which means CamillaDSP must be started with additional options:
+[CamillaDSP v3](https://github.com/HEnquist/camilladsp) is supported via its [websocket](https://github.com/HEnquist/camilladsp/blob/master/websocket.md) api which means CamillaDSP must be started with additional options:
 
 * `-p` to specify the port
 * `-a` to specify the listen address (required if ezbeq runs on a different host to camilladsp)
@@ -350,7 +350,6 @@ Note that this format does not support variable Q shelf filters.
     - 7
     type: camilladsp
 ```
-If still using CamillaDSP v2.x add `version: 2` to the above. 
 
 * ip: the ip on which camilladsp is listening
 * port: the port on which camilladsp is listening

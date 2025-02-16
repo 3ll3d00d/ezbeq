@@ -74,7 +74,6 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         self.__catalogue = catalogue
         self.__ip: str = cfg['ip']
         self.__port: int = cfg['port']
-        self.__version: int = cfg.get('version', 3)
         self.__beq_channels: List[int] = [int(c) for c in cfg['channels']]
         self.__current_config: dict = {}
         self.__levels_interval_ms = round(1000.0 / float(cfg.get('levelsFps', 10)))
@@ -117,14 +116,9 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
                         if not math.isclose(gain, 0.0) or muted is True:
                             for f in cfg['pipeline']:
                                 if f['type'] == 'Filter' and 'BEQ_Gain' in f['names']:
-                                    if self.__version >= 3:
-                                        if f['channels'][0] in self.__beq_channels:
-                                            next(g for g in gains if g['id'] == f['channels'][0])['value'] = gain
-                                            next(g for g in mutes if g['id'] == f['channels'][0])['value'] = muted
-                                    else:
-                                        if f['channel'] in self.__beq_channels:
-                                            next(g for g in gains if g['id'] == f['channel'])['value'] = gain
-                                            next(g for g in mutes if g['id'] == f['channel'])['value'] = muted
+                                    if f['channels'][0] in self.__beq_channels:
+                                        next(g for g in gains if g['id'] == f['channels'][0])['value'] = gain
+                                        next(g for g in mutes if g['id'] == f['channels'][0])['value'] = muted
                 self._current_state.slot.gains = gains
                 self._current_state.slot.mutes = mutes
 
@@ -232,7 +226,7 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
     def __update_channel_levels(self, values: Dict[int, dict], on_complete: Callable[[bool], None]):
         if self.__config_updater is None:
             logger.info(f"Sending {len(values)} level changes")
-            self.__config_updater = UpdateGain(values, self.ws_server, self.__ws_client, on_complete, self.__version)
+            self.__config_updater = UpdateGain(values, self.ws_server, self.__ws_client, on_complete)
             self.__config_updater.send_get_config()
         else:
             raise ValueError(f'Unable to load BEQ, config update already in progress for {self.__config_updater.name}')
@@ -244,7 +238,7 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
             else:
                 logger.info(f"Clearing filters")
             self.__config_updater = LoadConfig(entry, self.__beq_channels, mv_adjust, self.ws_server, self.__ws_client,
-                                               on_complete, self.__version)
+                                               on_complete)
             self.__config_updater.send_get_config()
         else:
             raise ValueError(f'Unable to load BEQ, config update already in progress for {self.__config_updater.name}')
@@ -524,7 +518,7 @@ class CamillaDspClientFactory(WebSocketClientFactory, ReconnectingClientFactory)
 
 
 def create_cfg_for_entry(entry: Optional[CatalogueEntry], base_cfg: dict, beq_channels: List[int], mv_adjust: float,
-                         mute: bool, version: int) -> dict:
+                         mute: bool) -> dict:
     from copy import deepcopy
     new_cfg = deepcopy(base_cfg)
     beq_filters = entry.filters if entry else []
@@ -561,38 +555,21 @@ def create_cfg_for_entry(entry: Optional[CatalogueEntry], base_cfg: dict, beq_ch
 
     if 'pipeline' in new_cfg and new_cfg['pipeline']:
         pipeline = new_cfg['pipeline']
-        if version >= 3:
-            empty_filter = {'type': 'Filter', 'channels': beq_channels, 'names': []}
-            existing = None
-            for f in pipeline:
-                if f['type'] == 'Filter' and f['channels'] == beq_channels:
-                    existing = f
-            if existing is None:
-                existing = empty_filter
-                pipeline.append(existing)
-            import re
-            new_names = [n for n in existing['names'] if re.match(BEQ_FILTER_NAME_PATTERN, n) is None]
-            for channel in beq_channels:
-                if channel in gain_filter_names:
-                    new_names.append(gain_filter_names[channel])
-            new_names.extend(filter_names)
-            existing['names'] = new_names
-        else:
-            for channel in beq_channels:
-                empty_filter = {'type': 'Filter', 'channel': channel, 'names': []}
-                existing = None
-                for f in pipeline:
-                    if f['type'] == 'Filter' and f['channel'] == channel:
-                        existing = f
-                if existing is None:
-                    existing = empty_filter
-                    pipeline.append(existing)
-                import re
-                new_names = [n for n in existing['names'] if re.match(BEQ_FILTER_NAME_PATTERN, n) is None]
-                if channel in gain_filter_names:
-                    new_names.append(gain_filter_names[channel])
-                new_names.extend(filter_names)
-                existing['names'] = new_names
+        empty_filter = {'type': 'Filter', 'channels': beq_channels, 'names': []}
+        existing = None
+        for f in pipeline:
+            if f['type'] == 'Filter' and f['channels'] == beq_channels:
+                existing = f
+        if existing is None:
+            existing = empty_filter
+            pipeline.append(existing)
+        import re
+        new_names = [n for n in existing['names'] if re.match(BEQ_FILTER_NAME_PATTERN, n) is None]
+        for channel in beq_channels:
+            if channel in gain_filter_names:
+                new_names.append(gain_filter_names[channel])
+        new_names.extend(filter_names)
+        existing['names'] = new_names
     else:
         raise ValueError(f'Unable to load BEQ, dsp config has no pipeline declared')
     return new_cfg
@@ -602,7 +579,7 @@ def get_filter_type(peq):
     return 'Lowshelf' if peq['type'] == 'LowShelf' else 'Highshelf' if peq['type'] == 'HighShelf' else 'Peaking'
 
 
-def create_cfg_for_gains(values: Dict[int, dict], base_cfg: dict, version: int) -> dict:
+def create_cfg_for_gains(values: Dict[int, dict], base_cfg: dict) -> dict:
     from copy import deepcopy
     new_cfg = deepcopy(base_cfg)
     if 'filters' not in new_cfg:
@@ -628,13 +605,8 @@ def create_cfg_for_gains(values: Dict[int, dict], base_cfg: dict, version: int) 
 
         if 'pipeline' in new_cfg:
             pipeline = new_cfg['pipeline']
-            empty_filter = {'type': 'Filter', 'names': []}
-            if (version >= 3):
-                existing = next((f for f in pipeline if f['type'] == 'Filter' and f['channels'] == [ch]), None)
-                empty_filter['channels'] = [ch]
-            else:
-                existing = next((f for f in pipeline if f['type'] == 'Filter' and f['channel'] == ch), None)
-                empty_filter['channel'] = ch
+            empty_filter = {'type': 'Filter', 'names': [], 'channels':[ch]}
+            existing = next((f for f in pipeline if f['type'] == 'Filter' and f['channels'] == [ch]), None)
             if existing is None:
                 existing = empty_filter
                 pipeline.append(existing)
@@ -693,13 +665,13 @@ class UpdateConfig:
 class LoadConfig(UpdateConfig):
 
     def __init__(self, entry: Optional[CatalogueEntry], beq_channels: List[int], mv_adjust: float, ws_server: WsServer,
-                 client: CamillaDspClient, on_complete: Callable[[bool], None], version: int):
+                 client: CamillaDspClient, on_complete: Callable[[bool], None]):
         super().__init__(entry.formatted_title if entry else 'Clearing BEQ',
-                         lambda base: create_cfg_for_entry(entry, base, beq_channels, mv_adjust, False, version),
+                         lambda base: create_cfg_for_entry(entry, base, beq_channels, mv_adjust, False),
                          ws_server, client, on_complete)
 
 
 class UpdateGain(UpdateConfig):
     def __init__(self, values: Dict[int, dict], ws_server: WsServer, client: CamillaDspClient,
-                 on_complete: Callable[[bool], None], version: int):
-        super().__init__('UpdateGain', lambda base: create_cfg_for_gains(values, base, version), ws_server, client, on_complete)
+                 on_complete: Callable[[bool], None]):
+        super().__init__('UpdateGain', lambda base: create_cfg_for_gains(values, base), ws_server, client, on_complete)
