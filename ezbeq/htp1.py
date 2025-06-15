@@ -252,7 +252,10 @@ class Htp1Protocol(WebSocketClientProtocol):
                 self.factory.listener.on_mso(json.loads(msg[4:]))
             elif msg.startswith('msoupdate '):
                 logger.debug(f"Processing msoupdate {msg}")
-                self.factory.listener.on_msoupdate(json.loads(msg[10:]))
+                msoupdate = json.loads(msg[10:])
+                if isinstance(msoupdate, dict):
+                    msoupdate = [msoupdate]
+                self.factory.listener.on_msoupdate(msoupdate)
             else:
                 logger.info(f"Received unknown payload {msg}")
 
