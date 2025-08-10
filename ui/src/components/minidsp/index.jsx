@@ -1,6 +1,6 @@
 import Header from "../Header";
+import { styled } from '@mui/material/styles';
 import React, {useEffect, useState} from "react";
-import {makeStyles} from "@mui/styles";
 import {
     Button,
     Chip,
@@ -19,20 +19,37 @@ import PublishIcon from "@mui/icons-material/Publish";
 import ezbeq from "../../services/ezbeq";
 import {useLocalStorage} from "../../services/util";
 
-const useStyles = makeStyles((theme) => ({
-    formControl: {
+const PREFIX = 'Minidsp';
+
+const classes = {
+    formControl: `${PREFIX}-formControl`,
+    chips: `${PREFIX}-chips`,
+    chip: `${PREFIX}-chip`,
+    root: `${PREFIX}-root`
+};
+
+// TODO jss-to-styled codemod: The Fragment root was replaced by div. Change the tag if needed.
+const Root = styled('div')((
+    {
+        theme
+    }
+) => ({
+    [`& .${classes.formControl}`]: {
         margin: theme.spacing(1),
         minWidth: 120,
         maxWidth: 300,
     },
-    chips: {
+
+    [`& .${classes.chips}`]: {
         display: 'flex',
         flexWrap: 'wrap',
     },
-    chip: {
+
+    [`& .${classes.chip}`]: {
         margin: 2,
     },
-    root: {
+
+    [`& .${classes.root}`]: {
         '& .MuiTextField-root': {
             margin: theme.spacing(1),
         },
@@ -68,7 +85,7 @@ const SelectableSlots = ({
                              selectedNav,
                              theme
                          }) => {
-    const classes = useStyles();
+
     return (
         <FormControl variant="standard" className={classes.formControl}>
             <InputLabel id={`${name}-label`}>{name}</InputLabel>
@@ -110,7 +127,7 @@ const Minidsp = ({
                      selectedNav,
                      theme
                  }) => {
-    const classes = useStyles();
+
     const [inputs, setInputs] = useLocalStorage(`minidspInputs.${selectedDeviceName}.${selectedSlotId}`, []);
     const [outputs, setOutputs] = useLocalStorage(`minidspOutputs.${selectedDeviceName}.${selectedSlotId}`, []);
     const [commandType, setCommandType] = useLocalStorage(`minidsp.${selectedDeviceName}.commandType`, 'bq')
@@ -153,103 +170,105 @@ const Minidsp = ({
         }
     }, [setOutputs, outputChannels, outputs]);
 
-    return <>
-        <Header availableDevices={availableDevices}
-                setSelectedDeviceName={setSelectedDeviceName}
-                selectedDeviceName={selectedDeviceName}
-                selectedNav={selectedNav}
-                setSelectedNav={setSelectedNav}
-        />
-        <form className={classes.root} noValidate autoComplete="off">
-            <Grid container>
-                <Grid container justifyContent="space-evenly" alignItems="center">
-                    <Grid item>
-                        <FormControl variant="standard" className={classes.formControl}>
-                            <InputLabel id="config-label">Config</InputLabel>
-                            <Select
-                                variant="standard"
-                                labelId="config-label"
-                                id="config"
-                                value={config}
-                                onChange={e => setConfig(e.target.value)}>
-                                {[1, 2, 3, 4].map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-                            </Select>
-                        </FormControl>
+    return (
+        <Root>
+            <Header availableDevices={availableDevices}
+                    setSelectedDeviceName={setSelectedDeviceName}
+                    selectedDeviceName={selectedDeviceName}
+                    selectedNav={selectedNav}
+                    setSelectedNav={setSelectedNav}
+            />
+            <form className={classes.root} noValidate autoComplete="off">
+                <Grid container>
+                    <Grid container justifyContent="space-evenly" alignItems="center">
+                        <Grid item>
+                            <FormControl variant="standard" className={classes.formControl}>
+                                <InputLabel id="config-label">Config</InputLabel>
+                                <Select
+                                    variant="standard"
+                                    labelId="config-label"
+                                    id="config"
+                                    value={config}
+                                    onChange={e => setConfig(e.target.value)}>
+                                    {[1, 2, 3, 4].map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                        {
+                            inputChannels.length > 0
+                                ?
+                                <Grid item>
+                                    <SelectableSlots name={'Input'}
+                                                     key={'input'}
+                                                     onChange={e => setInputs(e.target.value.sort())}
+                                                     availableValues={inputChannels}
+                                                     values={inputs}
+                                                     theme={theme}/>
+                                </Grid>
+                                : null
+                        }
+                        {
+                            outputChannels.length > 0
+                                ?
+                                <Grid item>
+                                    <SelectableSlots name={'Output'}
+                                                     key={'output'}
+                                                     onChange={e => setOutputs(e.target.value.sort())}
+                                                     availableValues={outputChannels}
+                                                     values={outputs}
+                                                     theme={theme}/>
+                                </Grid>
+                                : null
+                        }
+                        <Grid item>
+                            <FormControlLabel
+                                control={<Switch checked={overwrite}
+                                                 onChange={e => setOverwrite(e.target.checked)}
+                                                 color="default"
+                                                 name="overwrite"/>}
+                                labelPlacement="top"
+                                label="Overwrite?"/>
+                        </Grid>
+                        <Grid item>
+                            <FormControl variant="standard" className={classes.formControl}>
+                                <InputLabel id="mode-label">Mode</InputLabel>
+                                <Select
+                                    variant="standard"
+                                    labelId="mode-label"
+                                    id="mode"
+                                    value={commandType}
+                                    onChange={e => setCommandType(e.target.value)}>
+                                    <MenuItem key={'bq'} value={'bq'}>Biquads</MenuItem>
+                                    <MenuItem key={'filt'} value={'filt'}>Filters</MenuItem>
+                                    <MenuItem key={'rs'} value={'rs'}>RS</MenuItem>
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                        <Grid item>
+                            <Button variant="outlined"
+                                    color="primary"
+                                    onClick={uploadTextCommands}
+                                    disabled={commands.length === 0}
+                                    startIcon={pending ? <CircularProgress size={24}/> :
+                                        <PublishIcon fontSize="small"/>}>
+                                Upload
+                            </Button>
+                        </Grid>
                     </Grid>
-                    {
-                        inputChannels.length > 0
-                            ?
-                            <Grid item>
-                                <SelectableSlots name={'Input'}
-                                                 key={'input'}
-                                                 onChange={e => setInputs(e.target.value.sort())}
-                                                 availableValues={inputChannels}
-                                                 values={inputs}
-                                                 theme={theme}/>
-                            </Grid>
-                            : null
-                    }
-                    {
-                        outputChannels.length > 0
-                            ?
-                            <Grid item>
-                                <SelectableSlots name={'Output'}
-                                                 key={'output'}
-                                                 onChange={e => setOutputs(e.target.value.sort())}
-                                                 availableValues={outputChannels}
-                                                 values={outputs}
-                                                 theme={theme}/>
-                            </Grid>
-                            : null
-                    }
-                    <Grid item>
-                        <FormControlLabel
-                            control={<Switch checked={overwrite}
-                                             onChange={e => setOverwrite(e.target.checked)}
-                                             color="default"
-                                             name="overwrite"/>}
-                            labelPlacement="top"
-                            label="Overwrite?"/>
-                    </Grid>
-                    <Grid item>
-                        <FormControl variant="standard" className={classes.formControl}>
-                            <InputLabel id="mode-label">Mode</InputLabel>
-                            <Select
-                                variant="standard"
-                                labelId="mode-label"
-                                id="mode"
-                                value={commandType}
-                                onChange={e => setCommandType(e.target.value)}>
-                                <MenuItem key={'bq'} value={'bq'}>Biquads</MenuItem>
-                                <MenuItem key={'filt'} value={'filt'}>Filters</MenuItem>
-                                <MenuItem key={'rs'} value={'rs'}>RS</MenuItem>
-                            </Select>
-                        </FormControl>
-                    </Grid>
-                    <Grid item>
-                        <Button variant="outlined"
-                                color="primary"
-                                onClick={uploadTextCommands}
-                                disabled={commands.length === 0}
-                                startIcon={pending ? <CircularProgress size={24}/> :
-                                    <PublishIcon fontSize="small"/>}>
-                            Upload
-                        </Button>
+                    <Grid container item>
+                        <TextField id="commands"
+                                   label={commandType === 'bq' ? 'Biquads' : commandType === 'filt' ? 'Filters' : 'Minidsp RS'}
+                                   multiline
+                                   rows={26}
+                                   fullWidth
+                                   value={commands}
+                                   onChange={e => setCommands(e.target.value)}
+                                   variant="outlined"/>
                     </Grid>
                 </Grid>
-                <Grid container item>
-                    <TextField id="commands"
-                               label={commandType === 'bq' ? 'Biquads' : commandType === 'filt' ? 'Filters' : 'Minidsp RS'}
-                               multiline
-                               rows={26}
-                               fullWidth
-                               value={commands}
-                               onChange={e => setCommands(e.target.value)}
-                               variant="outlined"/>
-                </Grid>
-            </Grid>
-        </form>
-    </>;
+            </form>
+        </Root>
+    );
 }
 
 export default Minidsp;

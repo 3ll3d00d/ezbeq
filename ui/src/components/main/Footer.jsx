@@ -1,18 +1,27 @@
 import React, {useEffect, useState} from "react";
+import { styled } from '@mui/material/styles';
 import ezbeq from "../../services/ezbeq";
 import {pushData} from "../../services/util";
-import {Grid2} from "@mui/material";
+import Grid from "@mui/material/Grid";
 import Typography from "@mui/material/Typography";
-import {makeStyles} from "@mui/styles";
+const PREFIX = 'Footer';
 
-const useStyles = makeStyles((theme) => ({
-    noLeft: {
+const classes = {
+    noLeft: `${PREFIX}-noLeft`
+};
+
+const StyledGrid = styled(Grid)((
+    {
+        theme
+    }
+) => ({
+    [`&.${classes.noLeft}`]: {
         marginLeft: '0px'
     }
 }));
 
 const Footer = ({meta}) => {
-    const classes = useStyles();
+
     const [version, setVersion] = useState({});
 
     const padZero = n => n.toString().padStart(2, '0');
@@ -32,18 +41,18 @@ const Footer = ({meta}) => {
     if (meta || version) {
         const sha1 = meta && meta.version ? meta.version.substring(0, 7) : '';
         return (
-            <Grid2 container justifyContent="space-around" className={classes.noLeft}>
-                <Grid2>
+            <StyledGrid container justifyContent="space-around" className={classes.noLeft}>
+                <Grid>
                     <Typography variant={'caption'} color={'textSecondary'}>
                         {meta ? `${formatSeconds(meta.loaded)} / ${sha1}` : ''}
                     </Typography>
-                </Grid2>
-                <Grid2>
+                </Grid>
+                <Grid>
                     <Typography variant={'caption'} color={'textSecondary'}>
                         {version.version !== 'UNKNOWN' ? `v${version.version}` : version.version}
                     </Typography>
-                </Grid2>
-            </Grid2>
+                </Grid>
+            </StyledGrid>
         );
     } else {
         return null;

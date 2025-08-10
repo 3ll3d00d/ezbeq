@@ -1,4 +1,4 @@
-import {makeStyles} from "@mui/styles";
+import { styled } from '@mui/material/styles';
 import React, {useCallback, useEffect, useState} from "react";
 import ezbeq from "../../services/ezbeq";
 import {CircularProgress, Grid, IconButton, Paper} from "@mui/material";
@@ -7,38 +7,54 @@ import ClearIcon from "@mui/icons-material/Clear";
 import Typography from "@mui/material/Typography";
 import Gain from "./Gain";
 
-const useStyles = makeStyles((theme) => ({
-    root: {
+const PREFIX = 'Slots';
+
+const classes = {
+    root: `${PREFIX}-root`,
+    container: `${PREFIX}-container`,
+    fullWidth: `${PREFIX}-fullWidth`
+};
+
+const OuterGrid = styled(Grid)((
+    {
+        theme
+    }
+) => ({
+    [`& .${classes.root}`]: {
         display: 'flex',
         width: '100%',
     },
-    container: {
+
+    [`& .${classes.container}`]: {
         paddingLeft: 4,
         paddingRight: 4
     },
-    fullWidth: {
+
+    [`& .${classes.fullWidth}`]: {
         marginRight: 0
     }
 }));
 
-const deviceStyles = makeStyles(theme => ({
-    paper: props => ({
-        margin: `${theme.spacing(0.5)} auto`,
-        padding: theme.spacing(0.5),
-        flexGrow: 1,
-        backgroundColor: props.selected ? theme.palette.action.selected : theme.palette.background.default,
-        display: 'flex'
-    }),
-    content: () => ({
-        padding: 4,
-        paddingLeft: 8,
-        '&:last-child': {
-            paddingBottom: 4,
-        },
-    }),
-    right: {
-        float: 'right'
+const StyledPaper = styled(Paper, {
+    shouldForwardProp: (props) => props !== 'slotIsSelected'
+})(({ theme, slotIsSelected }) => ({
+    margin: `${theme.spacing(0.5)} auto`,
+    padding: theme.spacing(0.5),
+    flexGrow: 1,
+    backgroundColor: slotIsSelected ? theme.palette.action.selected : theme.palette.background.default,
+    display: 'flex'
+}));
+
+const ContentGrid = styled(Grid)(({ theme }) => ({
+    padding: 4,
+    paddingLeft: 8,
+    '&:last-child': {
+        paddingBottom: 4,
     }
+}));
+
+const RightIconButton = styled(IconButton)(({ theme }) => ({
+    float: 'right'
 }));
 
 const getCurrentState = (active, label, slotId) => {
@@ -53,16 +69,15 @@ const defaultGain = {
 };
 
 const Slot = ({selected, slot, onSelect, isPending, onClear}) => {
-    const classes = deviceStyles({selected});
     const last_author = slot.author ? ` (${slot.author})` : '';
     return (
-        <Paper className={`${classes.paper}`}>
-            <Grid container justifyContent="space-between" alignItems="center">
-                <Grid item onClick={onSelect} xs={8} className={`${classes.content}`} zeroMinWidth>
+        <StyledPaper slotIsSelected={selected}>
+            <OuterGrid container justifyContent="space-between" alignItems="center">
+                <ContentGrid item onClick={onSelect} xs={8} className={`${classes.content}`} zeroMinWidth>
                     <Typography component="p" variant="body2">{slot.name ? slot.name : slot.id}: {slot.last}{last_author}</Typography>
-                </Grid>
+                </ContentGrid>
                 <Grid item xs={4} zeroMinWidth>
-                    <IconButton
+                    <RightIconButton
                         onClick={onClear}
                         disabled={isPending}
                         className={classes.right}
@@ -72,15 +87,15 @@ const Slot = ({selected, slot, onSelect, isPending, onClear}) => {
                                 ? <CircularProgress size={32}/>
                                 : <ClearIcon fontSize="large"/>
                         }
-                    </IconButton>
+                    </RightIconButton>
                 </Grid>
-            </Grid>
-        </Paper>
+            </OuterGrid>
+        </StyledPaper>
     );
 };
 
 const Slots = ({selectedDevice, selectedSlotId, useWide, setDevice, setUserDriven, setError}) => {
-    const classes = useStyles({selected: false});
+
     const [pending, setPending] = useState([]);
     const [currentGains, setCurrentGains] = useState(defaultGain);
     const [deviceGains, setDeviceGains] = useState({});

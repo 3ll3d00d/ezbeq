@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react';
+import { styled } from '@mui/material/styles';
 import clsx from 'clsx';
-import {makeStyles, withStyles} from '@mui/styles';
 import {
     Button,
     CircularProgress,
@@ -14,36 +14,49 @@ import PublishIcon from '@mui/icons-material/Publish';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 
-const useStyles = makeStyles((theme) => ({
-    padTop: {
+const PREFIX = 'Gain';
+
+const classes = {
+    root: `${PREFIX}-root`,
+    padTop: `${PREFIX}-padTop`,
+    withoutLabel: `${PREFIX}-withoutLabel`,
+    sized: `${PREFIX}-sized`,
+    zeroPad: `${PREFIX}-zeroPad`,
+    tightPad: `${PREFIX}-tightPad`
+};
+
+const Root = styled('div/')((
+    {
+        theme
+    }
+) => ({
+    [`& .${classes.padTop}`]: {
         paddingTop: theme.spacing(1),
         width: '100%'
     },
-    withoutLabel: {
+
+    [`& .${classes.withoutLabel}`]: {
         marginTop: theme.spacing(1),
     },
-    sized: {
+
+    [`& .${classes.sized}`]: {
         margin: theme.spacing(0.5),
         width: '22.5%'
     },
-    zeroPad: {
+
+    [`& .${classes.zeroPad}`]: {
         padding: 0
     },
-    tightPad: {
+
+    [`& .${classes.tightPad}`]: {
         paddingRight: 0
     }
 }));
 
-const TightTextField = withStyles({
-    root: {
-        "& .MuiOutlinedInput-adornedEnd": {
-            paddingRight: '4px'
-        }
-    }
-})(TextField);
+const TightTextField = TextField;
 
 const GainInput = ({fieldName, helpText, minGain, maxGain, step, dp, savedValues, values, setMV, setMute}) => {
-    const classes = useStyles();
+
     const decimalSeparator = (1.1).toLocaleString().substring(1, 2);
     const oneNum = '^[0-9]$';
     const sepMatcher = decimalSeparator === '.' ? /\./g : new RegExp(decimalSeparator, 'g');
@@ -97,40 +110,44 @@ const GainInput = ({fieldName, helpText, minGain, maxGain, step, dp, savedValues
         }
     };
     return (
-        <TightTextField className={clsx(classes.sized, classes.withoutLabel, classes.tightPad)}
-                        variant={'outlined'}
-                        id={fieldName}
-                        value={values.mv}
-                        onChange={e => interpretMV(e.target.value)}
-                        aria-describedby={`${fieldName}-helper-text`}
-                        InputProps={{
-                            endAdornment: (
-                                <InputAdornment position="end">
-                                    <IconButton
-                                        aria-label="mute channel"
-                                        onClick={e => setMute(!values.mute)}
-                                        className={classes.zeroPad}
-                                        color={delta ? 'secondary' : 'default'}
-                                        size="large">
-                                        {values.mute ? <VolumeOffIcon fontSize="small"/> :
-                                            <VolumeUpIcon fontSize="small"/>}
-                                    </IconButton>
-                                </InputAdornment>
-                            )
-                        }}
-                        inputProps={{
-                            'aria-label': fieldName,
-                            pattern: '',
-                            inputMode: 'numeric'
-                        }}
-                        margin={'dense'}
-                        size={'small'}
-                        label={helpText}/>
+        <TightTextField
+            className={clsx(classes.sized, classes.withoutLabel, classes.tightPad)}
+            variant={'outlined'}
+            id={fieldName}
+            value={values.mv}
+            onChange={e => interpretMV(e.target.value)}
+            aria-describedby={`${fieldName}-helper-text`}
+            InputProps={{
+                endAdornment: (
+                    <InputAdornment position="end">
+                        <IconButton
+                            aria-label="mute channel"
+                            onClick={e => setMute(!values.mute)}
+                            className={classes.zeroPad}
+                            color={delta ? 'secondary' : 'default'}
+                            size="large">
+                            {values.mute ? <VolumeOffIcon fontSize="small"/> :
+                                <VolumeUpIcon fontSize="small"/>}
+                        </IconButton>
+                    </InputAdornment>
+                )
+            }}
+            inputProps={{
+                'aria-label': fieldName,
+                pattern: '',
+                inputMode: 'numeric'
+            }}
+            margin={'dense'}
+            size={'small'}
+            label={helpText}
+            classes={{
+                root: classes.root
+            }} />
     );
 };
 
 const Gain = ({selectedSlotId, deviceGains, gains, updateGain, sendGains, isActive}) => {
-    const classes = useStyles();
+
     const [valid, setValid] = useState(true);
     useEffect(() => {
         setValid(isNaN(gains.master_mv) || gains.gains.some(g => isNaN(g.value)));
