@@ -324,7 +324,7 @@ Two fields have special treatment:
 * filters: will be set in a format that can be linked to a IIR Custom Filter and feeds it with the required biquad coefficients.
 * images: there can be a variable number of images so each individual image can be specified in a separate field
 
-The alternative approache uses a [Parametric Equaliser](https://q-syshelp.qsc.com/Content/Schematic_Library/equalizer_parametric.htm) component which should be configured with:
+The alternative approach uses a [Parametric Equaliser](https://q-syshelp.qsc.com/Content/Schematic_Library/equalizer_parametric.htm) component which should be configured with:
 
 * at least 10 bands
 * q factor

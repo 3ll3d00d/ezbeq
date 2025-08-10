@@ -1,6 +1,6 @@
 [project]
 name = "ezbeq"
-version = "2.3.0a5"
+version = "2.3.0"
 description = "A webapp which can send beqcatalogue filters to a DSP device"
 authors = [
     { name = "3ll3d00d", email = "mattkhan+ezbeq@gmail.com" }

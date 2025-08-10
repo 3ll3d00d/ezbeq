@@ -129,7 +129,7 @@ class Qsys(PersistentDevice[QsysState]):
                         if v == 'filters':
                             val = json.dumps([coeff for p in peqs for coeff in p.coeffs])
                         elif isinstance(entry, CatalogueEntry):
-                            m = re.match(r'(.*)\[(\d+)\]', v)
+                            m = re.match(r'(.*)\[(\d+)]', v)
                             if m:
                                 val = getattr(entry, m.group(1))
                             else:
@@ -148,7 +148,7 @@ class Qsys(PersistentDevice[QsysState]):
                             else:
                                 val = str(val)
                         else:
-                            val = ''
+                            val = '0.0' if v == 'mv_adjust' else ''
                         text_controls.append({'Name': k, 'Value': val})
                     self.__send_component(component_name, text_controls, sock)
         finally:
