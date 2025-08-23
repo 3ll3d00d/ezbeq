@@ -100,7 +100,7 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, selec
     // console.debug(`Grid Height: ${gridHeight}`);
     const authors = new Set(entries.map(e => e.author));
     const grid =
-        <Grid item style={{
+        <Grid style={{
             height: `${gridHeight}px`,
             width: '100%'
         }}>
@@ -109,7 +109,7 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, selec
                               pageSize={50}
                               density={'compact'}
                               initialState={{sorting: {sortModel: [{field: 'sortTitle', sort: 'asc'}]}}}
-                              onRowSelectionModelChange={e => setSelectedEntryId(e[0])}
+                              onRowSelectionModelChange={e => setSelectedEntryId(e.ids.values().next().value) }
                               columnVisibilityModel={{sortTitle: false, edition: useWide, author: authors.size > 1}}
                               sx={{p: 0, '& .avatar': { paddingLeft: '0px', paddingRight: '0px' }}}
                               disableColumnMenu={true}

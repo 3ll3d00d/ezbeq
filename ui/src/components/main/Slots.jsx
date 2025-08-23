@@ -73,10 +73,10 @@ const Slot = ({selected, slot, onSelect, isPending, onClear}) => {
     return (
         <StyledPaper slotIsSelected={selected}>
             <OuterGrid container justifyContent="space-between" alignItems="center">
-                <ContentGrid item onClick={onSelect} xs={8} className={`${classes.content}`} zeroMinWidth>
+                <ContentGrid onClick={onSelect} size={{ xs: 8 }} className={`${classes.content}`}>
                     <Typography component="p" variant="body2">{slot.name ? slot.name : slot.id}: {slot.last}{last_author}</Typography>
                 </ContentGrid>
-                <Grid item xs={4} zeroMinWidth>
+                <Grid size={{ xs: 4 }}>
                     <RightIconButton
                         onClick={onClear}
                         disabled={isPending}
@@ -192,7 +192,7 @@ const Slots = ({selectedDevice, selectedSlotId, useWide, setDevice, setUserDrive
     const devices = rows.map((r, i1) =>
         <Grid container key={i1} className={classes.root}>
             {r.map((d, i2) =>
-                <Grid key={i2} container item xs={r.length === 1 ? 12 : 6} className={classes.container}>
+                <Grid key={i2} container size={{ xs: r.length === 1 ? 12 : 6 }} className={classes.container}>
                     <Slot selected={d.id === selectedSlotId}
                           slot={d}
                           onSelect={() => activateSlot(d.id)}
