@@ -407,5 +407,32 @@ Aug 18 21:58:36 swoop systemd[1]: Started ezbeq.
 
 3) reboot and repeat step 2 to verify the recorder has automatically started
 
+## Verifying MiniDSP Response
 
+As noted in the [setup guide](https://ezbeq.readthedocs.io/en/latest/#suggested-interaction-of-ezbeq-and-official-minidsp-plugin), minidsp devices do provide any mechanism to read the currently loaded DSP configuration. This means it is impossible to see exactly how the DSP is configured, it's only possible to measure the resulting response. 
 
+From an ezbeq perspective, there are 2 ways to do this
+
+### Quick & Crude
+
+* Clear filters
+* Open the levels tab
+* Start playback of a scene that is known to have content boosted by the beq filter (use the [beqcatalogue](https://beqcatalogue.readthedocs.io/) heatmap to find one)
+* Make note of the displayed levels
+* Load the filter
+* Restart playback of the same scene
+* Compare the reported levels 
+
+The measured output level should be increased with the filter in place.
+
+### Slower but Accurate
+
+* Clear filters
+* Switch to USB input
+* Connect the minidsp dsp to a PC running [REW](https://www.roomeqwizard.com/), configure REW to use the minidsp as both input and output device
+* Measure a full bandwidth (2-20000 Hz) sweep (call this A)
+* Load a filter (switch connection to the ezbeq host if necessary)
+* Measure a full bandwidth (2-20000 Hz) sweep (call this B)
+* Use the [trace arithmetic](https://www.roomeqwizard.com/betahelp/help_en-GB/html/arithmetic.html) `A / B` function (call the result C), the result should look like the inverse of the BEQ filter (i.e. it will go into negative values, it shows the supposed rolloff in the original source that is to be corrected by the BEQ filter)
+* With C selected, open the EQ window, select your minidsp device as the dsp type and manually input the individual filters in the loaded BEQ
+* The predicted response should now be a flat line (i.e. the beq filter has "corrected" this back to flat)
