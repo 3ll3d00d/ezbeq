@@ -409,7 +409,7 @@ Aug 18 21:58:36 swoop systemd[1]: Started ezbeq.
 
 ## Verifying MiniDSP Response
 
-As noted in the [setup guide](https://ezbeq.readthedocs.io/en/latest/#suggested-interaction-of-ezbeq-and-official-minidsp-plugin), minidsp devices do provide any mechanism to read the currently loaded DSP configuration. This means it is impossible to see exactly how the DSP is configured, it's only possible to measure the resulting response. 
+As noted in the [setup guide](https://ezbeq.readthedocs.io/en/latest/#suggested-interaction-of-ezbeq-and-official-minidsp-plugin), minidsp devices do not provide any mechanism to read the currently loaded DSP configuration. This means it is impossible to see exactly how the DSP is configured, it's only possible to measure the resulting response. 
 
 From an ezbeq perspective, there are 2 ways to do this
 
