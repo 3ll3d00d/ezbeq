@@ -154,7 +154,7 @@ const MainView = ({
                             <Grid container>
                                 {footer}
                             </Grid>
-                        </Grid>r
+                        </Grid>
                         <Grid size={{ xs: 6, md: 6 }}>
                             {entry}
                         </Grid>

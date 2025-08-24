@@ -81,8 +81,6 @@ const SelectableSlots = ({
                              values,
                              availableValues,
                              onChange,
-                             setSelectedNav,
-                             selectedNav,
                              theme
                          }) => {
 
@@ -180,8 +178,8 @@ const Minidsp = ({
             />
             <form className={classes.root} noValidate autoComplete="off">
                 <Grid container>
-                    <Grid container justifyContent="space-evenly" alignItems="center">
-                        <Grid item>
+                    <Grid container sx={{ flexGrow: 1 }} justifyContent="space-evenly" alignItems="center">
+                        <Grid>
                             <FormControl variant="standard" className={classes.formControl}>
                                 <InputLabel id="config-label">Config</InputLabel>
                                 <Select
@@ -197,7 +195,7 @@ const Minidsp = ({
                         {
                             inputChannels.length > 0
                                 ?
-                                <Grid item>
+                                <Grid>
                                     <SelectableSlots name={'Input'}
                                                      key={'input'}
                                                      onChange={e => setInputs(e.target.value.sort())}
@@ -210,7 +208,7 @@ const Minidsp = ({
                         {
                             outputChannels.length > 0
                                 ?
-                                <Grid item>
+                                <Grid>
                                     <SelectableSlots name={'Output'}
                                                      key={'output'}
                                                      onChange={e => setOutputs(e.target.value.sort())}
@@ -220,7 +218,7 @@ const Minidsp = ({
                                 </Grid>
                                 : null
                         }
-                        <Grid item>
+                        <Grid>
                             <FormControlLabel
                                 control={<Switch checked={overwrite}
                                                  onChange={e => setOverwrite(e.target.checked)}
@@ -229,7 +227,7 @@ const Minidsp = ({
                                 labelPlacement="top"
                                 label="Overwrite?"/>
                         </Grid>
-                        <Grid item>
+                        <Grid>
                             <FormControl variant="standard" className={classes.formControl}>
                                 <InputLabel id="mode-label">Mode</InputLabel>
                                 <Select
@@ -244,7 +242,7 @@ const Minidsp = ({
                                 </Select>
                             </FormControl>
                         </Grid>
-                        <Grid item>
+                        <Grid>
                             <Button variant="outlined"
                                     color="primary"
                                     onClick={uploadTextCommands}
@@ -255,7 +253,7 @@ const Minidsp = ({
                             </Button>
                         </Grid>
                     </Grid>
-                    <Grid container item>
+                    <Grid container sx={{ flexGrow: 1 }} >
                         <TextField id="commands"
                                    label={commandType === 'bq' ? 'Biquads' : commandType === 'filt' ? 'Filters' : 'Minidsp RS'}
                                    multiline
