@@ -13,7 +13,7 @@ from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueProvider, CatalogueEntry
 from ezbeq.device import SlotState, DeviceState, PersistentDevice
 
-BEQ_FILTER_NAME_PATTERN = r'^BEQ_(Gain_\d+|\d+_[a-zA-Z0-9]+)$'
+BEQ_FILTER_NAME_PATTERN = r'^BEQ_(Gain_\d+|\d+(?:_([a-zA-Z0-9]+))?)$'
 
 SLOT_ID = 'CamillaDSP'
 
@@ -528,12 +528,14 @@ def create_cfg_for_entry(entry: Optional[CatalogueEntry], base_cfg: dict, beq_ch
     new_cfg['filters'] = filters
     filter_names = []
     gain_filter_names = {}
-    if entry or not math.isclose(mv_adjust, 0.0) or mute is True:
+    needs_gain_filter: bool = not (math.isclose(mv_adjust, 0.0) and mute is False)
+    if needs_gain_filter:
         for c in beq_channels:
             name = f'BEQ_Gain_{c}'
             gain_filter_names[c] = name
             filters[name] = {
                 'type': 'Gain',
+                'description': 'ezbeq specified gain',
                 'parameters': {
                     'gain': mv_adjust,
                     'inverted': False,
@@ -541,8 +543,9 @@ def create_cfg_for_entry(entry: Optional[CatalogueEntry], base_cfg: dict, beq_ch
                 }
             }
     for i, peq in enumerate(beq_filters):
-        name = f'BEQ_{i}_{entry.digest}'
+        name = f'BEQ_{i}'
         filters[name] = {
+            'description': f'ezbeq filter {entry.digest} - {entry.title}',
             'type': 'Biquad',
             'parameters': {
                 'type': get_filter_type(peq),
@@ -590,6 +593,7 @@ def create_cfg_for_gains(values: Dict[int, dict], base_cfg: dict) -> dict:
         if gain_filter is None:
             gain_filter = {
                 'type': 'Gain',
+                'description': 'ezbeq specified gain',
                 'parameters': {
                     'gain': v.get('gain', 0.0),
                     'inverted': False,
