@@ -1,6 +1,7 @@
 import json
 
 import pytest
+import math
 from busypie import wait, SECOND, MILLISECOND
 
 from conftest import CamillaDspSpyConfig
@@ -290,7 +291,8 @@ def test_input_gain_and_mute(single_camilladsp3_client, single_camilladsp3_app):
         assert 'vol' in new_filters
         assert 'BEQ_Gain_1' in new_filters
         assert new_filters['BEQ_Gain_1'] == {'parameters': {'gain': -1.5, 'inverted': False, 'mute': True},
-                                             'type': 'Gain'}
+                                             'type': 'Gain',
+                                             'description': 'ezbeq specified gain'}
         assert len(list(new_filters.keys())) == 2
         has_one_filter(json.loads(n['SetConfigJson']), 0, 1)
         assert not cmds
@@ -422,37 +424,43 @@ def ensure_inited(config):
 def beq_is_loaded(new_config, expected_gain, target_channels=None, extra_filters: int = 0, has_vol: bool = False):
     if target_channels is None:
         target_channels = [1]
-    gain_filter_names = [f'BEQ_Gain_{c}' for c in target_channels]
+    gain_filter_names = [f'BEQ_Gain_{c}' for c in target_channels]  if has_vol or not math.isclose(expected_gain, 0.0) else []
     assert next(f for f in new_config['pipeline'] if f['type'] == 'Filter' and f['channels'] == target_channels)[
-               'names'] == (['vol'] if has_vol else []) + gain_filter_names + [
-               "BEQ_0_abcdefghijklm",
-               "BEQ_1_abcdefghijklm",
-               "BEQ_2_abcdefghijklm",
-               "BEQ_3_abcdefghijklm",
-               "BEQ_4_abcdefghijklm"
+               'names'] == (['vol'] if has_vol else []) + (gain_filter_names) + [
+               "BEQ_0",
+               "BEQ_1",
+               "BEQ_2",
+               "BEQ_3",
+               "BEQ_4"
            ]
     new_filters = new_config['filters']
     assert 'vol' in new_filters
     for n in gain_filter_names:
         assert n in new_filters
         assert new_filters[n] == {'parameters': {'gain': expected_gain, 'inverted': False, 'mute': False},
-                                  'type': 'Gain'}
-    assert 'BEQ_0_abcdefghijklm' in new_filters
-    assert new_filters['BEQ_0_abcdefghijklm'] == {
-        'parameters': {'freq': 33.0, 'gain': 5.0, 'q': 0.9, 'type': 'Lowshelf'}, 'type': 'Biquad'}
-    assert 'BEQ_1_abcdefghijklm' in new_filters
-    assert new_filters['BEQ_1_abcdefghijklm'] == {
-        'parameters': {'freq': 33.0, 'gain': 5.0, 'q': 0.9, 'type': 'Lowshelf'}, 'type': 'Biquad'}
-    assert 'BEQ_2_abcdefghijklm' in new_filters
-    assert new_filters['BEQ_2_abcdefghijklm'] == {
-        'parameters': {'freq': 33.0, 'gain': 5.0, 'q': 0.9, 'type': 'Lowshelf'}, 'type': 'Biquad'}
-    assert 'BEQ_3_abcdefghijklm' in new_filters
-    assert new_filters['BEQ_3_abcdefghijklm'] == {
-        'parameters': {'freq': 33.0, 'gain': 5.0, 'q': 0.9, 'type': 'Lowshelf'}, 'type': 'Biquad'}
-    assert 'BEQ_4_abcdefghijklm' in new_filters
-    assert new_filters['BEQ_4_abcdefghijklm'] == {
-        'parameters': {'freq': 33.0, 'gain': 5.0, 'q': 0.9, 'type': 'Lowshelf'}, 'type': 'Biquad'}
-    assert len(list(new_filters.keys())) == 7 + extra_filters
+                                  'type': 'Gain',
+                                  'description': 'ezbeq specified gain'}
+    assert 'BEQ_0' in new_filters
+    assert new_filters['BEQ_0'] == {
+        'parameters': {'freq': 33.0, 'gain': 5.0, 'q': 0.9, 'type': 'Lowshelf'}, 'type': 'Biquad',
+        'description': 'ezbeq filter abcdefghijklm - Alien Resurrection'}
+    assert 'BEQ_1' in new_filters
+    assert new_filters['BEQ_1'] == {
+        'parameters': {'freq': 33.0, 'gain': 5.0, 'q': 0.9, 'type': 'Lowshelf'}, 'type': 'Biquad',
+        'description': 'ezbeq filter abcdefghijklm - Alien Resurrection'}
+    assert 'BEQ_2' in new_filters
+    assert new_filters['BEQ_2'] == {
+        'parameters': {'freq': 33.0, 'gain': 5.0, 'q': 0.9, 'type': 'Lowshelf'}, 'type': 'Biquad',
+        'description': 'ezbeq filter abcdefghijklm - Alien Resurrection'}
+    assert 'BEQ_3' in new_filters
+    assert new_filters['BEQ_3'] == {
+        'parameters': {'freq': 33.0, 'gain': 5.0, 'q': 0.9, 'type': 'Lowshelf'}, 'type': 'Biquad',
+        'description': 'ezbeq filter abcdefghijklm - Alien Resurrection'}
+    assert 'BEQ_4' in new_filters
+    assert new_filters['BEQ_4'] == {
+        'parameters': {'freq': 33.0, 'gain': 5.0, 'q': 0.9, 'type': 'Lowshelf'}, 'type': 'Biquad',
+        'description': 'ezbeq filter abcdefghijklm - Alien Resurrection'}
+    assert len(list(new_filters.keys())) == 6 + len(gain_filter_names) + extra_filters
 
 
 def beq_is_unloaded(new_config, target_channels=None):
@@ -463,11 +471,11 @@ def beq_is_unloaded(new_config, target_channels=None):
     assert 'vol' in new_filters
     for n in gain_filter_names:
         assert n not in new_filters
-    assert 'BEQ_0_abcdefghijklm' not in new_filters
-    assert 'BEQ_1_abcdefghijklm' not in new_filters
-    assert 'BEQ_2_abcdefghijklm' not in new_filters
-    assert 'BEQ_3_abcdefghijklm' not in new_filters
-    assert 'BEQ_4_abcdefghijklm' not in new_filters
+    assert 'BEQ_0' not in new_filters
+    assert 'BEQ_1' not in new_filters
+    assert 'BEQ_2' not in new_filters
+    assert 'BEQ_3' not in new_filters
+    assert 'BEQ_4' not in new_filters
     assert len(list(new_filters.keys())) == 1
 
 
