@@ -349,7 +349,7 @@ def test_load_known_entry_to_multiple_channels_with_gain_and_then_clear(multi_ca
         assert isinstance(n, dict)
         assert 'SetConfigJson' in n
         cfg = json.loads(n['SetConfigJson'])
-        beq_is_loaded(cfg, -1.5, target_channels=[2, 3], extra_filters=1, has_vol=True)
+        beq_is_loaded(cfg, -1.5, target_channels=[2, 3], has_vol=True)
         has_no_filter(json.loads(n['SetConfigJson']), 0, 1)
         has_one_filter(json.loads(n['SetConfigJson']), 2, 3)
         assert not cmds
@@ -421,7 +421,7 @@ def ensure_inited(config):
     config.msg_spy.take_messages()
 
 
-def beq_is_loaded(new_config, expected_gain, target_channels=None, extra_filters: int = 0, has_vol: bool = False):
+def beq_is_loaded(new_config, expected_gain, target_channels=None, has_vol: bool = False):
     if target_channels is None:
         target_channels = [1]
     gain_filter_names = [f'BEQ_Gain_{c}' for c in target_channels]  if has_vol or not math.isclose(expected_gain, 0.0) else []
@@ -460,7 +460,7 @@ def beq_is_loaded(new_config, expected_gain, target_channels=None, extra_filters
     assert new_filters['BEQ_4'] == {
         'parameters': {'freq': 33.0, 'gain': 5.0, 'q': 0.9, 'type': 'Lowshelf'}, 'type': 'Biquad',
         'description': 'ezbeq filter abcdefghijklm - Alien Resurrection'}
-    assert len(list(new_filters.keys())) == 6 + len(gain_filter_names) + extra_filters
+    assert len(list(new_filters.keys())) == 6 + len(gain_filter_names)
 
 
 def beq_is_unloaded(new_config, target_channels=None):
