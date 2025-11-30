@@ -39,7 +39,6 @@ class CamillaDspState(DeviceState):
 
     def __init__(self, name: str):
         self.__name = name
-        self.__has_volume = False
         self.slot = CamillaDspSlotState()
         self.slot.active = True
         self.master_volume: float = 0.0
@@ -47,23 +46,17 @@ class CamillaDspState(DeviceState):
 
     @property
     def has_volume(self) -> bool:
-        return self.__has_volume
-
-    @has_volume.setter
-    def has_volume(self, has_volume: bool):
-        self.__has_volume = has_volume
+        return True
 
     def serialise(self) -> dict:
-        val = {
+        return {
             'type': 'camilladsp',
             'name': self.__name,
             'mute': self.mute,
             'has_volume': self.has_volume,
-            'slots': [self.slot.as_dict()]
+            'slots': [self.slot.as_dict()],
+            'masterVolume': self.master_volume
         }
-        if self.has_volume is True:
-            val['masterVolume'] = self.master_volume
-        return val
 
 
 class CamillaDsp(PersistentDevice[CamillaDspState]):
@@ -94,16 +87,7 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         self.__current_config = cfg
 
         def upd():
-            prev = self._current_state.has_volume
             has_filters = 'filters' in cfg and cfg['filters']
-            if has_filters:
-                vol_filter_name = next((k for k, v in cfg['filters'].items() if v['type'] == 'Volume'), None)
-                if vol_filter_name and 'pipeline' in cfg:
-                    self._current_state.has_volume = any(f for f in cfg['pipeline']
-                                                         if f['type'] == 'Filter' and vol_filter_name in f['names'])
-            if prev != self._current_state.has_volume:
-                logger.info(f'[{self.name}] current config has volume filter? {self._current_state.has_volume}')
-
             if 'pipeline' in cfg and cfg['pipeline']:
                 gains = [{'id': c, 'value': 0.0} for c in self.__beq_channels]
                 mutes = [{'id': c, 'value': False} for c in self.__beq_channels]
@@ -139,8 +123,6 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         return CamillaDspState(self.name)
 
     def _merge_state(self, loaded: CamillaDspState, cached: dict) -> CamillaDspState:
-        if 'has_volume' in cached:
-            loaded.has_volume = cached['has_volume']
         if 'masterVolume' in cached:
             loaded.master_volume = cached['masterVolume']
         if 'slots' in cached:
