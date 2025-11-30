@@ -62,7 +62,9 @@ const Search = ({txtFilter, setTxtFilter, showFilters, toggleShowFilters}) => {
             </SearchIconWrapper>
             <StyledInputBase
                 placeholder="Search…"
-                inputProps={{'aria-label': 'search'}}
+                slotProps={{
+                    input: {'aria-label': 'search'}
+                }}
                 value={txtFilter}
                 onChange={e => setTxtFilter(e.target.value)}
                 // size={'small'}

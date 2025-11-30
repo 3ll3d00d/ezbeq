@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import { styled } from '@mui/material/styles';
+import {styled} from '@mui/material/styles';
 import clsx from 'clsx';
 import {
     Button,
@@ -117,32 +117,34 @@ const GainInput = ({fieldName, helpText, minGain, maxGain, step, dp, savedValues
             value={values.mv}
             onChange={e => interpretMV(e.target.value)}
             aria-describedby={`${fieldName}-helper-text`}
-            InputProps={{
-                endAdornment: (
-                    <InputAdornment position="end">
-                        <IconButton
-                            aria-label="mute channel"
-                            onClick={e => setMute(!values.mute)}
-                            className={classes.zeroPad}
-                            color={delta ? 'secondary' : 'default'}
-                            size="large">
-                            {values.mute ? <VolumeOffIcon fontSize="small"/> :
-                                <VolumeUpIcon fontSize="small"/>}
-                        </IconButton>
-                    </InputAdornment>
-                )
-            }}
-            inputProps={{
-                'aria-label': fieldName,
-                pattern: '',
-                inputMode: 'numeric'
+            slotProps={{
+                input: {
+                    endAdornment: (
+                        <InputAdornment position="end">
+                            <IconButton
+                                aria-label="mute channel"
+                                onClick={e => setMute(!values.mute)}
+                                className={classes.zeroPad}
+                                color={delta ? 'secondary' : 'default'}
+                                size="large">
+                                {values.mute ? <VolumeOffIcon fontSize="small"/> :
+                                    <VolumeUpIcon fontSize="small"/>}
+                            </IconButton>
+                        </InputAdornment>
+                    )
+                },
+                htmlInput: {
+                    'aria-label': fieldName,
+                    pattern: '',
+                    inputMode: 'numeric'
+                }
             }}
             margin={'dense'}
             size={'small'}
             label={helpText}
             classes={{
                 root: classes.root
-            }} />
+            }}/>
     );
 };
 
@@ -169,7 +171,10 @@ const Gain = ({selectedSlotId, deviceGains, gains, updateGain, sendGains, isActi
                                            fieldName={`input${g.id}-gain`}
                                            helpText={`Input ${g.id}`}
                                            minGain={-72} maxGain={12} step={0.25} dp={2}
-                                           savedValues={{mv: deviceGains.gains[i].value, mute: deviceGains.mutes[i].value}}
+                                           savedValues={{
+                                               mv: deviceGains.gains[i].value,
+                                               mute: deviceGains.mutes[i].value
+                                           }}
                                            values={{mv: gains.gains[i].value, mute: gains.mutes[i].value}}
                                            setMV={v => updateGain(g.id, 'mv', v)}
                                            setMute={v => updateGain(g.id, 'mute', v)}/>

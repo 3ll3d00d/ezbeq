@@ -1,5 +1,5 @@
 import Header from "../Header";
-import { styled } from '@mui/material/styles';
+import {styled} from '@mui/material/styles';
 import React, {useEffect, useState} from "react";
 import {
     Button,
@@ -59,12 +59,14 @@ const Root = styled('div')((
 const ITEM_HEIGHT = 48;
 const ITEM_PADDING_TOP = 8;
 const MenuProps = {
-    PaperProps: {
-        style: {
-            maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
-            width: 250,
-        },
-    },
+    slotProps: {
+        paper: {
+            style: {
+                maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
+                width: 250,
+            },
+        }
+    }
 };
 
 const getStyles = (output, outputs, theme) => {
@@ -178,7 +180,7 @@ const Minidsp = ({
             />
             <form className={classes.root} noValidate autoComplete="off">
                 <Grid container>
-                    <Grid container sx={{ flexGrow: 1 }} justifyContent="space-evenly" alignItems="center">
+                    <Grid container sx={{flexGrow: 1}} justifyContent="space-evenly" alignItems="center">
                         <Grid>
                             <FormControl variant="standard" className={classes.formControl}>
                                 <InputLabel id="config-label">Config</InputLabel>
@@ -253,7 +255,7 @@ const Minidsp = ({
                             </Button>
                         </Grid>
                     </Grid>
-                    <Grid container sx={{ flexGrow: 1 }} >
+                    <Grid container sx={{flexGrow: 1}}>
                         <TextField id="commands"
                                    label={commandType === 'bq' ? 'Biquads' : commandType === 'filt' ? 'Filters' : 'Minidsp RS'}
                                    multiline

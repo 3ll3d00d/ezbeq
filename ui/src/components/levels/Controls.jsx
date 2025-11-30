@@ -1,6 +1,7 @@
 import clsx from 'clsx';
-import { styled } from '@mui/material/styles';
+import {styled} from '@mui/material/styles';
 import {FormControlLabel, Switch, TextField} from "@mui/material";
+
 const PREFIX = 'Controls';
 
 const classes = {
@@ -42,15 +43,19 @@ const Controls = ({
                 id="duration-seconds"
                 label="Duration"
                 type="number"
-                inputProps={{
-                    'aria-label': 'duration',
-                    'min': 1,
-                    'step': 1,
-                    'max': 7200
+                slotProps={{
+                    input: {
+                        'aria-label': 'duration',
+                        'min': 1,
+                        'step': 1,
+                        'max': 7200
+                    },
+                    inputLabel: {
+                        shrink: true
+                    }
                 }}
                 value={duration}
-                onChange={e => setDuration(e.target.value)}
-                InputLabelProps={{ shrink: true }} />
+                onChange={e => setDuration(e.target.value)}/>
             <FormControlLabel className={classes.margin}
                               control={<Switch checked={paused}
                                                onChange={e => setPaused(e.target.checked)}
