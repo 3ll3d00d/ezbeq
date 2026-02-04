@@ -32,7 +32,7 @@ class WsServerFactory(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def init_meta_provider(self, meta_provider: Callable[[], str]):
+    def init_meta_provider(self, meta_provider: Callable[[], str | None]):
         pass
 
     @abc.abstractmethod
