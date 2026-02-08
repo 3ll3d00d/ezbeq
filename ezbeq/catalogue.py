@@ -5,7 +5,7 @@ import sqlite3
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Callable, Union
 
 import ijson
@@ -49,7 +49,7 @@ FORMATTED_TITLE = 'formattedTitle'
 RUNTIME = 'runtime'
 MV_ADJUST = 'mv'
 FRESHNESS = 'freshness'
-AUDIO_CODECS = 'audioCodec'
+AUDIO_CODECS = 'audioCodecs'
 AUDIO_CHANNEL_COUNTS = 'audioChannelCounts'
 
 TWO_WEEKS_AGO_SECONDS = 2 * 7 * 24 * 60 * 60
@@ -514,7 +514,7 @@ class Catalogues:
 
                 return Catalogue(count, version, {AUDIO_TYPES: audio_types, AUTHOR: authors, CONTENT_TYPE: contenttypes,
                                                   LANGUAGE: languages, YEAR: years},
-                                 datetime.utcfromtimestamp(now / 1000)) if count else None
+                                 datetime.fromtimestamp(now / 1000, tz=timezone.utc)) if count else None
 
     def load_meta(self, version: str, meta_type: str) -> list[str]:
         with db_ops(self.__db) as cur:
