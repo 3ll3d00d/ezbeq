@@ -102,9 +102,11 @@ class Htp1(PersistentDevice[Htp1State]):
     def activate(self, slot: str) -> None:
         def __do_it():
             self._current_state.slot.active = True
+
         self._hydrate_cache_broadcast(__do_it)
 
-    def load_biquads(self, slot: str, overwrite: bool, inputs: List[int], outputs: List[int], biquads: List[dict]) -> None:
+    def load_biquads(self, slot: str, overwrite: bool, inputs: List[int], outputs: List[int],
+                     biquads: List[dict]) -> None:
         raise NotImplementedError()
 
     def send_commands(self, slot: str, inputs: List[int], outputs: List[int], commands: List[str]) -> None:
@@ -159,7 +161,8 @@ class Htp1(PersistentDevice[Htp1State]):
 
         speakers = mso['speakers']['groups']
         channels = ['lf', 'rf']
-        for group in [s for s, v in speakers.items() if 'present' in v and v['present'] is True]:
+        for group in [s for s, v in speakers.items() if
+                      isinstance(v, dict) and 'present' in v and v.get('present', False) is True]:
             if group[0:2] == 'lr' and len(group) > 2:
                 channels.append('l' + group[2:])
                 channels.append('r' + group[2:])
@@ -261,7 +264,6 @@ class Htp1Protocol(WebSocketClientProtocol):
 
 
 class Htp1ClientFactory(WebSocketClientFactory, ReconnectingClientFactory):
-
     protocol = Htp1Protocol
     maxDelay = 5
     initialDelay = 0.5
