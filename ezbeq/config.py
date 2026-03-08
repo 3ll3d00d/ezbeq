@@ -209,7 +209,7 @@ class Config:
             else:
                 mmap_mb = 0
         except:
-            self.logger.exception(f'Unable to get total physical memory, will default to 0')
+            self.logger.exception('Unable to get total physical memory, will default to 0')
         return self.config.get('db_mmap_mb', mmap_mb)
 
     @staticmethod

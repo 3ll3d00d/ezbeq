@@ -608,14 +608,14 @@ class Catalogues:
                 after = time.time()
                 logger.info(f'Vacuumed DB in {to_millis(before, after)} ms')
             else:
-                logger.info(f'Nothing to prune')
+                logger.info('Nothing to prune')
 
     def refresh_if_stale(self):
         if not self.loaded or self.latest.stale:
             try:
                 self.__reload()
             except Exception as e:
-                logger.exception(f"Failed to refresh catalogue", e)
+                logger.exception("Failed to refresh catalogue", e)
 
     def find_by_id(self, entry_id: str, as_dict: bool = False) -> Union[CatalogueEntry, dict] | None:
         return self.__find(f"{ID} = '{entry_id}'", as_dict)
@@ -656,7 +656,7 @@ class Catalogues:
             if len(vals) == 1:
                 sql = f' AND {field} LIKE "%|{vals[0]}|%"'
             else:
-                sql = f' AND ('
+                sql = ' AND ('
                 for idx, val in enumerate(vals):
                     prefix = ' OR ' if idx != 0 else ' '
                     sql = f'{sql}{prefix}{field} LIKE "%|{val}|%"'
@@ -841,14 +841,14 @@ class DatabaseDownloader:
                         with open(self.__cached_version_file, 'w') as f:
                             f.write(remote_version)
                     else:
-                        logger.warning(f"No remote version to write")
+                        logger.warning("No remote version to write")
                     self.__cached_version = remote_version
                     logger.info(f"Downloaded {self.__db_url} @ {remote_version}")
                     return True
                 else:
                     logger.warning(f"Unable to download catalogue, response is {r.status_code}")
             except:
-                logger.exception(f"Unable to download catalogue, unexpected error")
+                logger.exception("Unable to download catalogue, unexpected error")
         else:
             logger.info(f"No reload required {remote_version} vs {self.__cached_version}")
         return False

@@ -30,7 +30,7 @@ def delete_filter(bridge: DeviceRepository, device_name: str, slot: str):
     try:
         bridge.clear_filter(device_name, slot)
         return bridge.state(device_name).serialise(), 200
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to clear Slot {slot}")
         return bridge.state(device_name).serialise(), 500
 
@@ -117,10 +117,10 @@ def load_biquads(bridge: DeviceRepository, device_name: str, slot: str, overwrit
             raise InvalidRequestError(f"load_biquads but parsed command type is {cmd_type}")
         bridge.load_biquads(device_name, slot, overwrite, inputs, outputs, bqs)
         return bridge.state(device_name).serialise(), 200
-    except InvalidRequestError as e:
+    except InvalidRequestError:
         logger.exception(f"Invalid biquad request to {device_name} {slot}")
         return bridge.state(device_name).serialise(), 400
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to write biquads to {device_name} {slot}")
         return bridge.state(device_name).serialise(), 500
 
@@ -146,10 +146,10 @@ def load_commands(bridge: DeviceRepository, device_name: str, slot: str, overwri
         else:
             bridge.send_commands(device_name, slot, inputs, outputs, bqs)
         return bridge.state(device_name).serialise(), 200
-    except InvalidRequestError as e:
+    except InvalidRequestError:
         logger.exception(f"Invalid biquad request to {device_name} {slot}")
         return bridge.state(device_name).serialise(), 400
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to write biquads to {device_name} {slot}")
         return bridge.state(device_name).serialise(), 500
 
@@ -170,10 +170,10 @@ def load_filter(entry: Optional[CatalogueEntry], bridge: DeviceRepository, devic
         logger.info(f"Sending {entry.id} to Slot {slot}")
         bridge.load_filter(device_name, slot, entry)
         return bridge.state(device_name).serialise(), 200
-    except InvalidRequestError as e:
+    except InvalidRequestError:
         logger.exception(f"Invalid request {entry.id} to Slot {slot}")
         return bridge.state(device_name).serialise(), 400
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to write {entry.id} to Slot {slot}")
         return bridge.state(device_name).serialise(), 500
 
@@ -190,10 +190,10 @@ def activate_slot(bridge: DeviceRepository, device_name: str, slot: str):
     try:
         bridge.activate(device_name, slot)
         return bridge.state(device_name).serialise(), 200
-    except InvalidRequestError as e:
+    except InvalidRequestError:
         logger.exception(f"Invalid slot {slot}")
         return bridge.state(device_name).serialise(), 400
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to activate Slot {slot}")
         return bridge.state(device_name).serialise(), 500
 
@@ -215,10 +215,10 @@ def mute_device(bridge: DeviceRepository, device_name: str, slot: Optional[str],
         else:
             bridge.unmute(device_name, slot, channel)
         return bridge.state(device_name).serialise(), 200
-    except InvalidRequestError as e:
+    except InvalidRequestError:
         logger.exception(f"Invalid mute request {slot} {channel} {value}")
         return bridge.state(device_name).serialise(), 400
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed mute channel {slot}")
         return bridge.state(device_name).serialise(), 500
 
@@ -237,10 +237,10 @@ def set_gain(bridge: DeviceRepository, device_name: str, slot: Optional[str], va
     try:
         bridge.set_gain(device_name, slot, channel, value)
         return bridge.state(device_name).serialise(), 200
-    except InvalidRequestError as e:
+    except InvalidRequestError:
         logger.exception(f"Unable to set gain for {slot} {channel} {value}")
         return bridge.state(device_name).serialise(), 400
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed mute channel {slot}")
         return bridge.state(device_name).serialise(), 500
 
@@ -382,10 +382,10 @@ class DeviceLevels(Resource):
     def get(self, device_name: str) -> Tuple[dict, int]:
         try:
             return self.__bridge.levels(device_name), 200
-        except InvalidRequestError as e:
+        except InvalidRequestError:
             logger.exception(f"Invalid device {device_name}")
             return {}, 400
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to get levels for {device_name}")
             return {}, 500
 

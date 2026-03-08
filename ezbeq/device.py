@@ -1,9 +1,8 @@
 import json
 import logging
-import math
 import os
 from abc import ABC, abstractmethod
-from typing import List, Optional, Dict, TypeVar, Generic, Callable
+from typing import List, Optional, Dict, TypeVar, Generic
 
 from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueEntry, CatalogueProvider

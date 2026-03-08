@@ -3,40 +3,38 @@ import logging
 import math
 import time
 from collections import defaultdict
-from typing import List, Optional, Callable, Union, Dict
+from typing import Callable, Dict, List, Optional, Union
 
 from autobahn.exception import Disconnected
-from autobahn.twisted.websocket import connectWS, WebSocketClientProtocol, WebSocketClientFactory
+from autobahn.twisted.websocket import (
+    WebSocketClientFactory,
+    WebSocketClientProtocol,
+    connectWS,
+)
 from twisted.internet.protocol import ReconnectingClientFactory
 
 from ezbeq.apis.ws import WsServer
-from ezbeq.catalogue import CatalogueProvider, CatalogueEntry
-from ezbeq.device import SlotState, DeviceState, PersistentDevice
+from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
+from ezbeq.device import DeviceState, PersistentDevice, SlotState
 
-BEQ_FILTER_NAME_PATTERN = r'^BEQ_(Gain_\d+|\d+(?:_([a-zA-Z0-9]+))?)$'
+BEQ_FILTER_NAME_PATTERN = r"^BEQ_(Gain_\d+|\d+(?:_([a-zA-Z0-9]+))?)$"
 
-SLOT_ID = 'CamillaDSP'
+SLOT_ID = "CamillaDSP"
 
-logger = logging.getLogger('ezbeq.camilladsp')
+logger = logging.getLogger("ezbeq.camilladsp")
 
 
 class CamillaDspSlotState(SlotState):
-
     def __init__(self):
         super().__init__(SLOT_ID)
         self.gains: List[dict] = []
         self.mutes: List[dict] = []
 
     def as_dict(self) -> dict:
-        return {
-            **super().as_dict(),
-            'gains': self.gains,
-            'mutes': self.mutes
-        }
+        return {**super().as_dict(), "gains": self.gains, "mutes": self.mutes}
 
 
 class CamillaDspState(DeviceState):
-
     def __init__(self, name: str):
         self.__name = name
         self.slot = CamillaDspSlotState()
@@ -50,33 +48,54 @@ class CamillaDspState(DeviceState):
 
     def serialise(self) -> dict:
         return {
-            'type': 'camilladsp',
-            'name': self.__name,
-            'mute': self.mute,
-            'has_volume': self.has_volume,
-            'slots': [self.slot.as_dict()],
-            'masterVolume': self.master_volume
+            "type": "camilladsp",
+            "name": self.__name,
+            "mute": self.mute,
+            "has_volume": self.has_volume,
+            "slots": [self.slot.as_dict()],
+            "masterVolume": self.master_volume,
         }
 
 
 class CamillaDsp(PersistentDevice[CamillaDspState]):
-
-    def __init__(self, name: str, config_path: str, cfg: dict, ws_server: WsServer, catalogue: CatalogueProvider):
+    def __init__(
+        self,
+        name: str,
+        config_path: str,
+        cfg: dict,
+        ws_server: WsServer,
+        catalogue: CatalogueProvider,
+    ):
         super().__init__(config_path, name, ws_server)
         self.__name = name
         self.__catalogue = catalogue
-        self.__ip: str = cfg['ip']
-        self.__port: int = cfg['port']
-        self.__beq_channels: List[int] = [int(c) for c in cfg['channels']]
+        self.__ip: str = cfg["ip"]
+        self.__port: int = cfg["port"]
+        self.__beq_channels: List[int] = [int(c) for c in cfg["channels"]]
+        self.__current_version: str = "3.x"
         self.__current_config: dict = {}
-        self.__levels_interval_ms = round(1000.0 / float(cfg.get('levelsFps', 10)))
+        self.__levels_interval_ms = round(1000.0 / float(cfg.get("levelsFps", 10)))
         self.__config_updater: Optional[UpdateConfig] = None
         if not self.__beq_channels:
-            raise ValueError(f'No channels supplied for CamillaDSP {name} - {self.__ip}:{self.__port}')
-        self.__ws_client = cfg['make_wsclient'](self.__ip, self.__port, self)
+            raise ValueError(
+                f"No channels supplied for CamillaDSP {name} - {self.__ip}:{self.__port}"
+            )
+        self.__ws_client = cfg["make_wsclient"](self.__ip, self.__port, self)
         self.__playback_peak: List[float] = []
         self.__playback_rms: List[float] = []
         ws_server.factory.set_levels_provider(name, self.start_broadcast_levels)
+
+    @property
+    def current_version(self) -> str:
+        return self.__current_version
+
+    @current_version.setter
+    def current_version(self, version: str) -> str:
+        if version != self.__current_version:
+            logger.info(
+                f"CamillaDSP {self.name} version changed from {self.__current_version} to {version}"
+            )
+            self.__current_version = version
 
     @property
     def current_config(self) -> dict:
@@ -87,22 +106,30 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         self.__current_config = cfg
 
         def upd():
-            has_filters = 'filters' in cfg and cfg['filters']
-            if 'pipeline' in cfg and cfg['pipeline']:
-                gains = [{'id': c, 'value': 0.0} for c in self.__beq_channels]
-                mutes = [{'id': c, 'value': False} for c in self.__beq_channels]
-                filters = cfg['filters'] if has_filters else {}
+            has_filters = "filters" in cfg and cfg["filters"]
+            if "pipeline" in cfg and cfg["pipeline"]:
+                gains = [{"id": c, "value": 0.0} for c in self.__beq_channels]
+                mutes = [{"id": c, "value": False} for c in self.__beq_channels]
+                filters = cfg["filters"] if has_filters else {}
                 for k, v in filters.items():
-                    if k.startswith('BEQ_Gain_'):
+                    if k.startswith("BEQ_Gain_"):
                         channel = int(k[9:])
-                        muted = v.get('mute', False)
-                        gain = v.get('gain', 0.0)
+                        muted = v.get("mute", False)
+                        gain = v.get("gain", 0.0)
                         if not math.isclose(gain, 0.0) or muted is True:
-                            for f in cfg['pipeline']:
-                                if f['type'] == 'Filter' and 'BEQ_Gain' in f['names']:
-                                    if f['channels'][0] in self.__beq_channels:
-                                        next(g for g in gains if g['id'] == f['channels'][0])['value'] = gain
-                                        next(g for g in mutes if g['id'] == f['channels'][0])['value'] = muted
+                            for f in cfg["pipeline"]:
+                                if f["type"] == "Filter" and "BEQ_Gain" in f["names"]:
+                                    if f["channels"][0] in self.__beq_channels:
+                                        next(
+                                            g
+                                            for g in gains
+                                            if g["id"] == f["channels"][0]
+                                        )["value"] = gain
+                                        next(
+                                            g
+                                            for g in mutes
+                                            if g["id"] == f["channels"][0]
+                                        )["value"] = muted
                 self._current_state.slot.gains = gains
                 self._current_state.slot.mutes = mutes
 
@@ -110,7 +137,9 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
 
     def start_broadcast_levels(self) -> None:
         from twisted.internet import reactor
-        sched = lambda: reactor.callLater(self.__levels_interval_ms / 1000.0, __send)
+
+        def sched():
+            return reactor.callLater(self.__levels_interval_ms / 1000.0, __send)
 
         def __send():
             self.request_levels()
@@ -123,20 +152,20 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         return CamillaDspState(self.name)
 
     def _merge_state(self, loaded: CamillaDspState, cached: dict) -> CamillaDspState:
-        if 'masterVolume' in cached:
-            loaded.master_volume = cached['masterVolume']
-        if 'slots' in cached:
-            for slot in cached['slots']:
-                if 'id' in slot:
-                    if slot['id'] == SLOT_ID:
-                        if slot['last']:
-                            loaded.slot.last = slot['last']
-                        if slot['author']:
-                            loaded.slot.last_author = slot['author']
-                        if slot['gains']:
-                            loaded.slot.gains = slot['gains']
-                        if slot['mutes']:
-                            loaded.slot.mutes = slot['mutes']
+        if "masterVolume" in cached:
+            loaded.master_volume = cached["masterVolume"]
+        if "slots" in cached:
+            for slot in cached["slots"]:
+                if "id" in slot:
+                    if slot["id"] == SLOT_ID:
+                        if slot["last"]:
+                            loaded.slot.last = slot["last"]
+                        if slot["author"]:
+                            loaded.slot.last_author = slot["author"]
+                        if slot["gains"]:
+                            loaded.slot.gains = slot["gains"]
+                        if slot["mutes"]:
+                            loaded.slot.mutes = slot["mutes"]
         return loaded
 
     @property
@@ -146,90 +175,127 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
     def update(self, params: dict) -> bool:
         def __do_it() -> bool:
             any_update = False
-            if 'slots' in params:
-                for slot in params['slots']:
-                    if slot['id'] == SLOT_ID:
-                        if 'entry' in slot:
-                            if slot['entry']:
-                                match = self.__catalogue.find(slot['entry'])
+            if "slots" in params:
+                for slot in params["slots"]:
+                    if slot["id"] == SLOT_ID:
+                        if "entry" in slot:
+                            if slot["entry"]:
+                                match = self.__catalogue.find(slot["entry"])
                                 if match:
                                     mv = 0.0
-                                    if 'gains' in slot and slot['gains']:
-                                        mv = float(slot['gains'][0]['value'])
+                                    if "gains" in slot and slot["gains"]:
+                                        mv = float(slot["gains"][0]["value"])
                                     self.load_filter(SLOT_ID, match, mv)
                                     any_update = True
                             else:
                                 self.clear_filter(SLOT_ID)
                                 any_update = True
-                        elif 'gains' in slot or 'mutes' in slot:
+                        elif "gains" in slot or "mutes" in slot:
                             merged = defaultdict(dict)
-                            for g in slot.get('gains', []):
-                                c_id = int(g['id'])
+                            for g in slot.get("gains", []):
+                                c_id = int(g["id"])
                                 if c_id in self.__beq_channels:
-                                    merged[c_id]['gain'] = g['value']
+                                    merged[c_id]["gain"] = g["value"]
                                 else:
-                                    raise ValueError(f'Invalid channel id for gain setting {c_id}')
-                            for g in slot.get('mutes', []):
-                                c_id = int(g['id'])
+                                    raise ValueError(
+                                        f"Invalid channel id for gain setting {c_id}"
+                                    )
+                            for g in slot.get("mutes", []):
+                                c_id = int(g["id"])
                                 if c_id in self.__beq_channels:
-                                    merged[c_id]['mute'] = g['value']
+                                    merged[c_id]["mute"] = g["value"]
                                 else:
-                                    raise ValueError(f'Invalid channel id for gain setting {c_id}')
+                                    raise ValueError(
+                                        f"Invalid channel id for gain setting {c_id}"
+                                    )
 
                             def completed(success: bool):
-                                logger.log(logging.INFO if success else logging.WARNING,
-                                           f'Completed gain update {success}')
+                                logger.log(
+                                    logging.INFO if success else logging.WARNING,
+                                    f"Completed gain update {success}",
+                                )
                                 if success:
                                     css = self._current_state.slot
                                     for k, v in merged.items():
-                                        if 'gain' in v:
-                                            to_update = next(g for g in css.gains if g['id'] == k)
-                                            to_update['value'] = v['gain']
-                                        if 'mute' in v:
-                                            to_update = next(g for g in css.mutes if g['id'] == k)
-                                            to_update['value'] = v['mute']
+                                        if "gain" in v:
+                                            to_update = next(
+                                                g for g in css.gains if g["id"] == k
+                                            )
+                                            to_update["value"] = v["gain"]
+                                        if "mute" in v:
+                                            to_update = next(
+                                                g for g in css.mutes if g["id"] == k
+                                            )
+                                            to_update["value"] = v["mute"]
 
-                            self.__update_channel_levels(merged,
-                                                         lambda b: self._hydrate_cache_broadcast(lambda: completed(b)))
+                            self.__update_channel_levels(
+                                merged,
+                                lambda b: self._hydrate_cache_broadcast(
+                                    lambda: completed(b)
+                                ),
+                            )
                             any_update = True
-            if 'mute' in params and params['mute'] != self._current_state.mute:
+            if "mute" in params and params["mute"] != self._current_state.mute:
                 if self._current_state.mute:
                     self.unmute(None, None)
                 else:
                     self.mute(None, None)
                 any_update = True
-            if 'masterVolume' in params and not math.isclose(params['masterVolume'], self._current_state.master_volume):
-                self.set_gain(None, None, params['masterVolume'])
+            if "masterVolume" in params and not math.isclose(
+                params["masterVolume"], self._current_state.master_volume
+            ):
+                self.set_gain(None, None, params["masterVolume"])
                 any_update = True
             return any_update
 
         return self._hydrate_cache_broadcast(__do_it)
 
-    def __update_channel_levels(self, values: Dict[int, dict], on_complete: Callable[[bool], None]):
+    def __update_channel_levels(
+        self, values: Dict[int, dict], on_complete: Callable[[bool], None]
+    ):
         if self.__config_updater is None:
             logger.info(f"Sending {len(values)} level changes")
-            self.__config_updater = UpdateGain(values, self.ws_server, self.__ws_client, on_complete)
+            self.__config_updater = UpdateGain(
+                values, self.ws_server, self.__ws_client, on_complete
+            )
             self.__config_updater.send_get_config()
         else:
-            raise ValueError(f'Unable to load BEQ, config update already in progress for {self.__config_updater.name}')
+            raise ValueError(
+                f"Unable to load BEQ, config update already in progress for {self.__config_updater.name}"
+            )
 
-    def __send_filter(self, entry: Optional[CatalogueEntry], mv_adjust: float, on_complete: Callable[[bool], None]):
+    def __send_filter(
+        self,
+        entry: Optional[CatalogueEntry],
+        mv_adjust: float,
+        on_complete: Callable[[bool], None],
+    ):
         if self.__config_updater is None:
             if entry:
-                logger.info(f"Sending {len(entry.filters)} filters for {entry.formatted_title}")
+                logger.info(
+                    f"Sending {len(entry.filters)} filters for {entry.formatted_title}"
+                )
             else:
-                logger.info(f"Clearing filters")
-            self.__config_updater = LoadConfig(entry, self.__beq_channels, mv_adjust, self.ws_server, self.__ws_client,
-                                               on_complete)
+                logger.info("Clearing filters")
+            self.__config_updater = LoadConfig(
+                entry,
+                self.__beq_channels,
+                mv_adjust,
+                self.ws_server,
+                self.__ws_client,
+                on_complete,
+            )
             self.__config_updater.send_get_config()
         else:
-            raise ValueError(f'Unable to load BEQ, config update already in progress for {self.__config_updater.name}')
+            raise ValueError(
+                f"Unable to load BEQ, config update already in progress for {self.__config_updater.name}"
+            )
 
     def __send_command(self, set_cmd: str, value: Union[float, bool]):
         logger.info(f"Sending command {set_cmd}: {value}")
         # messages are guaranteed to be processed in order
-        self.__ws_client.send(json.dumps({f'Set{set_cmd}': value}))
-        self.__ws_client.send(json.dumps(f'Get{set_cmd}'))
+        self.__ws_client.send(json.dumps({f"Set{set_cmd}": value}))
+        self.__ws_client.send(json.dumps(f"Get{set_cmd}"))
 
     def activate(self, slot: str) -> None:
         def __do_it():
@@ -237,19 +303,29 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
 
         self._hydrate_cache_broadcast(__do_it)
 
-    def load_biquads(self, slot: str, overwrite: bool, inputs: List[int], outputs: List[int],
-                     biquads: List[dict]) -> None:
+    def load_biquads(
+        self,
+        slot: str,
+        overwrite: bool,
+        inputs: List[int],
+        outputs: List[int],
+        biquads: List[dict],
+    ) -> None:
         raise NotImplementedError()
 
-    def send_commands(self, slot: str, inputs: List[int], outputs: List[int], commands: List[str]) -> None:
+    def send_commands(
+        self, slot: str, inputs: List[int], outputs: List[int], commands: List[str]
+    ) -> None:
         raise NotImplementedError()
 
-    def load_filter(self, slot: str, entry: CatalogueEntry, mv_adjust: float = 0.0) -> None:
+    def load_filter(
+        self, slot: str, entry: CatalogueEntry, mv_adjust: float = 0.0
+    ) -> None:
         self._hydrate_cache_broadcast(lambda: self.__do_load_filter(entry, mv_adjust))
 
     def __do_load_filter(self, entry: Optional[CatalogueEntry], mv_adjust: float = 0.0):
         try:
-            self._current_state.slot.last = 'Loading' if entry else 'Clearing'
+            self._current_state.slot.last = "Loading" if entry else "Clearing"
             self._current_state.slot.last_author = None
 
             def completed(success: bool):
@@ -258,19 +334,23 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
                         self._current_state.slot.last = entry.formatted_title
                         self._current_state.slot.last_author = entry.author
                     else:
-                        self._current_state.slot.last = 'Empty'
+                        self._current_state.slot.last = "Empty"
                         self._current_state.slot.last_author = None
                     for g in self._current_state.slot.gains:
-                        g['value'] = mv_adjust
+                        g["value"] = mv_adjust
                     for g in self._current_state.slot.mutes:
-                        g['value'] = False
+                        g["value"] = False
                 else:
-                    self._current_state.slot.last = 'ERROR'
+                    self._current_state.slot.last = "ERROR"
                     self._current_state.slot.last_author = None
 
-            self.__send_filter(entry, mv_adjust, lambda b: self._hydrate_cache_broadcast(lambda: completed(b)))
+            self.__send_filter(
+                entry,
+                mv_adjust,
+                lambda b: self._hydrate_cache_broadcast(lambda: completed(b)),
+            )
         except Exception as e:
-            self._current_state.slot.last = 'ERROR'
+            self._current_state.slot.last = "ERROR"
             raise e
 
     def clear_filter(self, slot: str) -> None:
@@ -281,14 +361,16 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
 
     def __do_mute_op(self, mute: bool):
         try:
-            self.__send_command('Mute', mute)
+            self.__send_command("Mute", mute)
         except Exception as e:
             raise e
 
     def unmute(self, slot: Optional[str], channel: Optional[int]) -> None:
         self._hydrate_cache_broadcast(lambda: self.__do_mute_op(False))
 
-    def set_gain(self, slot: Optional[str], channel: Optional[int], gain: float) -> None:
+    def set_gain(
+        self, slot: Optional[str], channel: Optional[int], gain: float
+    ) -> None:
         if channel is None:
             self._hydrate_cache_broadcast(lambda: self.__do_volume_op(gain))
         else:
@@ -299,104 +381,121 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
 
     def __do_volume_op(self, level: float):
         try:
-            self.__send_command('Volume', level)
+            self.__send_command("Volume", level)
         except Exception as e:
             raise e
 
     def request_levels(self):
-        self.__ws_client.send(json.dumps('GetPlaybackSignalPeak'))
-        self.__ws_client.send(json.dumps('GetPlaybackSignalRms'))
+        self.__ws_client.send(json.dumps("GetPlaybackSignalPeak"))
+        self.__ws_client.send(json.dumps("GetPlaybackSignalRms"))
 
     def levels(self) -> dict:
-        return {
-            'name': self.name,
-            'ts': time.time(),
-            'levels': self.__format_levels()
-        }
+        return {"name": self.name, "ts": time.time(), "levels": self.__format_levels()}
 
     def __format_levels(self):
         return {
-            **{f'RMS-{i}': v for i, v in enumerate(self.__playback_rms)},
-            **{f'Peak-{i}': v for i, v in enumerate(self.__playback_peak)}
+            **{f"RMS-{i}": v for i, v in enumerate(self.__playback_rms)},
+            **{f"Peak-{i}": v for i, v in enumerate(self.__playback_peak)},
         }
 
     def on_open(self):
-        self.__ws_client.send(json.dumps('GetConfigJson'))
-        self.__ws_client.send(json.dumps('GetVolume'))
-        self.__ws_client.send(json.dumps('GetMute'))
-        self.__ws_client.send(json.dumps({'SetUpdateInterval': self.__levels_interval_ms}))
+        self.__ws_client.send(json.dumps("GetVersion"))
+        self.__ws_client.send(json.dumps("GetConfigJson"))
+        self.__ws_client.send(json.dumps("GetVolume"))
+        self.__ws_client.send(json.dumps("GetMute"))
+        self.__ws_client.send(
+            json.dumps({"SetUpdateInterval": self.__levels_interval_ms})
+        )
+
+    def on_get_version(self, version: dict):
+        if version.get("result", None) == "Ok":
+            new_version = version["value"]
+            self.current_version = new_version
+        else:
+            logger.warning(f"GetVersion failed :: {version}")
 
     def on_get_config(self, config: dict):
-        if config.get('result', None) == 'Ok':
-            new_config = json.loads(config['value'])
+        if config.get("result", None) == "Ok":
+            new_config = json.loads(config["value"])
             self.current_config = new_config
             if self.__config_updater is None:
-                logger.info(f'Received new DSP config but nothing to load, ignoring {new_config}')
+                logger.info(
+                    f"Received new DSP config but nothing to load, ignoring {new_config}"
+                )
             else:
                 self.__config_updater.on_get_config(new_config)
         else:
             if self.__config_updater is not None:
-                self.__config_updater.failed('GetConfig', config)
+                self.__config_updater.failed("GetConfig", config)
                 self.__config_updater = None
             else:
-                logger.warning(f'GetConfig failed :: {config}')
+                logger.warning(f"GetConfig failed :: {config}")
 
     def on_set_config(self, result: str):
         if self.__config_updater is None:
-            logger.info(f'Received response to SetConfigJson but nothing to load, ignoring {result}')
+            logger.info(
+                f"Received response to SetConfigJson but nothing to load, ignoring {result}"
+            )
         else:
-            if result == 'Ok':
+            if result == "Ok":
                 self.__config_updater.on_set_config()
             else:
-                self.__config_updater.failed('SetConfig', result)
+                self.__config_updater.failed("SetConfig", result)
             self.__config_updater = None
 
     @staticmethod
     def on_reload(result: str):
-        logger.warning(f'Received Reload {result}')
+        logger.warning(f"Received Reload {result}")
 
     def on_get_volume(self, msg):
-        if msg['result'] == 'Ok':
+        if msg["result"] == "Ok":
+
             def do_it():
-                self._current_state.master_volume = msg['value']
+                self._current_state.master_volume = msg["value"]
 
             self._hydrate_cache_broadcast(do_it)
 
     def on_set_volume(self, msg):
-        if msg['result'] == 'Ok':
-            self.__ws_client.send(json.dumps('GetVolume'))
+        if msg["result"] == "Ok":
+            self.__ws_client.send(json.dumps("GetVolume"))
         else:
             # TODO send to UI
-            logger.warning(f'Unsuccessful command {msg}')
+            logger.warning(f"Unsuccessful command {msg}")
 
     def on_set_mute(self, msg):
-        if msg['result'] == 'Ok':
-            self.__ws_client.send(json.dumps('GetMute'))
+        if msg["result"] == "Ok":
+            self.__ws_client.send(json.dumps("GetMute"))
         else:
             # TODO send to UI
-            logger.warning(f'Unsuccessful command {msg}')
+            logger.warning(f"Unsuccessful command {msg}")
 
     def on_get_mute(self, msg):
-        if msg['result'] == 'Ok':
+        if msg["result"] == "Ok":
+
             def do_it():
-                self._current_state.mute = msg['value']
+                self._current_state.mute = msg["value"]
 
             self._hydrate_cache_broadcast(do_it)
 
     def on_get_playback_rms(self, msg):
-        if msg['result'] == 'Ok':
-            self.__playback_rms = [v if not math.isclose(v, -1000.0) else -144.0 for v in msg['value']]
+        if msg["result"] == "Ok":
+            self.__playback_rms = [
+                v if not math.isclose(v, -1000.0) else -144.0 for v in msg["value"]
+            ]
             self.ws_server.levels(self.name, self.levels())
 
     def on_get_playback_peak(self, msg):
-        if msg['result'] == 'Ok':
-            self.__playback_peak = [v if not math.isclose(v, -1000.0) else -144.0 for v in msg['value']]
+        if msg["result"] == "Ok":
+            self.__playback_peak = [
+                v if not math.isclose(v, -1000.0) else -144.0 for v in msg["value"]
+            ]
 
 
 class CamillaDspClient:
-
     def __init__(self, ip: str, port: int, listener: CamillaDsp):
-        self.__factory = CamillaDspClientFactory(listener, f"ws://{ip}:{port}")
+        addr = f"ws://{ip}:{port}"
+        logger.info(f"Connecting to {addr}")
+        self.__factory = CamillaDspClientFactory(listener, addr)
         self.__connector = connectWS(self.__factory)
 
     def send(self, msg: str):
@@ -404,7 +503,6 @@ class CamillaDspClient:
 
 
 class CamillaDspProtocol(WebSocketClientProtocol):
-
     # do_send = None
 
     def onConnecting(self, transport_details):
@@ -430,24 +528,32 @@ class CamillaDspProtocol(WebSocketClientProtocol):
             logger.warning(f"Received {len(payload)} bytes in binary payload, ignoring")
         else:
             try:
-                msg: dict = json.loads(payload.decode('utf8'))
-                logger.debug(f'>>> {msg}')
-                if 'GetConfigJson' in msg:
-                    self.factory.listener.on_get_config(msg['GetConfigJson'])
-                elif 'SetConfigJson' in msg:
-                    self.factory.listener.on_set_config(msg['SetConfigJson']['result'])
-                elif 'Reload' in msg:
-                    self.factory.listener.on_reload(msg['Reload']['result'])
-                elif 'GetVolume' in msg:
-                    self.factory.listener.on_get_volume(msg['GetVolume'])
-                elif 'GetMute' in msg:
-                    self.factory.listener.on_get_mute(msg['GetMute'])
-                elif 'GetPlaybackSignalRms' in msg:
-                    self.factory.listener.on_get_playback_rms(msg['GetPlaybackSignalRms'])
-                elif 'GetPlaybackSignalPeak' in msg:
-                    self.factory.listener.on_get_playback_peak(msg['GetPlaybackSignalPeak'])
-            except:
-                logger.exception(f'Unable to decode {len(payload)} bytes in text payload')
+                msg: dict = json.loads(payload.decode("utf8"))
+                logger.debug(f">>> {msg}")
+                if "GetVersion" in msg:
+                    self.factory.listener.on_get_version(msg["GetVersion"])
+                elif "GetConfigJson" in msg:
+                    self.factory.listener.on_get_config(msg["GetConfigJson"])
+                elif "SetConfigJson" in msg:
+                    self.factory.listener.on_set_config(msg["SetConfigJson"]["result"])
+                elif "Reload" in msg:
+                    self.factory.listener.on_reload(msg["Reload"]["result"])
+                elif "GetVolume" in msg:
+                    self.factory.listener.on_get_volume(msg["GetVolume"])
+                elif "GetMute" in msg:
+                    self.factory.listener.on_get_mute(msg["GetMute"])
+                elif "GetPlaybackSignalRms" in msg:
+                    self.factory.listener.on_get_playback_rms(
+                        msg["GetPlaybackSignalRms"]
+                    )
+                elif "GetPlaybackSignalPeak" in msg:
+                    self.factory.listener.on_get_playback_peak(
+                        msg["GetPlaybackSignalPeak"]
+                    )
+            except Exception:
+                logger.exception(
+                    f"Unable to decode {len(payload)} bytes in text payload"
+                )
 
 
 class CamillaDspClientFactory(WebSocketClientFactory, ReconnectingClientFactory):
@@ -489,8 +595,8 @@ class CamillaDspClientFactory(WebSocketClientFactory, ReconnectingClientFactory)
             for c in self.__clients:
                 logger.info(f"Sending to {c.peer} - {msg}")
                 try:
-                    c.sendMessage(msg.encode('utf8'), isBinary=False)
-                except Disconnected as e:
+                    c.sendMessage(msg.encode("utf8"), isBinary=False)
+                except Disconnected:
                     logger.exception(f"Failed to send to {c.peer}, discarding")
                     disconnected_clients.append(c)
             for c in disconnected_clients:
@@ -499,119 +605,151 @@ class CamillaDspClientFactory(WebSocketClientFactory, ReconnectingClientFactory)
             raise ValueError(f"No devices connected, ignoring {msg}")
 
 
-def create_cfg_for_entry(entry: Optional[CatalogueEntry], base_cfg: dict, beq_channels: List[int], mv_adjust: float,
-                         mute: bool) -> dict:
+def create_cfg_for_entry(
+    entry: Optional[CatalogueEntry],
+    base_cfg: dict,
+    beq_channels: List[int],
+    mv_adjust: float,
+    mute: bool,
+) -> dict:
     from copy import deepcopy
+
     new_cfg = deepcopy(base_cfg)
     beq_filters = entry.filters if entry else []
-    new_filters = new_cfg.get('filters', None)
+    new_filters = new_cfg.get("filters", None)
     new_filters = new_filters if new_filters else {}
-    filters = {k: v for k, v in new_filters.items() if not k.startswith('BEQ_')}
-    new_cfg['filters'] = filters
+    filters = {k: v for k, v in new_filters.items() if not k.startswith("BEQ_")}
+    new_cfg["filters"] = filters
     filter_names = []
     gain_filter_names = {}
     needs_gain_filter: bool = not (math.isclose(mv_adjust, 0.0) and mute is False)
     if needs_gain_filter:
         for c in beq_channels:
-            name = f'BEQ_Gain_{c}'
+            name = f"BEQ_Gain_{c}"
             gain_filter_names[c] = name
             filters[name] = {
-                'type': 'Gain',
-                'description': 'ezbeq specified gain',
-                'parameters': {
-                    'gain': mv_adjust,
-                    'inverted': False,
-                    'mute': mute
-                }
+                "type": "Gain",
+                "description": "ezbeq specified gain",
+                "parameters": {"gain": mv_adjust, "inverted": False, "mute": mute},
             }
     for i, peq in enumerate(beq_filters):
-        name = f'BEQ_{i}'
+        name = f"BEQ_{i}"
         filters[name] = {
-            'description': f'ezbeq filter {entry.digest} - {entry.title}',
-            'type': 'Biquad',
-            'parameters': {
-                'type': get_filter_type(peq),
-                'freq': peq['freq'],
-                'q': peq['q'],
-                'gain': peq['gain']
-            }
+            "description": f"ezbeq filter {entry.digest} - {entry.title}",
+            "type": "Biquad",
+            "parameters": {
+                "type": get_filter_type(peq),
+                "freq": peq["freq"],
+                "q": peq["q"],
+                "gain": peq["gain"],
+            },
         }
         filter_names.append(name)
 
-    if 'pipeline' in new_cfg and new_cfg['pipeline']:
-        pipeline = new_cfg['pipeline']
-        empty_filter = {'type': 'Filter', 'channels': beq_channels, 'names': []}
+    if "pipeline" in new_cfg and new_cfg["pipeline"]:
+        pipeline = new_cfg["pipeline"]
+        empty_filter = {"type": "Filter", "channels": beq_channels, "names": []}
         existing = None
         for f in pipeline:
-            if f['type'] == 'Filter' and f['channels'] == beq_channels:
+            if f["type"] == "Filter" and f["channels"] == beq_channels:
                 existing = f
         if existing is None:
             existing = empty_filter
             pipeline.append(existing)
         import re
-        new_names = [n for n in existing['names'] if re.match(BEQ_FILTER_NAME_PATTERN, n) is None]
+
+        new_names = [
+            n for n in existing["names"] if re.match(BEQ_FILTER_NAME_PATTERN, n) is None
+        ]
         for channel in beq_channels:
             if channel in gain_filter_names:
                 new_names.append(gain_filter_names[channel])
         new_names.extend(filter_names)
-        existing['names'] = new_names
+        existing["names"] = new_names
     else:
-        raise ValueError(f'Unable to load BEQ, dsp config has no pipeline declared')
+        raise ValueError("Unable to load BEQ, dsp config has no pipeline declared")
     return new_cfg
 
 
 def get_filter_type(peq):
-    return 'Lowshelf' if peq['type'] == 'LowShelf' else 'Highshelf' if peq['type'] == 'HighShelf' else 'Peaking'
+    return (
+        "Lowshelf"
+        if peq["type"] == "LowShelf"
+        else "Highshelf"
+        if peq["type"] == "HighShelf"
+        else "Peaking"
+    )
 
 
 def create_cfg_for_gains(values: Dict[int, dict], base_cfg: dict) -> dict:
     from copy import deepcopy
+
     new_cfg = deepcopy(base_cfg)
-    if 'filters' not in new_cfg:
-        new_cfg['filters'] = {}
+    if "filters" not in new_cfg:
+        new_cfg["filters"] = {}
     for ch, v in values.items():
-        gain_filter_name = f'BEQ_Gain_{ch}'
-        gain_filter = new_cfg['filters'].get(gain_filter_name, None)
+        gain_filter_name = f"BEQ_Gain_{ch}"
+        gain_filter = new_cfg["filters"].get(gain_filter_name, None)
         if gain_filter is None:
             gain_filter = {
-                'type': 'Gain',
-                'description': 'ezbeq specified gain',
-                'parameters': {
-                    'gain': v.get('gain', 0.0),
-                    'inverted': False,
-                    'mute': v.get('mute', False)
-                }
+                "type": "Gain",
+                "description": "ezbeq specified gain",
+                "parameters": {
+                    "gain": v.get("gain", 0.0),
+                    "inverted": False,
+                    "mute": v.get("mute", False),
+                },
             }
-            new_cfg['filters'][gain_filter_name] = gain_filter
+            new_cfg["filters"][gain_filter_name] = gain_filter
         else:
-            if 'gain' in v:
-                gain_filter['parameters']['gain'] = v['gain']
-            if 'mute' in v:
-                gain_filter['parameters']['mute'] = v['mute']
+            if "gain" in v:
+                gain_filter["parameters"]["gain"] = v["gain"]
+            if "mute" in v:
+                gain_filter["parameters"]["mute"] = v["mute"]
 
-        if 'pipeline' in new_cfg:
-            pipeline = new_cfg['pipeline']
-            empty_filter = {'type': 'Filter', 'names': [], 'channels':[ch]}
-            existing = next((f for f in pipeline if f['type'] == 'Filter' and f['channels'] == [ch]), None)
+        if "pipeline" in new_cfg:
+            pipeline = new_cfg["pipeline"]
+            empty_filter = {"type": "Filter", "names": [], "channels": [ch]}
+            existing = next(
+                (
+                    f
+                    for f in pipeline
+                    if f["type"] == "Filter" and f["channels"] == [ch]
+                ),
+                None,
+            )
             if existing is None:
                 existing = empty_filter
                 pipeline.append(existing)
             import re
-            if gain_filter_name not in existing['names']:
-                insert_at = next((i for i, n in enumerate(existing['names']) if re.match(BEQ_FILTER_NAME_PATTERN, n) is not None), -1)
+
+            if gain_filter_name not in existing["names"]:
+                insert_at = next(
+                    (
+                        i
+                        for i, n in enumerate(existing["names"])
+                        if re.match(BEQ_FILTER_NAME_PATTERN, n) is not None
+                    ),
+                    -1,
+                )
                 if insert_at == -1:
-                    existing['names'].append(gain_filter_name)
+                    existing["names"].append(gain_filter_name)
                 else:
-                    existing['names'].insert(insert_at, gain_filter_name)
+                    existing["names"].insert(insert_at, gain_filter_name)
         else:
-            raise ValueError(f'Unable to load BEQ, dsp config has no pipeline declared')
+            raise ValueError("Unable to load BEQ, dsp config has no pipeline declared")
     return new_cfg
 
 
 class UpdateConfig:
-
-    def __init__(self, name: str, create_cfg: Callable[[dict], dict], ws_server: WsServer, client: CamillaDspClient,
-                 on_complete: Callable[[bool], None]):
+    def __init__(
+        self,
+        name: str,
+        create_cfg: Callable[[dict], dict],
+        ws_server: WsServer,
+        client: CamillaDspClient,
+        on_complete: Callable[[bool], None],
+    ):
         self.__name = name
         self.__create_cfg = create_cfg
         self.__dsp_config = None
@@ -630,34 +768,61 @@ class UpdateConfig:
         self.__do_set_config()
 
     def send_get_config(self):
-        logger.info(f'[{self.__name}] Sending GetConfigJson')
+        logger.info(f"[{self.__name}] Sending GetConfigJson")
         self.__client.send(json.dumps("GetConfigJson"))
 
     def __do_set_config(self):
-        logger.info(f'[{self.__name}] Sending SetConfigJson')
-        self.__client.send(json.dumps({'SetConfigJson': json.dumps(self.__create_cfg(self.__dsp_config))}))
+        logger.info(f"[{self.__name}] Sending SetConfigJson")
+        self.__client.send(
+            json.dumps(
+                {"SetConfigJson": json.dumps(self.__create_cfg(self.__dsp_config))}
+            )
+        )
 
     def on_set_config(self):
         self.__on_complete(True)
 
     def failed(self, stage: str, payload):
         self.__failed = True
-        msg = f'{stage} failed : {payload}'
-        logger.warning(f'[{self.__name}] Operation failed - {msg}')
+        msg = f"{stage} failed : {payload}"
+        logger.warning(f"[{self.__name}] Operation failed - {msg}")
         self.__on_complete(False)
-        self.__ws_server.broadcast(json.dumps({'message': 'Error', 'data': msg}))
+        self.__ws_server.broadcast(json.dumps({"message": "Error", "data": msg}))
 
 
 class LoadConfig(UpdateConfig):
-
-    def __init__(self, entry: Optional[CatalogueEntry], beq_channels: List[int], mv_adjust: float, ws_server: WsServer,
-                 client: CamillaDspClient, on_complete: Callable[[bool], None]):
-        super().__init__(entry.formatted_title if entry else 'Clearing BEQ',
-                         lambda base: create_cfg_for_entry(entry, base, beq_channels, mv_adjust, False),
-                         ws_server, client, on_complete)
+    def __init__(
+        self,
+        entry: Optional[CatalogueEntry],
+        beq_channels: List[int],
+        mv_adjust: float,
+        ws_server: WsServer,
+        client: CamillaDspClient,
+        on_complete: Callable[[bool], None],
+    ):
+        super().__init__(
+            entry.formatted_title if entry else "Clearing BEQ",
+            lambda base: create_cfg_for_entry(
+                entry, base, beq_channels, mv_adjust, False
+            ),
+            ws_server,
+            client,
+            on_complete,
+        )
 
 
 class UpdateGain(UpdateConfig):
-    def __init__(self, values: Dict[int, dict], ws_server: WsServer, client: CamillaDspClient,
-                 on_complete: Callable[[bool], None]):
-        super().__init__('UpdateGain', lambda base: create_cfg_for_gains(values, base), ws_server, client, on_complete)
+    def __init__(
+        self,
+        values: Dict[int, dict],
+        ws_server: WsServer,
+        client: CamillaDspClient,
+        on_complete: Callable[[bool], None],
+    ):
+        super().__init__(
+            "UpdateGain",
+            lambda base: create_cfg_for_gains(values, base),
+            ws_server,
+            client,
+            on_complete,
+        )

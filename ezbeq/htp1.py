@@ -97,7 +97,7 @@ class Htp1(PersistentDevice[Htp1State]):
             self.__client.send('changemso [{"op":"replace","path":"/peq/peqsw","value":true}]')
             self.__client.send(f"changemso {json.dumps(ops)}")
         else:
-            logger.warning(f"Nothing to send")
+            logger.warning("Nothing to send")
 
     def activate(self, slot: str) -> None:
         def __do_it():
@@ -303,7 +303,7 @@ class Htp1ClientFactory(WebSocketClientFactory, ReconnectingClientFactory):
                 logger.info(f"Sending to {c.peer} - {msg}")
                 try:
                     c.sendMessage(msg.encode('utf8'))
-                except Disconnected as e:
+                except Disconnected:
                     logger.exception(f"Failed to send to {c.peer}, discarding")
                     disconnected_clients.append(c)
             for c in disconnected_clients:

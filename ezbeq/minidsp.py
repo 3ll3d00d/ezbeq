@@ -518,7 +518,7 @@ class Minidsp(PersistentDevice[MinidspState]):
                                 logger.debug(f'[{name}] Unexpected output from probe : {line}')
                     if serials:
                         values['serials'] = serials
-                except Exception as e:
+                except Exception:
                     logger.warning(f'[{self.name}] Unable to probe')
                 return MinidspState(self.name, self.__descriptor, **values)
             else:
@@ -547,7 +547,7 @@ class Minidsp(PersistentDevice[MinidspState]):
     @staticmethod
     def __validate_slot_idx(target_slot_idx):
         if target_slot_idx < 0 or target_slot_idx > 3:
-            raise InvalidRequestError(f"Slot must be in range 1-4")
+            raise InvalidRequestError("Slot must be in range 1-4")
 
     def load_biquads(self, slot: str, overwrite: bool, inputs: List[int], outputs: List[int],
                      biquads: List[dict]) -> None:
@@ -1071,7 +1071,7 @@ class MinidspRsClientFactory(WebSocketClientFactory, ReconnectingClientFactory):
                 logger.info(f"[{self.device_id}] Sending to {c.peer} - {msg}")
                 try:
                     c.sendMessage(msg.encode('utf8'))
-                except Disconnected as e:
+                except Disconnected:
                     logger.exception(f"[{self.device_id}] Failed to send to {c.peer}, discarding")
                     disconnected_clients.append(c)
             for c in disconnected_clients:

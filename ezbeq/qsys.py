@@ -91,7 +91,7 @@ class Qsys(PersistentDevice[QsysState]):
         if to_load:
             self.__send_to_socket(to_load, entry)
         else:
-            logger.warning(f"Nothing to send")
+            logger.warning("Nothing to send")
 
     @staticmethod
     def __recvall(sock: socket, buf_size: int = 4096) -> str:

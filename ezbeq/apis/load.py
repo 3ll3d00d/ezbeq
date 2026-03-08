@@ -1,6 +1,6 @@
 from flask_restx import Resource, Namespace
 
-from ezbeq.catalogue import CatalogueProvider, LoadTester
+from ezbeq.catalogue import LoadTester
 
 api = Namespace('1/load', description='Allows access to a load testing function for checking sqlite db performance')
 

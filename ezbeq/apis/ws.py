@@ -175,7 +175,7 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
                 logger.debug(f"Sending to {c.peer} - {msg}")
                 try:
                     c.sendMessage(msg.encode('utf8'), isBinary=False)
-                except Disconnected as e:
+                except Disconnected:
                     logger.exception(f"Failed to send to disconnected client {c.peer}, discarding")
                     disconnected_clients.append(c)
             for c in disconnected_clients:
