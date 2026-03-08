@@ -83,7 +83,7 @@ class Config:
         cfg = None
         if os.path.exists(config_path):
             self.logger.warning("Loading config from " + config_path)
-            with open(config_path, 'r') as yml:
+            with open(config_path) as yml:
                 cfg, changed = self.__migrate(yaml.load(yml, Loader=yaml.FullLoader))
                 if changed:
                     import shutil
@@ -188,7 +188,7 @@ class Config:
         v_name = os.path.join(root, 'VERSION')
         v = 'UNKNOWN'
         if os.path.exists(v_name):
-            with open(v_name, 'r') as f:
+            with open(v_name) as f:
                 v = f.read()
         return v
 

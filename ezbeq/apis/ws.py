@@ -2,7 +2,8 @@ import abc
 import json
 import logging
 from collections import defaultdict
-from typing import Callable, Optional, List, Dict, TypeVar, Generic
+from typing import TypeVar, Generic
+from collections.abc import Callable
 
 from autobahn.exception import Disconnected
 from autobahn.twisted import WebSocketServerProtocol, WebSocketServerFactory
@@ -73,13 +74,13 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
     protocol = WsProtocol
 
     def __init__(self, *args, **kwargs):
-        super(AutobahnWsServerFactory, self).__init__(*args, **kwargs)
-        self.__clients: List[WsProtocol] = []
-        self.__levels_client: Dict[str, List[WsProtocol]] = defaultdict(list)
-        self.__state_provider: Optional[Callable[[], str]] = None
-        self.__meta_provider: Optional[Callable[[], str]] = None
-        self.__catalogue_loader: Optional[Callable[[Callable[[str], None]], None]] = None
-        self.__levels_provider: Dict[str, Callable[[], None]] = {}
+        super().__init__(*args, **kwargs)
+        self.__clients: list[WsProtocol] = []
+        self.__levels_client: dict[str, list[WsProtocol]] = defaultdict(list)
+        self.__state_provider: Callable[[], str] | None = None
+        self.__meta_provider: Callable[[], str] | None = None
+        self.__catalogue_loader: Callable[[Callable[[str], None]], None] | None = None
+        self.__levels_provider: dict[str, Callable[[], None]] = {}
 
     def init_state_provider(self, state_provider: Callable[[], str]):
         self.__state_provider = state_provider

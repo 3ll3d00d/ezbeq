@@ -1,6 +1,5 @@
 import json
 import logging
-from typing import Optional, List
 
 import semver
 from autobahn.exception import Disconnected
@@ -86,7 +85,7 @@ class Htp1(PersistentDevice[Htp1State]):
                             any_update = True
         return any_update
 
-    def __send(self, to_load: List['PEQ']):
+    def __send(self, to_load: list['PEQ']):
         logger.info(f"Sending {len(to_load)} filters")
         while len(to_load) < 10:
             peq = PEQ(len(to_load), fc=100, q=1, gain=0, filter_type_name='PeakingEQ')
@@ -105,11 +104,11 @@ class Htp1(PersistentDevice[Htp1State]):
 
         self._hydrate_cache_broadcast(__do_it)
 
-    def load_biquads(self, slot: str, overwrite: bool, inputs: List[int], outputs: List[int],
-                     biquads: List[dict]) -> None:
+    def load_biquads(self, slot: str, overwrite: bool, inputs: list[int], outputs: list[int],
+                     biquads: list[dict]) -> None:
         raise NotImplementedError()
 
-    def send_commands(self, slot: str, inputs: List[int], outputs: List[int], commands: List[str]) -> None:
+    def send_commands(self, slot: str, inputs: list[int], outputs: list[int], commands: list[str]) -> None:
         raise NotImplementedError()
 
     def load_filter(self, slot: str, entry: CatalogueEntry, mv_adjust: float = 0.0) -> None:
@@ -117,7 +116,7 @@ class Htp1(PersistentDevice[Htp1State]):
                    for idx, f in enumerate(entry.filters)]
         self._hydrate_cache_broadcast(lambda: self.__do_it(to_load, entry.formatted_title, entry.author))
 
-    def __do_it(self, to_load: List['PEQ'], title: str, author: str = None):
+    def __do_it(self, to_load: list['PEQ'], title: str, author: str = None):
         try:
             self.__send(to_load)
             self._current_state.slot.last = title
@@ -130,13 +129,13 @@ class Htp1(PersistentDevice[Htp1State]):
     def clear_filter(self, slot: str) -> None:
         self._hydrate_cache_broadcast(lambda: self.__do_it([], 'Empty'))
 
-    def mute(self, slot: Optional[str], channel: Optional[int]) -> None:
+    def mute(self, slot: str | None, channel: int | None) -> None:
         raise NotImplementedError()
 
-    def unmute(self, slot: Optional[str], channel: Optional[int]) -> None:
+    def unmute(self, slot: str | None, channel: int | None) -> None:
         raise NotImplementedError()
 
-    def set_gain(self, slot: Optional[str], channel: Optional[int], gain: float) -> None:
+    def set_gain(self, slot: str | None, channel: int | None, gain: float) -> None:
         raise NotImplementedError()
 
     def levels(self) -> dict:
@@ -233,7 +232,7 @@ class Htp1Protocol(WebSocketClientProtocol):
 
     def onConnect(self, response):
         logger.info(f"Connected to {response.peer}")
-        self.sendMessage('getmso'.encode('utf-8'), isBinary=False)
+        self.sendMessage(b'getmso', isBinary=False)
 
     def onOpen(self):
         logger.info("Connected to HTP1")
@@ -269,8 +268,8 @@ class Htp1ClientFactory(WebSocketClientFactory, ReconnectingClientFactory):
     initialDelay = 0.5
 
     def __init__(self, listener: Htp1, *args, **kwargs):
-        super(Htp1ClientFactory, self).__init__(*args, **kwargs)
-        self.__clients: List[Htp1Protocol] = []
+        super().__init__(*args, **kwargs)
+        self.__clients: list[Htp1Protocol] = []
         self.listener: Htp1 = listener
         self.setProtocolOptions(version=13)
 

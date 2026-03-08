@@ -3,7 +3,7 @@ import logging
 import math
 import time
 from collections import defaultdict
-from typing import Callable, Dict, List, Optional, Union
+from collections.abc import Callable
 
 from autobahn.exception import Disconnected
 from autobahn.twisted.websocket import (
@@ -27,8 +27,8 @@ logger = logging.getLogger("ezbeq.camilladsp")
 class CamillaDspSlotState(SlotState):
     def __init__(self):
         super().__init__(SLOT_ID)
-        self.gains: List[dict] = []
-        self.mutes: List[dict] = []
+        self.gains: list[dict] = []
+        self.mutes: list[dict] = []
 
     def as_dict(self) -> dict:
         return {**super().as_dict(), "gains": self.gains, "mutes": self.mutes}
@@ -71,18 +71,18 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         self.__catalogue = catalogue
         self.__ip: str = cfg["ip"]
         self.__port: int = cfg["port"]
-        self.__beq_channels: List[int] = [int(c) for c in cfg["channels"]]
+        self.__beq_channels: list[int] = [int(c) for c in cfg["channels"]]
         self.__current_version: str = "3.x"
         self.__current_config: dict = {}
         self.__levels_interval_ms = round(1000.0 / float(cfg.get("levelsFps", 10)))
-        self.__config_updater: Optional[UpdateConfig] = None
+        self.__config_updater: UpdateConfig | None = None
         if not self.__beq_channels:
             raise ValueError(
                 f"No channels supplied for CamillaDSP {name} - {self.__ip}:{self.__port}"
             )
         self.__ws_client = cfg["make_wsclient"](self.__ip, self.__port, self)
-        self.__playback_peak: List[float] = []
-        self.__playback_rms: List[float] = []
+        self.__playback_peak: list[float] = []
+        self.__playback_rms: list[float] = []
         ws_server.factory.set_levels_provider(name, self.start_broadcast_levels)
 
     @property
@@ -251,7 +251,7 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         return self._hydrate_cache_broadcast(__do_it)
 
     def __update_channel_levels(
-        self, values: Dict[int, dict], on_complete: Callable[[bool], None]
+        self, values: dict[int, dict], on_complete: Callable[[bool], None]
     ):
         if self.__config_updater is None:
             logger.info(f"Sending {len(values)} level changes")
@@ -266,7 +266,7 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
 
     def __send_filter(
         self,
-        entry: Optional[CatalogueEntry],
+        entry: CatalogueEntry | None,
         mv_adjust: float,
         on_complete: Callable[[bool], None],
     ):
@@ -291,7 +291,7 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
                 f"Unable to load BEQ, config update already in progress for {self.__config_updater.name}"
             )
 
-    def __send_command(self, set_cmd: str, value: Union[float, bool]):
+    def __send_command(self, set_cmd: str, value: float | bool):
         logger.info(f"Sending command {set_cmd}: {value}")
         # messages are guaranteed to be processed in order
         self.__ws_client.send(json.dumps({f"Set{set_cmd}": value}))
@@ -307,14 +307,14 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         self,
         slot: str,
         overwrite: bool,
-        inputs: List[int],
-        outputs: List[int],
-        biquads: List[dict],
+        inputs: list[int],
+        outputs: list[int],
+        biquads: list[dict],
     ) -> None:
         raise NotImplementedError()
 
     def send_commands(
-        self, slot: str, inputs: List[int], outputs: List[int], commands: List[str]
+        self, slot: str, inputs: list[int], outputs: list[int], commands: list[str]
     ) -> None:
         raise NotImplementedError()
 
@@ -323,7 +323,7 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
     ) -> None:
         self._hydrate_cache_broadcast(lambda: self.__do_load_filter(entry, mv_adjust))
 
-    def __do_load_filter(self, entry: Optional[CatalogueEntry], mv_adjust: float = 0.0):
+    def __do_load_filter(self, entry: CatalogueEntry | None, mv_adjust: float = 0.0):
         try:
             self._current_state.slot.last = "Loading" if entry else "Clearing"
             self._current_state.slot.last_author = None
@@ -356,7 +356,7 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
     def clear_filter(self, slot: str) -> None:
         self._hydrate_cache_broadcast(lambda: self.__do_load_filter(None))
 
-    def mute(self, slot: Optional[str], channel: Optional[int]) -> None:
+    def mute(self, slot: str | None, channel: int | None) -> None:
         self._hydrate_cache_broadcast(lambda: self.__do_mute_op(True))
 
     def __do_mute_op(self, mute: bool):
@@ -365,11 +365,11 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         except Exception as e:
             raise e
 
-    def unmute(self, slot: Optional[str], channel: Optional[int]) -> None:
+    def unmute(self, slot: str | None, channel: int | None) -> None:
         self._hydrate_cache_broadcast(lambda: self.__do_mute_op(False))
 
     def set_gain(
-        self, slot: Optional[str], channel: Optional[int], gain: float
+        self, slot: str | None, channel: int | None, gain: float
     ) -> None:
         if channel is None:
             self._hydrate_cache_broadcast(lambda: self.__do_volume_op(gain))
@@ -562,8 +562,8 @@ class CamillaDspClientFactory(WebSocketClientFactory, ReconnectingClientFactory)
     initialDelay = 0.5
 
     def __init__(self, listener: CamillaDsp, *args, **kwargs):
-        super(CamillaDspClientFactory, self).__init__(*args, **kwargs)
-        self.__clients: List[CamillaDspProtocol] = []
+        super().__init__(*args, **kwargs)
+        self.__clients: list[CamillaDspProtocol] = []
         self.listener: CamillaDsp = listener
         self.setProtocolOptions(version=13)
 
@@ -606,9 +606,9 @@ class CamillaDspClientFactory(WebSocketClientFactory, ReconnectingClientFactory)
 
 
 def create_cfg_for_entry(
-    entry: Optional[CatalogueEntry],
+    entry: CatalogueEntry | None,
     base_cfg: dict,
-    beq_channels: List[int],
+    beq_channels: list[int],
     mv_adjust: float,
     mute: bool,
 ) -> dict:
@@ -681,7 +681,7 @@ def get_filter_type(peq):
     )
 
 
-def create_cfg_for_gains(values: Dict[int, dict], base_cfg: dict) -> dict:
+def create_cfg_for_gains(values: dict[int, dict], base_cfg: dict) -> dict:
     from copy import deepcopy
 
     new_cfg = deepcopy(base_cfg)
@@ -793,8 +793,8 @@ class UpdateConfig:
 class LoadConfig(UpdateConfig):
     def __init__(
         self,
-        entry: Optional[CatalogueEntry],
-        beq_channels: List[int],
+        entry: CatalogueEntry | None,
+        beq_channels: list[int],
         mv_adjust: float,
         ws_server: WsServer,
         client: CamillaDspClient,
@@ -814,7 +814,7 @@ class LoadConfig(UpdateConfig):
 class UpdateGain(UpdateConfig):
     def __init__(
         self,
-        values: Dict[int, dict],
+        values: dict[int, dict],
         ws_server: WsServer,
         client: CamillaDspClient,
         on_complete: Callable[[bool], None],

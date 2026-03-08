@@ -6,7 +6,7 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Callable, Union
+from collections.abc import Callable
 
 import ijson
 import requests
@@ -617,13 +617,13 @@ class Catalogues:
             except Exception as e:
                 logger.exception("Failed to refresh catalogue", e)
 
-    def find_by_id(self, entry_id: str, as_dict: bool = False) -> Union[CatalogueEntry, dict] | None:
+    def find_by_id(self, entry_id: str, as_dict: bool = False) -> CatalogueEntry | dict | None:
         return self.__find(f"{ID} = '{entry_id}'", as_dict)
 
-    def find_by_digest(self, digest: str, as_dict: bool = False) -> Union[CatalogueEntry, dict] | None:
+    def find_by_digest(self, digest: str, as_dict: bool = False) -> CatalogueEntry | dict | None:
         return self.__find(f"{DIGEST} = '{digest}'", as_dict)
 
-    def __find(self, clause: str, as_dict: bool) -> Union[CatalogueEntry, dict] | None:
+    def __find(self, clause: str, as_dict: bool) -> CatalogueEntry | dict | None:
         catalogue = self.latest
         if not catalogue:
             return None
@@ -741,8 +741,8 @@ class CatalogueProvider:
                                                    config.load_catalogue_at_startup,
                                                    config.db_mmap_mb)
 
-    def find(self, entry_id: str, match_on_idx: bool | None = None, as_dict: bool = False) -> Union[
-                                                                                                  CatalogueEntry, dict] | None:
+    def find(self, entry_id: str, match_on_idx: bool | None = None, as_dict: bool = False) -> (
+                                                                                                  CatalogueEntry | dict) | None:
         v = None
         if match_on_idx is None or match_on_idx is True:
             v = self.__catalogues.find_by_id(entry_id, as_dict)
@@ -782,14 +782,14 @@ class CatalogueProvider:
         return self.__catalogues.search(authors, years, audio_types, content_types, tmdb_id, text, audio_codecs,
                                         audio_channel_counts, fields, limit)
 
-    def find_by_id(self, entry_id: str) -> Union[CatalogueEntry, dict] | None:
+    def find_by_id(self, entry_id: str) -> CatalogueEntry | dict | None:
         return self.__find_by(entry_id, self.__catalogues.find_by_id)
 
-    def find_by_digest(self, digest: str) -> Union[CatalogueEntry, dict] | None:
+    def find_by_digest(self, digest: str) -> CatalogueEntry | dict | None:
         return self.__find_by(digest, self.__catalogues.find_by_digest)
 
-    def __find_by(self, val: str, finder: Callable[[str], Union[CatalogueEntry, dict] | None]) -> Union[
-                                                                                                      CatalogueEntry, dict] | None:
+    def __find_by(self, val: str, finder: Callable[[str], CatalogueEntry | dict | None]) -> (
+                                                                                                      CatalogueEntry | dict) | None:
         from twisted.internet import reactor
         reactor.callLater(0, self.__catalogues.refresh_if_stale)
         return finder(val)
