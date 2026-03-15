@@ -3,7 +3,7 @@ import json
 import pytest
 from busypie import wait, SECOND, MILLISECOND
 
-from camilladsp import NOP_LS
+from ezbeq.camilladsp import NOP_LS
 from conftest import CamillaDspSpyConfig
 
 

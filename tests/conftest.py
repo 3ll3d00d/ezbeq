@@ -3,7 +3,6 @@ import logging
 import os
 import re
 import threading
-from pathlib import Path
 from queue import SimpleQueue
 from threading import Thread
 from time import sleep
