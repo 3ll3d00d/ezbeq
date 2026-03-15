@@ -33,20 +33,20 @@ Example is provided for rpi users
 
 See [examples](examples)
 
-| Type                        | File                                                                                                                                                                       |
-|-----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Camilla DSP                 | [for CamillaDSP v2](examples/ezbeq_camilladsp2.yml), [for CamillaDSP v3](examples/ezbeq_camilladsp2.yml)                                                                   |
-| J River Media Center        | [ezbeq_mc.yml](examples/ezbeq_mc.yml)                                                                                                                                      |
-| Minidsp 2x4HD               | [ezbeq_md.yml](examples/ezbeq_md.yml), [using multiple devices](examples/ezbeq_md2.yml) or [with custom slot names](examples/ezbeq_named.yml)                              |
-| Minidsp 4x10                | [ezbeq_4x10.yml](examples/ezbeq_4x10.yml)                                                                                                                                  |
+| Type                        | File                                                                                                                                                                        |
+|-----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Camilla DSP                 | [for CamillaDSP v3](examples/ezbeq_camilladsp3.yml)                                                                                                                         |
+| J River Media Center        | [ezbeq_mc.yml](examples/ezbeq_mc.yml)                                                                                                                                       |
+| Minidsp 2x4HD               | [ezbeq_md.yml](examples/ezbeq_md.yml), [using multiple devices](examples/ezbeq_md2.yml) or [with custom slot names](examples/ezbeq_named.yml)                               |
+| Minidsp 4x10                | [ezbeq_4x10.yml](examples/ezbeq_4x10.yml)                                                                                                                                   |
 | Minidsp 10x10               | [without use of XO](examples/ezbeq_10x10.yml), [with](examples/ezbeq_10x10_xo.yml) or [using a custom mapping across input, output and xo](examples/ezbeq_10x10_custom.yml) |
-| Minidsp DDRC-24             | [ezbeq_ddrc24.yml](examples/ezbeq_ddrc24.yml)                                                                                                                              |
-| Minidsp DDRC-88             | [ezbeq_ddrc88.yml](examples/ezbeq_ddrc88.yml)                                                                                                                              |
-| Minidsp HTx                 | [ezbeq_htx.yml](examples/ezbeq_htx.yml)                                                                                                                                    |
-| Minidsp SHD                 | [ezbeq_shd.yml](examples/ezbeq_shd.yml)                                                                                                                                    |
-| Monolith HTP-1              | [ezbeq_htp1.yml](examples/ezbeq_htp1.yml)                                                                                                                                  |
-| Q-Sys                       | [ezbeq_qsys.yml](examples/ezbeq_qsys.yml)                                                                                                                                  |
-| Multiple, different devices | [ezbeq_multi.yml](examples/ezbeq_multi.yml)                                                                                                                                |
+| Minidsp DDRC-24             | [ezbeq_ddrc24.yml](examples/ezbeq_ddrc24.yml)                                                                                                                               |
+| Minidsp DDRC-88             | [ezbeq_ddrc88.yml](examples/ezbeq_ddrc88.yml)                                                                                                                               |
+| Minidsp HTx                 | [ezbeq_htx.yml](examples/ezbeq_htx.yml)                                                                                                                                     |
+| Minidsp SHD                 | [ezbeq_shd.yml](examples/ezbeq_shd.yml)                                                                                                                                     |
+| Monolith HTP-1              | [ezbeq_htp1.yml](examples/ezbeq_htp1.yml)                                                                                                                                   |
+| Q-Sys                       | [ezbeq_qsys.yml](examples/ezbeq_qsys.yml)                                                                                                                                   |
+| Multiple, different devices | [ezbeq_multi.yml](examples/ezbeq_multi.yml)                                                                                                                                 |
 
 ### Using with a Minidsp
 
@@ -357,17 +357,19 @@ Note that this format does not support variable Q shelf filters.
 
 On load, the camilladsp configuration will be updated as follows:
 
-* each filter will be added to the `Filters` section in [IIR](https://github.com/HEnquist/camilladsp#iir) format using one of the Peaking, HighShelf or LowShelf filter types. Filter names will be BEQ1 to BEQ10 
+* each filter will be added to the `Filters` section in [IIR](https://github.com/HEnquist/camilladsp#iir) format using one of the Peaking, HighShelf or LowShelf filter types. Filter names will be BEQ_0 to BEQ_9, the number corresponds to the filter index in the loaded BEQ filter. If a filter with the same name already exists, it will be overwritten with the new settings. This means that if you load a different BEQ filter, the existing filters will be updated rather than new filters being added.
 * each filter will be appended to the [Pipeline](https://github.com/HEnquist/camilladsp#pipeline) for the specified channel, an entry of type `Filter` will be added if not already present for that channel
+
+Note that if the named filter (BEQ_0 for example) is already present in the camilladsp configuration, only the filter parameters will be updated on load or remove.
+i.e. this enables the user to define where to put the filters in the pipeline rather than always appending to the end of the pipeline.
 
 On unload, the camilladsp configuration will be updated as follows:
 
-* the filters will deleted from the `Filters` section
-* the filters will be removed from the `Pipeline` section
+* the filters will reset to 0 gain filters in the `Filters` section
 
 User controlled master volume adjustments are supported using the [Volume](https://github.com/HEnquist/camilladsp/blob/master/README.md#volume) filter if that filter has been configured in the pipeline. 
 
-BEQ specific input gain adjustments are supported via the use of a [Gain](https://github.com/HEnquist/camilladsp#gain) filter which is inserted into the pipeline ahead of the BEQ filters themselves. 
+BEQ specific input gain adjustments are supported via the use of a [Gain](https://github.com/HEnquist/camilladsp#gain) filter which is inserted into the pipeline ahead of the BEQ filters themselves.
 
 ## Starting ezbeq on bootup
 

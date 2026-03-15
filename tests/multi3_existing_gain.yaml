@@ -7,26 +7,34 @@ devices:
   silence_timeout: 3.0
   capture:
     type: Alsa
-    channels: 2
+    channels: 4
     device: "plughw:Loopback,1,0"
     format: S32LE
   playback:
     type: Alsa
-    channels: 2
+    channels: 4
     device: "plughw:Loopback_1,0,0"
     format: S32LE
 
 filters:
-  vol:
-    type: Volume
+  BEQ_Gain_2:
+    type: Gain
     parameters:
-      ramp_time: 200
+      gain: 0.0
+      inverted: false
+      mute: false
+  BEQ_Gain_3:
+    type: Gain
+    parameters:
+      gain: 0.0
+      inverted: false
+      mute: false
 
 mixers:
   input:
     channels:
-      in: 2
-      out: 2
+      in: 4
+      out: 4
     mapping:
       - dest: 0
         sources:
@@ -38,13 +46,20 @@ mixers:
           - channel: 1
             gain: 0
             inverted: false
+      - dest: 2
+        sources:
+          - channel: 2
+            gain: 0
+            inverted: false
+      - dest: 3
+        sources:
+          - channel: 3
+            gain: 0
+            inverted: false
 
 pipeline:
   - type: Filter
-    channel: 0
+    channels: [2,3]
     names:
-    - vol
-  - type: Filter
-    channel: 1
-    names:
-    - vol
+    - BEQ_Gain_2
+    - BEQ_Gain_3

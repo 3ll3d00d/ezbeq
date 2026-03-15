@@ -16,12 +16,6 @@ devices:
     device: "plughw:Loopback_1,0,0"
     format: S32LE
 
-filters:
-  vol:
-    type: Volume
-    parameters:
-      ramp_time: 200
-
 mixers:
   input:
     channels:
@@ -48,9 +42,3 @@ mixers:
           - channel: 3
             gain: 0
             inverted: false
-
-pipeline:
-  - type: Filter
-    channels: [2,3]
-    names:
-    - vol

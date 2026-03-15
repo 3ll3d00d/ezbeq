@@ -17,10 +17,26 @@ devices:
     format: S32LE
 
 filters:
-  vol:
-    type: Volume
+  BEQ_Gain_2:
+    type: Gain
     parameters:
-      ramp_time: 200
+      gain: 0.0
+      inverted: false
+      mute: false
+  BEQ_Gain_3:
+    type: Gain
+    parameters:
+      gain: 0.0
+      inverted: false
+      mute: false
+  BEQ_0:
+    type: Biquad
+    description: "ezbeq default filter"
+    parameters:
+      type: "Lowshelf"
+      freq: 20.0
+      gain: 0.0
+      q: 1.0
 
 mixers:
   input:
@@ -51,10 +67,12 @@ mixers:
 
 pipeline:
   - type: Filter
-    channel: 2
+    channels: [2]
     names:
-    - vol
+      - BEQ_Gain_2
+      - BEQ_0
   - type: Filter
-    channel: 3
+    channels: [3]
     names:
-    - vol
+      - BEQ_Gain_3
+      - BEQ_0

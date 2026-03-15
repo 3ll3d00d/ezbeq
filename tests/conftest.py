@@ -147,34 +147,6 @@ def minidsp_shd_client(minidsp_shd_app):
 
 
 @pytest.fixture
-def single_camilladsp2_app(httpserver: HTTPServer, tmp_path):
-    """Create and configure a new app instance for each test."""
-    cfg = CamillaDspSpyConfig(httpserver.host, httpserver.port, tmp_path, cfg_name='single2.yaml', version=2, channels=[1])
-    app, ws = main.create_app(cfg, cfg.msg_spy)
-    yield app
-
-
-@pytest.fixture
-def single_camilladsp2_client(single_camilladsp2_app):
-    """A test client for the app."""
-    return single_camilladsp2_app.test_client()
-
-
-@pytest.fixture
-def multi_camilladsp2_app(httpserver: HTTPServer, tmp_path):
-    """Create and configure a new app instance for each test."""
-    cfg = CamillaDspSpyConfig(httpserver.host, httpserver.port, tmp_path, cfg_name='multi2.yaml', version=2, channels=[2,3])
-    app, ws = main.create_app(cfg, cfg.msg_spy)
-    yield app
-
-
-@pytest.fixture
-def multi_camilladsp2_client(multi_camilladsp2_app):
-    """A test client for the app."""
-    return multi_camilladsp2_app.test_client()
-
-
-@pytest.fixture
 def single_camilladsp3_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new app instance for each test."""
     cfg = CamillaDspSpyConfig(httpserver.host, httpserver.port, tmp_path, cfg_name='single3.yaml', version=3, channels=[1])
