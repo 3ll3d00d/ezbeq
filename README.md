@@ -29,6 +29,39 @@ Example is provided for rpi users
     $ . bin/activate
     $ pip install ezbeq
 
+### Docker
+
+The official ezBEQ docker image is https://github.com/3ll3d00d/ezbeq-jr.
+See it's README for more instructions, but a simple docker compose would look like this:
+
+```dockerfile
+services:
+  ezbeq-jr:
+    image: 3ll3d00d/ezbeq-jr
+    container_name: ezbeq
+    environment:
+      - EZBEQ_CONFIG_HOME=/config  # Set config home environment variable
+    restart: unless-stopped  # Automatically restart unless stopped manually
+
+    # REQUIRED: Set the user to run as
+    user: X:Y  # Set the user by UID:GID
+
+    # REQUIRED: Mount local config directory to container
+    volumes:
+      - /apps/ezbeq/config:/config
+
+    # REQUIRED: Your port mapping setting
+    ports:
+      - "8080:8080"
+    
+    # OPTIONAL: Hostname configs, depending on your ezbeq settings
+    # extra_hosts:
+      # - "minidsp:192.168.1.86"
+```
+
+> [!NOTE]
+> Using this image with a USB connected device requires some extra setup. Please look at the [USB section](https://github.com/3ll3d00d/ezbeq-jr?tab=readme-ov-file#usb_setup) of the image README.
+
 ### Example Config Files
 
 See [examples](examples)
