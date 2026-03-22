@@ -51,6 +51,11 @@ pyinstaller = {version = "^6.9.0", python = ">=3.9,<3.13" }
 [tool.poetry.scripts]
 ezbeq = 'ezbeq.main:main'
 
+[tool.pytest.ini_options]
+markers = [
+    "integration: starts a real Twisted server subprocess (slower)",
+]
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

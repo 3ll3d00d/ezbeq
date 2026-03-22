@@ -154,14 +154,18 @@ def main(args=None):
                 request.postpath.insert(0, path)
                 return self.wsgi
             elif path == b'static':
-                return self.static
+                if hasattr(self, 'static'):
+                    return self.static
             elif path == b'metrics' and cfg.enable_metrics:
                 from prometheus_client.twisted import MetricsResource
                 if not self.metrics:
                     self.metrics = MetricsResource()
                 return self.metrics
             else:
-                return self.react.get_file(path)
+                if hasattr(self, 'react'):
+                    return self.react.get_file(path)
+            from twisted.web.resource import NoResource
+            return NoResource(b'UI not available: the React app has not been built')
 
         def render(self, request):
             return self.wsgi.render(request)
