@@ -205,6 +205,7 @@ def main(args=None):
         site = SafeSite(FlaskAppWrapper())
     endpoint = endpoints.TCP4ServerEndpoint(reactor, cfg.port, interface='0.0.0.0')
     endpoint.listen(site)
+    logger.info(f'Listening on port: {cfg.port}')
     reactor.run()
 
 
