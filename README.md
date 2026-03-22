@@ -18,16 +18,12 @@ Use your distro package manager to install python.
 
 ## Installation
 
-Example is provided for rpi users
+ezbeq uses [Poetry](https://python-poetry.org/) for dependency management.
 
-    $ ssh pi@myrpi
-    $ sudo apt install python3 python3-venv python3-pip libyaml-dev
-    $ mkdir python
-    $ cd python
-    $ python3 -m venv ezbeq
+    $ pip install poetry
+    $ git clone https://github.com/3ll3d00d/ezbeq
     $ cd ezbeq
-    $ . bin/activate
-    $ pip install ezbeq
+    $ poetry install
 
 ### Docker
 
@@ -91,19 +87,16 @@ See the configuration section below
 
 ## Upgrade
 
-    $ ssh pi@myrpi
-    $ cd python/ezbeq
-    $ . bin/activate
-    $ pip install --upgrade --force-reinstall ezbeq
+    $ cd ezbeq
+    $ git pull
+    $ poetry install
 
 then restart the app
 
 ## Running the app manually
 
-    $ ssh pi@myrpi
-    $ cd python/ezbeq
-    $ . bin/activate
-    $ ./bin/ezbeq
+    $ cd ezbeq
+    $ poetry run ezbeq
       Loading config from /home/pi/.ezbeq/ezbeq.yml
       2021-01-16 08:43:15,374 - twisted - INFO - __init__ - Serving ui from /home/pi/python/ezbeq/lib/python3.8/site-packages/ezbeq/ui
 
@@ -420,7 +413,7 @@ After=network.target
 Type=simple
 User=pi
 WorkingDirectory=/home/pi
-ExecStart=/home/pi/python/ezbeq/bin/ezbeq
+ExecStart=/home/pi/.local/bin/poetry run ezbeq
 Restart=always
 RestartSec=1
 
