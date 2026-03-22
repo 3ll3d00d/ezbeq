@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Run ezbeq with a stub device - no hardware or minidsp binary required.
+# Config is written to a temporary directory so it doesn't interfere with
+# your real ~/.ezbeq setup.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+STUB_CONFIG_DIR="${TMPDIR:-/tmp}/ezbeq-stub"
+mkdir -p "$STUB_CONFIG_DIR"
+
+cat > "$STUB_CONFIG_DIR/ezbeq.yml" << 'EOF'
+port: 9968
+accessLogging: false
+debugLogging: true
+devices:
+  master:
+    type: minidsp
+    exe: stub
+EOF
+
+echo "Starting ezbeq in stub mode (config: $STUB_CONFIG_DIR/ezbeq.yml)"
+echo "API available at http://localhost:9968"
+EZBEQ_CONFIG_HOME="$STUB_CONFIG_DIR" exec poetry run ezbeq
