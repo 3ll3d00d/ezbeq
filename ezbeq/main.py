@@ -166,10 +166,43 @@ def main(args=None):
         def render(self, request):
             return self.wsgi.render(request)
 
+    class SafeSite(server.Site):
+        """
+        A Site subclass that handles access log write failures gracefully.
+        Twisted's DailyLogFile can enter a broken state when the log file is deleted
+        externally (e.g. container restart) - the rotation code closes the file handle
+        before renaming it, and if the rename fails the handle stays closed. Subsequent
+        writes then raise ValueError which propagates through request.finish() and leaves
+        HTTP responses in a hung state, locking up the UI.
+        """
+
+        def __init__(self, resource, access_log_path=None, **kwargs):
+            super().__init__(resource, **kwargs)
+            self._access_log_path = access_log_path
+            if access_log_path is not None:
+                self._reopen_log()
+
+        def _reopen_log(self):
+            from twisted.python.logfile import DailyLogFile
+            try:
+                self.logFile = DailyLogFile.fromFullPath(self._access_log_path)
+                logger.info(f'Access log opened: {self._access_log_path}')
+            except Exception:
+                logger.exception(f'Failed to open access log at {self._access_log_path}, access logging disabled')
+                self.logFile = None
+
+        def log(self, request):
+            try:
+                server.Site.log(self, request)
+            except (ValueError, FileNotFoundError, OSError):
+                logger.warning('Access log write failed, attempting to reopen')
+                if self._access_log_path:
+                    self._reopen_log()
+
     if cfg.is_access_logging is True:
-        site = server.Site(FlaskAppWrapper(), logPath=path.join(cfg.config_path, 'access.log').encode())
+        site = SafeSite(FlaskAppWrapper(), access_log_path=path.join(cfg.config_path, 'access.log'))
     else:
-        site = server.Site(FlaskAppWrapper())
+        site = SafeSite(FlaskAppWrapper())
     endpoint = endpoints.TCP4ServerEndpoint(reactor, cfg.port, interface='0.0.0.0')
     endpoint.listen(site)
     reactor.run()
