@@ -170,6 +170,9 @@ class Config:
         return logger
 
     def create_minidsp_runner(self, exe: str, options: str):
+        if exe == 'stub':
+            from ezbeq.minidsp import MinidspStubRunner
+            return MinidspStubRunner()
         from plumbum import local
         cmd = local[exe]
         return cmd[options.split(' ')] if options else cmd

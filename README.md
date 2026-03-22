@@ -97,6 +97,20 @@ then restart the app
 
     $ cd ezbeq
     $ poetry run ezbeq
+
+To run without a real device (e.g. for local development or UI testing), set `exe: stub` in your config:
+
+```yaml
+port: 9968
+accessLogging: false
+debugLogging: true
+devices:
+  master:
+    type: minidsp
+    exe: stub
+```
+
+The stub simulates a 2x4HD, tracks slot/gain/mute state in memory, and requires no hardware or minidsp binary.
       Loading config from /home/pi/.ezbeq/ezbeq.yml
       2021-01-16 08:43:15,374 - twisted - INFO - __init__ - Serving ui from /home/pi/python/ezbeq/lib/python3.8/site-packages/ezbeq/ui
 
