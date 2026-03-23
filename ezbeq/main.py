@@ -105,6 +105,21 @@ def main(args=None):
         def getChild(self, path, request):
             return self
 
+    class _NoUIPlaceholder(Resource):
+        """Served at / when the React app has not been built."""
+        isLeaf = True
+
+        def render_GET(self, request):
+            request.setHeader(b'Content-Type', b'text/html; charset=utf-8')
+            return (
+                b'<!DOCTYPE html><html><head><title>ezbeq</title></head><body>'
+                b'<h1>ezbeq</h1>'
+                b'<p>The React UI has not been built.</p>'
+                b'<p>API: <a href="/api/1/">/api/1/</a> &nbsp;|&nbsp; '
+                b'Swagger: <a href="/api/doc">/api/doc</a></p>'
+                b'</body></html>'
+            )
+
     class FlaskAppWrapper(Resource):
         """
         wraps the flask app as a WSGI resource while allow the react index.html (and its associated static content)
@@ -164,6 +179,9 @@ def main(args=None):
             else:
                 if hasattr(self, 'react'):
                     return self.react.get_file(path)
+                # No UI built — serve a helpful placeholder for the root, 404 for everything else
+                if path == b'':
+                    return _NoUIPlaceholder()
             from twisted.web.resource import NoResource
             return NoResource('UI not available: the React app has not been built')
 

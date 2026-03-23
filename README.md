@@ -93,6 +93,18 @@ See the configuration section below
 
 then restart the app
 
+## How the app is structured
+
+ezbeq is a single Python server (Twisted) that does two things:
+
+1. **Serves the REST API** — `/api/...` routes handled by Flask
+2. **Serves the React UI** — pre-built static files from `ezbeq/ui/`
+
+The UI source lives in `ui/` and is built with [Vite](https://vitejs.dev/) /
+[Yarn](https://yarnpkg.com/). Running `yarn build` compiles it into
+`ezbeq/ui/`, which the Python server then picks up automatically. The Docker
+image ships with the UI pre-built.
+
 ## Running the app
 
     $ cd ezbeq
@@ -100,29 +112,46 @@ then restart the app
 
 Then open http://localhost:8080 in your browser.
 
-### Local development (no hardware)
+> **Note:** `bin/run-server` requires the `minidsp` binary in your PATH.
+> Install it from [minidsp-rs releases](https://github.com/mrene/minidsp-rs/releases).
+> To run without hardware, see *Stub mode* below.
 
-To run without a real device, use the stub runner. It simulates a 2x4HD and
-tracks slot/gain/mute state in memory — no minidsp binary or hardware required:
+### Stub mode — no hardware required
+
+Simulates a MiniDSP 2x4HD in memory. No `minidsp` binary or physical device
+needed. Builds the UI automatically if it hasn't been built yet.
 
     $ bin/run-server-stub
 
-This uses `exe: stub` in the device config. You can also set it manually in
-`~/.ezbeq/ezbeq.yml`:
+Then open http://localhost:9968.
 
-```yaml
-port: 9968
-accessLogging: false
-debugLogging: true
-devices:
-  master:
-    type: minidsp
-    exe: stub
-```
+### Frontend hot-reload (UI development)
+
+For iterating on the React UI without rebuilding after every change:
+
+    $ bin/run-ui-dev
+
+This starts **two** processes and wires them together:
+
+| Process | URL | Purpose |
+|---------|-----|---------|
+| Python backend (stub) | http://localhost:8080 | API + WebSocket |
+| Vite dev server | http://localhost:5174 | UI with hot-reload |
+
+Open **http://localhost:5174** in your browser. Edits to files under `ui/src/`
+are reflected instantly. The Python backend does not hot-reload; restart the
+script when you change backend code.
+
+> **Requires Node + Yarn.** Node is available via
+> [homebrew](https://formulae.brew.sh/formula/node) (`brew install node`).
+> Yarn is activated via `corepack enable yarn`.
 
 ### Running the tests
 
     $ bin/run-tests
+
+This runs the pytest suite followed by an HTTP smoke test that starts a stub
+server, makes real HTTP requests, and checks the responses.
 
 ## Configuration
 
