@@ -26,7 +26,6 @@ ezbeq/ui/
 .claude/
 dev-config/
 docker-compose*.yml
-Dockerfile*
 
 # Logs and local state
 *.log
