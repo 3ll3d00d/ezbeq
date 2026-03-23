@@ -10,7 +10,7 @@ import yaml
 
 class Config:
 
-    def __init__(self, name, default_port=9968, beqcatalogue_url='https://raw.githubusercontent.com/3ll3d00d/beqcatalogue/master/docs/'):
+    def __init__(self, name, default_port=8080, beqcatalogue_url='https://raw.githubusercontent.com/3ll3d00d/beqcatalogue/master/docs/'):
         self._name = name
         self.logger = logging.getLogger(name + '.config')
         self.config = self.load_config()
@@ -79,7 +79,7 @@ class Config:
     @property
     def port(self):
         """
-        :return: the port to listen on, defaults to 9968
+        :return: the port to listen on, defaults to 8080
         """
         return self.__port
 
@@ -132,7 +132,7 @@ class Config:
         return {
             'debugLogging': True,
             'accessLogging': False,
-            'port': 9968,
+            'port': 8080,
             'devices': {
                 'master': {
                     'type': 'minidsp',

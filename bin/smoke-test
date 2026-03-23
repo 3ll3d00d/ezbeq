@@ -3,14 +3,14 @@
 # By default starts its own stub server on a temporary port, runs checks, then shuts it down.
 #
 # Usage:
-#   bin/smoke-test                # start stub on port 19968, run checks, stop
+#   bin/smoke-test                # start stub on port 18080, run checks, stop
 #   bin/smoke-test --port 9999    # same, but on a different port
-#   bin/smoke-test --no-start     # check a server already running on --port (default 9968)
+#   bin/smoke-test --no-start     # check a server already running on --port (default 8080)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 START_SERVER=true
-PORT=19968
+PORT=18080
 LOG_FILE=""
 SERVER_PID=""
 PASS=0
@@ -18,7 +18,7 @@ FAIL=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --no-start) START_SERVER=false; PORT=9968 ;;
+        --no-start) START_SERVER=false; PORT=8080 ;;
         --port)     PORT="$2"; shift ;;
         *)          echo "Unknown argument: $1"; exit 1 ;;
     esac
