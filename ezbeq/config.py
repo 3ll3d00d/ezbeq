@@ -29,6 +29,19 @@ class Config:
         if not os.path.exists(d):
             os.makedirs(d)
 
+    def as_dict(self) -> dict:
+        """Return the raw config dict (without internal make_runner callables)."""
+        result = {}
+        for k, v in self.config.items():
+            if k == 'devices':
+                result['devices'] = {
+                    name: {dk: dv for dk, dv in dev.items() if not callable(dv)}
+                    for name, dev in v.items()
+                }
+            else:
+                result[k] = v
+        return result
+
     @property
     def enable_metrics(self) -> bool:
         return self.__enable_metrics
