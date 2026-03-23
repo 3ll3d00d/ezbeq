@@ -165,7 +165,7 @@ def main(args=None):
                 if hasattr(self, 'react'):
                     return self.react.get_file(path)
             from twisted.web.resource import NoResource
-            return NoResource(b'UI not available: the React app has not been built')
+            return NoResource('UI not available: the React app has not been built')
 
         def render(self, request):
             return self.wsgi.render(request)

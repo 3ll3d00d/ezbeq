@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Quick sanity check against a running stub server.
+# Usage: bin/check-stub [port]
+#
+# If run with --start, launches the stub server in the background,
+# waits for it to be ready, runs the checks, then prints its log.
+set -euo pipefail
+
+PORT="${1:-9968}"
+BASE="http://localhost:$PORT"
+
+check() {
+    local label="$1"
+    local url="$2"
+    echo "=== $label ==="
+    curl -s -w "\nHTTP %{http_code}\n" "$url"
+    echo
+}
+
+if [[ "${1:-}" == "--start" ]]; then
+    STUB_CONFIG_DIR="${TMPDIR:-/tmp}/ezbeq-stub"
+    LOG_FILE="$STUB_CONFIG_DIR/check-stub.log"
+    mkdir -p "$STUB_CONFIG_DIR"
+    cat > "$STUB_CONFIG_DIR/ezbeq.yml" << 'EOF'
+port: 9968
+accessLogging: false
+debugLogging: true
+devices:
+  master:
+    type: minidsp
+    exe: stub
+EOF
+    echo "Starting stub server (log: $LOG_FILE)..."
+    EZBEQ_CONFIG_HOME="$STUB_CONFIG_DIR" poetry run ezbeq >"$LOG_FILE" 2>&1 &
+    SERVER_PID=$!
+    trap "kill $SERVER_PID 2>/dev/null; echo; echo '=== Server log ==='; cat '$LOG_FILE'" EXIT
+
+    for i in $(seq 1 30); do
+        if curl -sf "$BASE/api/1/devices" >/dev/null 2>&1; then break; fi
+        sleep 0.3
+    done
+fi
+
+check "Root /"             "$BASE/"
+check "API devices"        "$BASE/api/1/devices"
+check "Static (missing)"   "$BASE/static/foo.js"
+check "Unknown path"       "$BASE/somepage"
+
+if [[ "${1:-}" == "--start" ]]; then
+    kill "$SERVER_PID" 2>/dev/null || true
+    trap - EXIT
+    echo "=== Server log ==="
+    cat "$STUB_CONFIG_DIR/check-stub.log"
+fi
