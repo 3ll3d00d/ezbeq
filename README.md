@@ -25,6 +25,15 @@ ezbeq uses [Poetry](https://python-poetry.org/) for dependency management.
     $ cd ezbeq
     $ poetry install
 
+Example is provided for rpi users
+
+    $ ssh pi@myrpi
+    $ sudo apt install python3 python3-venv python3-pip libyaml-dev
+    $ pip install poetry
+    $ git clone https://github.com/3ll3d00d/ezbeq
+    $ cd ezbeq
+    $ poetry install
+
 ### Docker
 
 The official ezBEQ docker image is published at https://github.com/3ll3d00d/ezbeq-docker.
