@@ -459,7 +459,7 @@ class StubConfig(Config):
         return {
             'debugLogging': False,
             'accessLogging': False,
-            'port': 9968,
+            'port': 8080,
             'devices': {
                 'master': {
                     'type': 'minidsp',

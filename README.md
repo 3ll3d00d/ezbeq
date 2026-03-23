@@ -39,6 +39,10 @@ Example is provided for rpi users
 The official ezBEQ docker image is published at https://github.com/3ll3d00d/ezbeq-docker.
 See that project's README for setup instructions, example compose files, and USB device configuration.
 
+#### Running in Docker
+
+Set `EZBEQ_ACCESS_LOG_STDOUT=1` in your container environment to echo every HTTP request to stdout so it appears in `docker compose logs`. This is independent of `accessLogging:` in `ezbeq.yml` (which controls the access log file).
+
 ### Example Config Files
 
 See [examples](examples)
@@ -447,7 +451,7 @@ After=network.target
 Type=simple
 User=pi
 WorkingDirectory=/home/pi
-ExecStart=/home/pi/.local/bin/poetry run ezbeq
+ExecStart=/home/pi/python/ezbeq/bin/ezbeq
 Restart=always
 RestartSec=1
 

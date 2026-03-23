@@ -754,10 +754,6 @@ class Minidsp(PersistentDevice[MinidspState]):
             end = time.time()
             logger.info(
                 f"[{self.name}] Sent {len(config_cmds)} commands to slot {slot} in {to_millis(start, end)}ms - result is {code}")
-            if stdout:
-                logger.debug(f"[{self.name}] stdout: {stdout.strip()}")
-            if stderr:
-                logger.debug(f"[{self.name}] stderr: {stderr.strip()}")
 
     def _load_initial_state(self) -> MinidspState:
         return self.__load_state()

@@ -199,7 +199,10 @@ class Config:
                 f"\n"
                 f"To run without hardware (stub mode), use:\n"
                 f"  bin/run-server-stub\n"
-                f"  (or set exe: stub in your ezbeq.yml)"
+                f"  (or set exe: stub in your ezbeq.yml)\n"
+                f"\n"
+                f"Or run via Docker (no local deps required):\n"
+                f"  https://github.com/3ll3d00d/ezbeq-docker"
             )
         return cmd[options.split(' ')] if options else cmd
 

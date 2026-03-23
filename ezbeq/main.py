@@ -135,13 +135,9 @@ def main(args=None):
             return (
                 b'<!DOCTYPE html><html><head><title>ezbeq</title></head><body>'
                 b'<h1>ezbeq</h1>'
-                b'<p>The React UI has not been built.</p>'
-                b'<p>To get the UI, build it first:</p>'
-                b'<pre>  cd ui &amp;&amp; yarn install &amp;&amp; yarn build</pre>'
-                b'<p>Or if running locally, just use <code>bin/run-server-stub</code> '
-                b'which builds it automatically. '
-                b'See the <a href="https://github.com/3ll3d00d/ezbeq#how-the-app-is-structured">README</a> '
-                b'for full details.</p>'
+                b'<p>The React UI has not been built. '
+                b'See the <a href="https://github.com/3ll3d00d/ezbeq#installation">README</a> '
+                b'for setup instructions.</p>'
                 b'<hr>'
                 b'<p>API: <a href="/api/1/">/api/1/</a> &nbsp;|&nbsp; '
                 b'Swagger: <a href="/api/doc">/api/doc</a></p>'
@@ -216,13 +212,8 @@ def main(args=None):
         def render(self, request):
             return self.wsgi.render(request)
 
-    # Separate logger for access log lines written to stdout, so they can be
-    # filtered independently from the main application log.
+    # See README § Running in Docker for EZBEQ_ACCESS_LOG_STDOUT documentation.
     access_logger = logging.getLogger('ezbeq.access')
-
-    # When EZBEQ_ACCESS_LOG_STDOUT=1 each request is also echoed to stdout so
-    # it appears in `docker compose logs`.  This is set by default in
-    # docker-compose.local.yaml for local development.
     _access_log_stdout = os.environ.get('EZBEQ_ACCESS_LOG_STDOUT', '0').strip() == '1'
 
     class SafeSite(server.Site):
