@@ -78,6 +78,16 @@ See the configuration section below
 
 then restart the app
 
+## Scripts (bin/)
+
+| Script | Purpose |
+|--------|---------|
+| [`bin/run-server`](#running-the-app) | Start the server with real hardware |
+| [`bin/run-server-stub`](#stub-mode--no-hardware-required) | Start with a simulated device — no hardware needed |
+| [`bin/run-ui-dev`](#frontend-hot-reload-ui-development) | Hot-reload UI dev mode (Vite + Python backend) |
+| [`bin/run-tests`](#running-the-tests) | Run pytest suite + smoke test |
+| [`bin/smoke-test`](#smoke-test) | HTTP smoke test against a running server |
+
 ## How the app is structured
 
 ezbeq is a single Python server (Twisted) that does two things:
