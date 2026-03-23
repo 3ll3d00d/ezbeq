@@ -3,6 +3,37 @@
 A simple web browser for [beqcatalogue](https://beqcatalogue.readthedocs.io/en/latest/) which integrates with [minidsp-rs](https://github.com/mrene/minidsp-rs)
 for local remote control of a minidsp or HTP-1.
 
+## Table of Contents
+
+- [Setup](#setup)
+  - [Windows / MacOS](#windows--macos)
+  - [Linux](#linux)
+  - [Installation](#installation)
+    - [Docker](#docker)
+    - [Example Config Files](#example-config-files)
+    - [Using with a Minidsp](#using-with-a-minidsp)
+    - [Using with a Monolith HTP-1](#using-with-a-monolith-htp-1)
+  - [Upgrade](#upgrade)
+- [Scripts (bin/)](#scripts-bin)
+- [How the app is structured](#how-the-app-is-structured)
+- [Running the app](#running-the-app)
+  - [Stub mode — no hardware required](#stub-mode--no-hardware-required)
+  - [Frontend hot-reload (UI development)](#frontend-hot-reload-ui-development)
+  - [Running the tests](#running-the-tests)
+  - [Smoke test](#smoke-test)
+- [Configuration](#configuration)
+  - [Using a custom catalogue](#using-a-custom-catalogue)
+  - [Configuring Devices](#configuring-devices)
+    - [Minidsp](#minidsp)
+    - [Monolith HTP1](#monolith-htp1)
+    - [JRiver Media Center](#jriver-media-center)
+    - [Q-Sys](#q-sys)
+    - [CamillaDSP](#camilladsp)
+- [Starting ezbeq on bootup](#starting-ezbeq-on-bootup)
+- [Verifying MiniDSP Response](#verifying-minidsp-response)
+  - [Quick & Crude](#quick--crude)
+  - [Slower but Accurate](#slower-but-accurate)
+
 # Setup
 
 ## Windows / MacOS
