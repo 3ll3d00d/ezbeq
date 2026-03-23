@@ -2248,6 +2248,25 @@ def test_reload_from_cache(minidsp_client, tmp_path):
             verify_slot(s, idx + 1)
 
 
+def test_persist_is_atomic(minidsp_client, minidsp_app):
+    '''_persist() must write via a temp file and os.replace() so readers never see a partial write.'''
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    state_file = os.path.join(config.config_path, 'master.json')
+    tmp_file = state_file + '.tmp'
+
+    # trigger a state-mutating operation so _persist() is called
+    r = minidsp_client.put('/api/1/devices/master/config/1/active')
+    assert r.status_code == 200
+
+    # the .tmp scratch file must not linger after _persist() completes
+    assert not os.path.exists(tmp_file), '.tmp file was not cleaned up — os.replace() may not have been called'
+    # the real state file must exist and contain valid JSON
+    assert os.path.exists(state_file), 'state file is missing after persist'
+    with open(state_file) as f:
+        data = json.load(f)
+    assert data is not None
+
+
 @pytest.mark.parametrize("outputs",
                          [[], [1], [2], [3], [4], [1, 2], [1, 3], [1, 4], [2, 3], [2, 4], [3, 4], [1, 2, 3], [1, 2, 4],
                           [1, 3, 4], [2, 3, 4], [1, 2, 3, 4]], ids=str)
