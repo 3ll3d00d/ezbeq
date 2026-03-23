@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Hot-reload frontend development mode.
+#
+# Starts two processes:
+#   1. The Python backend (stub device) on port 8080
+#   2. The Vite dev server on port 5174, which proxies /api and /ws to port 8080
+#
+# Open http://localhost:5174 in your browser. The UI auto-reloads on any
+# change to files in ui/src/. The Python server does NOT hot-reload; restart
+# this script when you change backend code.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+STUB_CONFIG_DIR="${TMPDIR:-/tmp}/ezbeq-stub-dev"
+mkdir -p "$STUB_CONFIG_DIR"
+
+cat > "$STUB_CONFIG_DIR/ezbeq.yml" << 'EOF'
+port: 8080
+accessLogging: false
+debugLogging: true
+devices:
+  master:
+    type: minidsp
+    exe: stub
+EOF
+
+cleanup() {
+    echo
+    echo "Shutting down..."
+    kill "$BACKEND_PID" "$VITE_PID" 2>/dev/null || true
+    wait "$BACKEND_PID" "$VITE_PID" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+# Start the Python backend on port 8080
+echo "Starting Python backend (stub) on port 8080..."
+EZBEQ_CONFIG_HOME="$STUB_CONFIG_DIR" poetry run ezbeq &
+BACKEND_PID=$!
+
+# Wait for backend to be ready
+echo -n "  Waiting for backend"
+for i in $(seq 1 30); do
+    if curl -sf http://localhost:8080/api/1/devices >/dev/null 2>&1; then
+        echo " ready"
+        break
+    fi
+    echo -n "."; sleep 0.3
+done
+
+# Start the Vite dev server
+echo "Starting Vite dev server on port 5174..."
+echo
+echo "  Open   : http://localhost:5174  (hot-reload UI)"
+echo "  API    : http://localhost:8080  (Python backend)"
+echo
+cd ui && yarn install --silent && yarn localdev &
+VITE_PID=$!
+
+wait "$VITE_PID"

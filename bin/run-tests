@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+poetry run pytest "$@"
+
+# Run the HTTP smoke test unless pytest args suggest a subset run (e.g. -k, specific file)
+if [[ $# -eq 0 ]]; then
+    echo
+    bin/smoke-test
+fi
