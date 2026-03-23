@@ -183,6 +183,14 @@ class Config:
         return logger
 
     def create_minidsp_runner(self, exe: str, options: str):
+        """
+        Build the command object used to invoke the minidsp-rs binary.
+
+        If exe is 'stub', returns a MinidspStubRunner that simulates a MiniDSP
+        2x4HD in memory — no hardware or binary required.  Otherwise resolves
+        the named executable via plumbum and applies any extra CLI options.
+        Exits with a helpful message if the binary cannot be found.
+        """
         if exe == 'stub':
             from ezbeq.minidsp import MinidspStubRunner
             return MinidspStubRunner()
