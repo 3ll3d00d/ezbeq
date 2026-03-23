@@ -217,7 +217,7 @@ def main(args=None):
     access_logger = logging.getLogger('ezbeq.access')
     # When EZBEQ_ACCESS_LOG_STDOUT=1 each request is also echoed to stdout so
     # it appears in `docker compose logs`.  This is set by default in
-    # docker-compose.local.yaml for local development.
+    # docker-compose.dev.yaml for local development.
     _access_log_stdout = os.environ.get('EZBEQ_ACCESS_LOG_STDOUT', '0').strip() == '1'
 
     class SafeSite(server.Site):
