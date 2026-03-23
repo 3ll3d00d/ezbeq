@@ -2,7 +2,6 @@ import decimal
 import logging
 import re
 import time
-from typing import List, Tuple, Optional, Union
 
 from flask import request
 from flask_restx import Resource, Namespace, fields
@@ -30,13 +29,13 @@ def delete_filter(bridge: DeviceRepository, device_name: str, slot: str):
     try:
         bridge.clear_filter(device_name, slot)
         return bridge.state(device_name).serialise(), 200
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to clear Slot {slot}")
         return bridge.state(device_name).serialise(), 500
 
 
-def text_to_commands(command_type: str, lines: List[str]) -> Tuple[str, Union[List[dict], List[str]]]:
-    commands: Union[List[dict], List[str]] = []
+def text_to_commands(command_type: str, lines: list[str]) -> tuple[str, list[dict] | list[str]]:
+    commands: list[dict] | list[str] = []
     if lines and command_type == 'filt':
         commands = [{}] * 10
 
@@ -97,8 +96,8 @@ def text_to_commands(command_type: str, lines: List[str]) -> Tuple[str, Union[Li
         return 'bq', commands
 
 
-def load_biquads(bridge: DeviceRepository, device_name: str, slot: str, overwrite: bool, inputs: List[int],
-                 outputs: List[int], biquads: str):
+def load_biquads(bridge: DeviceRepository, device_name: str, slot: str, overwrite: bool, inputs: list[int],
+                 outputs: list[int], biquads: str):
     '''
     Attempts to load the provided biquads into the device. Expects minidsp format only. biquads can be raw biquad format
     or filter text format (as per https://sourceforge.net/p/equalizerapo/wiki/Configuration%20reference/#filter)
@@ -117,16 +116,16 @@ def load_biquads(bridge: DeviceRepository, device_name: str, slot: str, overwrit
             raise InvalidRequestError(f"load_biquads but parsed command type is {cmd_type}")
         bridge.load_biquads(device_name, slot, overwrite, inputs, outputs, bqs)
         return bridge.state(device_name).serialise(), 200
-    except InvalidRequestError as e:
+    except InvalidRequestError:
         logger.exception(f"Invalid biquad request to {device_name} {slot}")
         return bridge.state(device_name).serialise(), 400
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to write biquads to {device_name} {slot}")
         return bridge.state(device_name).serialise(), 500
 
 
-def load_commands(bridge: DeviceRepository, device_name: str, slot: str, overwrite: bool, inputs: List[int],
-                  outputs: List[int], command_type: str, commands: str):
+def load_commands(bridge: DeviceRepository, device_name: str, slot: str, overwrite: bool, inputs: list[int],
+                  outputs: list[int], command_type: str, commands: str):
     '''
     Attempts to load the provided commands, filters or biquads into the device.
     :param bridge:
@@ -146,16 +145,16 @@ def load_commands(bridge: DeviceRepository, device_name: str, slot: str, overwri
         else:
             bridge.send_commands(device_name, slot, inputs, outputs, bqs)
         return bridge.state(device_name).serialise(), 200
-    except InvalidRequestError as e:
+    except InvalidRequestError:
         logger.exception(f"Invalid biquad request to {device_name} {slot}")
         return bridge.state(device_name).serialise(), 400
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to write biquads to {device_name} {slot}")
         return bridge.state(device_name).serialise(), 500
 
 
-def load_filter(entry: Optional[CatalogueEntry], bridge: DeviceRepository, device_name: str,
-                slot: str) -> Tuple[dict, int]:
+def load_filter(entry: CatalogueEntry | None, bridge: DeviceRepository, device_name: str,
+                slot: str) -> tuple[dict, int]:
     '''
     Attempts to find the supplied entry in the catalogue and load it into the given slot.
     :param entry: the catalogue entry.
@@ -170,10 +169,10 @@ def load_filter(entry: Optional[CatalogueEntry], bridge: DeviceRepository, devic
         logger.info(f"Sending {entry.id} to Slot {slot}")
         bridge.load_filter(device_name, slot, entry)
         return bridge.state(device_name).serialise(), 200
-    except InvalidRequestError as e:
+    except InvalidRequestError:
         logger.exception(f"Invalid request {entry.id} to Slot {slot}")
         return bridge.state(device_name).serialise(), 400
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to write {entry.id} to Slot {slot}")
         return bridge.state(device_name).serialise(), 500
 
@@ -190,16 +189,16 @@ def activate_slot(bridge: DeviceRepository, device_name: str, slot: str):
     try:
         bridge.activate(device_name, slot)
         return bridge.state(device_name).serialise(), 200
-    except InvalidRequestError as e:
+    except InvalidRequestError:
         logger.exception(f"Invalid slot {slot}")
         return bridge.state(device_name).serialise(), 400
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to activate Slot {slot}")
         return bridge.state(device_name).serialise(), 500
 
 
-def mute_device(bridge: DeviceRepository, device_name: str, slot: Optional[str], value: bool,
-                channel: Optional[int] = None):
+def mute_device(bridge: DeviceRepository, device_name: str, slot: str | None, value: bool,
+                channel: int | None = None):
     '''
     Mutes or unmutes a particular aspect of the device.
     :param bridge: the bridge to the device.
@@ -215,16 +214,16 @@ def mute_device(bridge: DeviceRepository, device_name: str, slot: Optional[str],
         else:
             bridge.unmute(device_name, slot, channel)
         return bridge.state(device_name).serialise(), 200
-    except InvalidRequestError as e:
+    except InvalidRequestError:
         logger.exception(f"Invalid mute request {slot} {channel} {value}")
         return bridge.state(device_name).serialise(), 400
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed mute channel {slot}")
         return bridge.state(device_name).serialise(), 500
 
 
-def set_gain(bridge: DeviceRepository, device_name: str, slot: Optional[str], value: float,
-             channel: Optional[int] = None):
+def set_gain(bridge: DeviceRepository, device_name: str, slot: str | None, value: float,
+             channel: int | None = None):
     '''
     Sets gain on a particular aspect of the device.
     :param bridge: the bridge to the device.
@@ -237,10 +236,10 @@ def set_gain(bridge: DeviceRepository, device_name: str, slot: Optional[str], va
     try:
         bridge.set_gain(device_name, slot, channel, value)
         return bridge.state(device_name).serialise(), 200
-    except InvalidRequestError as e:
+    except InvalidRequestError:
         logger.exception(f"Unable to set gain for {slot} {channel} {value}")
         return bridge.state(device_name).serialise(), 400
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed mute channel {slot}")
         return bridge.state(device_name).serialise(), 500
 
@@ -357,7 +356,7 @@ class DeviceV3(Resource):
         self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
 
     @v3_api.expect(device_model_v3, validate=True)
-    def patch(self, device_name: str) -> Tuple[dict, int]:
+    def patch(self, device_name: str) -> tuple[dict, int]:
         payload = request.get_json()
         logger.debug(f"PATCHing {device_name} with {payload}")
         try:
@@ -379,13 +378,13 @@ class DeviceLevels(Resource):
         super().__init__(*args, **kwargs)
         self.__bridge: DeviceRepository = kwargs['device_bridge']
 
-    def get(self, device_name: str) -> Tuple[dict, int]:
+    def get(self, device_name: str) -> tuple[dict, int]:
         try:
             return self.__bridge.levels(device_name), 200
-        except InvalidRequestError as e:
+        except InvalidRequestError:
             logger.exception(f"Invalid device {device_name}")
             return {}, 400
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to get levels for {device_name}")
             return {}, 500
 
@@ -401,7 +400,7 @@ class ActiveSlot(Resource):
         super().__init__(*args, **kwargs)
         self.__bridge: DeviceRepository = kwargs['device_bridge']
 
-    def put(self, device_name: str, slot: str) -> Tuple[dict, int]:
+    def put(self, device_name: str, slot: str) -> tuple[dict, int]:
         return activate_slot(self.__bridge, device_name, slot)
 
 
@@ -426,10 +425,10 @@ class SetGain(Resource):
         self.__bridge: DeviceRepository = kwargs['device_bridge']
 
     @v1_api.expect(gain_model_v1, validate=True)
-    def put(self, device_name: str, slot: Optional[str] = None, channel: Optional[int] = None) -> Tuple[dict, int]:
+    def put(self, device_name: str, slot: str | None = None, channel: int | None = None) -> tuple[dict, int]:
         return set_gain(self.__bridge, device_name, slot, request.get_json()['gain'], channel)
 
-    def delete(self, device_name: str, slot: Optional[str] = None, channel: Optional[int] = None) -> Tuple[dict, int]:
+    def delete(self, device_name: str, slot: str | None = None, channel: int | None = None) -> tuple[dict, int]:
         return set_gain(self.__bridge, device_name, slot, 0.0, channel)
 
 
@@ -448,10 +447,10 @@ class Mute(Resource):
         super().__init__(*args, **kwargs)
         self.__bridge: DeviceRepository = kwargs['device_bridge']
 
-    def put(self, device_name: str, slot: Optional[str] = None, channel: Optional[int] = None) -> Tuple[dict, int]:
+    def put(self, device_name: str, slot: str | None = None, channel: int | None = None) -> tuple[dict, int]:
         return mute_device(self.__bridge, device_name, slot, True, channel)
 
-    def delete(self, device_name: str, slot: Optional[str] = None, channel: Optional[int] = None) -> Tuple[dict, int]:
+    def delete(self, device_name: str, slot: str | None = None, channel: int | None = None) -> tuple[dict, int]:
         return mute_device(self.__bridge, device_name, slot, False, channel)
 
 
@@ -475,7 +474,7 @@ class LoadBiquads(Resource):
         self.__bridge: DeviceRepository = kwargs['device_bridge']
 
     @v1_api.expect(biquad_model, validate=True)
-    def put(self, device_name: str) -> Tuple[dict, int]:
+    def put(self, device_name: str) -> tuple[dict, int]:
         overwrite = request.get_json()['overwrite']
         slot = request.get_json()['slot']
         inputs = request.get_json()['inputs']
@@ -505,7 +504,7 @@ class LoadCommands(Resource):
         self.__bridge: DeviceRepository = kwargs['device_bridge']
 
     @v1_api.expect(command_model, validate=True)
-    def put(self, device_name: str) -> Tuple[dict, int]:
+    def put(self, device_name: str) -> tuple[dict, int]:
         overwrite = request.get_json()['overwrite']
         slot = request.get_json()['slot']
         inputs = request.get_json()['inputs']
@@ -533,11 +532,11 @@ class ManageFilter(Resource):
         self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
 
     @v1_api.expect(filter_model, validate=True)
-    def put(self, device_name: str, slot: str) -> Tuple[dict, int]:
+    def put(self, device_name: str, slot: str) -> tuple[dict, int]:
         entry = self.__catalogue_provider.find_by_id(request.get_json()['entryId'])
         return load_filter(entry, self.__bridge, device_name, slot)
 
-    def delete(self, device_name: str, slot: str) -> Tuple[dict, int]:
+    def delete(self, device_name: str, slot: str) -> tuple[dict, int]:
         return delete_filter(self.__bridge, device_name, slot)
 
 

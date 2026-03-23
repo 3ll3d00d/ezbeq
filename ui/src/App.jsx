@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
+import { styled } from '@mui/material/styles';
 import {createTheme, StyledEngineProvider, ThemeProvider} from '@mui/material/styles';
-import {makeStyles} from '@mui/styles';
 import ezbeq from './services/ezbeq';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -12,8 +12,18 @@ import Minidsp from "./components/minidsp";
 import LevelsService from "./services/levels";
 import StateService from "./services/state";
 
-const useStyles = makeStyles((theme) => ({
-    root: {
+const PREFIX = 'App';
+
+const classes = {
+    root: `${PREFIX}-root`
+};
+
+const StyledStyledEngineProvider = styled(StyledEngineProvider)((
+    {
+        theme
+    }
+) => ({
+    [`& .${classes.root}`]: {
         flexGrow: 1,
         width: '100%',
         height: '100%'
@@ -21,7 +31,7 @@ const useStyles = makeStyles((theme) => ({
 }));
 
 const Root = ({children}) => {
-    const classes = useStyles();
+
     return (
         <div className={classes.root}>
             {children}
@@ -29,7 +39,8 @@ const Root = ({children}) => {
     )
 }
 
-const ss = new StateService(`ws://${window.location.host}/ws`);
+const wsProtocol = `ws${window.location.protocol === 'https:' ? 's' : ''}`;
+const ss = new StateService(`${wsProtocol}://${window.location.host}/ws`);
 
 const App = () => {
     const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
@@ -82,7 +93,7 @@ const App = () => {
     }, [setErr, replaceDevice, setMeta, loadEntries]);
 
     const levelsService = useMemo(() => {
-        return new LevelsService(setErr, `ws://${window.location.host}/ws`, theme);
+        return new LevelsService(setErr, `${wsProtocol}://${window.location.host}/ws`, theme);
     }, [setErr]);
 
     // load when version changes
@@ -112,7 +123,7 @@ const App = () => {
     const useWide = useMediaQuery('(orientation: landscape) and (min-height: 580px)');
 
     return (
-        <StyledEngineProvider injectFirst>
+        <StyledStyledEngineProvider injectFirst>
             <ThemeProvider theme={theme}>
                 <CssBaseline/>
                 <Root>
@@ -164,7 +175,7 @@ const App = () => {
                     }
                 </Root>
             </ThemeProvider>
-        </StyledEngineProvider>
+        </StyledStyledEngineProvider>
     );
 };
 
