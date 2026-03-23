@@ -1,28 +1,43 @@
 #!/usr/bin/env bash
-# Quick sanity check against a running stub server.
-# Usage: bin/check-stub [port]
+# Smoke-check the stub server with real HTTP requests.
 #
-# If run with --start, launches the stub server in the background,
-# waits for it to be ready, runs the checks, then prints its log.
+# Usage:
+#   bin/check-stub             # check a server already running on port 9968
+#   bin/check-stub --start     # start the server, check it, print its log
+#   bin/check-stub --start 19968  # same but on a different port
 set -euo pipefail
+cd "$(dirname "$0")/.."
 
-PORT="${1:-9968}"
+STARTED=false
+PORT=9968
+LOG_FILE=""
+PASS=0
+FAIL=0
+
+# Parse args
+if [[ "${1:-}" == "--start" ]]; then
+    STARTED=true
+    PORT="${2:-9968}"
+else
+    PORT="${1:-9968}"
+fi
+
 BASE="http://localhost:$PORT"
 
-check() {
-    local label="$1"
-    local url="$2"
-    echo "=== $label ==="
-    curl -s -w "\nHTTP %{http_code}\n" "$url"
-    echo
-}
+# ── Colour helpers ────────────────────────────────────────────────────────────
+GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'
+CYAN='\033[0;36m'; RESET='\033[0m'; BOLD='\033[1m'
+ok()   { echo -e "  ${GREEN}✓${RESET} $*"; (( PASS++ )) || true; }
+fail() { echo -e "  ${RED}✗${RESET} $*"; (( FAIL++ )) || true; }
+info() { echo -e "  ${YELLOW}→${RESET} $*"; }
 
-if [[ "${1:-}" == "--start" ]]; then
-    STUB_CONFIG_DIR="${TMPDIR:-/tmp}/ezbeq-stub"
-    LOG_FILE="$STUB_CONFIG_DIR/check-stub.log"
+# ── Optionally start the server ───────────────────────────────────────────────
+if $STARTED; then
+    STUB_CONFIG_DIR="${TMPDIR:-/tmp}/ezbeq-stub-check"
+    LOG_FILE="$STUB_CONFIG_DIR/server.log"
     mkdir -p "$STUB_CONFIG_DIR"
-    cat > "$STUB_CONFIG_DIR/ezbeq.yml" << 'EOF'
-port: 9968
+    cat > "$STUB_CONFIG_DIR/ezbeq.yml" << EOF
+port: $PORT
 accessLogging: false
 debugLogging: true
 devices:
@@ -30,25 +45,89 @@ devices:
     type: minidsp
     exe: stub
 EOF
-    echo "Starting stub server (log: $LOG_FILE)..."
+    echo -e "${BOLD}Starting stub server on port $PORT...${RESET}"
     EZBEQ_CONFIG_HOME="$STUB_CONFIG_DIR" poetry run ezbeq >"$LOG_FILE" 2>&1 &
     SERVER_PID=$!
-    trap "kill $SERVER_PID 2>/dev/null; echo; echo '=== Server log ==='; cat '$LOG_FILE'" EXIT
 
-    for i in $(seq 1 30); do
-        if curl -sf "$BASE/api/1/devices" >/dev/null 2>&1; then break; fi
-        sleep 0.3
+    echo -n "  Waiting for server to be ready"
+    READY=false
+    for i in $(seq 1 40); do
+        if curl -sf "$BASE/api/1/devices" >/dev/null 2>&1; then
+            READY=true; break
+        fi
+        echo -n "."; sleep 0.3
     done
+    echo
+
+    if ! $READY; then
+        echo -e "${RED}Server did not start in time. Log:${RESET}"
+        cat "$LOG_FILE"
+        kill "$SERVER_PID" 2>/dev/null || true
+        exit 1
+    fi
+    echo -e "  ${GREEN}Server ready${RESET} (pid $SERVER_PID, log: $LOG_FILE)\n"
 fi
 
-check "Root /"             "$BASE/"
-check "API devices"        "$BASE/api/1/devices"
-check "Static (missing)"   "$BASE/static/foo.js"
-check "Unknown path"       "$BASE/somepage"
+# ── Check helpers ─────────────────────────────────────────────────────────────
+check() {
+    local label="$1" url="$2" expect_status="$3" expect_not="${4:-}"
 
-if [[ "${1:-}" == "--start" ]]; then
+    echo -e "${CYAN}── $label${RESET}"
+    info "GET $url"
+
+    local tmp; tmp=$(mktemp)
+    local http_status
+    http_status=$(curl -s -o "$tmp" -w "%{http_code}" "$url" 2>/dev/null || echo "000")
+    local body; body=$(cat "$tmp"); rm -f "$tmp"
+
+    # Status check
+    if [[ "$http_status" == "$expect_status" ]]; then
+        ok "HTTP $http_status (expected $expect_status)"
+    else
+        fail "HTTP $http_status (expected $expect_status)"
+    fi
+
+    # Body must-not-contain check
+    if [[ -n "$expect_not" ]] && echo "$body" | grep -q "$expect_not"; then
+        fail "Response body contains '$expect_not'"
+    elif [[ -n "$expect_not" ]]; then
+        ok "Response body does not contain '$expect_not'"
+    fi
+
+    # Print a trimmed preview of the body
+    local preview; preview=$(echo "$body" | head -c 300 | tr -d '\n')
+    info "Body: ${preview:0:200}$( [[ ${#preview} -gt 200 ]] && echo '...' || true )"
+    echo
+}
+
+# ── Run checks ────────────────────────────────────────────────────────────────
+echo -e "${BOLD}Checking $BASE${RESET}\n"
+
+check "Root / (no UI - expect 404, not crash)" \
+    "$BASE/"           "404" "Processing Failed"
+
+check "API: GET /api/1/devices (expect 200 with device state)" \
+    "$BASE/api/1/devices" "200" "Processing Failed"
+
+check "Static dir (not built - expect 404, not crash)" \
+    "$BASE/static/foo.js" "404" "Processing Failed"
+
+check "Unknown path (expect 404, not crash)" \
+    "$BASE/somepage"   "404" "Processing Failed"
+
+check "WebSocket path (expect 200 from Autobahn info page)" \
+    "$BASE/ws"         "200" "Processing Failed"
+
+# ── Summary ───────────────────────────────────────────────────────────────────
+echo -e "${BOLD}Results: ${GREEN}$PASS passed${RESET}, $( [[ $FAIL -gt 0 ]] && echo -e "${RED}$FAIL failed${RESET}" || echo "${GREEN}$FAIL failed${RESET}" )${RESET}"
+
+# ── Print server log if we started it ────────────────────────────────────────
+if $STARTED; then
     kill "$SERVER_PID" 2>/dev/null || true
-    trap - EXIT
-    echo "=== Server log ==="
-    cat "$STUB_CONFIG_DIR/check-stub.log"
+    wait "$SERVER_PID" 2>/dev/null || true
+    echo
+    echo -e "${BOLD}═══ Server log ($LOG_FILE) ═══${RESET}"
+    cat "$LOG_FILE"
 fi
+
+[[ $FAIL -eq 0 ]]
