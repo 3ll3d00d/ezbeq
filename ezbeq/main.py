@@ -68,6 +68,25 @@ def main(args=None):
     """ The main routine. """
     cfg = Config('ezbeq')
     logger = cfg.configure_logger()
+
+    # ── Startup summary (logged before anything else so it's at the top) ──────
+    raw = cfg.as_dict()
+    logger.info('=' * 60)
+    logger.info(f'  ezbeq  |  port: {cfg.port}  |  config: {cfg.config_path}')
+    logger.info(f'  logging: debug={cfg.is_debug_logging}  access={cfg.is_access_logging}')
+    for dev_name, dev_cfg in raw.get('devices', {}).items():
+        dev_type = dev_cfg.get('type', '?')
+        if dev_type == 'minidsp':
+            exe = dev_cfg.get('exe', 'minidsp')
+            opts = dev_cfg.get('options', '')
+            detail = 'STUB (no hardware)' if exe == 'stub' else f'exe={exe}' + (f'  options={opts}' if opts else '')
+            logger.info(f'  device [{dev_name}]  type=minidsp  {detail}')
+        elif dev_type == 'camilladsp':
+            logger.info(f'  device [{dev_name}]  type=camilladsp  ip={dev_cfg.get("ip")}:{dev_cfg.get("port")}')
+        else:
+            logger.info(f'  device [{dev_name}]  type={dev_type}')
+    logger.info('=' * 60)
+
     app, ws_server = create_app(cfg)
 
     import logging
@@ -234,25 +253,6 @@ def main(args=None):
         site = SafeSite(FlaskAppWrapper())
     endpoint = endpoints.TCP4ServerEndpoint(reactor, cfg.port, interface='0.0.0.0')
     endpoint.listen(site)
-
-    # ── Startup summary ───────────────────────────────────────────────────────
-    raw = cfg.as_dict()
-    logger.info('=' * 60)
-    logger.info(f'  ezbeq  |  port: {cfg.port}  |  config: {cfg.config_path}')
-    for dev_name, dev_cfg in raw.get('devices', {}).items():
-        dev_type = dev_cfg.get('type', '?')
-        if dev_type == 'minidsp':
-            exe = dev_cfg.get('exe', 'minidsp')
-            stub = exe == 'stub'
-            opts = dev_cfg.get('options', '')
-            detail = 'STUB (no hardware)' if stub else f'exe={exe}' + (f'  options={opts}' if opts else '')
-            logger.info(f'  device [{dev_name}]  type=minidsp  {detail}')
-        elif dev_type == 'camilladsp':
-            logger.info(f'  device [{dev_name}]  type=camilladsp  ip={dev_cfg.get("ip")}:{dev_cfg.get("port")}')
-        else:
-            logger.info(f'  device [{dev_name}]  type={dev_type}')
-    logger.info('=' * 60)
-
     reactor.run()
 
 
