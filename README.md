@@ -108,7 +108,7 @@ needed. Builds the UI automatically if it hasn't been built yet.
 
     $ bin/run-server-stub
 
-Then open http://localhost:9968.
+Then open http://localhost:8080.
 
 ### Frontend hot-reload (UI development)
 
@@ -137,6 +137,15 @@ script when you change backend code.
 
 This runs the pytest suite followed by an HTTP smoke test that starts a stub
 server, makes real HTTP requests, and checks the responses.
+
+### Smoke test
+
+`bin/smoke-test` can also be run standalone — useful for checking a server
+that is already running:
+
+    $ bin/smoke-test                  # start a temporary stub server, run checks, stop
+    $ bin/smoke-test --port 9999      # same, but on a custom port
+    $ bin/smoke-test --no-start       # check a server already running on port 8080
 
 ## Configuration
 
