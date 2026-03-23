@@ -174,7 +174,20 @@ class Config:
             from ezbeq.minidsp import MinidspStubRunner
             return MinidspStubRunner()
         from plumbum import local
-        cmd = local[exe]
+        from plumbum.commands.processes import CommandNotFound
+        try:
+            cmd = local[exe]
+        except CommandNotFound:
+            raise SystemExit(
+                f"Error: '{exe}' binary not found in PATH.\n"
+                f"\n"
+                f"To connect to real hardware, install minidsp-rs:\n"
+                f"  https://github.com/mrene/minidsp-rs/releases\n"
+                f"\n"
+                f"To run without hardware (stub mode), use:\n"
+                f"  bin/run-server-stub\n"
+                f"  (or set exe: stub in your ezbeq.yml)"
+            )
         return cmd[options.split(' ')] if options else cmd
 
     def create_ws_client(self, ip: str, port: int, listener):

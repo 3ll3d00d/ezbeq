@@ -4,9 +4,8 @@ cd "$(dirname "$0")/.."
 
 poetry run pytest "$@"
 
-# Run the live stub check on a spare port unless pytest args suggest
-# we're only running a subset of tests (e.g. -k, specific file).
+# Run the HTTP smoke test unless pytest args suggest a subset run (e.g. -k, specific file)
 if [[ $# -eq 0 ]]; then
     echo
-    bin/check-stub --start 19968
+    bin/smoke-test
 fi
