@@ -70,7 +70,10 @@ devices:
     exe: stub
 EOF
     echo -e "${BOLD}Starting stub server on port $PORT...${RESET}"
-    EZBEQ_CONFIG_HOME="$STUB_CONFIG_DIR" poetry run ezbeq >"$LOG_FILE" 2>&1 &
+    # EZBEQ_ACCESS_LOG_STDOUT=1 makes each HTTP request appear in the server log
+    # (stdout/stderr) in addition to any access.log file.
+    EZBEQ_CONFIG_HOME="$STUB_CONFIG_DIR" EZBEQ_ACCESS_LOG_STDOUT=1 \
+        poetry run ezbeq >"$LOG_FILE" 2>&1 &
     SERVER_PID=$!
 
     echo -n "  Waiting for server to be ready"
@@ -97,7 +100,7 @@ else
     fi
 fi
 
-# ── Check helper ──────────────────────────────────────────────────────────────
+# ── HTTP check helper (GET) ───────────────────────────────────────────────────
 check() {
     local label="$1" url="$2" expect_status="$3" expect_not="${4:-}" expect_contains="${5:-}"
 
@@ -106,8 +109,6 @@ check() {
 
     local tmp; tmp=$(mktemp)
     local http_status
-    # curl always writes %{http_code} even on connection failure ("000");
-    # || true prevents set -e from aborting on non-2xx exit codes.
     http_status=$(curl -s -o "$tmp" -w "%{http_code}" "$url" 2>/dev/null) || true
     local body; body=$(cat "$tmp"); rm -f "$tmp"
 
@@ -151,7 +152,59 @@ check() {
     echo
 }
 
-# ── Checks ────────────────────────────────────────────────────────────────────
+# ── Non-GET HTTP check helper ─────────────────────────────────────────────────
+request_check() {
+    local label="$1" method="$2" url="$3" expect_status="$4" data="${5:-}"
+
+    echo -e "${CYAN}── $label${RESET}"
+    info "$method $url"
+
+    local tmp; tmp=$(mktemp)
+    local http_status
+    local curl_args=(-s -X "$method" -o "$tmp" -w "%{http_code}")
+    if [[ -n "$data" ]]; then
+        curl_args+=(-H "Content-Type: application/json" -d "$data")
+    fi
+    http_status=$(curl "${curl_args[@]}" "$url" 2>/dev/null) || true
+    local body; body=$(cat "$tmp"); rm -f "$tmp"
+
+    if [[ "$http_status" == "000" ]]; then
+        fail "HTTP $http_status — connection refused (is the server running on port $PORT?)"
+    elif [[ "$http_status" == "$expect_status" ]]; then
+        ok "HTTP $http_status"
+    else
+        fail "HTTP $http_status (expected $expect_status)"
+    fi
+
+    if echo "$body" | python3 -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
+        info "Body (JSON):"
+        echo "$body" | python3 -m json.tool 2>/dev/null | head -20 | sed 's/^/    /'
+    fi
+    echo
+}
+
+# ── Log check helper (only meaningful in self-start mode) ────────────────────
+log_check() {
+    local label="$1" pattern="$2"
+
+    echo -e "${CYAN}── $label${RESET}"
+    if [[ -z "$LOG_FILE" ]]; then
+        info "Skipped (no log file — only in self-start mode)"
+        echo; return
+    fi
+    if grep -q "$pattern" "$LOG_FILE"; then
+        ok "Log contains: $pattern"
+        # Show the matching line(s) for confirmation
+        grep "$pattern" "$LOG_FILE" | head -3 | sed 's/^/    /'
+    else
+        fail "Log missing: $pattern"
+        info "Last 15 log lines:"
+        tail -15 "$LOG_FILE" | sed 's/^/    /'
+    fi
+    echo
+}
+
+# ── HTTP checks ───────────────────────────────────────────────────────────────
 echo -e "${BOLD}Smoke-testing $BASE${RESET}\n"
 
 check "Root / (expect 200 with React app)" \
@@ -166,11 +219,28 @@ check "GET /api/1/version — expect version field" \
 check "GET /static/foo.js (not built — expect 404, not a crash)" \
     "$BASE/static/foo.js" "404" "Processing Failed"
 
-check "GET /somepage (unknown path — expect 404, not a crash)" \
-    "$BASE/somepage"      "404" "Processing Failed"
+check "GET /somepage (unknown path — with UI built, React SPA serves index.html as 200)" \
+    "$BASE/somepage"      "200" "Processing Failed"
 
 check "GET /ws (WebSocket endpoint — expect Autobahn info page)" \
     "$BASE/ws"            "200" "Processing Failed"
+
+# Clear a filter slot — this drives a full round-trip through the minidsp layer
+# (stub mode) so we can verify the debug logging output below.
+request_check "DELETE /api/1/devices/master/filter/1 — clear slot (exercises minidsp stub)" \
+    DELETE "$BASE/api/1/devices/master/filter/1" "200"
+
+# ── Log checks ────────────────────────────────────────────────────────────────
+echo -e "${BOLD}Log checks${RESET}\n"
+
+log_check "Access log echoed to stdout (EZBEQ_ACCESS_LOG_STDOUT)" \
+    "ezbeq.access"
+
+log_check "minidsp stub runner invoked (debugLogging=true)" \
+    "MinidspStubRunner"
+
+log_check "Command count and timing logged" \
+    "commands to slot"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 if [[ $FAIL -gt 0 ]]; then
@@ -179,7 +249,7 @@ else
     echo -e "${BOLD}Results: ${GREEN}$PASS passed, $FAIL failed${RESET}"
 fi
 
-# ── Server log (always shown, so failures are diagnosable) ───────────────────
+# ── Server log (always shown so failures are diagnosable) ─────────────────────
 if [[ -n "$LOG_FILE" ]]; then
     echo
     echo -e "${BOLD}═══ Server log ($LOG_FILE) ═══${RESET}"

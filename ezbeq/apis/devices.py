@@ -275,7 +275,7 @@ class DevicesV2(Resource):
         from ezbeq import to_millis
         start = time.time()
         v = {n: d.serialise() for n, d in self.__bridge.all_devices(refresh=True).items()}
-        logger.info(f'Loaded device state in {to_millis(start, time.time())}ms')
+        logger.debug(f'Loaded device state in {to_millis(start, time.time())}ms')
         return v
 
 
@@ -313,9 +313,9 @@ class DeviceV2(Resource):
                 slot['gains'] = [{'id': str(i + 1), 'value': v} for i, v in enumerate(slot['gains'])]
             if 'mutes' in slot:
                 slot['mutes'] = [{'id': str(i + 1), 'value': v} for i, v in enumerate(slot['mutes'])]
-        logger.info(f"PATCHing {device_name} with {payload}")
+        logger.debug(f"PATCHing {device_name} with {payload}")
         if not self.__bridge.update(device_name, payload):
-            logger.info(f"PATCH {device_name} was a nop")
+            logger.debug(f"PATCH {device_name} was a nop")
         return self.__bridge.state(device_name).serialise()
 
 
@@ -359,13 +359,13 @@ class DeviceV3(Resource):
     @v3_api.expect(device_model_v3, validate=True)
     def patch(self, device_name: str) -> Tuple[dict, int]:
         payload = request.get_json()
-        logger.info(f"PATCHing {device_name} with {payload}")
+        logger.debug(f"PATCHing {device_name} with {payload}")
         try:
             updated = self.__bridge.update(device_name, payload)
             if updated:
                 logger.info(f"PATCHed {device_name}")
             else:
-                logger.info(f"PATCH {device_name} was a nop")
+                logger.debug(f"PATCH {device_name} was a nop")
         except UnableToPatchDeviceError as e:
             logger.exception(f'PATCH {device_name} failure')
             return {'message': f'Update failed : {e.msg}'}, e.code
