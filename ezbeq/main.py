@@ -212,8 +212,12 @@ def main(args=None):
         def render(self, request):
             return self.wsgi.render(request)
 
-    # See README § Running in Docker for EZBEQ_ACCESS_LOG_STDOUT documentation.
+    # Separate logger for access log lines written to stdout, so they can be
+    # filtered independently from the main application log.
     access_logger = logging.getLogger('ezbeq.access')
+    # When EZBEQ_ACCESS_LOG_STDOUT=1 each request is also echoed to stdout so
+    # it appears in `docker compose logs`.  This is set by default in
+    # docker-compose.local.yaml for local development.
     _access_log_stdout = os.environ.get('EZBEQ_ACCESS_LOG_STDOUT', '0').strip() == '1'
 
     class SafeSite(server.Site):
