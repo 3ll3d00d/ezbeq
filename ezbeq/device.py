@@ -248,8 +248,10 @@ class PersistentDevice(Device, ABC, Generic[T]):
 
     def _persist(self):
         assert self._current_state, 'hydrate cannot return None'
-        with open(self.__file_name, 'w') as f:
+        tmp = self.__file_name + '.tmp'
+        with open(tmp, 'w') as f:
             json.dump(self._current_state.serialise(), f, sort_keys=True)
+        os.replace(tmp, self.__file_name)
 
     def _broadcast(self):
         if self.ws_server:
