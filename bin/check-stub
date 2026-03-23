@@ -31,8 +31,29 @@ ok()   { echo -e "  ${GREEN}✓${RESET} $*"; (( PASS++ )) || true; }
 fail() { echo -e "  ${RED}✗${RESET} $*"; (( FAIL++ )) || true; }
 info() { echo -e "  ${YELLOW}→${RESET} $*"; }
 
+# ── Port helpers ──────────────────────────────────────────────────────────────
+port_in_use() { lsof -ti :"$1" >/dev/null 2>&1; }
+
+kill_port() {
+    local pids; pids=$(lsof -ti :"$1" 2>/dev/null || true)
+    if [[ -n "$pids" ]]; then
+        echo -e "${YELLOW}  Port $1 already in use (pid $pids) — killing...${RESET}"
+        kill $pids 2>/dev/null || true
+        sleep 0.5
+    fi
+}
+
 # ── Optionally start the server ───────────────────────────────────────────────
+if ! $STARTED; then
+    if ! port_in_use "$PORT"; then
+        echo -e "${RED}No server found on port $PORT.${RESET}"
+        echo -e "Start one first with ${BOLD}bin/run-server-stub${RESET}, or run ${BOLD}bin/check-stub --start${RESET} to have this script do it."
+        exit 1
+    fi
+fi
+
 if $STARTED; then
+    kill_port "$PORT"
     STUB_CONFIG_DIR="${TMPDIR:-/tmp}/ezbeq-stub-check"
     LOG_FILE="$STUB_CONFIG_DIR/server.log"
     mkdir -p "$STUB_CONFIG_DIR"
