@@ -1,0 +1,57 @@
+# syntax=docker/dockerfile:1
+FROM python:3.11-slim-bookworm
+
+# Node + Yarn for building the React UI
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    build-essential curl sqlite3 libusb-1.0-0 python3-venv && \
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install --no-install-recommends -y nodejs && \
+    corepack enable yarn && \
+    rm -rf /var/lib/apt/lists/*
+
+# Download the minidsp binary (same logic as the official image)
+RUN ARCH=$(dpkg --print-architecture) && \
+    case "$ARCH" in \
+      amd64) ARCH="x86_64-unknown-linux-gnu" ;; \
+      arm64) ARCH="aarch64-unknown-linux-gnu" ;; \
+      armhf) ARCH="arm-linux-gnueabihf-rpi" ;; \
+      *) echo "Unsupported architecture: $ARCH"; exit 1 ;; \
+    esac && \
+    URL="https://github.com/mrene/minidsp-rs/releases/latest/download/minidsp.${ARCH}.tar.gz" && \
+    curl -L -o minidsp.tar.gz "$URL" && \
+    tar -xzf minidsp.tar.gz && \
+    mv minidsp /usr/local/bin/minidsp && \
+    chmod +x /usr/local/bin/minidsp && \
+    rm minidsp.tar.gz
+
+# Python deps via Poetry
+# Cache pip and Poetry virtualenv across builds so packages aren't re-downloaded
+# when only source files change.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install poetry
+
+WORKDIR /app
+COPY pyproject.toml poetry.lock ./
+RUN --mount=type=cache,target=/root/.cache/pypoetry \
+    poetry install --no-root
+
+# Build the React UI into ezbeq/ui/
+# Cache the Yarn package cache across builds — node_modules is still rebuilt
+# inside the image layer, but packages are fetched from the host cache.
+COPY ui/ ./ui/
+RUN --mount=type=cache,target=/root/.yarn/berry/cache \
+    cd ui && yarn install --silent && yarn build
+
+# Install the app itself
+COPY . .
+RUN --mount=type=cache,target=/root/.cache/pypoetry \
+    poetry install
+
+EXPOSE 8080
+ENV EZBEQ_CONFIG_HOME=/config
+VOLUME /config
+
+HEALTHCHECK --interval=10s --timeout=2s \
+  CMD curl -f -s http://localhost:8080/api/1/version || exit 1
+
+CMD ["poetry", "run", "ezbeq"]
