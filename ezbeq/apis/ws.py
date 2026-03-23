@@ -47,10 +47,10 @@ T = TypeVar("T", bound=WsServerFactory)
 class WsProtocol(WebSocketServerProtocol):
 
     def onConnect(self, request):
-        logger.info(f"Client connecting: {request.peer}")
+        logger.debug(f"Client connecting: {request.peer}")
 
     def onOpen(self):
-        logger.info("WebSocket connection open")
+        logger.debug("WebSocket connection open")
         self.factory.register(self)
 
     def onClose(self, was_clean, code, reason):
@@ -60,7 +60,7 @@ class WsProtocol(WebSocketServerProtocol):
     def onMessage(self, payload, is_binary):
         try:
             s = payload.decode('utf-8')
-            logger.info(f"Received '{s}'")
+            logger.debug(f"Received '{s}'")
             if s.startswith(SUBSCRIBE_LEVELS_CMD):
                 device_name = s[len(SUBSCRIBE_LEVELS_CMD) + 1:].rstrip()
                 self.factory.register_for_levels(device_name, self)
@@ -96,7 +96,7 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
 
     def register(self, client: WsProtocol):
         if client not in self.__clients:
-            logger.info(f"Registered client {client.peer}")
+            logger.debug(f"Registered client {client.peer}")
             self.__clients.append(client)
             if self.__meta_provider:
                 msg = self.__meta_provider()
@@ -107,7 +107,7 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
                 if msg:
                     client.sendMessage(msg.encode('utf8'), isBinary=False)
         else:
-            logger.info(f"Ignoring duplicate client {client.peer}")
+            logger.debug(f"Ignoring duplicate client {client.peer}")
 
     def send_catalogue(self, client: WsProtocol):
         if client not in self.__clients:
@@ -118,7 +118,7 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
 
             def encode_and_send(msg):
                 if msg:
-                    logger.info(f'Sending catalogue msg (len {len(msg)}b)')
+                    logger.debug(f'Sending catalogue msg (len {len(msg)}b)')
                     client.sendMessage(msg.encode('utf8'), isBinary=False)
 
             self.__catalogue_loader(encode_and_send)
@@ -128,7 +128,7 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
     def register_for_levels(self, device: str, client: WsProtocol):
         if device in self.__levels_provider:
             if client in self.__clients:
-                logger.info(f"Removing client {client.peer} from broadcast on level subscription for {device}")
+                logger.debug(f"Removing client {client.peer} from broadcast on level subscription for {device}")
                 self.__clients.remove(client)
             # make sure the device is known
             _ = self.__levels_client[device]
@@ -137,7 +137,7 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
                     if client in v:
                         logger.warning(f"Client {client.peer} already subscribed to levels for {device}")
                     else:
-                        logger.info(f"Client {client.peer} subscribed to levels for {device}")
+                        logger.debug(f"Client {client.peer} subscribed to levels for {device}")
                         v.append(client)
             self.__levels_provider[device]()
         else:
@@ -147,23 +147,23 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
         for k, v in self.__levels_client.items():
             try:
                 v.remove(client)
-                logger.info(f"Client {client.peer} unsubscribed from levels for {k}")
+                logger.debug(f"Client {client.peer} unsubscribed from levels for {k}")
             except ValueError:
                 pass
 
     def unregister(self, client: WsProtocol):
         if client in self.__clients:
-            logger.info(f"Unregistering client {client.peer}")
+            logger.debug(f"Unregistering client {client.peer}")
             self.__clients.remove(client)
         else:
             found = False
             for device, clients in self.__levels_client.items():
                 if client in clients:
                     found = True
-                    logger.info(f"Unregistering {device} levels client {client.peer}")
+                    logger.debug(f"Unregistering {device} levels client {client.peer}")
                     clients.remove(client)
             if not found:
-                logger.info(f"Ignoring unregistered client {client.peer}")
+                logger.debug(f"Ignoring unregistered client {client.peer}")
 
     def broadcast(self, msg: str):
         logger.debug(f"Broadcasting {msg}")
@@ -183,7 +183,7 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
                 self.unregister(c)
             return len(disconnected_clients) < len(clients)
         else:
-            logger.info(f"No devices connected, ignoring {msg}")
+            logger.debug(f"No devices connected, ignoring {msg}")
             return False
 
     def send_levels(self, device: str, msg: str):

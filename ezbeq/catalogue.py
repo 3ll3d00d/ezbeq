@@ -344,7 +344,7 @@ class Catalogues:
                 'data': self.__fetch_entries(select, UI_FIELDS, limit, offset)
             }, ensure_ascii=False)
             end = time.time()
-            logger.info(f'Loaded chunk from {offset} to {next_offset} in {to_millis(begin, end)}ms')
+            logger.debug(f'Loaded chunk from {offset} to {next_offset} in {to_millis(begin, end)}ms')
             vals = {'count': count, 'limit': self.__chunk_sizes[1], 'offset': next_offset, 'start': start}
             from twisted.internet import threads
             threads.deferToThread(lambda: self.__load_next_chunk(publisher, version, **vals)).addCallback(publisher)
@@ -608,7 +608,7 @@ class Catalogues:
                 after = time.time()
                 logger.info(f'Vacuumed DB in {to_millis(before, after)} ms')
             else:
-                logger.info('Nothing to prune')
+                logger.debug(f'Nothing to prune')
 
     def refresh_if_stale(self):
         if not self.loaded or self.latest.stale:
@@ -710,7 +710,7 @@ class Catalogues:
             res = cur.execute(select)
             rows = res.fetchmany(size=limit if limit else 20000)
             after_load = time.time()
-            logger.info(f'Loaded {len(rows)} entries from db in {to_millis(before, after_load)} ms')
+            logger.debug(f'Loaded {len(rows)} entries from db in {to_millis(before, after_load)} ms')
             for row in rows:
                 vals = {k: v for k, v in {fields[i]: reformat(i, r) for i, r in enumerate(row)}.items() if v}
                 if UPDATED_AT in vals and CREATED_AT in vals:
@@ -724,8 +724,7 @@ class Catalogues:
                     vals['mvAdjust'] = vals[MV_ADJUST]
                 entries.append(vals)
             after = time.time()
-            logger.info(
-                f'Parsed {len(entries)} entries from db in {to_millis(after_load, after)} ms, total time {to_millis(before, after)} ms')
+            logger.debug(f'Parsed {len(entries)} entries from db in {to_millis(after_load, after)} ms, total time {to_millis(before, after)} ms')
             return entries
 
 
@@ -795,7 +794,7 @@ class CatalogueProvider:
         return finder(val)
 
     def __load_meta_if_present(self, meta_type: str):
-        logger.info(f'Loading meta for {meta_type}')
+        logger.debug(f'Loading meta for {meta_type}')
         from twisted.internet import reactor
         reactor.callLater(0, self.__catalogues.refresh_if_stale)
         latest = self.__catalogues.latest
