@@ -1,9 +1,8 @@
 import json
 import logging
-import math
 import os
 from abc import ABC, abstractmethod
-from typing import List, Optional, Dict, TypeVar, Generic, Callable
+from typing import TypeVar, Generic
 
 from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
@@ -83,11 +82,11 @@ class Device(ABC, Generic[T]):
         pass
 
     @abstractmethod
-    def load_biquads(self, slot: str, overwrite: bool, inputs: List[int], outputs: List[int], biquads: List[dict]) -> None:
+    def load_biquads(self, slot: str, overwrite: bool, inputs: list[int], outputs: list[int], biquads: list[dict]) -> None:
         pass
 
     @abstractmethod
-    def send_commands(self, slot: str, inputs: List[int], outputs: List[int], commands: List[str]) -> None:
+    def send_commands(self, slot: str, inputs: list[int], outputs: list[int], commands: list[str]) -> None:
         pass
 
     @abstractmethod
@@ -95,15 +94,15 @@ class Device(ABC, Generic[T]):
         pass
 
     @abstractmethod
-    def mute(self, slot: Optional[str], channel: Optional[int]) -> None:
+    def mute(self, slot: str | None, channel: int | None) -> None:
         pass
 
     @abstractmethod
-    def unmute(self, slot: Optional[str], channel: Optional[int]) -> None:
+    def unmute(self, slot: str | None, channel: int | None) -> None:
         pass
 
     @abstractmethod
-    def set_gain(self, slot: Optional[str], channel: Optional[int], gain: float) -> None:
+    def set_gain(self, slot: str | None, channel: int | None, gain: float) -> None:
         pass
 
     @abstractmethod
@@ -118,7 +117,7 @@ class Device(ABC, Generic[T]):
 class DeviceRepository:
 
     def __init__(self, cfg: Config, ws_server: WsServer, catalogue: CatalogueProvider):
-        self.__devices: Dict[str, Device] = {}
+        self.__devices: dict[str, Device] = {}
         for device in create_devices(cfg, ws_server, catalogue):
             self.__devices[device.name] = device
 
@@ -134,7 +133,7 @@ class DeviceRepository:
     def state(self, name: str) -> DeviceState:
         return self.__get_device(name).state()
 
-    def all_devices(self, refresh: bool = False) -> Dict[str, DeviceState]:
+    def all_devices(self, refresh: bool = False) -> dict[str, DeviceState]:
         return {n: d.state(refresh=refresh) for n, d in self.__devices.items()}
 
     def activate(self, name: str, slot: str) -> None:
@@ -143,23 +142,23 @@ class DeviceRepository:
     def load_filter(self, name: str, slot: str, entry: CatalogueEntry) -> None:
         self.__get_device(name).load_filter(slot, entry)
 
-    def load_biquads(self, name: str, slot: str, overwrite: bool, inputs: List[int], outputs: List[int],
-                     biquads: List[dict]) -> None:
+    def load_biquads(self, name: str, slot: str, overwrite: bool, inputs: list[int], outputs: list[int],
+                     biquads: list[dict]) -> None:
         self.__get_device(name).load_biquads(slot, overwrite, inputs, outputs, biquads)
 
-    def send_commands(self, name: str, slot: str, inputs: List[int], outputs: List[int], commands: List[str]) -> None:
+    def send_commands(self, name: str, slot: str, inputs: list[int], outputs: list[int], commands: list[str]) -> None:
         self.__get_device(name).send_commands(slot, inputs, outputs, commands)
 
     def clear_filter(self, name: str, slot: str) -> None:
         self.__get_device(name).clear_filter(slot)
 
-    def mute(self, name: str, slot: Optional[str], channel: Optional[int]) -> None:
+    def mute(self, name: str, slot: str | None, channel: int | None) -> None:
         self.__get_device(name).mute(slot, channel)
 
-    def unmute(self, name: str, slot: Optional[str], channel: Optional[int]) -> None:
+    def unmute(self, name: str, slot: str | None, channel: int | None) -> None:
         self.__get_device(name).unmute(slot, channel)
 
-    def set_gain(self, name: str, slot: Optional[str], channel: Optional[int], gain: float) -> None:
+    def set_gain(self, name: str, slot: str | None, channel: int | None, gain: float) -> None:
         self.__get_device(name).set_gain(slot, channel, gain)
 
     def update(self, device_name: str, params: dict) -> bool:
@@ -169,7 +168,7 @@ class DeviceRepository:
         return self.__get_device(device_name).levels()
 
 
-def create_devices(cfg: Config, ws_server: WsServer, catalogue: CatalogueProvider) -> List[Device]:
+def create_devices(cfg: Config, ws_server: WsServer, catalogue: CatalogueProvider) -> list[Device]:
     devices = []
     for name, values in cfg.devices.items():
         d_type = values['type']
@@ -208,7 +207,7 @@ class PersistentDevice(Device, ABC, Generic[T]):
         self.__name = name
         self.__file_name = os.path.join(cache_path, f'{name}.json')
         self.__hydrated = False
-        self._current_state: Optional[T] = None
+        self._current_state: T | None = None
         self.__ws_server = ws_server
 
     @property
@@ -224,7 +223,7 @@ class PersistentDevice(Device, ABC, Generic[T]):
             self._current_state = self._load_initial_state()
             if os.path.exists(self.__file_name):
                 try:
-                    with open(self.__file_name, 'r') as f:
+                    with open(self.__file_name) as f:
                         cached_state = json.load(f)
                     logger.info(f"Loaded {cached_state} from {self.__file_name}")
                     self._current_state = self._merge_state(self._current_state, cached_state)

@@ -18,7 +18,7 @@ class Diagnostics(Resource):
 
     def get(self):
         before = time.time()
-        logger.info(f'Generating diagnostics')
+        logger.info('Generating diagnostics')
         snapshot = tracemalloc.take_snapshot()
         current, peak = tracemalloc.get_traced_memory()
 

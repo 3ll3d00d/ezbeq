@@ -2,7 +2,6 @@ import faulthandler
 import os
 import tracemalloc
 from os import path
-from typing import Tuple
 
 from autobahn.twisted.resource import WebSocketResource
 from flask import Flask
@@ -23,7 +22,7 @@ if hasattr(faulthandler, 'register'):
     faulthandler.register(signal.SIGUSR2, all_threads=True)
 
 
-def create_app(config: Config, ws: WsServer = AutobahnWsServer()) -> Tuple[Flask, WsServer]:
+def create_app(config: Config, ws: WsServer = AutobahnWsServer()) -> tuple[Flask, WsServer]:
     ws_server = ws
     catalogue = CatalogueProvider(config, ws)
     resource_args = {
@@ -172,6 +171,7 @@ def main(args=None):
         site = server.Site(FlaskAppWrapper())
     endpoint = endpoints.TCP4ServerEndpoint(reactor, cfg.port, interface='0.0.0.0')
     endpoint.listen(site)
+    logger.info(f'Listening on port: {cfg.port}')
     reactor.run()
 
 

@@ -35,7 +35,7 @@ See [examples](examples)
 
 | Type                        | File                                                                                                                                                                        |
 |-----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Camilla DSP                 | [ezbeq_camilladsp.yml](examples/ezbeq_camilladsp.yml)                                                                                                                       |
+| Camilla DSP                 | [for CamillaDSP v3](examples/ezbeq_camilladsp3.yml)                                                                                                                         |
 | J River Media Center        | [ezbeq_mc.yml](examples/ezbeq_mc.yml)                                                                                                                                       |
 | Minidsp 2x4HD               | [ezbeq_md.yml](examples/ezbeq_md.yml), [using multiple devices](examples/ezbeq_md2.yml) or [with custom slot names](examples/ezbeq_named.yml)                               |
 | Minidsp 4x10                | [ezbeq_4x10.yml](examples/ezbeq_4x10.yml)                                                                                                                                   |
@@ -324,7 +324,7 @@ Two fields have special treatment:
 * filters: will be set in a format that can be linked to a IIR Custom Filter and feeds it with the required biquad coefficients.
 * images: there can be a variable number of images so each individual image can be specified in a separate field
 
-The alternative approache uses a [Parametric Equaliser](https://q-syshelp.qsc.com/Content/Schematic_Library/equalizer_parametric.htm) component which should be configured with:
+The alternative approach uses a [Parametric Equaliser](https://q-syshelp.qsc.com/Content/Schematic_Library/equalizer_parametric.htm) component which should be configured with:
 
 * at least 10 bands
 * q factor
@@ -335,7 +335,7 @@ Note that this format does not support variable Q shelf filters.
 
 #### CamillaDSP
 
-[CamillaDSP](https://github.com/HEnquist/camilladsp) is supported via its [websocket](https://github.com/HEnquist/camilladsp/blob/master/websocket.md) api which means CamillaDSP must be started with additional options:
+[CamillaDSP v3](https://github.com/HEnquist/camilladsp) is supported via its [websocket](https://github.com/HEnquist/camilladsp/blob/master/websocket.md) api which means CamillaDSP must be started with additional options:
 
 * `-p` to specify the port
 * `-a` to specify the listen address (required if ezbeq runs on a different host to camilladsp)
@@ -357,17 +357,19 @@ Note that this format does not support variable Q shelf filters.
 
 On load, the camilladsp configuration will be updated as follows:
 
-* each filter will be added to the `Filters` section in [IIR](https://github.com/HEnquist/camilladsp#iir) format using one of the Peaking, HighShelf or LowShelf filter types. Filter names will be BEQ1 to BEQ10 
+* each filter will be added to the `Filters` section in [IIR](https://github.com/HEnquist/camilladsp#iir) format using one of the Peaking, HighShelf or LowShelf filter types. Filter names will be BEQ_0 to BEQ_9, the number corresponds to the filter index in the loaded BEQ filter. If a filter with the same name already exists, it will be overwritten with the new settings. This means that if you load a different BEQ filter, the existing filters will be updated rather than new filters being added.
 * each filter will be appended to the [Pipeline](https://github.com/HEnquist/camilladsp#pipeline) for the specified channel, an entry of type `Filter` will be added if not already present for that channel
+
+Note that if the named filter (BEQ_0 for example) is already present in the camilladsp configuration, only the filter parameters will be updated on load or remove.
+i.e. this enables the user to define where to put the filters in the pipeline rather than always appending to the end of the pipeline.
 
 On unload, the camilladsp configuration will be updated as follows:
 
-* the filters will deleted from the `Filters` section
-* the filters will be removed from the `Pipeline` section
+* the filters will reset to 0 gain filters in the `Filters` section
 
 User controlled master volume adjustments are supported using the [Volume](https://github.com/HEnquist/camilladsp/blob/master/README.md#volume) filter if that filter has been configured in the pipeline. 
 
-BEQ specific input gain adjustments are supported via the use of a [Gain](https://github.com/HEnquist/camilladsp#gain) filter which is inserted into the pipeline ahead of the BEQ filters themselves. 
+BEQ specific input gain adjustments are supported via the use of a [Gain](https://github.com/HEnquist/camilladsp#gain) filter which is inserted into the pipeline ahead of the BEQ filters themselves.
 
 ## Starting ezbeq on bootup
 
@@ -407,5 +409,32 @@ Aug 18 21:58:36 swoop systemd[1]: Started ezbeq.
 
 3) reboot and repeat step 2 to verify the recorder has automatically started
 
+## Verifying MiniDSP Response
 
+As noted in the [setup guide](https://ezbeq.readthedocs.io/en/latest/#suggested-interaction-of-ezbeq-and-official-minidsp-plugin), minidsp devices do not provide any mechanism to read the currently loaded DSP configuration. This means it is impossible to see exactly how the DSP is configured, it's only possible to measure the resulting response. 
 
+From an ezbeq perspective, there are 2 ways to do this
+
+### Quick & Crude
+
+* Clear filters
+* Open the levels tab
+* Start playback of a scene that is known to have content boosted by the beq filter (use the [beqcatalogue](https://beqcatalogue.readthedocs.io/) heatmap to find one)
+* Make note of the displayed levels
+* Load the filter
+* Restart playback of the same scene
+* Compare the reported levels 
+
+The measured output level should be increased with the filter in place.
+
+### Slower but Accurate
+
+* Clear filters
+* Switch to USB input
+* Connect the minidsp dsp to a PC running [REW](https://www.roomeqwizard.com/), configure REW to use the minidsp as both input and output device
+* Measure a full bandwidth (2-20000 Hz) sweep (call this A)
+* Load a filter (switch connection to the ezbeq host if necessary)
+* Measure a full bandwidth (2-20000 Hz) sweep (call this B)
+* Use the [trace arithmetic](https://www.roomeqwizard.com/betahelp/help_en-GB/html/arithmetic.html) `A / B` function (call the result C), the result should look like the inverse of the BEQ filter (i.e. it will go into negative values, it shows the supposed rolloff in the original source that is to be corrected by the BEQ filter)
+* With C selected, open the EQ window, select your minidsp device as the dsp type and manually input the individual filters in the loaded BEQ
+* The predicted response should now be a flat line (i.e. the beq filter has "corrected" this back to flat)
