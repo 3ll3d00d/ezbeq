@@ -5,6 +5,12 @@
     "audioTypes": [
       "DTS-HD MA 5.1"
     ],
+    "audioCodecs": [
+      "DTS-HD MA"
+    ],
+    "audioChannelCounts": [
+      "5.1"
+    ],
     "content_type": "film",
     "author": "aron7awol",
     "catalogue_url": "https://beqcatalogue.readthedocs.io/en/latest/aron7awol/56869036/#dts-hd-ma-51",

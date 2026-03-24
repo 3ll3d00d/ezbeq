@@ -1,0 +1,161 @@
+---
+devices:
+  samplerate: 44100
+  chunksize: 1024
+  target_level: 512
+  silence_threshold: -90
+  silence_timeout: 3.0
+  capture:
+    type: Alsa
+    channels: 4
+    device: "plughw:Loopback,1,0"
+    format: S32LE
+  playback:
+    type: Alsa
+    channels: 4
+    device: "plughw:Loopback_1,0,0"
+    format: S32LE
+
+filters:
+  BEQ_Gain_2:
+    type: Gain
+    parameters:
+      gain: 0.0
+      inverted: false
+      mute: false
+  BEQ_Gain_3:
+    type: Gain
+    parameters:
+      gain: 0.0
+      inverted: false
+      mute: false
+  BEQ_0:
+    type: Biquad
+    description: "ezbeq default filter"
+    parameters:
+      type: "Lowshelf"
+      freq: 20.0
+      gain: 0.0
+      q: 1.0
+  BEQ_1:
+    type: Biquad
+    description: "ezbeq default filter"
+    parameters:
+      type: "Lowshelf"
+      freq: 20.0
+      gain: 0.0
+      q: 1.0
+  BEQ_2:
+    type: Biquad
+    description: "ezbeq default filter"
+    parameters:
+      type: "Lowshelf"
+      freq: 20.0
+      gain: 0.0
+      q: 1.0
+  BEQ_3:
+    type: Biquad
+    description: "ezbeq default filter"
+    parameters:
+      type: "Lowshelf"
+      freq: 20.0
+      gain: 0.0
+      q: 1.0
+  BEQ_4:
+    type: Biquad
+    description: "ezbeq default filter"
+    parameters:
+      type: "Lowshelf"
+      freq: 20.0
+      gain: 0.0
+      q: 1.0
+  BEQ_5:
+    type: Biquad
+    description: "ezbeq default filter"
+    parameters:
+      type: "Lowshelf"
+      freq: 20.0
+      gain: 0.0
+      q: 1.0
+  BEQ_6:
+    type: Biquad
+    description: "ezbeq default filter"
+    parameters:
+      type: "Lowshelf"
+      freq: 20.0
+      gain: 0.0
+      q: 1.0
+  BEQ_7:
+    type: Biquad
+    description: "ezbeq default filter"
+    parameters:
+      type: "Lowshelf"
+      freq: 20.0
+      gain: 0.0
+      q: 1.0
+  BEQ_8:
+    type: Biquad
+    description: "ezbeq default filter"
+    parameters:
+      type: "Lowshelf"
+      freq: 20.0
+      gain: 0.0
+      q: 1.0
+  BEQ_9:
+    type: Biquad
+    description: "ezbeq default filter"
+    parameters:
+      type: "Lowshelf"
+      freq: 20.0
+      gain: 0.0
+      q: 1.0
+
+mixers:
+  input:
+    channels:
+      in: 4
+      out: 4
+    mapping:
+      - dest: 0
+        sources:
+          - channel: 0
+            gain: 0
+            inverted: false
+      - dest: 1
+        sources:
+          - channel: 1
+            gain: 0
+            inverted: false
+      - dest: 2
+        sources:
+          - channel: 2
+            gain: 0
+            inverted: false
+      - dest: 3
+        sources:
+          - channel: 3
+            gain: 0
+            inverted: false
+
+pipeline:
+  - type: Filter
+    channels: [2]
+    names:
+    - BEQ_Gain_2
+  - type: Filter
+    channels: [3]
+    names:
+    - BEQ_Gain_3
+  - type: Filter
+    channels: [2,3]
+    names:
+    - BEQ_0
+    - BEQ_1
+    - BEQ_2
+    - BEQ_3
+    - BEQ_4
+    - BEQ_5
+    - BEQ_6
+    - BEQ_7
+    - BEQ_8
+    - BEQ_9

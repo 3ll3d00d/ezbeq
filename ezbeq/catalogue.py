@@ -4,16 +4,16 @@ import os
 import sqlite3
 import time
 from contextlib import contextmanager
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Optional, List, Callable, Union, Set, Tuple
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from collections.abc import Callable
 
 import ijson
 import requests
 
+from ezbeq import to_millis
 from ezbeq.apis.ws import WsServer
 from ezbeq.config import Config
-from ezbeq import to_millis
 
 logger = logging.getLogger('ezbeq.catalogue')
 
@@ -49,6 +49,8 @@ FORMATTED_TITLE = 'formattedTitle'
 RUNTIME = 'runtime'
 MV_ADJUST = 'mv'
 FRESHNESS = 'freshness'
+AUDIO_CODECS = 'audioCodecs'
+AUDIO_CHANNEL_COUNTS = 'audioChannelCounts'
 
 TWO_WEEKS_AGO_SECONDS = 2 * 7 * 24 * 60 * 60
 
@@ -83,8 +85,21 @@ FIELDS = [
     COLLECTION,
     RUNTIME,
     MV_ADJUST,
-    FORMATTED_TITLE
+    FORMATTED_TITLE,
+    AUDIO_CODECS,
+    AUDIO_CHANNEL_COUNTS,
 ]
+
+
+LIST_FIELDS = [
+    AUDIO_TYPES,
+    IMAGES,
+    WARNING,
+    GENRES,
+    AUDIO_CHANNEL_COUNTS,
+    AUDIO_CODECS
+]
+
 
 IGNORE_FIELDS = [FILTERS, DIGEST]
 
@@ -118,6 +133,8 @@ class CatalogueEntry:
             return v[1:-1].split('|') if isinstance(v, str) else v
 
         self.audio_types = split_list(vals.get(AUDIO_TYPES, []))
+        self.audio_codecs = split_list(vals.get(AUDIO_CODECS, []))
+        self.audio_channel_counts = split_list(vals.get(AUDIO_CHANNEL_COUNTS, []))
         self.content_type = vals.get(CONTENT_TYPE, 'film')
         self.author = vals.get(AUTHOR, '')
         self.catalogue_url = vals.get(CATALOGUE_URL, '')
@@ -246,7 +263,9 @@ class CatalogueEntry:
             self.collection_name,
             self.runtime,  # int
             self.mv_adjust,  # 30 float
-            self.formatted_title
+            self.formatted_title,
+            format_list(self.audio_codecs),
+            format_list(self.audio_channel_counts)
         )
 
     def __repr__(self):
@@ -312,9 +331,10 @@ class Catalogues:
         threads.deferToThread(lambda: self.__load_next_chunk(sender, catalogue.version, **vals)).addCallback(sender)
 
     def __load_next_chunk(self, publisher: Callable[[str], None], version: str, count: int = 100, limit: int = 500,
-                          offset: int = 0, start: float = 0) -> str:
+                          offset: int = 0, start: float = 0) -> str | None:
         if offset >= count:
             logger.info(f'[{version}] Load complete in {to_millis(start, time.time())}ms')
+            return None
         else:
             begin = time.time()
             next_offset = offset + limit
@@ -331,6 +351,15 @@ class Catalogues:
             return msg
 
     def __ensure_db(self):
+        def add_column(column_name: str):
+            try:
+                cur.execute(f"ALTER TABLE catalogue_entry ADD COLUMN {column_name} TEXT")
+            except sqlite3.OperationalError as e:
+                if "duplicate column name" in str(e):  # can ignore
+                    pass
+                else:
+                    raise
+
         with db_ops(self.__db) as cur:
             cur.execute("CREATE TABLE IF NOT EXISTS catalogue_entry("
                         f"{ID} TEXT PRIMARY KEY, "
@@ -367,6 +396,8 @@ class Catalogues:
                         f"version TEXT NOT NULL, "
                         f"loaded_at INT NOT NULL"
                         ");")
+            add_column(AUDIO_CODECS)
+            add_column(AUDIO_CHANNEL_COUNTS)
             cur.execute(f"CREATE INDEX IF NOT EXISTS entry_digest ON catalogue_entry ({DIGEST});")
             cur.execute("CREATE TABLE IF NOT EXISTS catalogue_meta("
                         "meta_type TEXT NOT NULL, "
@@ -382,7 +413,7 @@ class Catalogues:
                               "WHERE loaded_at = (SELECT max(loaded_at) FROM catalogue_entry);").fetchone()
             return res[0] if res else None
 
-    def __load_catalogues(self) -> List[Catalogue]:
+    def __load_catalogues(self) -> list[Catalogue]:
         with db_ops(self.__db) as cur:
             res = cur.execute(
                 "SELECT version, MAX(loaded_at), COUNT(id) FROM catalogue_entry GROUP BY version ORDER BY MAX(loaded_at) ASC")
@@ -413,7 +444,7 @@ class Catalogues:
                         f'[{self.__db}] Failed to load catalogue at startup from {self.__catalogue_file}')
         return catalogues
 
-    def __insert_catalogue(self, version: str, meta_only: bool = False) -> Optional[Catalogue]:
+    def __insert_catalogue(self, version: str, meta_only: bool = False) -> Catalogue | None:
         now = int(datetime.now().timestamp() * 1000)
         audio_types = set()
         authors = set()
@@ -435,6 +466,7 @@ class Catalogues:
                 count = 0
                 insert_sql = f"INSERT INTO catalogue_entry({FIELDS_STR},version,loaded_at) VALUES({', '.join(['?'] * (len(FIELDS) + 2))})"
                 start = time.time()
+                t1 = start
                 for idx, c in enumerate(ijson.items(infile, 'item', use_float=True)):
                     count = count + 1
                     entry = CatalogueEntry(f"{version}_{idx}", c)
@@ -450,8 +482,12 @@ class Catalogues:
                         years.add(entry.year)
                     values.append(entry.values + extra_vals)
                     if len(values) % 1000 == 0 and not meta_only:
+                        t2 = time.time()
+                        logger.info(
+                            f'[{self.__db} / {version}] Parsed {len(v)} (of {c}) entries in {to_millis(t1, t2)}ms')
                         insert_commit(values, count, insert_sql)
                         values = []
+                        t1 = time.time()
                 if values and not meta_only:
                     insert_commit(values, count, insert_sql)
                 if not meta_only:
@@ -465,7 +501,8 @@ class Catalogues:
                                         [(meta_type, v, version) for v in vals])
                         cur.connection.commit()
                         s2 = time.time()
-                        logger.info(f'[{self.__db} / {version}] Inserted {len(vals)} {meta_type} entries in {to_millis(s1, s2)}ms')
+                        logger.info(
+                            f'[{self.__db} / {version}] Inserted {len(vals)} {meta_type} entries in {to_millis(s1, s2)}ms')
                     else:
                         logger.info(f'[{self.__db} / {version}] No {meta_type} entries to insert')
 
@@ -477,9 +514,9 @@ class Catalogues:
 
                 return Catalogue(count, version, {AUDIO_TYPES: audio_types, AUTHOR: authors, CONTENT_TYPE: contenttypes,
                                                   LANGUAGE: languages, YEAR: years},
-                                 datetime.utcfromtimestamp(now / 1000)) if count else None
+                                 datetime.fromtimestamp(now / 1000, tz=timezone.utc)) if count else None
 
-    def load_meta(self, version: str, meta_type: str) -> List[str]:
+    def load_meta(self, version: str, meta_type: str) -> list[str]:
         with db_ops(self.__db) as cur:
             before = time.time()
             res = cur.execute(
@@ -490,10 +527,10 @@ class Catalogues:
             return values
 
     @property
-    def latest(self) -> Optional[Catalogue]:
+    def latest(self) -> Catalogue | None:
         return self.__catalogues[-1] if self.loaded else None
 
-    def find_version(self, version: str) -> Optional[Catalogue]:
+    def find_version(self, version: str) -> Catalogue | None:
         return next((i for i in self.__catalogues if i.version == version), None)
 
     @property
@@ -501,7 +538,7 @@ class Catalogues:
         if not self.__catalogues:
             return False
         current = self.__catalogues[-1]
-        return current.version != '' and current.count
+        return current.version != '' and current.count > 0
 
     def __download(self):
         downloader = DatabaseDownloader(self.__catalogue_url, self.__catalogue_file, self.__version_file)
@@ -571,22 +608,22 @@ class Catalogues:
                 after = time.time()
                 logger.info(f'Vacuumed DB in {to_millis(before, after)} ms')
             else:
-                logger.info(f'Nothing to prune')
+                logger.info('Nothing to prune')
 
     def refresh_if_stale(self):
         if not self.loaded or self.latest.stale:
             try:
                 self.__reload()
             except Exception as e:
-                logger.exception(f"Failed to refresh catalogue", e)
+                logger.exception("Failed to refresh catalogue", e)
 
-    def find_by_id(self, entry_id: str, as_dict: bool = False) -> Optional[Union[CatalogueEntry, dict]]:
+    def find_by_id(self, entry_id: str, as_dict: bool = False) -> CatalogueEntry | dict | None:
         return self.__find(f"{ID} = '{entry_id}'", as_dict)
 
-    def find_by_digest(self, digest: str, as_dict: bool = False) -> Optional[Union[CatalogueEntry, dict]]:
+    def find_by_digest(self, digest: str, as_dict: bool = False) -> CatalogueEntry | dict | None:
         return self.__find(f"{DIGEST} = '{digest}'", as_dict)
 
-    def __find(self, clause: str, as_dict: bool) -> Optional[Union[CatalogueEntry, dict]]:
+    def __find(self, clause: str, as_dict: bool) -> CatalogueEntry | dict | None:
         catalogue = self.latest
         if not catalogue:
             return None
@@ -597,8 +634,9 @@ class Catalogues:
         else:
             return None
 
-    def search(self, authors: List[str], years: List[int], audio_types: List[str], content_types: List[str],
-               tmdb_id: str, text: Optional[str], fields: List[str], limit: Optional[int]) -> List[dict]:
+    def search(self, authors: list[str], years: list[int], audio_types: list[str], content_types: list[str],
+               tmdb_id: str, text: str | None, audio_codecs: list[str], audio_channel_counts: list[str],
+               fields: list[str], limit: int | None) -> list[dict]:
         catalogue = self.latest
         if not catalogue:
             return []
@@ -610,23 +648,27 @@ class Catalogues:
 
         sql = f"SELECT {fields_str} FROM catalogue_entry WHERE version = '{catalogue.version}'"
 
-        def in_clause(vals: List[str], field: str) -> str:
+        def in_clause(vals: list[str], field: str) -> str:
             filt = '"' + '","'.join(vals) + '"'
             return f'{field} IN ({filt})'
+
+        def list_clause(vals: list[str], field: str) -> str:
+            if len(vals) == 1:
+                sql = f' AND {field} LIKE "%|{vals[0]}|%"'
+            else:
+                sql = ' AND ('
+                for idx, val in enumerate(vals):
+                    prefix = ' OR ' if idx != 0 else ' '
+                    sql = f'{sql}{prefix}{field} LIKE "%|{val}|%"'
+                sql = f'{sql})'
+            return sql
 
         if authors:
             sql = f'{sql} AND {in_clause(authors, AUTHOR)}'
         if years:
             sql = f'{sql} AND {YEAR} IN ({",".join([str(y) for y in years])})'
         if audio_types:
-            if len(audio_types) == 1:
-                sql = f'{sql} AND {AUDIO_TYPES} LIKE "%|{audio_types[0]}|%"'
-            else:
-                sql = f'{sql} AND ('
-                for idx, audio_type in enumerate(audio_types):
-                    prefix = ' OR ' if idx != 0 else ' '
-                    sql = f'{sql}{prefix}{AUDIO_TYPES} LIKE "%|{audio_type}|%"'
-                sql = f'{sql})'
+            sql = f'{sql} {list_clause(audio_types, AUDIO_TYPES)}'
         if content_types:
             sql = f'{sql} AND {in_clause(content_types, CONTENT_TYPE)}'
         if tmdb_id:
@@ -638,10 +680,15 @@ class Catalogues:
                    f'LOWER({ALT_TITLE}) LIKE "%{t}%" OR '
                    f'LOWER({COLLECTION}) LIKE "%{t}%"'
                    ')')
+        if audio_codecs:
+            sql = f'{sql} {list_clause(audio_codecs, AUDIO_CODECS)}'
+        if audio_channel_counts:
+            sql = f'{sql} {list_clause(audio_channel_counts, AUDIO_CHANNEL_COUNTS)}'
+
         return self.__fetch_entries(sql, fields, limit)
 
-    def __fetch_entries(self, select: str, fields: List[str], limit: Optional[int], offset: Optional[int] = None) -> \
-            List[dict]:
+    def __fetch_entries(self, select: str, fields: list[str], limit: int | None, offset: int | None = None) -> \
+            list[dict]:
         if limit:
             select = f'{select} LIMIT {limit}'
         if offset:
@@ -649,8 +696,7 @@ class Catalogues:
 
         def reformat(i, v):
             f = fields[i]
-            is_list = f == AUDIO_TYPES or f == IMAGES or f == WARNING or f == GENRES
-            if is_list:
+            if f in LIST_FIELDS:
                 return [x for x in v[1:-1].split('|') if x] if v else []
             elif f == FILTERS:
                 return json.loads(v)
@@ -660,7 +706,7 @@ class Catalogues:
         with db_ops(self.__db, mmap_size=self.__mmap_mb * 1024 * 1024) as cur:
             before = time.time()
             logger.debug(f'>>> {select}')
-            entries: List[dict] = []
+            entries: list[dict] = []
             res = cur.execute(select)
             rows = res.fetchmany(size=limit if limit else 20000)
             after_load = time.time()
@@ -678,7 +724,8 @@ class Catalogues:
                     vals['mvAdjust'] = vals[MV_ADJUST]
                 entries.append(vals)
             after = time.time()
-            logger.info(f'Parsed {len(entries)} entries from db in {to_millis(after_load, after)} ms, total time {to_millis(before, after)} ms')
+            logger.info(
+                f'Parsed {len(entries)} entries from db in {to_millis(after_load, after)} ms, total time {to_millis(before, after)} ms')
             return entries
 
 
@@ -694,8 +741,8 @@ class CatalogueProvider:
                                                    config.load_catalogue_at_startup,
                                                    config.db_mmap_mb)
 
-    def find(self, entry_id: str, match_on_idx: Optional[bool] = None, as_dict: bool = False) -> Optional[
-        Union[CatalogueEntry, dict]]:
+    def find(self, entry_id: str, match_on_idx: bool | None = None, as_dict: bool = False) -> (
+                                                                                                  CatalogueEntry | dict) | None:
         v = None
         if match_on_idx is None or match_on_idx is True:
             v = self.__catalogues.find_by_id(entry_id, as_dict)
@@ -704,42 +751,45 @@ class CatalogueProvider:
         return v
 
     @property
-    def catalogue(self) -> Optional[Catalogue]:
+    def catalogue(self) -> Catalogue | None:
         return self.__catalogues.latest
 
     @property
-    def authors(self) -> List[str]:
+    def authors(self) -> list[str]:
         return self.__load_meta_if_present(AUTHOR)
 
     @property
-    def audio_types(self) -> List[str]:
+    def audio_types(self) -> list[str]:
         return self.__load_meta_if_present(AUDIO_TYPES)
 
     @property
-    def content_types(self) -> List[str]:
+    def content_types(self) -> list[str]:
         return self.__load_meta_if_present(CONTENT_TYPE)
 
     @property
-    def languages(self) -> List[str]:
+    def languages(self) -> list[str]:
         return self.__load_meta_if_present(LANGUAGE)
 
     @property
-    def years(self) -> List[str]:
+    def years(self) -> list[str]:
         return self.__load_meta_if_present(YEAR)
 
-    def search(self, authors: List[str], years: List[int], audio_types: List[str], content_types: List[str],
-               tmdb_id: str, text: Optional[str], fields: List[str], limit: Optional[int] = 100) -> List[dict]:
+    def search(self, authors: list[str], years: list[int], audio_types: list[str], content_types: list[str],
+               tmdb_id: str, text: str | None, audio_codecs: list[str], audio_channel_counts: list[str],
+               fields: list[str], limit: int | None = 100) -> list[dict]:
         from twisted.internet import reactor
         reactor.callLater(0, self.__catalogues.refresh_if_stale)
-        return self.__catalogues.search(authors, years, audio_types, content_types, tmdb_id, text, fields, limit)
+        return self.__catalogues.search(authors, years, audio_types, content_types, tmdb_id, text, audio_codecs,
+                                        audio_channel_counts, fields, limit)
 
-    def find_by_id(self, entry_id: str) -> Optional[CatalogueEntry]:
+    def find_by_id(self, entry_id: str) -> CatalogueEntry | dict | None:
         return self.__find_by(entry_id, self.__catalogues.find_by_id)
 
-    def find_by_digest(self, digest: str) -> Optional[CatalogueEntry]:
+    def find_by_digest(self, digest: str) -> CatalogueEntry | dict | None:
         return self.__find_by(digest, self.__catalogues.find_by_digest)
 
-    def __find_by(self, val: str, finder: Callable[[str], Optional[CatalogueEntry]]) -> Optional[CatalogueEntry]:
+    def __find_by(self, val: str, finder: Callable[[str], CatalogueEntry | dict | None]) -> (
+                                                                                                      CatalogueEntry | dict) | None:
         from twisted.internet import reactor
         reactor.callLater(0, self.__catalogues.refresh_if_stale)
         return finder(val)
@@ -769,7 +819,7 @@ class DatabaseDownloader:
                     self.__cached_version = f.read()
 
     @property
-    def version(self) -> Optional[str]:
+    def version(self) -> str | None:
         return self.__cached_version.rstrip('\n') if self.__cached_version else self.__cached_version
 
     def run(self) -> bool:
@@ -791,19 +841,19 @@ class DatabaseDownloader:
                         with open(self.__cached_version_file, 'w') as f:
                             f.write(remote_version)
                     else:
-                        logger.warning(f"No remote version to write")
+                        logger.warning("No remote version to write")
                     self.__cached_version = remote_version
                     logger.info(f"Downloaded {self.__db_url} @ {remote_version}")
                     return True
                 else:
                     logger.warning(f"Unable to download catalogue, response is {r.status_code}")
             except:
-                logger.exception(f"Unable to download catalogue, unexpected error")
+                logger.exception("Unable to download catalogue, unexpected error")
         else:
             logger.info(f"No reload required {remote_version} vs {self.__cached_version}")
         return False
 
-    def __get_remote_catalogue_version(self) -> Optional[str]:
+    def __get_remote_catalogue_version(self) -> str | None:
         '''
         gets version.txt to discover the remote catalogue version.
         :return: the version, if any.
@@ -829,6 +879,9 @@ def db_ops(db_name, cache_size: int = None, mmap_size: int = None):
         if mmap_size:
             logger.debug(f'mmap_size={mmap_size}')
             conn.execute(f'pragma mmap_size={mmap_size}')
+        conn.execute('pragma journal_mode = WAL;')
+        conn.execute('pragma synchronous = normal;')
+        conn.execute('pragma temp_store = memory;')
         cur = conn.cursor()
         yield cur
     except Exception as e:
@@ -855,7 +908,7 @@ class LoadTester:
     def __init__(self, db_file: str):
         self.db_file = db_file
         self.chunk_sizes = [25, 50, 100, 200, 400, 800, 1600, 3200, 6400]
-        self.catalogues: List[Catalogue] = []
+        self.catalogues: list[Catalogue] = []
 
     def run(self) -> dict:
         with db_ops(self.db_file) as cur:
@@ -916,7 +969,7 @@ class LoadTester:
             'results': results
         }
 
-    def __load(self, version: str, offset: int, limit: int) -> Tuple[int, float]:
+    def __load(self, version: str, offset: int, limit: int) -> tuple[int, float]:
         select = f"SELECT {UI_FIELDS_STR} FROM catalogue_entry WHERE version = '{version}'"
         if limit:
             select = f'{select} LIMIT {limit}'

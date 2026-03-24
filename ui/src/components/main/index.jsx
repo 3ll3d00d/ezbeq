@@ -146,7 +146,7 @@ const MainView = ({
                 useWide
                     ?
                     <Grid container>
-                        <Grid item xs={6} md={6}>
+                        <Grid size={{ xs: 6, md: 6 }}>
                             {devices}
                             <Grid container>
                                 {catalogue}
@@ -155,7 +155,7 @@ const MainView = ({
                                 {footer}
                             </Grid>
                         </Grid>
-                        <Grid item xs={6} md={6}>
+                        <Grid size={{ xs: 6, md: 6 }}>
                             {entry}
                         </Grid>
                     </Grid>

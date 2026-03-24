@@ -1,6 +1,5 @@
 import logging
 import xml.etree.ElementTree as et
-from typing import Optional, List, Dict, Tuple
 
 import requests
 
@@ -27,16 +26,16 @@ class JRiverSlotState(SlotState):
 
 class JRiverState(DeviceState):
 
-    def __init__(self, name: str, zones: Dict[str, dict]):
+    def __init__(self, name: str, zones: dict[str, dict]):
         self.__name = name
-        self.__slots: Dict[str, JRiverSlotState] = {z['name']: JRiverSlotState(z_id, z['name'])
+        self.__slots: dict[str, JRiverSlotState] = {z['name']: JRiverSlotState(z_id, z['name'])
                                                     for z_id, z in zones.items()}
 
     def has_zone(self, zone: str) -> bool:
         slot = self.__slots.get(zone, None)
         return slot is not None
 
-    def get_zone_id(self, zone: str) -> Optional[str]:
+    def get_zone_id(self, zone: str) -> str | None:
         slot = self.__slots.get(zone, None)
         return slot.zone_id if slot else None
 
@@ -115,10 +114,10 @@ class JRiver(PersistentDevice[JRiverState]):
                             any_update = True
         return any_update
 
-    def load_biquads(self, slot: str, overwrite: bool, inputs: List[int], outputs: List[int], biquads: List[dict]) -> None:
+    def load_biquads(self, slot: str, overwrite: bool, inputs: list[int], outputs: list[int], biquads: list[dict]) -> None:
         raise NotImplementedError()
 
-    def send_commands(self, slot: str, inputs: List[int], outputs: List[int], commands: List[str]) -> None:
+    def send_commands(self, slot: str, inputs: list[int], outputs: list[int], commands: list[str]) -> None:
         raise NotImplementedError()
 
     def load_filter(self, slot: str, entry: CatalogueEntry, mv_adjust: float = 0.0) -> None:
@@ -166,13 +165,13 @@ class JRiver(PersistentDevice[JRiverState]):
                 raise e
         self._hydrate_cache_broadcast(__do_it)
 
-    def mute(self, slot: Optional[str], channel: Optional[int]) -> None:
+    def mute(self, slot: str | None, channel: int | None) -> None:
         raise NotImplementedError()
 
-    def unmute(self, slot: Optional[str], channel: Optional[int]) -> None:
+    def unmute(self, slot: str | None, channel: int | None) -> None:
         raise NotImplementedError()
 
-    def set_gain(self, slot: Optional[str], channel: Optional[int], gain: float) -> None:
+    def set_gain(self, slot: str | None, channel: int | None, gain: float) -> None:
         raise NotImplementedError()
 
     def levels(self) -> dict:
@@ -180,7 +179,7 @@ class JRiver(PersistentDevice[JRiverState]):
         return {}
 
 
-def convert_filter_to_mc_dsp(filt: dict, target_channels: str) -> List[Dict[str, str]]:
+def convert_filter_to_mc_dsp(filt: dict, target_channels: str) -> list[dict[str, str]]:
     '''
     :param filt: filter values in catalogue form.
     :param target_channels: the channels to output to.
@@ -198,7 +197,7 @@ def convert_filter_to_mc_dsp(filt: dict, target_channels: str) -> List[Dict[str,
     raise ValueError(f"Unknown filter type {f_type} in {filt}")
 
 
-def make_peak(channels: str, vals: dict) -> Dict[str, str]:
+def make_peak(channels: str, vals: dict) -> dict[str, str]:
     return {
         'Enabled': '1',
         'Slope': '12',
@@ -210,7 +209,7 @@ def make_peak(channels: str, vals: dict) -> Dict[str, str]:
     }
 
 
-def make_shelf(channels: str, vals: dict, high: bool) -> List[Dict[str, str]]:
+def make_shelf(channels: str, vals: dict, high: bool) -> list[dict[str, str]]:
     filt_val = {
         'Enabled': '1',
         'Slope': '12',
@@ -224,7 +223,7 @@ def make_shelf(channels: str, vals: dict, high: bool) -> List[Dict[str, str]]:
     return [filt_val] * count
 
 
-def make_gain(channels: str, vals: dict) -> Dict[str, str]:
+def make_gain(channels: str, vals: dict) -> dict[str, str]:
     return {
         'Enabled': '1',
         'Type': '4',
@@ -233,7 +232,7 @@ def make_gain(channels: str, vals: dict) -> Dict[str, str]:
     }
 
 
-def make_meta(name: str, start: bool) -> List[Dict[str, str]]:
+def make_meta(name: str, start: bool) -> list[dict[str, str]]:
     suf = 'START' if start else 'END'
     return [{
         'Enabled': '1',
@@ -294,7 +293,7 @@ def extract_filters(config_txt: str, key_name: str, allow_empty: bool = False):
         raise NoFiltersError(f"No Filters in {key_name} found in {config_txt}")
 
 
-def filts_to_xml(vals: List[Dict[str, str]]) -> str:
+def filts_to_xml(vals: list[dict[str, str]]) -> str:
     '''
     Formats key-value pairs into a jriver dsp config file compatible str fragment.
     :param vals: the key-value pairs.
@@ -303,7 +302,7 @@ def filts_to_xml(vals: List[Dict[str, str]]) -> str:
     return ''.join(filt_to_xml(f) for f in vals)
 
 
-def filt_to_xml(vals: Dict[str, str]) -> str:
+def filt_to_xml(vals: dict[str, str]) -> str:
     '''
     Converts a set of filter values to a jriver compatible xml fragment.
     :param vals: the values.
@@ -321,7 +320,7 @@ def filt_to_xml(vals: Dict[str, str]) -> str:
     return xml_frag
 
 
-def include_filters_in_dsp(peq_block_name: str, config_txt: str, xml_filts: List[str], replace: bool = True) -> str:
+def include_filters_in_dsp(peq_block_name: str, config_txt: str, xml_filts: list[str], replace: bool = True) -> str:
     '''
     :param peq_block_name: the peq block to process.
     :param config_txt: the dsp config in txt form.
@@ -357,7 +356,7 @@ def include_filters_in_dsp(peq_block_name: str, config_txt: str, xml_filts: List
         return config_txt
 
 
-def remove_beq_filter(peq_block_name: str, config_txt: str) -> Optional[str]:
+def remove_beq_filter(peq_block_name: str, config_txt: str) -> str | None:
     root, filt_element = extract_filters(config_txt, peq_block_name, allow_empty=True)
     # before_value, after_value, filt_section = extract_value_section(config_txt, self.__block)
     # separate the tokens, which are in (TOKEN) blocks, from within the Value element
@@ -416,7 +415,7 @@ def get_peq_key_name(block):
 
 class MediaServer:
 
-    def __init__(self, ip: str, auth: Optional[Tuple[str, str]] = None, secure: bool = False):
+    def __init__(self, ip: str, auth: tuple[str, str] | None = None, secure: bool = False):
         self.__ip = ip
         self.__auth = auth
         self.__secure = secure
@@ -451,7 +450,7 @@ class MediaServer:
     def connected(self) -> bool:
         return self.__token is not None
 
-    def get_zones(self) -> Dict[str, dict]:
+    def get_zones(self) -> dict[str, dict]:
         self.__auth_if_required()
         r = requests.get(f"{self.__base_url}/Playback/Zones", params={'Token': self.__token}, timeout=(1, 5))
         if r.status_code == 200:
@@ -459,7 +458,7 @@ class MediaServer:
             if response:
                 r_status = response.attrib.get('Status', None)
                 if r_status == 'OK':
-                    zones: Dict[str, dict] = {}
+                    zones: dict[str, dict] = {}
                     remote_zones = []
                     for child in response:
                         if child.tag == 'Item' and 'Name' in child.attrib:
@@ -490,7 +489,7 @@ class MediaServer:
         if not self.connected:
             self.authenticate()
 
-    def get_dsp(self, zone_id: str) -> Optional[str]:
+    def get_dsp(self, zone_id: str) -> str | None:
         self.__auth_if_required()
         r = requests.get(f"{self.__base_url}/Playback/SaveDSPPreset",
                          params={'Token': self.__token, 'Zone': zone_id, 'ZoneType': 'ID'},
@@ -572,7 +571,7 @@ class DSPMismatchError(Exception):
 
 class MCWSError(Exception):
 
-    def __init__(self, msg: str, url: str, status_code: int, resp: Optional[str] = None):
+    def __init__(self, msg: str, url: str, status_code: int, resp: str | None = None):
         super().__init__(msg)
         self.msg = msg
         self.url = url
@@ -580,7 +579,7 @@ class MCWSError(Exception):
         self.resp = resp
 
 
-def item_to_dicts(frag) -> Optional[Tuple[Dict[str, str], str]]:
+def item_to_dicts(frag) -> tuple[dict[str, str], str] | None:
     idx = frag.find(':')
     if idx > -1:
         peq_xml = frag[idx+1:-1]

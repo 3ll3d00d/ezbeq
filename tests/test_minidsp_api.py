@@ -542,6 +542,38 @@ def test_search_collection(minidsp_client, minidsp_app):
     assert len(catalogue) == 0
 
 
+def test_search_codec(minidsp_client, minidsp_app):
+    r = minidsp_client.get(f"/api/1/search", query_string={'audiocodecs': 'DTS-HD MA'})
+    assert r.status_code == 200
+    catalogue = r.json
+    assert catalogue
+    assert len(catalogue) == 1
+    entry = catalogue[0]
+    assert entry['id'] == '123456_0'
+    assert entry['title'] == 'Alien Resurrection'
+
+    r = minidsp_client.get(f"/api/1/search", query_string={'text': 'DTS-HD.MA'})
+    assert r.status_code == 200
+    catalogue = r.json
+    assert len(catalogue) == 0
+
+
+def test_search_channel_count(minidsp_client, minidsp_app):
+    r = minidsp_client.get(f"/api/1/search", query_string={'audiochannelcounts': '5.1'})
+    assert r.status_code == 200
+    catalogue = r.json
+    assert catalogue
+    assert len(catalogue) == 1
+    entry = catalogue[0]
+    assert entry['id'] == '123456_0'
+    assert entry['title'] == 'Alien Resurrection'
+
+    r = minidsp_client.get(f"/api/1/search", query_string={'text': '7.1'})
+    assert r.status_code == 200
+    catalogue = r.json
+    assert len(catalogue) == 0
+
+
 def test_authors(minidsp_client):
     r = minidsp_client.get(f"/api/1/authors")
     assert r.status_code == 200

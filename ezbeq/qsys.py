@@ -2,7 +2,6 @@ import json
 import logging
 import re
 import socket
-from typing import Optional, List, Union
 
 from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
@@ -84,14 +83,14 @@ class Qsys(PersistentDevice[QsysState]):
                             any_update = True
         return any_update
 
-    def __send(self, to_load: List['PEQ'], entry: Union[CatalogueEntry, str]):
+    def __send(self, to_load: list['PEQ'], entry: CatalogueEntry | str):
         logger.info(f"Sending {len(to_load)} filters")
         while len(to_load) < 10:
             to_load.append(PEQ(100, 1, 0, 'PeakingEQ'))
         if to_load:
             self.__send_to_socket(to_load, entry)
         else:
-            logger.warning(f"Nothing to send")
+            logger.warning("Nothing to send")
 
     @staticmethod
     def __recvall(sock: socket, buf_size: int = 4096) -> str:
@@ -111,7 +110,7 @@ class Qsys(PersistentDevice[QsysState]):
             return data.decode('utf-8').strip(TERMINATOR)
         return ''
 
-    def __send_to_socket(self, peqs: List['PEQ'], entry: Union[CatalogueEntry, str]):
+    def __send_to_socket(self, peqs: list['PEQ'], entry: CatalogueEntry | str):
         logger.info(f"Sending {peqs} to {self.__ip}:{self.__port}")
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(self.__timeout_srcs)
@@ -129,7 +128,7 @@ class Qsys(PersistentDevice[QsysState]):
                         if v == 'filters':
                             val = json.dumps([coeff for p in peqs for coeff in p.coeffs])
                         elif isinstance(entry, CatalogueEntry):
-                            m = re.match(r'(.*)\[(\d+)\]', v)
+                            m = re.match(r'(.*)\[(\d+)]', v)
                             if m:
                                 val = getattr(entry, m.group(1))
                             else:
@@ -148,7 +147,7 @@ class Qsys(PersistentDevice[QsysState]):
                             else:
                                 val = str(val)
                         else:
-                            val = ''
+                            val = '0.0' if v == 'mv_adjust' else ''
                         text_controls.append({'Name': k, 'Value': val})
                     self.__send_component(component_name, text_controls, sock)
         finally:
@@ -185,18 +184,18 @@ class Qsys(PersistentDevice[QsysState]):
 
         self._hydrate_cache_broadcast(__do_it)
 
-    def load_biquads(self, slot: str, overwrite: bool, inputs: List[int], outputs: List[int],
-                     biquads: List[dict]) -> None:
+    def load_biquads(self, slot: str, overwrite: bool, inputs: list[int], outputs: list[int],
+                     biquads: list[dict]) -> None:
         raise NotImplementedError()
 
-    def send_commands(self, slot: str, inputs: List[int], outputs: List[int], commands: List[str]) -> None:
+    def send_commands(self, slot: str, inputs: list[int], outputs: list[int], commands: list[str]) -> None:
         raise NotImplementedError()
 
     def load_filter(self, slot: str, entry: CatalogueEntry, mv_adjust: float = 0.0) -> None:
         to_load = [PEQ(f['freq'], f['q'], f['gain'], f['type']) for f in entry.filters]
         self._hydrate_cache_broadcast(lambda: self.__do_it(to_load, entry))
 
-    def __do_it(self, to_load: List['PEQ'], entry: Union[CatalogueEntry, str]):
+    def __do_it(self, to_load: list['PEQ'], entry: CatalogueEntry | str):
         try:
             self.__send(to_load, entry)
             if isinstance(entry, CatalogueEntry):
@@ -213,13 +212,13 @@ class Qsys(PersistentDevice[QsysState]):
     def clear_filter(self, slot: str) -> None:
         self._hydrate_cache_broadcast(lambda: self.__do_it([], 'Empty'))
 
-    def mute(self, slot: Optional[str], channel: Optional[int]) -> None:
+    def mute(self, slot: str | None, channel: int | None) -> None:
         raise NotImplementedError()
 
-    def unmute(self, slot: Optional[str], channel: Optional[int]) -> None:
+    def unmute(self, slot: str | None, channel: int | None) -> None:
         raise NotImplementedError()
 
-    def set_gain(self, slot: Optional[str], channel: Optional[int], gain: float) -> None:
+    def set_gain(self, slot: str | None, channel: int | None, gain: float) -> None:
         raise NotImplementedError()
 
     def levels(self) -> dict:
@@ -246,7 +245,7 @@ class PEQ:
         ]
 
     @property
-    def coeffs(self) -> List[float]:
+    def coeffs(self) -> list[float]:
         if self.filter_type_name == 'LowShelf':
             from ezbeq.iir import LowShelf
             filt = LowShelf(self.fs, self.fc, self.q, self.gain)
