@@ -65,9 +65,9 @@ class Config:
     @property
     def is_debug_logging(self):
         """
-        :return: if debug logging mode is on, defaults to False.
+        :return: if debug logging mode is on, defaults to True.
         """
-        return self.config.get('debugLogging', False)
+        return self.config.get('debugLogging', True)
 
     @property
     def is_access_logging(self):
