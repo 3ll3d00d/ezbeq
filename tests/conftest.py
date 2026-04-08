@@ -173,6 +173,19 @@ def multi_camilladsp3_client(multi_camilladsp3_app):
     return multi_camilladsp3_app.test_client()
 
 
+@pytest.fixture
+def stub_app(tmp_path):
+    """App instance using MinidspStubRunner - no hardware required."""
+    app, ws = main.create_app(StubConfig(tmp_path))
+    yield app
+
+
+@pytest.fixture
+def stub_client(stub_app):
+    """Test client for the stub app."""
+    return stub_app.test_client()
+
+
 CONFIG_PATTERN = re.compile(r'config ([0-3])')
 GAIN_PATTERN = re.compile(r'gain -- ([-+]?\d*\.\d+|\d+)')
 
@@ -433,6 +446,41 @@ class CapturingWsServerFactory(WsServerFactory):
 
     def set_levels_provider(self, name: str, broadcaster: Callable[[], None]):
         pass
+
+
+class StubConfig(Config):
+    """Config that uses MinidspStubRunner - no hardware or minidsp binary required."""
+
+    def __init__(self, tmp_path):
+        self.__tmp_path = tmp_path
+        super().__init__('stub')
+
+    def load_config(self):
+        return {
+            'debugLogging': False,
+            'accessLogging': False,
+            'port': 8080,
+            'devices': {
+                'master': {
+                    'type': 'minidsp',
+                    'exe': 'stub',
+                    'cmdTimeout': 10,
+                    'make_runner': self.create_minidsp_runner
+                }
+            }
+        }
+
+    @property
+    def config_path(self):
+        return str(self.__tmp_path)
+
+    @property
+    def version(self):
+        return '1.2.3'
+
+    @property
+    def load_catalogue_at_startup(self):
+        return False
 
 
 class CapturingWsServer(WsServer[CapturingWsServerFactory]):

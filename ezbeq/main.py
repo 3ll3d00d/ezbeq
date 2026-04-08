@@ -67,6 +67,28 @@ def main(args=None):
     """ The main routine. """
     cfg = Config('ezbeq')
     logger = cfg.configure_logger()
+
+    # ── Startup summary (logged before anything else so it's at the top) ──────
+    # Use WARNING so these lines always appear on the console regardless of the
+    # debugLogging setting — they're essential for confirming the right device
+    # and mode is active.
+    raw = cfg.as_dict()
+    logger.warning('=' * 60)
+    logger.warning(f'  ezbeq  |  port: {cfg.port}  |  config: {cfg.config_path}')
+    logger.warning(f'  logging: debug={cfg.is_debug_logging}  access={cfg.is_access_logging}')
+    for dev_name, dev_cfg in raw.get('devices', {}).items():
+        dev_type = dev_cfg.get('type', '?')
+        if dev_type == 'minidsp':
+            exe = dev_cfg.get('exe', 'minidsp')
+            opts = dev_cfg.get('options', '')
+            detail = 'STUB (no hardware)' if exe == 'stub' else f'exe={exe}' + (f'  options={opts}' if opts else '')
+            logger.warning(f'  device [{dev_name}]  type=minidsp  {detail}')
+        elif dev_type == 'camilladsp':
+            logger.warning(f'  device [{dev_name}]  type=camilladsp  ip={dev_cfg.get("ip")}:{dev_cfg.get("port")}')
+        else:
+            logger.warning(f'  device [{dev_name}]  type={dev_type}')
+    logger.warning('=' * 60)
+
     app, ws_server = create_app(cfg)
 
     import logging
@@ -103,6 +125,24 @@ def main(args=None):
 
         def getChild(self, path, request):
             return self
+
+    class _NoUIPlaceholder(Resource):
+        """Served at / when the React app has not been built."""
+        isLeaf = True
+
+        def render_GET(self, request):
+            request.setHeader(b'Content-Type', b'text/html; charset=utf-8')
+            return (
+                b'<!DOCTYPE html><html><head><title>ezbeq</title></head><body>'
+                b'<h1>ezbeq</h1>'
+                b'<p>The React UI has not been built. '
+                b'See the <a href="https://github.com/3ll3d00d/ezbeq#installation">README</a> '
+                b'for setup instructions.</p>'
+                b'<hr>'
+                b'<p>API: <a href="/api/1/">/api/1/</a> &nbsp;|&nbsp; '
+                b'Swagger: <a href="/api/doc">/api/doc</a></p>'
+                b'</body></html>'
+            )
 
     class FlaskAppWrapper(Resource):
         """
@@ -153,22 +193,85 @@ def main(args=None):
                 request.postpath.insert(0, path)
                 return self.wsgi
             elif path == b'static':
-                return self.static
+                if hasattr(self, 'static'):
+                    return self.static
             elif path == b'metrics' and cfg.enable_metrics:
                 from prometheus_client.twisted import MetricsResource
                 if not self.metrics:
                     self.metrics = MetricsResource()
                 return self.metrics
             else:
-                return self.react.get_file(path)
+                if hasattr(self, 'react'):
+                    return self.react.get_file(path)
+                # No UI built — serve a helpful placeholder for the root, 404 for everything else
+                if path == b'':
+                    return _NoUIPlaceholder()
+            from twisted.web.resource import NoResource
+            return NoResource('UI not available: the React app has not been built')
 
         def render(self, request):
             return self.wsgi.render(request)
 
+    # Separate logger for access log lines written to stdout, so they can be
+    # filtered independently from the main application log.
+    access_logger = logging.getLogger('ezbeq.access')
+    # When EZBEQ_ACCESS_LOG_STDOUT=1 each request is also echoed to stdout so
+    # it appears in `docker compose logs`.  This is set by default in
+    # docker-compose.dev.yaml for local development.
+    _access_log_stdout = os.environ.get('EZBEQ_ACCESS_LOG_STDOUT', '0').strip() == '1'
+
+    class SafeSite(server.Site):
+        """
+        A Site subclass that handles access log write failures gracefully.
+        Twisted's DailyLogFile can enter a broken state when the log file is deleted
+        externally (e.g. container restart) - the rotation code closes the file handle
+        before renaming it, and if the rename fails the handle stays closed. Subsequent
+        writes then raise ValueError which propagates through request.finish() and leaves
+        HTTP responses in a hung state, locking up the UI.
+
+        When log_to_stdout=True each access log line is also written to the
+        'ezbeq.access' Python logger so it appears on stdout / in docker logs.
+        """
+
+        def __init__(self, resource, access_log_path=None, log_to_stdout=False, **kwargs):
+            super().__init__(resource, **kwargs)
+            self._access_log_path = access_log_path
+            self._log_to_stdout = log_to_stdout
+            if access_log_path is not None:
+                self._reopen_log()
+
+        def _reopen_log(self):
+            from twisted.python.logfile import DailyLogFile
+            try:
+                self.logFile = DailyLogFile.fromFullPath(self._access_log_path)
+                logger.info(f'Access log opened: {self._access_log_path}')
+            except Exception:
+                logger.exception(f'Failed to open access log at {self._access_log_path}, access logging disabled')
+                self.logFile = None
+
+        def log(self, request):
+            try:
+                server.Site.log(self, request)
+            except (ValueError, FileNotFoundError, OSError):
+                logger.warning('Access log write failed, attempting to reopen')
+                if self._access_log_path:
+                    self._reopen_log()
+            if self._log_to_stdout:
+                from twisted.web import http
+                ts = http.datetimeToString()
+                if isinstance(ts, bytes):
+                    ts = ts.decode('utf-8', errors='replace')
+                line = self._logFormatter(ts, request)
+                if isinstance(line, bytes):
+                    line = line.decode('utf-8', errors='replace')
+                access_logger.info(line)
+
     if cfg.is_access_logging is True:
-        site = server.Site(FlaskAppWrapper(), logPath=path.join(cfg.config_path, 'access.log').encode())
+        site = SafeSite(FlaskAppWrapper(),
+                        access_log_path=path.join(cfg.config_path, 'access.log'),
+                        log_to_stdout=_access_log_stdout)
     else:
-        site = server.Site(FlaskAppWrapper())
+        site = SafeSite(FlaskAppWrapper(), log_to_stdout=_access_log_stdout)
     endpoint = endpoints.TCP4ServerEndpoint(reactor, cfg.port, interface='0.0.0.0')
     endpoint.listen(site)
     logger.info(f'Listening on port: {cfg.port}')

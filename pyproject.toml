@@ -57,6 +57,11 @@ optional = true
 [tool.poetry.group.exe.dependencies]
 pyinstaller = { version = "^6.9.0", python = ">=3.13,<3.15" }
 
+[tool.pytest.ini_options]
+markers = [
+    "integration: starts a real Twisted server subprocess (slower)",
+]
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

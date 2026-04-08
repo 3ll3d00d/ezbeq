@@ -225,12 +225,12 @@ class PersistentDevice(Device, ABC, Generic[T]):
                 try:
                     with open(self.__file_name) as f:
                         cached_state = json.load(f)
-                    logger.info(f"Loaded {cached_state} from {self.__file_name}")
+                    logger.debug(f"Loaded {cached_state} from {self.__file_name}")
                     self._current_state = self._merge_state(self._current_state, cached_state)
                 except Exception:
                     logger.exception(f'Failed to load content from {self.__file_name}')
             else:
-                logger.info(f"No cached state found at {self.__file_name}")
+                logger.debug(f"No cached state found at {self.__file_name}")
             if refresh is False:
                 self.__ws_server.factory.init_state_provider(self.__get_state_msg)
                 self.__hydrated = True
