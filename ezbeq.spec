@@ -14,10 +14,14 @@ def get_data_args():
     '''
     :return: the data array for the analysis.
     '''
+    import importlib.util
+
+    autobahn_path = importlib.util.find_spec('autobahn').submodule_search_locations[0]
     return [
         ('icons/icon.ico', '.'),
         ('ezbeq/VERSION', '.'),
-        ('ezbeq/ui', 'ui')
+        ('ezbeq/ui', 'ui'),
+        (os.path.join(autobahn_path, 'nvx', '*.c'), 'autobahn/nvx'),
     ]
 
 block_cipher = None
