@@ -330,16 +330,17 @@ class MinidspDDRC24(MinidspDescriptor):
 
 class MinidspHTX(MinidspDescriptor):
 
-    def __init__(self, slot_names: dict[str, str] = None, sw_channels: list[int] = None):
-        c = sw_channels if sw_channels is not None else [3]
+    def __init__(self, slot_names: dict[str, str] = None, input_channels: list[int] = None):
+        c = input_channels if input_channels is not None else [0]
         if any(ch for ch in c if ch < 0 or ch > 7):
             raise ValueError(f"Invalid channels {c} must be between 0 and 7")
         non_sw = [c1 for c1 in zero_til(8) if c1 not in c]
         super().__init__('HTX',
                          '48000',
+			 i=PeqRoutes(INPUT_NAME, 10, c, zero_til(10)),
                          xo=PeqRoutes(CROSSOVER_NAME, 8, zero_til(8), [], zero_til(2)),
-                         o=PeqRoutes(OUTPUT_NAME, 10, c, zero_til(10)),
-                         extra=[PeqRoutes(OUTPUT_NAME, 10, non_sw, []) if non_sw else None],
+                         o=PeqRoutes(OUTPUT_NAME, 10, zero_til(8), []),
+                         extra=[PeqRoutes(INPUT_NAME, 10, non_sw, []) if non_sw else None],
                          slot_names=slot_names)
 
 
@@ -409,7 +410,7 @@ def make_peq_layout(cfg: dict) -> MinidspDescriptor:
         elif device_type == 'SHD':
             return MinidspDDRC24(slot_names=slot_names)
         elif device_type == 'HTx':
-            return MinidspHTX(sw_channels=cfg.get('sw_channels', None), slot_names=slot_names)
+            return MinidspHTX(input_channels=cfg.get('input_channels', None), slot_names=slot_names)
     elif 'descriptor' in cfg:
         desc: dict = cfg['descriptor']
         named_args = ['name', 'fs', 'routes']
