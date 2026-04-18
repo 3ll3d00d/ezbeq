@@ -13,6 +13,9 @@ on:
     paths:
       - 'ezbeq/**'
       - 'tests/**'
+  workflow_dispatch:
+    branches:
+      - '*'
 defaults:
   run:
     shell: bash
