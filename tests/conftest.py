@@ -146,6 +146,32 @@ def minidsp_shd_client(minidsp_shd_app):
 
 
 @pytest.fixture
+def minidsp_htx_app(httpserver: HTTPServer, tmp_path):
+    """Create and configure a new app instance for each test."""
+    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='HTx', version=''))
+    yield app
+
+
+@pytest.fixture
+def minidsp_htx_client(minidsp_htx_app):
+    """A test client for the app."""
+    return minidsp_htx_app.test_client()
+
+
+@pytest.fixture
+def minidsp_htx_inputs_app(httpserver: HTTPServer, tmp_path):
+    """Create and configure a new app instance for each test."""
+    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='HTx', version='0.1.13'))
+    yield app
+
+
+@pytest.fixture
+def minidsp_htx_inputs_client(minidsp_htx_inputs_app):
+    """A test client for the app."""
+    return minidsp_htx_inputs_app.test_client()
+
+
+@pytest.fixture
 def single_camilladsp3_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new app instance for each test."""
     cfg = CamillaDspSpyConfig(httpserver.host, httpserver.port, tmp_path, cfg_name='single3.yaml', version=3, channels=[1])
@@ -179,13 +205,14 @@ GAIN_PATTERN = re.compile(r'gain -- ([-+]?\d*\.\d+|\d+)')
 
 class MinidspSpy:
 
-    def __init__(self):
+    def __init__(self, version_str: str = ''):
         self.history = []
         self.pending = []
         self.__slot = 1
         self.__gain = 0.0
         self.__mute = False
         self.commands = []
+        self._version_str = version_str
 
     def __make_status(self) -> str:
         mute_str = f"{self.__mute}".lower()
@@ -207,6 +234,8 @@ class MinidspSpy:
             return self
 
     def __call__(self, *args, **kwargs):
+        if args and args[0] == '-V':
+            return self._version_str
         if self.pending:
             self.history.append(self.pending)
             if len(self.pending[-1]) == 2 and self.pending[-1][0] == '-f':
@@ -240,7 +269,7 @@ class MinidspSpy:
 
 class MinidspSpyConfig(Config):
 
-    def __init__(self, host: str, port: int, tmp_path, device_type: str = None):
+    def __init__(self, host: str, port: int, tmp_path, device_type: str = None, version: str = ''):
         if device_type and device_type[-3:-1] == 'xo':
             self.device_type = device_type[:-3]
             self.use_xo = device_type[-1]
@@ -248,7 +277,7 @@ class MinidspSpyConfig(Config):
             self.device_type = device_type
             self.use_xo = False
         super().__init__('spy', beqcatalogue_url=f"http://{host}:{port}/")
-        self.spy = MinidspSpy()
+        self.spy = MinidspSpy(version_str=version)
         self.__tmp_path = tmp_path
 
     @property

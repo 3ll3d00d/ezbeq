@@ -12,10 +12,10 @@ from autobahn.twisted import WebSocketClientFactory, WebSocketClientProtocol
 from plumbum import ProcessExecutionError
 from twisted.internet.protocol import ReconnectingClientFactory
 
+from ezbeq import to_millis
 from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
 from ezbeq.device import InvalidRequestError, SlotState, PersistentDevice, DeviceState, UnableToPatchDeviceError
-from ezbeq import to_millis
 
 INPUT_NAME = 'input'
 OUTPUT_NAME = 'output'
@@ -170,14 +170,14 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
                 if isinstance(g, dict):
                     self.gains.append(g)
                 else:
-                    self.gains.append({'id': str(i+1), 'value': float(g)})
+                    self.gains.append({'id': str(i + 1), 'value': float(g)})
         if 'mutes' in state and len(state['mutes']) == self.__input_channels:
             self.mutes = []
             for i, m in enumerate(state['mutes']):
                 if isinstance(m, dict):
                     self.mutes.append(m)
                 else:
-                    self.mutes.append({'id': str(i+1), 'value': bool(m)})
+                    self.mutes.append({'id': str(i + 1), 'value': bool(m)})
 
     def as_dict(self) -> dict:
         sup = super().as_dict()
@@ -330,17 +330,25 @@ class MinidspDDRC24(MinidspDescriptor):
 
 class MinidspHTX(MinidspDescriptor):
 
-    def __init__(self, slot_names: dict[str, str] = None, sw_channels: list[int] = None):
-        c = sw_channels if sw_channels is not None else [3]
+    def __init__(self, slot_names: dict[str, str] = None, channels: list[int] = None, use_inputs: bool = False):
+        c = channels if channels is not None else [3]
         if any(ch for ch in c if ch < 0 or ch > 7):
             raise ValueError(f"Invalid channels {c} must be between 0 and 7")
         non_sw = [c1 for c1 in zero_til(8) if c1 not in c]
-        super().__init__('HTX',
-                         '48000',
-                         xo=PeqRoutes(CROSSOVER_NAME, 8, zero_til(8), [], zero_til(2)),
-                         o=PeqRoutes(OUTPUT_NAME, 10, c, zero_til(10)),
-                         extra=[PeqRoutes(OUTPUT_NAME, 10, non_sw, []) if non_sw else None],
-                         slot_names=slot_names)
+        if use_inputs:
+            super().__init__('HTX',
+                             '48000',
+                             i=PeqRoutes(INPUT_NAME, 10, c, zero_til(10)),
+                             xo=PeqRoutes(CROSSOVER_NAME, 8, zero_til(8), [], zero_til(2)),
+                             o=PeqRoutes(OUTPUT_NAME, 10, [], zero_til(10)),
+                             slot_names=slot_names)
+        else:
+            super().__init__('HTX',
+                             '48000',
+                             xo=PeqRoutes(CROSSOVER_NAME, 8, zero_til(8), [], zero_til(2)),
+                             o=PeqRoutes(OUTPUT_NAME, 10, c, zero_til(10)),
+                             extra=[PeqRoutes(OUTPUT_NAME, 10, non_sw, []) if non_sw else None],
+                             slot_names=slot_names)
 
 
 class MinidspDDRC88(MinidspDescriptor):
@@ -390,8 +398,8 @@ class Minidsp1010(MinidspDescriptor):
                          **secondary)
 
 
-def make_peq_layout(cfg: dict) -> MinidspDescriptor:
-    slot_names: dict[str, str] = {str(k): str(v) for k,v in cfg.get('slotNames', {}).items()}
+def make_peq_layout(cfg: dict, cmd_runner) -> MinidspDescriptor:
+    slot_names: dict[str, str] = {str(k): str(v) for k, v in cfg.get('slotNames', {}).items()}
     if 'device_type' in cfg:
         device_type = cfg['device_type']
         if device_type == '24HD':
@@ -409,7 +417,12 @@ def make_peq_layout(cfg: dict) -> MinidspDescriptor:
         elif device_type == 'SHD':
             return MinidspDDRC24(slot_names=slot_names)
         elif device_type == 'HTx':
-            return MinidspHTX(sw_channels=cfg.get('sw_channels', None), slot_names=slot_names)
+            output = cmd_runner('-V').strip().split()
+            supports_input = False
+            if output:
+                import semver
+                supports_input = semver.parse_version_info(output[-1]) > semver.parse_version_info('0.1.12')
+            return MinidspHTX(use_inputs=supports_input, channels=cfg.get('channels', cfg.get('sw_channels')), slot_names=slot_names)
     elif 'descriptor' in cfg:
         desc: dict = cfg['descriptor']
         named_args = ['name', 'fs', 'routes']
@@ -454,8 +467,7 @@ def make_peq_layout(cfg: dict) -> MinidspDescriptor:
         if extra:
             routes_by_name['extra'] = extra
         return MinidspDescriptor(desc['name'], str(desc['fs']), **routes_by_name, slot_names=slot_names)
-    else:
-        return Minidsp24HD(slot_names=slot_names)
+    return Minidsp24HD(slot_names=slot_names)
 
 
 class Minidsp(PersistentDevice[MinidspState]):
@@ -475,7 +487,7 @@ class Minidsp(PersistentDevice[MinidspState]):
             self.__ws_client = MinidspRsClient(self, ws_ip, ws_device_id)
         else:
             self.__ws_client = None
-        self.__descriptor: MinidspDescriptor = make_peq_layout(cfg)
+        self.__descriptor: MinidspDescriptor = make_peq_layout(cfg, self.__runner)
         logger.info(f"[{name}] Minidsp descriptor is loaded.... exe is {self.__runner}")
         logger.info(yaml.dump(self.__descriptor, indent=2, default_flow_style=False, sort_keys=False))
         ws_server.factory.set_levels_provider(name, self.start_broadcast_levels)
@@ -508,13 +520,14 @@ class Minidsp(PersistentDevice[MinidspState]):
                     if lines:
                         # 0: Found 2x4HD with serial 911111 at ws://localhost/devices/0/ws [hw_id: 10, dsp_version: 100]
                         import re
-                        p = re.compile(r'(?P<device_idx>\d+): Found (?P<device_type>.*) with serial (?P<serial>.*) at.*')
+                        p = re.compile(
+                            r'(?P<device_idx>\d+): Found (?P<device_type>.*) with serial (?P<serial>.*) at.*')
                         for line in lines:
                             m = p.match(line)
                             if m:
                                 serials.append(m.group('serial'))
                             else:
-                                logger.debug(f'[{name}] Unexpected output from probe : {line}')
+                                logger.debug(f'[{self.name}] Unexpected output from probe : {line}')
                     if serials:
                         values['serials'] = serials
                 except Exception:

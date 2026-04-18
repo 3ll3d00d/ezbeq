@@ -6,7 +6,6 @@ devices:
     exe: minidsp
     options: ''
     type: minidsp
-    wsDeviceId: 1
     descriptor:
       name: 2x4
       fs: 96000

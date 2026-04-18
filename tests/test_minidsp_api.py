@@ -1002,6 +1002,128 @@ output 3 peq 9 bypass on"""
 
 
 @pytest.mark.parametrize("slot,is_valid", [(0, False), (1, True), (2, True), (3, True), (4, True), (5, False)])
+def test_load_known_entry_to_htx_and_then_clear(minidsp_htx_client, minidsp_htx_app, slot, is_valid):
+    config: MinidspSpyConfig = minidsp_htx_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+
+    r = minidsp_htx_client.put(f"/api/1/devices/master/filter/{slot}", data=json.dumps({'entryId': '123456_0'}),
+                               content_type='application/json')
+    if is_valid:
+        assert r.status_code == 200
+        cmds = verify_cmd_count(config.spy, slot, 15)
+        expected_commands = f"""output 3 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+output 3 peq 0 bypass off
+output 3 peq 1 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+output 3 peq 1 bypass off
+output 3 peq 2 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+output 3 peq 2 bypass off
+output 3 peq 3 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+output 3 peq 3 bypass off
+output 3 peq 4 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+output 3 peq 4 bypass off
+output 3 peq 5 bypass on
+output 3 peq 6 bypass on
+output 3 peq 7 bypass on
+output 3 peq 8 bypass on
+output 3 peq 9 bypass on"""
+        assert '\n'.join(cmds) == expected_commands
+    else:
+        assert r.status_code == 400
+        cmds = config.spy.take_commands()
+        assert not cmds
+    slots = verify_master_device_state(r.json)
+    for idx, s in enumerate(slots):
+        slot_is_active = idx + 1 == slot if is_valid else idx == 0
+        if is_valid and idx + 1 == slot:
+            verify_slot(s, idx + 1, active=slot_is_active, last='Alien Resurrection', gain=None, mute=None)
+        else:
+            verify_slot(s, idx + 1, active=slot_is_active, gain=None, mute=None)
+
+    if is_valid:
+        r = minidsp_htx_client.delete(f"/api/1/devices/master/filter/{slot}")
+        assert r.status_code == 200
+        cmds = config.spy.take_commands()
+        assert len(cmds) == 10
+        expected_commands = f"""output 3 peq 0 bypass on
+output 3 peq 1 bypass on
+output 3 peq 2 bypass on
+output 3 peq 3 bypass on
+output 3 peq 4 bypass on
+output 3 peq 5 bypass on
+output 3 peq 6 bypass on
+output 3 peq 7 bypass on
+output 3 peq 8 bypass on
+output 3 peq 9 bypass on"""
+        assert '\n'.join(cmds) == expected_commands
+        slots = verify_master_device_state(r.json)
+        for idx, s in enumerate(slots):
+            slot_is_active = idx + 1 == slot if is_valid else idx == 0
+            verify_slot(s, idx + 1, active=slot_is_active, gain=None, mute=None)
+
+
+@pytest.mark.parametrize("slot,is_valid", [(0, False), (1, True), (2, True), (3, True), (4, True), (5, False)])
+def test_load_known_entry_to_htx_inputs_and_then_clear(minidsp_htx_inputs_client, minidsp_htx_inputs_app, slot, is_valid):
+    config: MinidspSpyConfig = minidsp_htx_inputs_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+
+    r = minidsp_htx_inputs_client.put(f"/api/1/devices/master/filter/{slot}", data=json.dumps({'entryId': '123456_0'}),
+                                      content_type='application/json')
+    if is_valid:
+        assert r.status_code == 200
+        cmds = verify_cmd_count(config.spy, slot, 15)
+        expected_commands = f"""input 3 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 3 peq 0 bypass off
+input 3 peq 1 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 3 peq 1 bypass off
+input 3 peq 2 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 3 peq 2 bypass off
+input 3 peq 3 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 3 peq 3 bypass off
+input 3 peq 4 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+input 3 peq 4 bypass off
+input 3 peq 5 bypass on
+input 3 peq 6 bypass on
+input 3 peq 7 bypass on
+input 3 peq 8 bypass on
+input 3 peq 9 bypass on"""
+        assert '\n'.join(cmds) == expected_commands
+    else:
+        assert r.status_code == 400
+        cmds = config.spy.take_commands()
+        assert not cmds
+    slots = verify_master_device_state(r.json)
+    for idx, s in enumerate(slots):
+        slot_is_active = idx + 1 == slot if is_valid else idx == 0
+        if is_valid and idx + 1 == slot:
+            verify_slot(s, idx + 1, active=slot_is_active, last='Alien Resurrection', gain=(0.0,), mute=(False,))
+        else:
+            verify_slot(s, idx + 1, active=slot_is_active, gain=(0.0,), mute=(False,))
+
+    if is_valid:
+        r = minidsp_htx_inputs_client.delete(f"/api/1/devices/master/filter/{slot}")
+        assert r.status_code == 200
+        cmds = config.spy.take_commands()
+        assert len(cmds) == 12
+        expected_commands = f"""input 3 peq 0 bypass on
+input 3 peq 1 bypass on
+input 3 peq 2 bypass on
+input 3 peq 3 bypass on
+input 3 peq 4 bypass on
+input 3 peq 5 bypass on
+input 3 peq 6 bypass on
+input 3 peq 7 bypass on
+input 3 peq 8 bypass on
+input 3 peq 9 bypass on
+input 3 mute off
+input 3 gain -- 0.00"""
+        assert '\n'.join(cmds) == expected_commands
+        slots = verify_master_device_state(r.json)
+        for idx, s in enumerate(slots):
+            slot_is_active = idx + 1 == slot if is_valid else idx == 0
+            verify_slot(s, idx + 1, active=slot_is_active, gain=(0.0,), mute=(False,))
+
+
+@pytest.mark.parametrize("slot,is_valid", [(0, False), (1, True), (2, True), (3, True), (4, True), (5, False)])
 def test_load_known_entry_to_4x10_and_then_clear(minidsp_4x10_client, minidsp_4x10_app, slot, is_valid):
     config: MinidspSpyConfig = minidsp_4x10_app.config['APP_CONFIG']
     assert isinstance(config, MinidspSpyConfig)
@@ -2660,7 +2782,7 @@ def test_cfg_makes_known_minidsp(dt, exp):
     if dt == '10x10xo':
         cfg['device_type'] = '10x10'
         cfg['use_xo'] = True
-    desc = import_md().make_peq_layout(cfg)
+    desc = import_md().make_peq_layout(cfg, None)
     assert desc
     assert desc.__class__.__name__ == exp
 
@@ -2676,7 +2798,7 @@ def import_md():
 
 def test_cfg_customise_ddrc88_sw():
     cfg = {'device_type': 'DDRC88', 'sw_channels': [1, 2, 6]}
-    desc = import_md().make_peq_layout(cfg)
+    desc = import_md().make_peq_layout(cfg, None)
     assert desc
     assert desc.__class__.__name__ == 'MinidspDDRC88'
     allocator = desc.to_allocator()
@@ -2687,6 +2809,49 @@ def test_cfg_customise_ddrc88_sw():
         assert s.name == 'output'
         assert s.idx == i
         assert s.channels == [1, 2, 6]
+        assert s.group is None
+
+
+def test_cfg_makes_htx_sw():
+    cfg = {'device_type': 'HTx'}
+    desc = import_md().make_peq_layout(cfg, lambda *args: '')
+    assert desc
+    assert desc.__class__.__name__ == 'MinidspHTX'
+
+
+def test_cfg_makes_htx_inputs():
+    cfg = {'device_type': 'HTx'}
+    desc = import_md().make_peq_layout(cfg, lambda *args: '0.1.13')
+    assert desc
+    assert desc.__class__.__name__ == 'MinidspHTX'
+
+
+def test_cfg_customise_htx_sw():
+    cfg = {'device_type': 'HTx', 'sw_channels': [1, 2, 6]}
+    desc = import_md().make_peq_layout(cfg, lambda *args: '')
+    assert desc.__class__.__name__ == 'MinidspHTX'
+    allocator = desc.to_allocator()
+    assert len(allocator) == 10
+    for i in range(0, 10):
+        s = allocator.pop()
+        assert s.name == 'output'
+        assert s.idx == i
+        assert s.channels == [1, 2, 6]
+        assert s.group is None
+
+
+@pytest.mark.parametrize('key_name', ['sw_channels', 'channels'])
+def test_cfg_customise_htx_inputs(key_name: str):
+    cfg = {'device_type': 'HTx', key_name: [1, 2]}
+    desc = import_md().make_peq_layout(cfg, lambda *args: '0.1.13')
+    assert desc.__class__.__name__ == 'MinidspHTX'
+    allocator = desc.to_allocator()
+    assert len(allocator) == 10
+    for i in range(0, 10):
+        s = allocator.pop()
+        assert s.name == 'input'
+        assert s.idx == i
+        assert s.channels == [1, 2]
         assert s.group is None
 
 
@@ -2716,7 +2881,7 @@ def test_cfg_makes_custom_minidsp():
             }
         ]
     }}
-    desc = import_md().make_peq_layout(cfg)
+    desc = import_md().make_peq_layout(cfg, None)
     assert desc
     assert desc.__class__.__name__ == 'MinidspDescriptor'
     assert desc.name == 'mine'
