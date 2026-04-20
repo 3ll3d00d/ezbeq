@@ -99,6 +99,7 @@ class MinidspState(DeviceState):
         self.__mute: bool = kwargs['mute'] if 'mute' in kwargs else False
         self.__active_slot: str = kwargs['active_slot'] if 'active_slot' in kwargs else ''
         self.__serials: list = kwargs['serials'] if 'serials' in kwargs else []
+        self.connected: bool = kwargs.get('connected', True)
         self.__descriptor = descriptor
         slot_ids = [str(i + 1) for i in range(4)]
         self.__slots: list[MinidspSlotState] = [
@@ -175,6 +176,7 @@ class MinidspState(DeviceState):
             'name': self.__name,
             'masterVolume': self.master_volume,
             'mute': self.__mute,
+            'connected': self.connected,
             'slots': [s.as_dict() for s in self.__slots],
         } | serials
 
@@ -565,7 +567,7 @@ class Minidsp(PersistentDevice[MinidspState]):
 
     def __load_state(self) -> MinidspState:
         result = self.__executor.submit(self.__read_state_from_device).result(timeout=self.__cmd_timeout)
-        return result if result else MinidspState(self.name, self.__descriptor)
+        return result if result else MinidspState(self.name, self.__descriptor, connected=False)
 
     def __read_state_from_device(self) -> MinidspState | None:
         output = None
@@ -601,9 +603,13 @@ class Minidsp(PersistentDevice[MinidspState]):
                     logger.warning(f'[{self.name}] Unable to probe')
                 return MinidspState(self.name, self.__descriptor, **values)
             else:
-                logger.error(f"[{self.name}] No output returned from device")
+                msg = f"[{self.name}] No output returned from device"
+                logger.error(msg)
+                self.ws_server.broadcast_error(msg, persistent=True)
         except Exception as e:
-            logger.exception(f"[{self.name}] Unable to parse device state {output}")
+            msg = f"[{self.name}] Unable to parse device state {output}"
+            logger.exception(msg)
+            self.ws_server.broadcast_error(msg, persistent=True)
         return None
 
     @staticmethod
@@ -775,7 +781,11 @@ class Minidsp(PersistentDevice[MinidspState]):
     def state(self, refresh: bool = False) -> MinidspState:
         if not self._hydrate() or refresh is True:
             new_state = self.__load_state()
+            old_connected = self._current_state.connected
             self._current_state.update_master_state(new_state.mute, new_state.master_volume)
+            self._current_state.connected = new_state.connected
+            if old_connected != self._current_state.connected:
+                self._broadcast()
         return self._current_state
 
     def _merge_state(self, loaded: MinidspState, cached: dict) -> MinidspState:

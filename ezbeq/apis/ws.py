@@ -210,6 +210,9 @@ class WsServer(abc.ABC, Generic[T]):
     def broadcast(self, msg: str):
         self.factory.broadcast(msg)
 
+    def broadcast_error(self, msg: str, persistent: bool = False):
+        self.broadcast(json.dumps({'message': 'Error', 'data': msg, 'persistent': persistent}))
+
     def levels(self, device: str, levels: dict) -> bool:
         return self.factory.send_levels(device, json.dumps({'message': 'Levels', 'data': levels}))
 
