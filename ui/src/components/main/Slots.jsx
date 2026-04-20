@@ -94,7 +94,7 @@ const Slot = ({selected, slot, onSelect, isPending, onClear}) => {
     );
 };
 
-const Slots = ({selectedDevice, selectedSlotId, useWide, setDevice, setUserDriven, setError}) => {
+const Slots = ({selectedDevice, selectedSlotId, useWide, setDevice, setUserDriven, setError, uploadPendingSlotId}) => {
 
     const [pending, setPending] = useState([]);
     const [currentGains, setCurrentGains] = useState(defaultGain);
@@ -185,7 +185,7 @@ const Slots = ({selectedDevice, selectedSlotId, useWide, setDevice, setUserDrive
     };
 
     const isPending = (slotId) => {
-        return getCurrentState(pending, 'clear', slotId) === 1 || getCurrentState(pending, 'activate', slotId) === 1;
+        return getCurrentState(pending, 'clear', slotId) === 1 || getCurrentState(pending, 'activate', slotId) === 1 || uploadPendingSlotId === slotId;
     };
 
     const rows = chunk(selectedDevice && selectedDevice.hasOwnProperty('slots') ? selectedDevice.slots : [], 2);

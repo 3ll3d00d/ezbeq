@@ -34,6 +34,7 @@ const MainView = ({
     const [selectedEntryId, setSelectedEntryId] = useState(-1);
     const [userDriven, setUserDriven] = useState(false);
     const [filteredEntries, setFilteredEntries] = useState([]);
+    const [uploadPendingSlotId, setUploadPendingSlotId] = useState(null);
 
     const toggleShowFilters = () => {
         setShowFilters((prev) => !prev);
@@ -102,7 +103,8 @@ const MainView = ({
                            setSelectedSlotId={setSelectedSlotId}
                            setUserDriven={setUserDriven}
                            setDevice={d => replaceDevice(d)}
-                           setError={setErr}/>;
+                           setError={setErr}
+                           uploadPendingSlotId={uploadPendingSlotId}/>;
     const catalogue = <Catalogue entries={filteredEntries}
                                  setSelectedEntryId={setSelectedEntryId}
                                  selectedEntryId={selectedEntryId}
@@ -113,7 +115,8 @@ const MainView = ({
                          useWide={useWide}
                          setDevice={d => replaceDevice(d)}
                          selectedSlotId={selectedSlotId}
-                         setError={setErr}/>;
+                         setError={setErr}
+                         setUploadPendingSlotId={setUploadPendingSlotId}/>;
     const footer = <Footer meta={meta}/>;
     return (
         <>
