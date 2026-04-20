@@ -1,5 +1,6 @@
 import Header from "../Header";
 import Filter from "./Filter";
+import WhatsNew from "./WhatsNew";
 import {Grid} from "@mui/material";
 import React, {useEffect, useState} from "react";
 import {pushData, useLocalStorage} from "../../services/util";
@@ -8,11 +9,15 @@ import Catalogue from "./Catalogue";
 import Entry from "./Entry";
 import Search from "./Search";
 import Footer from "./Footer";
+import ezbeq from "../../services/ezbeq";
+
+const TWO_WEEKS_AGO_SECS = () => Math.floor(Date.now() / 1000) - 2 * 7 * 24 * 60 * 60;
 
 const MainView = ({
                       entries,
                       availableDevices,
                       setErr,
+                      setSuccess,
                       replaceDevice,
                       selectedDeviceName,
                       setSelectedDeviceName,
@@ -35,6 +40,26 @@ const MainView = ({
     const [userDriven, setUserDriven] = useState(false);
     const [filteredEntries, setFilteredEntries] = useState([]);
     const [uploadPendingSlotId, setUploadPendingSlotId] = useState(null);
+
+    // whats new
+    const [lastChecked, setLastChecked] = useLocalStorage('whatsNewLastChecked', TWO_WEEKS_AGO_SECS());
+    const [recentEntries, setRecentEntries] = useState([]);
+    const [whatsNewOpen, setWhatsNewOpen] = useState(false);
+
+    useEffect(() => {
+        pushData(setRecentEntries, () => ezbeq.getWhatsNew(), setErr);
+    }, [meta]);
+
+    const newCount = recentEntries.filter(e => Math.max(e.created_at || 0, e.updated_at || 0) >= lastChecked).length;
+
+    const openWhatsNew = () => {
+        if (whatsNewOpen) {
+            setWhatsNewOpen(false);
+        } else {
+            setWhatsNewOpen(true);
+            setLastChecked(Math.floor(Date.now() / 1000));
+        }
+    };
 
     const toggleShowFilters = () => {
         setShowFilters((prev) => !prev);
@@ -104,6 +129,7 @@ const MainView = ({
                            setUserDriven={setUserDriven}
                            setDevice={d => replaceDevice(d)}
                            setError={setErr}
+                           setSuccess={setSuccess}
                            uploadPendingSlotId={uploadPendingSlotId}/>;
     const catalogue = <Catalogue entries={filteredEntries}
                                  setSelectedEntryId={setSelectedEntryId}
@@ -116,6 +142,7 @@ const MainView = ({
                          setDevice={d => replaceDevice(d)}
                          selectedSlotId={selectedSlotId}
                          setError={setErr}
+                         setSuccess={setSuccess}
                          setUploadPendingSlotId={setUploadPendingSlotId}/>;
     const footer = <Footer meta={meta}/>;
     return (
@@ -124,12 +151,18 @@ const MainView = ({
                     setSelectedDeviceName={setSelectedDeviceName}
                     selectedDeviceName={selectedDeviceName}
                     selectedNav={selectedNav}
-                    setSelectedNav={setSelectedNav}>
+                    setSelectedNav={setSelectedNav}
+                    whatsNewCount={newCount}
+                    onWhatsNewOpen={openWhatsNew}>
                 <Search txtFilter={txtFilter}
                         setTxtFilter={setTxtFilter}
                         showFilters={showFilters}
                         toggleShowFilters={toggleShowFilters}/>
             </Header>
+            {whatsNewOpen && <WhatsNew onClose={() => setWhatsNewOpen(false)} entries={recentEntries}
+                      lastChecked={lastChecked}
+                      initialMode={newCount > 0 ? 'new' : 'recent'}
+                      onSelect={id => setSelectedEntryId(id)}/>}
             <Filter visible={showFilters}
                     selectedAudioTypes={selectedAudioTypes}
                     setSelectedAudioTypes={setSelectedAudioTypes}

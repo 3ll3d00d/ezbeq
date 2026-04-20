@@ -134,8 +134,8 @@ class MinidspState(DeviceState):
         slot.last_author = author
         self.activate(slot_id)
 
-    def get_slot(self, slot_id: str) -> 'MinidspSlotState':
-        return next(s for s in self.__slots if s.slot_id == slot_id)
+    def get_slot(self, slot_id: str) -> Optional['MinidspSlotState']:
+        return next((s for s in self.__slots if s.slot_id == slot_id), None)
 
     def clear(self, slot_id: str) -> None:
         slot = self.get_slot(slot_id)
@@ -169,6 +169,14 @@ class MinidspState(DeviceState):
                 slot.unmute(channel)
             self.activate(slot_id)
 
+    def output_gain(self, slot_id: str, channel: int | None, gain: float):
+        self.get_slot(slot_id).set_output_gain(channel, gain)
+        self.activate(slot_id)
+
+    def toggle_output_mute(self, slot_id: str, channel: int | None, mute: bool):
+        self.get_slot(slot_id).set_output_mute(channel, mute)
+        self.activate(slot_id)
+
     def serialise(self) -> dict:
         serials = {'serials': self.__serials} if self.__serials else {}
         return {
@@ -196,6 +204,8 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
         self.__output_channels = output_channels
         self.gains = self.__make_vals(0.0)
         self.mutes = self.__make_vals(False)
+        self.output_gains = self.__make_output_vals(0.0)
+        self.output_mutes = self.__make_output_vals(False)
         self.active = active
         self.slot_name = slot_name
 
@@ -203,9 +213,14 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
         super().clear()
         self.gains = self.__make_vals(0.0)
         self.mutes = self.__make_vals(False)
+        self.output_gains = self.__make_output_vals(0.0)
+        self.output_mutes = self.__make_output_vals(False)
 
     def __make_vals(self, val: float | bool) -> list[dict]:
         return [{'id': str(i + 1), 'value': val} for i in range(self.__input_channels)]
+
+    def __make_output_vals(self, val: float | bool) -> list[dict]:
+        return [{'id': str(i + 1), 'value': val} for i in range(self.__output_channels)]
 
     def set_gain(self, channel: int | None, value: float):
         if channel is None:
@@ -215,6 +230,15 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
                 next(g for g in self.gains if g['id'] == str(channel))['value'] = value
             else:
                 raise ValueError(f'Unknown channel {channel} for slot {self.slot_id}')
+
+    def set_output_gain(self, channel: int | None, value: float):
+        if channel is None:
+            self.output_gains = self.__make_output_vals(value)
+        else:
+            if channel <= self.__output_channels:
+                next(g for g in self.output_gains if g['id'] == str(channel))['value'] = value
+            else:
+                raise ValueError(f'Unknown output channel {channel} for slot {self.slot_id}')
 
     def mute(self, channel: int | None):
         self.__do_mute(channel, True)
@@ -227,6 +251,15 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
                 next(g for g in self.mutes if g['id'] == str(channel))['value'] = value
             else:
                 raise ValueError(f'Unknown channel {channel} for slot {self.slot_id}')
+
+    def set_output_mute(self, channel: int | None, value: bool):
+        if channel is None:
+            self.output_mutes = self.__make_output_vals(value)
+        else:
+            if channel <= self.__output_channels:
+                next(g for g in self.output_mutes if g['id'] == str(channel))['value'] = value
+            else:
+                raise ValueError(f'Unknown output channel {channel} for slot {self.slot_id}')
 
     def unmute(self, channel: int | None):
         self.__do_mute(channel, False)
@@ -247,12 +280,26 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
                     self.mutes.append(m)
                 else:
                     self.mutes.append({'id': str(i + 1), 'value': bool(m)})
+        if 'outputGains' in state and len(state['outputGains']) == self.__output_channels:
+            self.output_gains = []
+            for i, g in enumerate(state['outputGains']):
+                if isinstance(g, dict):
+                    self.output_gains.append(g)
+                else:
+                    self.output_gains.append({'id': str(i + 1), 'value': float(g)})
+        if 'outputMutes' in state and len(state['outputMutes']) == self.__output_channels:
+            self.output_mutes = []
+            for i, m in enumerate(state['outputMutes']):
+                if isinstance(m, dict):
+                    self.output_mutes.append(m)
+                else:
+                    self.output_mutes.append({'id': str(i + 1), 'value': bool(m)})
 
     def as_dict(self) -> dict:
         sup = super().as_dict()
         if self.slot_name:
             sup['name'] = self.slot_name
-        return {
+        result = {
             **sup,
             'gains': self.gains,
             'mutes': self.mutes,
@@ -260,6 +307,10 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
             'inputs': self.__input_channels,
             'outputs': self.__output_channels,
         }
+        if self.__output_channels > 0:
+            result['outputGains'] = self.output_gains
+            result['outputMutes'] = self.output_mutes
+        return result
 
     def __repr__(self) -> str:
         vals = ' '.join([f"{g['id']}: {g['value']:.2f}/{self.mutes[i]['value']}" for i, g in enumerate(self.gains)])
@@ -737,6 +788,31 @@ class Minidsp(PersistentDevice[MinidspState]):
 
         self._hydrate_cache_broadcast(__do_it)
 
+    def set_output_gain(self, slot: str, channel: Optional[int], gain: float) -> None:
+        def __do_it():
+            target_channel_idx, target_slot_idx = self.__as_idxes(channel, slot)
+            cmds = MinidspBeqCommandGenerator.gain(gain, target_slot_idx, target_channel_idx, side=OUTPUT_NAME)
+            self.__send_cmds(target_slot_idx, cmds)
+            self._current_state.output_gain(slot, channel, gain)
+
+        self._hydrate_cache_broadcast(__do_it)
+
+    def __do_output_mute_op(self, slot: str, channel: Optional[int], state: bool) -> None:
+        def __do_it():
+            target_channel_idx, target_slot_idx = self.__as_idxes(channel, slot)
+            self.__validate_slot_idx(target_slot_idx)
+            cmds = MinidspBeqCommandGenerator.mute(state, target_slot_idx, target_channel_idx, side=OUTPUT_NAME)
+            self.__send_cmds(target_slot_idx, cmds)
+            self._current_state.toggle_output_mute(slot, channel, state)
+
+        self._hydrate_cache_broadcast(__do_it)
+
+    def output_mute(self, slot: str, channel: Optional[int]) -> None:
+        self.__do_output_mute_op(slot, channel, True)
+
+    def output_unmute(self, slot: str, channel: Optional[int]) -> None:
+        self.__do_output_mute_op(slot, channel, False)
+
     def __as_idxes(self, channel: Optional[int], slot: Optional[str]) -> Tuple[Optional[int], Optional[int]]:
         target_slot_idx = self.__as_idx(slot) if slot else None
         target_channel_idx = self.__as_idx(channel) if channel else None
@@ -831,6 +907,17 @@ class Minidsp(PersistentDevice[MinidspState]):
                     self.mute(current_slot.slot_id, int(mute['id']))
                 else:
                     self.unmute(current_slot.slot_id, int(mute['id']))
+                any_update = True
+        if 'outputGains' in slot:
+            for gain in slot['outputGains']:
+                self.set_output_gain(current_slot.slot_id, int(gain['id']), gain['value'])
+                any_update = True
+        if 'outputMutes' in slot:
+            for mute in slot['outputMutes']:
+                if mute['value'] is True:
+                    self.output_mute(current_slot.slot_id, int(mute['id']))
+                else:
+                    self.output_unmute(current_slot.slot_id, int(mute['id']))
                 any_update = True
         if 'entry' in slot:
             if slot['entry']:
