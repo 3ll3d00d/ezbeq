@@ -155,6 +155,8 @@ ui/.eslintcache
 ezbeq/ui
 
 .idea
+.claude
+.codebuddy
 ezbeq/VERSION
 out
 t.py
