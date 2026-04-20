@@ -336,6 +336,10 @@ slot_model_v3 = v3_api.model('SlotV3', {
                          description='(Optional) gains to set on the specified input channels (minidsp, camilladsp)'),
     'mutes': fields.List(fields.Nested(mute_model_v3), required=False,
                          description='(Optional) allows each input channel to be muted or unmuted individually (minidsp, camilladsp)'),
+    'outputGains': fields.List(fields.Nested(gain_model_v3), required=False,
+                               description='(Optional) gains to set on the specified output channels (minidsp)'),
+    'outputMutes': fields.List(fields.Nested(mute_model_v3), required=False,
+                               description='(Optional) allows each output channel to be muted or unmuted individually (minidsp)'),
     'entry': fields.String(required=False, description='(Optional) Accepts value from either the id or digest fields')
 })
 

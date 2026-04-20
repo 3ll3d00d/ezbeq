@@ -1,201 +1,129 @@
-import React, {useEffect, useState} from 'react';
-import {styled} from '@mui/material/styles';
-import clsx from 'clsx';
+import React from 'react';
 import {
-    Button,
-    CircularProgress,
-    FormControl,
-    FormGroup,
+    Box,
+    Divider,
     IconButton,
-    InputAdornment,
-    TextField
+    Slider,
+    TextField,
+    Tooltip,
+    Typography
 } from "@mui/material";
-import PublishIcon from '@mui/icons-material/Publish';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 
-const PREFIX = 'Gain';
+const dp = (step) => step < 0.1 ? 2 : step < 1 ? 1 : 0;
 
-const classes = {
-    root: `${PREFIX}-root`,
-    padTop: `${PREFIX}-padTop`,
-    withoutLabel: `${PREFIX}-withoutLabel`,
-    sized: `${PREFIX}-sized`,
-    zeroPad: `${PREFIX}-zeroPad`,
-    tightPad: `${PREFIX}-tightPad`
-};
+const GainRow = ({label, minGain, maxGain, step, value, muted, savedValue, savedMuted, onValueChange, onValueCommit, onMuteToggle}) => {
+    const isDirty = parseFloat(value) !== parseFloat(savedValue) || muted !== savedMuted;
+    const numValue = parseFloat(value);
+    const isValid = !isNaN(numValue);
+    const decimals = dp(step);
 
-const Root = styled('div/')((
-    {
-        theme
-    }
-) => ({
-    [`& .${classes.padTop}`]: {
-        paddingTop: theme.spacing(1),
-        width: '100%'
-    },
-
-    [`& .${classes.withoutLabel}`]: {
-        marginTop: theme.spacing(1),
-    },
-
-    [`& .${classes.sized}`]: {
-        margin: theme.spacing(0.5),
-        width: '22.5%'
-    },
-
-    [`& .${classes.zeroPad}`]: {
-        padding: 0
-    },
-
-    [`& .${classes.tightPad}`]: {
-        paddingRight: 0
-    }
-}));
-
-const TightTextField = TextField;
-
-const GainInput = ({fieldName, helpText, minGain, maxGain, step, dp, savedValues, values, setMV, setMute}) => {
-
-    const decimalSeparator = (1.1).toLocaleString().substring(1, 2);
-    const oneNum = '^[0-9]$';
-    const sepMatcher = decimalSeparator === '.' ? /\./g : new RegExp(decimalSeparator, 'g');
-    const roundFactor = 1 / step;
-    const delta = (parseFloat(values.mv) !== parseFloat(savedValues.mv) || values.mute !== savedValues.mute);
-    const setConstrainedMV = (f, dp) => {
-        const rounded = Math.round(f * (roundFactor)) / roundFactor;
-        if (rounded > maxGain) {
-            setMV(maxGain.toFixed(dp));
-        } else if (rounded < minGain) {
-            setMV(minGain.toFixed(dp));
-        } else {
-            setMV(rounded.toFixed(dp));
-        }
-    }
-    const interpretMV = (txt) => {
-        if (txt) {
-            if (txt === '-') {
-                setMV(txt);
-            } else if (maxGain === 0 && txt.match(oneNum)) {
-                setMV(`-${txt}`);
-            } else {
-                const dotCount = (txt.match(sepMatcher) || []).length;
-                if (dotCount === 0) {
-                    const f = parseFloat(txt);
-                    if (!isNaN(f)) {
-                        setConstrainedMV(f, 0);
-                    }
-                } else if (dotCount === 1) {
-                    if (txt.charAt(txt.length - 1) === decimalSeparator) {
-                        setMV(txt);
-                    } else {
-                        const f = parseFloat(txt);
-                        if (!isNaN(f)) {
-                            if (dp > 1) {
-                                const oldValue = values.mv;
-                                if (Math.abs(f) < Math.abs(oldValue) || txt.length < oldValue.toString().length) {
-                                    setMV(txt);
-                                } else {
-                                    setConstrainedMV(f, dp);
-                                }
-                            } else {
-                                setConstrainedMV(f, dp);
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            setMV('');
-        }
-    };
     return (
-        <TightTextField
-            className={clsx(classes.sized, classes.withoutLabel, classes.tightPad)}
-            variant={'outlined'}
-            id={fieldName}
-            value={values.mv}
-            onChange={e => interpretMV(e.target.value)}
-            aria-describedby={`${fieldName}-helper-text`}
-            slotProps={{
-                input: {
-                    endAdornment: (
-                        <InputAdornment position="end">
-                            <IconButton
-                                aria-label="mute channel"
-                                onClick={e => setMute(!values.mute)}
-                                className={classes.zeroPad}
-                                color={delta ? 'secondary' : 'default'}
-                                size="large">
-                                {values.mute ? <VolumeOffIcon fontSize="small"/> :
-                                    <VolumeUpIcon fontSize="small"/>}
-                            </IconButton>
-                        </InputAdornment>
-                    )
-                },
-                htmlInput: {
-                    'aria-label': fieldName,
-                    pattern: '',
+        <Box sx={{display: 'flex', alignItems: 'center', gap: 1, mb: 0.5}}>
+            <Typography variant="body2" sx={{minWidth: 72, color: 'text.secondary', fontSize: '0.8rem'}}>
+                {label}
+            </Typography>
+            <Slider
+                size="small"
+                min={minGain}
+                max={maxGain}
+                step={step}
+                value={isValid ? numValue : minGain}
+                onChange={(_, v) => onValueChange(v.toFixed(decimals))}
+                onChangeCommitted={(_, v) => onValueCommit(v.toFixed(decimals))}
+                sx={{flex: 1, color: isDirty ? 'secondary.main' : 'primary.main'}}
+                disabled={muted}
+            />
+            <TextField
+                size="small"
+                value={value}
+                onChange={e => onValueChange(e.target.value)}
+                onBlur={e => {
+                    const f = parseFloat(e.target.value);
+                    if (!isNaN(f)) onValueCommit(Math.min(maxGain, Math.max(minGain, f)).toFixed(decimals));
+                }}
+                inputProps={{
+                    style: {textAlign: 'right', width: '4.5em', padding: '4px 6px'},
                     inputMode: 'numeric'
-                }
-            }}
-            margin={'dense'}
-            size={'small'}
-            label={helpText}
-            classes={{
-                root: classes.root
-            }}/>
+                }}
+                sx={{'& .MuiOutlinedInput-root': {color: isDirty ? 'secondary.main' : 'inherit'}}}
+                variant="outlined"
+            />
+            <Typography variant="caption" sx={{color: 'text.secondary', minWidth: '2em'}}>dB</Typography>
+            <Tooltip title={muted ? 'Unmute' : 'Mute'}>
+                <IconButton
+                    size="small"
+                    onClick={() => onMuteToggle(!muted)}
+                    sx={{color: muted ? 'error.main' : 'action.active'}}
+                >
+                    {muted ? <VolumeOffIcon fontSize="small"/> : <VolumeUpIcon fontSize="small"/>}
+                </IconButton>
+            </Tooltip>
+        </Box>
     );
 };
 
-const Gain = ({selectedSlotId, deviceGains, gains, updateGain, sendGains, isActive}) => {
+const Gain = ({selectedSlotId, deviceGains, gains, updateGain, commitGain}) => {
+    const hasInputChannels = gains.gains && gains.gains.length > 0;
+    const hasOutputChannels = gains.output_gains && gains.output_gains.length > 0;
 
-    const [valid, setValid] = useState(true);
-    useEffect(() => {
-        setValid(isNaN(gains.master_mv) || gains.gains.some(g => isNaN(g.value)));
-    }, [gains]);
-    if (selectedSlotId !== null) {
-        return (
-            <div className={classes.padTop}>
-                <FormControl variant="standard" component="fieldset">
-                    <FormGroup row>
-                        <GainInput fieldName='master-gain' helpText='Master'
-                                   minGain={-127} maxGain={0} step={0.5} dp={1}
-                                   savedValues={{mv: deviceGains.master_mv, mute: deviceGains.master_mute}}
-                                   values={{mv: gains.master_mv, mute: gains.master_mute}}
-                                   setMV={v => updateGain('master', 'mv', v)}
-                                   setMute={v => updateGain('master', 'mute', v)}/>
-                        {
-                            gains.gains.map((g, i) =>
-                                <GainInput key={`input${g.id}`}
-                                           fieldName={`input${g.id}-gain`}
-                                           helpText={`Input ${g.id}`}
-                                           minGain={-72} maxGain={12} step={0.25} dp={2}
-                                           savedValues={{
-                                               mv: deviceGains.gains[i].value,
-                                               mute: deviceGains.mutes[i].value
-                                           }}
-                                           values={{mv: gains.gains[i].value, mute: gains.mutes[i].value}}
-                                           setMV={v => updateGain(g.id, 'mv', v)}
-                                           setMute={v => updateGain(g.id, 'mute', v)}/>
-                            )
-                        }
-                        <Button variant="outlined"
-                                size="small"
-                                color="primary"
-                                className={classes.sized}
-                                onClick={() => sendGains(selectedSlotId, gains)}
-                                disabled={valid}
-                                startIcon={isActive() ? <CircularProgress size={24}/> :
-                                    <PublishIcon fontSize="small"/>}>
-                            Apply
-                        </Button>
-                    </FormGroup>
-                </FormControl>
-            </div>
-        );
-    }
-    return <div/>;
+    if (!gains.hasOwnProperty('master_mv')) return <div/>;
+
+    return (
+        <Box sx={{pt: 1, px: 0.5, width: '100%'}}>
+            <GainRow
+                label="Master"
+                minGain={-127} maxGain={0} step={0.5}
+                value={gains.master_mv}
+                muted={gains.master_mute}
+                savedValue={deviceGains.master_mv}
+                savedMuted={deviceGains.master_mute}
+                onValueChange={v => updateGain('master', 'mv', v)}
+                onValueCommit={v => commitGain('master', 'mv', v)}
+                onMuteToggle={v => commitGain('master', 'mute', v)}
+            />
+
+            {selectedSlotId !== null && (hasInputChannels || hasOutputChannels) && (
+                <>
+                    <Divider sx={{my: 0.5}}/>
+                    {hasInputChannels && gains.gains.map((g, i) => (
+                        <GainRow
+                            key={`input-${g.id}`}
+                            label={`Input ${g.id}`}
+                            minGain={-72} maxGain={12} step={0.25}
+                            value={g.value}
+                            muted={gains.mutes[i]?.value ?? false}
+                            savedValue={deviceGains.gains[i]?.value ?? 0}
+                            savedMuted={deviceGains.mutes[i]?.value ?? false}
+                            onValueChange={v => updateGain(g.id, 'mv', v)}
+                            onValueCommit={v => commitGain(g.id, 'mv', v)}
+                            onMuteToggle={v => commitGain(g.id, 'mute', v)}
+                        />
+                    ))}
+                    {hasOutputChannels && (
+                        <>
+                            {hasInputChannels && <Divider sx={{my: 0.5}}/>}
+                            {gains.output_gains.map((g, i) => (
+                                <GainRow
+                                    key={`output-${g.id}`}
+                                    label={`Output ${g.id}`}
+                                    minGain={-72} maxGain={12} step={0.25}
+                                    value={g.value}
+                                    muted={gains.output_mutes[i]?.value ?? false}
+                                    savedValue={deviceGains.output_gains?.[i]?.value ?? 0}
+                                    savedMuted={deviceGains.output_mutes?.[i]?.value ?? false}
+                                    onValueChange={v => updateGain(`out_${g.id}`, 'mv', v)}
+                                    onValueCommit={v => commitGain(`out_${g.id}`, 'mv', v)}
+                                    onMuteToggle={v => commitGain(`out_${g.id}`, 'mute', v)}
+                                />
+                            ))}
+                        </>
+                    )}
+                </>
+            )}
+        </Box>
+    );
 };
 
 export default Gain;

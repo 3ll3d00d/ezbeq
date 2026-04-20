@@ -141,6 +141,27 @@ class EzBeqService {
         return await this.doPatch(device, this.createPatchPayload(slot, gains));
     };
 
+    // Send only the single changed field rather than all values
+    patchSingle = async (device, parent, key, value, slotId) => {
+        return await this.doPatch(device, this.buildTargetedPayload(parent, key, value, slotId));
+    };
+
+    buildTargetedPayload = (parent, key, value, slotId) => {
+        if (parent === 'master') {
+            if (key === 'mv') return {masterVolume: parseFloat(value)};
+            if (key === 'mute') return {mute: Boolean(value)};
+        }
+        const isOutput = typeof parent === 'string' && parent.startsWith('out_');
+        const channelId = isOutput ? parent.slice(4) : parent;
+        const slot = {id: String(slotId)};
+        if (key === 'mv') {
+            slot[isOutput ? 'outputGains' : 'gains'] = [{id: String(channelId), value: parseFloat(value)}];
+        } else if (key === 'mute') {
+            slot[isOutput ? 'outputMutes' : 'mutes'] = [{id: String(channelId), value: Boolean(value)}];
+        }
+        return {slots: [slot]};
+    };
+
     doPatch = async(device, payload) => {
         const response = await fetch(`${API_PREFIX}/3/devices/${device}`, {
             method: 'PATCH',
@@ -170,16 +191,29 @@ class EzBeqService {
         if (gains.hasOwnProperty('mutes')) {
             slot.mutes = gains.mutes.map(g => ({id: String(g.id), value: Boolean(g.value)}));
         }
-        if (entryId) {
-            payload.slots = [Object.assign({}, slot, {entry: entryId})]
-        } else {
-            payload.slots = [slot];
+        if (gains.hasOwnProperty('output_gains') && gains.output_gains.length > 0) {
+            slot.outputGains = gains.output_gains.map(g => ({id: String(g.id), value: parseFloat(g.value)}));
+        }
+        if (gains.hasOwnProperty('output_mutes') && gains.output_mutes.length > 0) {
+            slot.outputMutes = gains.output_mutes.map(g => ({id: String(g.id), value: Boolean(g.value)}));
+        }
+        if (slotId !== null && slotId !== undefined) {
+            if (entryId) {
+                payload.slots = [Object.assign({}, slot, {entry: entryId})]
+            } else {
+                payload.slots = [slot];
+            }
         }
         return payload;
     };
 
     loadWithMV = async (device, id, slot, gains) => {
         return await this.sendFilter(device, id, slot, gains);
+    };
+
+    getWhatsNew = (since) => {
+        const url = since ? `whats-new?since=${since}` : 'whats-new';
+        return this.doGet(url);
     };
 
     getDevices = async () => {

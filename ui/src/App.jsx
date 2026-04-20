@@ -6,6 +6,7 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import CssBaseline from '@mui/material/CssBaseline';
 import {pushData} from "./services/util";
 import ErrorSnack from "./components/ErrorSnack";
+import SuccessSnack from "./components/SuccessSnack";
 import DeviceDisconnectedBanner from "./components/DeviceDisconnectedBanner";
 import MainView from "./components/main";
 import Levels from "./components/levels";
@@ -55,8 +56,9 @@ const App = () => {
         [prefersDarkMode],
     );
 
-    // errors
+    // errors and success
     const [err, setErr] = useState(null);
+    const [successMsg, setSuccessMsg] = useState(null);
 
     // catalogue data
     const [entries, setEntries] = useState({});
@@ -131,6 +133,7 @@ const App = () => {
                 <CssBaseline/>
                 <Root>
                     <ErrorSnack err={err} setErr={setErr}/>
+                    <SuccessSnack msg={successMsg} setMsg={setSuccessMsg}/>
                     {
                         selectedDeviceName && availableDevices[selectedDeviceName]?.connected === false
                             ? <DeviceDisconnectedBanner deviceName={selectedDeviceName}/>
@@ -141,6 +144,7 @@ const App = () => {
                             ?
                             <MainView entries={entryList}
                                       setErr={setErr}
+                                      setSuccess={setSuccessMsg}
                                       replaceDevice={d => {
                                           if (ss && ss.isConnected()) {
                                               console.debug(`Discarding update, ws is connected`);

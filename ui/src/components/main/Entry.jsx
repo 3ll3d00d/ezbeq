@@ -140,7 +140,7 @@ const Uploader = ({
             {slotGroup}
             {gainControl}
             <Button variant="contained"
-                    startIcon={pending ? <CircularProgress size={24} color="inherit"/> : <PublishIcon fontSize="small"/>}
+                    startIcon={pending ? <CircularProgress size={24}/> : <PublishIcon fontSize="small"/>}
                     onClick={upload}>
                 Upload
             </Button>
@@ -148,7 +148,7 @@ const Uploader = ({
     );
 };
 
-const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotId, setError, setUploadPendingSlotId}) => {
+const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotId, setError, setSuccess, setUploadPendingSlotId}) => {
     const [uploadSlotId, setUploadSlotId] = useState(null);
     const [sendGain, setSendGain] = useState(false);
     const [pending, setPending] = useState(false);
@@ -192,6 +192,7 @@ const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotI
                     setPending(false);
                     if (setUploadPendingSlotId) setUploadPendingSlotId(null);
                     setDevice(device);
+                    if (setSuccess) setSuccess('Filter loaded');
                 } catch (e) {
                     setError(e);
                     setPending(false);
