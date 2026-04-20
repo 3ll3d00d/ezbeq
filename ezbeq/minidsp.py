@@ -2,9 +2,11 @@ import json
 import logging
 import math
 import os
+import re
 import time
 from concurrent.futures.thread import ThreadPoolExecutor
 from contextlib import contextmanager
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 import yaml
 from autobahn.exception import Disconnected
@@ -22,6 +24,71 @@ OUTPUT_NAME = 'output'
 CROSSOVER_NAME = 'crossover'
 
 logger = logging.getLogger('ezbeq.minidsp')
+
+_CONFIG_PATTERN = re.compile(r'config ([0-3])')
+_GAIN_PATTERN = re.compile(r'gain -- ([-+]?\d*\.\d+|\d+)')
+
+
+class MinidspStubRunner:
+    """
+    Simulates the minidsp CLI for local development without hardware.
+    Configure via: exe: stub in ezbeq.yml
+    """
+
+    def __init__(self):
+        self.__slot = 0
+        self.__gain = 0.0
+        self.__mute = False
+        self.__pending = None
+
+    def __getitem__(self, item):
+        self.__pending = item
+        return self
+
+    def __make_status(self) -> str:
+        return json.dumps({
+            'master': {
+                'preset': self.__slot,
+                'source': 'Usb',
+                'volume': self.__gain,
+                'mute': self.__mute
+            },
+            'input_levels': [0.0, 0.0],
+            'output_levels': [0.0, 0.0, 0.0, 0.0]
+        })
+
+    def __apply_file(self, filepath: str):
+        with open(filepath) as f:
+            cmds = [c for c in f.read().split('\n') if c]
+        for cmd in cmds:
+            if cmd == 'mute on':
+                self.__mute = True
+            elif cmd == 'mute off':
+                self.__mute = False
+            else:
+                m = _GAIN_PATTERN.match(cmd)
+                if m:
+                    self.__gain = float(m.group(1))
+                else:
+                    m = _CONFIG_PATTERN.match(cmd)
+                    if m:
+                        self.__slot = int(m.group(1))
+
+    def __call__(self, *args, **kwargs):
+        pending, self.__pending = self.__pending, None
+        if isinstance(pending, tuple) and len(pending) == 2 and pending[0] == '-f':
+            self.__apply_file(pending[1])
+        return self.__make_status()
+
+    def run(self, *args, **kwargs):
+        pending, self.__pending = self.__pending, None
+        if isinstance(pending, tuple) and len(pending) == 2 and pending[0] == '-f':
+            self.__apply_file(pending[1])
+            return 0, '', ''
+        return 0, self.__make_status(), ''
+
+    def __repr__(self) -> str:
+        return 'MinidspStubRunner'
 
 
 class MinidspState(DeviceState):
@@ -262,7 +329,7 @@ class BeqFilterAllocator:
 class MinidspDescriptor:
 
     def __init__(self, name: str, fs: str, i: PeqRoutes | None = None, xo: PeqRoutes | None = None,
-                 o: PeqRoutes | None = None, extra: list[PeqRoutes] = None, slot_names: Optional[Dict[str, str]] = None):
+                 o: PeqRoutes | None = None, extra: Optional[List[PeqRoutes]] = None, slot_names: Optional[Dict[str, str]] = None):
         self.name = name
         self.fs = str(int(fs))
         self.input = i
@@ -330,7 +397,7 @@ class MinidspDDRC24(MinidspDescriptor):
 
 class MinidspHTX(MinidspDescriptor):
 
-    def __init__(self, slot_names: Optional[Dict[str, str]] = None, channels: list[int] = None, use_inputs: bool = False):
+    def __init__(self, slot_names: Optional[Dict[str, str]] = None, channels: Optional[List[int]] = None, use_inputs: bool = False):
         c = channels if channels is not None else [3]
         if any(ch for ch in c if ch < 0 or ch > 7):
             raise ValueError(f"Invalid channels {c} must be between 0 and 7")
@@ -489,7 +556,7 @@ class Minidsp(PersistentDevice[MinidspState]):
             self.__ws_client = None
         self.__descriptor: MinidspDescriptor = make_peq_layout(cfg, self.__runner)
         logger.info(f"[{name}] Minidsp descriptor is loaded.... exe is {self.__runner}")
-        logger.info(yaml.dump(self.__descriptor, indent=2, default_flow_style=False, sort_keys=False))
+        logger.debug(yaml.dump(self.__descriptor, indent=2, default_flow_style=False, sort_keys=False))
         ws_server.factory.set_levels_provider(name, self.start_broadcast_levels)
 
     @property
@@ -601,6 +668,7 @@ class Minidsp(PersistentDevice[MinidspState]):
             target_slot_idx = self.__as_idx(slot)
             self.__validate_slot_idx(target_slot_idx)
             cmds = MinidspBeqCommandGenerator.filt(entry, self.__descriptor)
+            logger.info(f"[{self.name}] Loading '{entry.formatted_title}' to slot {slot} ({len(cmds)} commands)")
             try:
                 self.__send_cmds(target_slot_idx, cmds)
                 self._current_state.load(slot, entry.formatted_title, entry.author)
@@ -686,7 +754,7 @@ class Minidsp(PersistentDevice[MinidspState]):
                         f"[{self.name}] Activating slot {slot}, current is {current_state.active_slot if current_state else 'UNKNOWN'}")
                     config_cmds.insert(0, MinidspBeqCommandGenerator.activate(slot))
         formatted = '\n'.join(config_cmds)
-        logger.info(f"\n{formatted}")
+        logger.debug(f"\n{formatted}")
         with tmp_file(config_cmds) as file_name:
             kwargs = {'retcode': None} if self.__ignore_retcode else {}
             exe = self.__runner['-f', file_name]
@@ -777,7 +845,7 @@ class Minidsp(PersistentDevice[MinidspState]):
             end = time.time()
             levels = json.loads(lines)
             ts = time.time()
-            logger.info(f"{self.name},readlevels,{ts},{to_millis(start, end)}")
+            logger.debug(f"{self.name},readlevels,{ts},{to_millis(start, end)}")
             return {
                 'name': self.name,
                 'ts': ts,
@@ -1012,10 +1080,10 @@ class MinidspRsClient:
 class MinidspRsProtocol(WebSocketClientProtocol):
 
     def onConnecting(self, transport_details: Any) -> None:
-        logger.info(f"Connecting to {transport_details}")
+        logger.debug(f"Connecting to {transport_details}")
 
     def onConnect(self, response: Any) -> None:
-        logger.info(f"Connected to {response.peer}")
+        logger.debug(f"Connected to {response.peer}")
 
     def onOpen(self) -> None:
         logger.info("Connected to Minidsp")
@@ -1064,23 +1132,23 @@ class MinidspRsClientFactory(WebSocketClientFactory, ReconnectingClientFactory):
 
     def register(self, client: MinidspRsProtocol):
         if client not in self.__clients:
-            logger.info(f"[{self.device_id}] Registered device {client.peer}")
+            logger.debug(f"[{self.device_id}] Registered device {client.peer}")
             self.__clients.append(client)
         else:
-            logger.info(f"[{self.device_id}] Ignoring duplicate device {client.peer}")
+            logger.debug(f"[{self.device_id}] Ignoring duplicate device {client.peer}")
 
     def unregister(self, client: MinidspRsProtocol):
         if client in self.__clients:
-            logger.info(f"Unregistering device {client.peer}")
+            logger.debug(f"Unregistering device {client.peer}")
             self.__clients.remove(client)
         else:
-            logger.info(f"Ignoring unregistered device {client.peer}")
+            logger.debug(f"Ignoring unregistered device {client.peer}")
 
     def broadcast(self, msg: str) -> None:
         if self.__clients:
             disconnected_clients = []
             for c in self.__clients:
-                logger.info(f"[{self.device_id}] Sending to {c.peer} - {msg}")
+                logger.debug(f"[{self.device_id}] Sending to {c.peer} - {msg}")
                 try:
                     c.sendMessage(msg.encode('utf8'))
                 except Disconnected:
