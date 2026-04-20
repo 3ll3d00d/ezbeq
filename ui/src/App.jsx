@@ -6,6 +6,7 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import CssBaseline from '@mui/material/CssBaseline';
 import {pushData} from "./services/util";
 import ErrorSnack from "./components/ErrorSnack";
+import DeviceDisconnectedBanner from "./components/DeviceDisconnectedBanner";
 import MainView from "./components/main";
 import Levels from "./components/levels";
 import Minidsp from "./components/minidsp";
@@ -128,6 +129,11 @@ const App = () => {
                 <CssBaseline/>
                 <Root>
                     <ErrorSnack err={err} setErr={setErr}/>
+                    {
+                        selectedDeviceName && availableDevices[selectedDeviceName]?.connected === false
+                            ? <DeviceDisconnectedBanner deviceName={selectedDeviceName}/>
+                            : null
+                    }
                     {
                         selectedNav === 'catalogue'
                             ?

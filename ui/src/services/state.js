@@ -29,7 +29,11 @@ class StateService {
                     this.replaceDevice(payload.data);
                     break;
                 case 'Error':
-                    this.setErr(new Error(payload.data));
+                    const err = new Error(payload.data);
+                    if (payload.persistent) {
+                        err.persistent = true;
+                    }
+                    this.setErr(err);
                     break;
                 case 'Catalogue':
                     if (payload.data) {
