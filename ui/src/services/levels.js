@@ -14,6 +14,11 @@ class LevelsService {
         this.activeDuration = 60;
         this.dataByDeviceName = {};
         this.seriesDirty = true;
+        this.reconnectDelay = 1000;
+        this.maxReconnectDelay = 30000;
+        this.reconnectTimer = null;
+        this.intentionallyClosed = false;
+        this.setConnected = null;
         this.colours = [
             theme.palette.primary.light,
             theme.palette.secondary.light,
@@ -109,6 +114,10 @@ class LevelsService {
         }
     };
 
+    setConnectedCallback = (cb) => {
+        this.setConnected = cb;
+    };
+
     initWebsocket = () => {
         if (this.ws && this.ws.readyState <= 1) {
             console.warn(`Connection to ${this.url} is already open`);
@@ -119,10 +128,17 @@ class LevelsService {
             };
             this.ws.onopen = e => {
                 console.log(`Connected to ${this.url}`);
+                this.reconnectDelay = 1000;
+                if (this.setConnected) this.setConnected(true);
                 this.devices.forEach(d => this.ws.send(`subscribe levels ${d}`));
             }
             this.ws.onclose = e => {
                 console.log(`Closed connection to ${this.url} - ${e.code}`);
+                if (!this.intentionallyClosed) {
+                    if (this.setConnected) this.setConnected(false);
+                    this.reconnectTimer = setTimeout(() => this.initWebsocket(), this.reconnectDelay);
+                    this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelay);
+                }
             }
             this.ws.onmessage = e => {
                 const msg = JSON.parse(e.data)
@@ -188,6 +204,11 @@ class LevelsService {
     };
 
     close = () => {
+        this.intentionallyClosed = true;
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
         if (this.ws && this.ws.readyState === 1) {
             console.log(`Closing connection to ${this.url}`);
             this.ws.close();
