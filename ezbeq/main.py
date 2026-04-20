@@ -19,6 +19,7 @@ from ezbeq.apis import (
     meta,
     search,
     version,
+    whatsnew,
     years,
 )
 from ezbeq.apis import catalogue as cat_api
@@ -71,6 +72,7 @@ def create_app(config: Config, ws: WsServer | None = None) -> tuple[Flask, WsSer
     decorate_ns(languages.api)
     decorate_ns(meta.api)
     decorate_ns(cat_api.api)
+    decorate_ns(whatsnew.api)
     if tracemalloc.is_tracing():
         decorate_ns(diagnostics.api)
     return app, ws_server

@@ -1,6 +1,6 @@
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
-import {Avatar, Divider, ListItemIcon, ListItemText, Menu, MenuItem, Tooltip} from "@mui/material";
+import {Avatar, Badge, Divider, ListItemIcon, ListItemText, Menu, MenuItem, Tooltip} from "@mui/material";
 import beqcIcon from "../beqc.png";
 import React from "react";
 import Box from "@mui/material/Box";
@@ -9,6 +9,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import LocalLibraryIcon from "@mui/icons-material/LocalLibrary";
 import EqualizerIcon from "@mui/icons-material/Equalizer";
 import SettingsApplicationsIcon from "@mui/icons-material/SettingsApplications";
+import NewReleasesIcon from "@mui/icons-material/NewReleases";
 import {Check} from "@mui/icons-material";
 
 const Header = ({
@@ -17,6 +18,8 @@ const Header = ({
                     selectedDeviceName,
                     selectedNav,
                     setSelectedNav,
+                    whatsNewCount,
+                    onWhatsNewOpen,
                     children
                 }) => {
     const mobileMenuId = 'mobile-menu';
@@ -142,6 +145,11 @@ const Header = ({
                             variant="rounded"
                             src={beqcIcon}
                             sx={{width: 32, height: 32, marginLeft: '12px'}}/>
+                    <IconButton size="small" onClick={onWhatsNewOpen} aria-label="What's New" sx={{ml: 1}}>
+                        <Badge badgeContent={whatsNewCount || 0} color="error" max={99}>
+                            <NewReleasesIcon/>
+                        </Badge>
+                    </IconButton>
                     <Box sx={{flexGrow: 0.5}}/>
                     {children}
                     <Box sx={{flexGrow: 0.5, flexShrink: 2}}/>
