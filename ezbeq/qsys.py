@@ -173,7 +173,7 @@ class Qsys(PersistentDevice[QsysState]):
             try:
                 result = json.loads(msg)
                 logger.info(f"Received from {name}: {result}")
-            except:
+            except json.JSONDecodeError as e:
                 logger.exception(f"Unable to decode {msg}")
         else:
             logger.info(f"Received no data from {name}")

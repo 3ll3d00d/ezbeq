@@ -125,7 +125,7 @@ class CatalogueEntry:
         y = 0
         try:
             y = int(vals.get(YEAR, 0))
-        except:
+        except ValueError as e:
             logger.error(f"Invalid year {vals.get(YEAR, 0)} in {self.title}")
         self.year = y
 
@@ -171,7 +171,7 @@ class CatalogueEntry:
         self.formatted_title = self.__format_title()
         try:
             r = int(vals.get(RUNTIME, 0))
-        except:
+        except ValueError as e:
             logger.error(f"Invalid runtime {vals.get('runtime', 0)} in {self.title}")
             r = 0
         self.runtime = r
@@ -180,7 +180,7 @@ class CatalogueEntry:
             v = vals['mv']
             try:
                 self.mv_adjust = float(v)
-            except:
+            except (ValueError, TypeError) as e:
                 logger.error(f"Unknown mv_adjust value in {self.title} - {vals['mv']}")
         self.freshness = compute_freshness(self.created_at, self.updated_at)
 
@@ -439,7 +439,7 @@ class Catalogues:
                             catalogue = self.__insert_catalogue(f.read().strip(), meta_only=loaded == 2)
                             if catalogue:
                                 catalogues.append(catalogue)
-                except:
+                except Exception as e:
                     logger.exception(
                         f'[{self.__db}] Failed to load catalogue at startup from {self.__catalogue_file}')
         return catalogues
@@ -847,8 +847,8 @@ class DatabaseDownloader:
                     return True
                 else:
                     logger.warning(f"Unable to download catalogue, response is {r.status_code}")
-            except:
-                logger.exception("Unable to download catalogue, unexpected error")
+            except Exception as e:
+                logger.exception(f"Unable to download catalogue, unexpected error")
         else:
             logger.info(f"No reload required {remote_version} vs {self.__cached_version}")
         return False
@@ -865,7 +865,7 @@ class DatabaseDownloader:
                 return txt.strip() if txt else txt
             else:
                 logger.warning(f"Unable to get {self.__version_url}, response was {r.status_code}")
-        except:
+        except Exception as e:
             logger.exception(f"Failed to get {self.__version_url}")
         return None
 

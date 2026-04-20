@@ -535,7 +535,7 @@ class Minidsp(PersistentDevice[MinidspState]):
                 return MinidspState(self.name, self.__descriptor, **values)
             else:
                 logger.error(f"[{self.name}] No output returned from device")
-        except:
+        except Exception as e:
             logger.exception(f"[{self.name}] Unable to parse device state {output}")
         return None
 
@@ -783,7 +783,7 @@ class Minidsp(PersistentDevice[MinidspState]):
                 'ts': ts,
                 'levels': format_levels(levels)
             }
-        except:
+        except Exception as e:
             logger.exception(f"[{self.name}] Unable to load levels {lines}")
             return {}
 
@@ -1035,7 +1035,7 @@ class MinidspRsProtocol(WebSocketClientProtocol):
             logger.debug(f"[{self.factory.device_id}] Received {msg}")
             try:
                 self.factory.listener.on_ws_message(json.loads(msg))
-            except:
+            except Exception as e:
                 logger.exception(f"[{self.factory.device_id}] Receiving unparseable message {msg}")
 
 
