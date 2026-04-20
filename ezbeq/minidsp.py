@@ -60,16 +60,16 @@ class MinidspState(DeviceState):
     def mute(self) -> bool:
         return self.__mute
 
-    def load(self, slot_id: str, title: str, author: str = None):
+    def load(self, slot_id: str, title: str, author: Optional[str] = None) -> None:
         slot = self.get_slot(slot_id)
         slot.last = title
         slot.last_author = author
         self.activate(slot_id)
 
-    def get_slot(self, slot_id) -> 'MinidspSlotState':
+    def get_slot(self, slot_id: str) -> 'MinidspSlotState':
         return next(s for s in self.__slots if s.slot_id == slot_id)
 
-    def clear(self, slot_id):
+    def clear(self, slot_id: str) -> None:
         slot = self.get_slot(slot_id)
         slot.unmute(None)
         slot.set_gain(None, 0.0)
@@ -77,7 +77,7 @@ class MinidspState(DeviceState):
         slot.last_author = None
         self.activate(slot_id)
 
-    def error(self, slot_id):
+    def error(self, slot_id: str) -> None:
         slot = self.get_slot(slot_id)
         slot.last = 'ERROR'
         slot.last_author = None
@@ -121,7 +121,7 @@ class MinidspState(DeviceState):
 
 class MinidspSlotState(SlotState['MinidspSlotState']):
 
-    def __init__(self, slot_id: str, active: bool, input_channels: int, output_channels: int, slot_name: str = None):
+    def __init__(self, slot_id: str, active: bool, input_channels: int, output_channels: int, slot_name: Optional[str] = None):
         super().__init__(slot_id)
         self.__input_channels = input_channels
         self.__output_channels = output_channels
@@ -192,13 +192,13 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
             'outputs': self.__output_channels,
         }
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         vals = ' '.join([f"{g['id']}: {g['value']:.2f}/{self.mutes[i]['value']}" for i, g in enumerate(self.gains)])
         return f"{super().__repr__()} - {vals}"
 
 
 class PeqRoutes:
-    def __init__(self, name: str, biquads: int, channels: list[int], beq_slots: list[int], groups: list[int] = None):
+    def __init__(self, name: str, biquads: int, channels: list[int], beq_slots: list[int], groups: Optional[List[int]] = None):
         self.name = name
         self.biquads = biquads
         self.channels = channels
@@ -209,7 +209,7 @@ class PeqRoutes:
     def takes_beq(self) -> bool:
         return self.channels and len(self.channels) > 0 and self.beq_slots and len(self.beq_slots) > 0
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.name}"
 
     def __eq__(self, o: object) -> bool:
@@ -230,14 +230,14 @@ class BeqFilterSlot:
         self.channels = channels
         self.group = group
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.name}{self.group if self.group is not None else ''}/{self.idx}/{self.channels}"
 
 
 class BeqFilterAllocator:
 
     def __init__(self, routes: list[PeqRoutes]):
-        self.slots = []
+        self.slots: List[BeqFilterSlot] = []
         for r in routes:
             if r and r.takes_beq:
                 for s in r.beq_slots:
@@ -255,14 +255,14 @@ class BeqFilterAllocator:
     def __len__(self):
         return len(self.slots)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.slots}"
 
 
 class MinidspDescriptor:
 
     def __init__(self, name: str, fs: str, i: PeqRoutes | None = None, xo: PeqRoutes | None = None,
-                 o: PeqRoutes | None = None, extra: list[PeqRoutes] = None, slot_names: dict[str, str] = None):
+                 o: PeqRoutes | None = None, extra: list[PeqRoutes] = None, slot_names: Optional[Dict[str, str]] = None):
         self.name = name
         self.fs = str(int(fs))
         self.input = i
@@ -279,7 +279,7 @@ class MinidspDescriptor:
     def to_allocator(self) -> BeqFilterAllocator:
         return BeqFilterAllocator(self.peq_routes)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         s = f"{self.name}, fs:{self.fs}"
         if self.input:
             s = f"{s}, inputs: {self.input}"
@@ -298,7 +298,7 @@ def zero_til(count: int) -> list[int]:
 
 class Minidsp24HD(MinidspDescriptor):
 
-    def __init__(self, slot_names: dict[str, str] = None):
+    def __init__(self, slot_names: Optional[Dict[str, str]] = None):
         super().__init__('2x4HD',
                          '96000',
                          i=PeqRoutes(INPUT_NAME, 10, zero_til(2), zero_til(10)),
@@ -309,7 +309,7 @@ class Minidsp24HD(MinidspDescriptor):
 
 class Minidsp812CDSP(MinidspDescriptor):
 
-    def __init__(self, slot_names: dict[str, str] = None):
+    def __init__(self, slot_names: Optional[Dict[str, str]] = None):
         super().__init__('8x12CDSP',
                          '192000',
                          i=PeqRoutes(INPUT_NAME, 10, zero_til(6), zero_til(10)),
@@ -320,7 +320,7 @@ class Minidsp812CDSP(MinidspDescriptor):
 
 class MinidspDDRC24(MinidspDescriptor):
 
-    def __init__(self, slot_names: dict[str, str] = None):
+    def __init__(self, slot_names: Optional[Dict[str, str]] = None):
         super().__init__('DDRC24',
                          '48000',
                          xo=PeqRoutes(CROSSOVER_NAME, 4, zero_til(4), [], zero_til(2)),
@@ -330,7 +330,7 @@ class MinidspDDRC24(MinidspDescriptor):
 
 class MinidspHTX(MinidspDescriptor):
 
-    def __init__(self, slot_names: dict[str, str] = None, channels: list[int] = None, use_inputs: bool = False):
+    def __init__(self, slot_names: Optional[Dict[str, str]] = None, channels: list[int] = None, use_inputs: bool = False):
         c = channels if channels is not None else [3]
         if any(ch for ch in c if ch < 0 or ch > 7):
             raise ValueError(f"Invalid channels {c} must be between 0 and 7")
@@ -353,7 +353,7 @@ class MinidspHTX(MinidspDescriptor):
 
 class MinidspDDRC88(MinidspDescriptor):
 
-    def __init__(self, slot_names: dict[str, str] = None, sw_channels: list[int] = None):
+    def __init__(self, slot_names: Optional[Dict[str, str]] = None, sw_channels: Optional[List[int]] = None):
         c = sw_channels if sw_channels is not None else [3]
         if any(ch for ch in c if ch < 0 or ch > 7):
             raise ValueError(f"Invalid channels {c} must be between 0 and 7")
@@ -368,7 +368,7 @@ class MinidspDDRC88(MinidspDescriptor):
 
 class Minidsp410(MinidspDescriptor):
 
-    def __init__(self, slot_names: dict[str, str] = None):
+    def __init__(self, slot_names: Optional[Dict[str, str]] = None):
         super().__init__('4x10',
                          '96000',
                          i=PeqRoutes(INPUT_NAME, 5, zero_til(2), zero_til(5)),
@@ -378,7 +378,7 @@ class Minidsp410(MinidspDescriptor):
 
 class Minidsp1010(MinidspDescriptor):
 
-    def __init__(self, use_xo: bool | int | str, slot_names: dict[str, str] = None):
+    def __init__(self, use_xo: Union[bool, int, str], slot_names: Optional[Dict[str, str]] = None):
         if use_xo is True:
             secondary = {'xo': PeqRoutes(CROSSOVER_NAME, 4, zero_til(8), zero_til(4), groups=[0])}
         elif use_xo is False:
@@ -399,7 +399,7 @@ class Minidsp1010(MinidspDescriptor):
 
 
 def make_peq_layout(cfg: dict, cmd_runner) -> MinidspDescriptor:
-    slot_names: dict[str, str] = {str(k): str(v) for k, v in cfg.get('slotNames', {}).items()}
+    slot_names: Dict[str, str] = {str(k): str(v) for k, v in cfg.get('slotNames', {}).items()}
     if 'device_type' in cfg:
         device_type = cfg['device_type']
         if device_type == '24HD':
@@ -540,14 +540,14 @@ class Minidsp(PersistentDevice[MinidspState]):
         return None
 
     @staticmethod
-    def __as_idx(idx: int | str):
+    def __as_idx(idx: Union[int, str]) -> int:
         return int(idx) - 1
 
-    def __send_cmds(self, target_slot_idx: int | None, cmds: list[str]):
+    def __send_cmds(self, target_slot_idx: Optional[int], cmds: List[str]) -> Any:
         return self.__executor.submit(self.__do_run, cmds, target_slot_idx, self.__slot_change_delay).result(
             timeout=self.__cmd_timeout)
 
-    def activate(self, slot: str):
+    def activate(self, slot: str) -> None:
         def __do_it():
             target_slot_idx = self.__as_idx(slot)
             self.__validate_slot_idx(target_slot_idx)
@@ -557,7 +557,7 @@ class Minidsp(PersistentDevice[MinidspState]):
         self._hydrate_cache_broadcast(__do_it)
 
     @staticmethod
-    def __validate_slot_idx(target_slot_idx):
+    def __validate_slot_idx(target_slot_idx: int) -> None:
         if target_slot_idx < 0 or target_slot_idx > 3:
             raise InvalidRequestError("Slot must be in range 1-4")
 
@@ -663,7 +663,7 @@ class Minidsp(PersistentDevice[MinidspState]):
 
         self._hydrate_cache_broadcast(__do_it)
 
-    def __as_idxes(self, channel, slot):
+    def __as_idxes(self, channel: Optional[int], slot: Optional[str]) -> Tuple[Optional[int], Optional[int]]:
         target_slot_idx = self.__as_idx(slot) if slot else None
         target_channel_idx = self.__as_idx(channel) if channel else None
         return target_channel_idx, target_slot_idx
@@ -765,10 +765,10 @@ class Minidsp(PersistentDevice[MinidspState]):
             any_update = True
         return any_update
 
-    def levels(self) -> dict:
+    def levels(self) -> Dict[str, Any]:
         return self.__executor.submit(self.__read_levels_from_device).result(timeout=self.__cmd_timeout)
 
-    def __read_levels_from_device(self) -> dict:
+    def __read_levels_from_device(self) -> Dict[str, Any]:
         lines = None
         try:
             kwargs = {'retcode': None} if self.__ignore_retcode else {}
@@ -798,7 +798,7 @@ class Minidsp(PersistentDevice[MinidspState]):
 
             sched()
 
-    def on_ws_message(self, msg: dict):
+    def on_ws_message(self, msg: Dict[str, Any]) -> None:
         logger.debug(f"[{self.name}] Received {msg}")
         if 'master' in msg:
             master = msg['master']
@@ -859,7 +859,7 @@ class MinidspBeqCommandGenerator:
         return cmds
 
     @staticmethod
-    def as_bq(f: dict, fs: str):
+    def as_bq(f: dict, fs: str) -> List[str]:
         if fs in f['biquads']:
             bq = f['biquads'][fs]['b'] + f['biquads'][fs]['a']
         else:
@@ -912,13 +912,13 @@ class MinidspBeqCommandGenerator:
         return cmds
 
     @staticmethod
-    def bq(channel: int, idx: int, coeffs, side: str = INPUT_NAME, group: int | None = None):
+    def bq(channel: int, idx: int, coeffs: List[str], side: str = INPUT_NAME, group: int | None = None):
         is_xo = side == CROSSOVER_NAME
         addr = f"crossover {group}" if is_xo and group is not None else 'peq'
         return f"{OUTPUT_NAME if is_xo else side} {channel} {addr} {idx} set -- {' '.join(coeffs)}"
 
     @staticmethod
-    def cmd(channel: int, cmd: str, side: str = INPUT_NAME):
+    def cmd(channel: int, cmd: str, side: str = INPUT_NAME) -> str:
         return f"{side} {channel} {cmd}"
 
     @staticmethod
@@ -995,7 +995,7 @@ def tmp_file(cmds: list[str]):
 
 class MinidspRsClient:
 
-    def __init__(self, listener, ip, device_id):
+    def __init__(self, listener: 'Minidsp', ip: str, device_id: Union[int, str]):
         ws_url = f"ws://{ip}/devices/{device_id}?levels=true&poll=true"
         logger.info(f"Listening to ws on {ws_url}")
         self.__factory = MinidspRsClientFactory(listener, device_id, url=ws_url)
@@ -1005,29 +1005,29 @@ class MinidspRsClient:
         wsclient = clientFromString(reactor, f"tcp:{ip}:timeout=5")
         self.__connector = wsclient.connect(self.__factory)
 
-    def send(self, msg: str):
+    def send(self, msg: str) -> None:
         self.__factory.broadcast(msg)
 
 
 class MinidspRsProtocol(WebSocketClientProtocol):
 
-    def onConnecting(self, transport_details):
+    def onConnecting(self, transport_details: Any) -> None:
         logger.info(f"Connecting to {transport_details}")
 
-    def onConnect(self, response):
+    def onConnect(self, response: Any) -> None:
         logger.info(f"Connected to {response.peer}")
 
-    def onOpen(self):
+    def onOpen(self) -> None:
         logger.info("Connected to Minidsp")
         self.factory.register(self)
 
-    def onClose(self, was_clean, code, reason):
+    def onClose(self, was_clean: bool, code: Optional[int], reason: Optional[str]) -> None:
         if was_clean:
             logger.info(f"Disconnected code: {code} reason: {reason}")
         else:
             logger.warning(f"UNCLEAN! Disconnected code: {code} reason: {reason}")
 
-    def onMessage(self, payload, is_binary):
+    def onMessage(self, payload: Union[bytes, str], is_binary: bool) -> None:
         if is_binary:
             logger.warning(f"Received {len(payload)} bytes in binary payload, ignoring")
         else:
@@ -1044,21 +1044,21 @@ class MinidspRsClientFactory(WebSocketClientFactory, ReconnectingClientFactory):
     maxDelay = 5
     initialDelay = 0.5
 
-    def __init__(self, listener, device_id, *args, **kwargs):
+    def __init__(self, listener: 'Minidsp', device_id: Union[int, str], *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
         self.__device_id = device_id
         self.__clients: list[MinidspRsProtocol] = []
         self.listener = listener
 
     @property
-    def device_id(self):
+    def device_id(self) -> Union[int, str]:
         return self.__device_id
 
-    def clientConnectionFailed(self, connector, reason):
+    def clientConnectionFailed(self, connector: Any, reason: Any) -> None:
         logger.warning(f"[{self.device_id}] Client connection failed {reason} .. retrying ..")
         super().clientConnectionFailed(connector, reason)
 
-    def clientConnectionLost(self, connector, reason):
+    def clientConnectionLost(self, connector: Any, reason: Any) -> None:
         logger.warning(f"[{self.device_id}] Client connection failed {reason} .. retrying ..")
         super().clientConnectionLost(connector, reason)
 
@@ -1076,7 +1076,7 @@ class MinidspRsClientFactory(WebSocketClientFactory, ReconnectingClientFactory):
         else:
             logger.info(f"Ignoring unregistered device {client.peer}")
 
-    def broadcast(self, msg):
+    def broadcast(self, msg: str) -> None:
         if self.__clients:
             disconnected_clients = []
             for c in self.__clients:
@@ -1092,7 +1092,7 @@ class MinidspRsClientFactory(WebSocketClientFactory, ReconnectingClientFactory):
             raise ValueError(f"No devices connected, ignoring {msg}")
 
 
-def format_levels(levels: dict) -> dict:
+def format_levels(levels: Dict[str, Any]) -> Dict[str, float]:
     # quick hack for testing purposes
     # INPUT_NAME: [x + ((random() * 5) * (-1.0 if self.name == 'd1' else 1.0)) for x in msg['input_levels']],
     return {
