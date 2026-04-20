@@ -9,6 +9,14 @@ class Version(Resource):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__v = kwargs['version'].strip()
+        gi = kwargs.get('git_info', {})
+        self.__branch = gi.get('branch')
+        self.__sha = gi.get('sha')
 
     def get(self):
-        return {'version': self.__v}
+        result = {'version': self.__v}
+        if self.__branch:
+            result['branch'] = self.__branch
+        if self.__sha:
+            result['sha'] = self.__sha
+        return result
