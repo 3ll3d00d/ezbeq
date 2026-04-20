@@ -4,6 +4,37 @@ A simple web browser for [beqcatalogue](https://beqcatalogue.readthedocs.io/en/l
 with [minidsp-rs](https://github.com/mrene/minidsp-rs)
 for local remote control of a minidsp or HTP-1.
 
+## Table of Contents
+
+- [Setup](#setup)
+  - [Windows / MacOS](#windows--macos)
+  - [Linux](#linux)
+  - [Installation](#installation)
+    - [Docker](#docker)
+    - [Example Config Files](#example-config-files)
+    - [Using with a Minidsp](#using-with-a-minidsp)
+    - [Using with a Monolith HTP-1](#using-with-a-monolith-htp-1)
+  - [Upgrade](#upgrade)
+- [Scripts (bin/)](#scripts-bin)
+- [How the app is structured](#how-the-app-is-structured)
+- [Running the app](#running-the-app)
+  - [Stub mode — no hardware required](#stub-mode--no-hardware-required)
+  - [Frontend hot-reload (UI development)](#frontend-hot-reload-ui-development)
+  - [Running the tests](#running-the-tests)
+  - [Smoke test](#smoke-test)
+- [Configuration](#configuration)
+  - [Using a custom catalogue](#using-a-custom-catalogue)
+  - [Configuring Devices](#configuring-devices)
+    - [Minidsp](#minidsp)
+    - [Monolith HTP1](#monolith-htp1)
+    - [JRiver Media Center](#jriver-media-center)
+    - [Q-Sys](#q-sys)
+    - [CamillaDSP](#camilladsp)
+- [Starting ezbeq on bootup](#starting-ezbeq-on-bootup)
+- [Verifying MiniDSP Response](#verifying-minidsp-response)
+  - [Quick & Crude](#quick--crude)
+  - [Slower but Accurate](#slower-but-accurate)
+
 # Setup
 
 ## Windows / MacOS
@@ -19,16 +50,30 @@ Use your distro package manager to install python.
 
 ## Installation
 
+ezbeq uses [Poetry](https://python-poetry.org/) for dependency management.
+
+    $ pip install poetry
+    $ git clone https://github.com/3ll3d00d/ezbeq
+    $ cd ezbeq
+    $ poetry install
+
 Example is provided for rpi users
 
     $ ssh pi@myrpi
     $ sudo apt install python3 python3-venv python3-pip libyaml-dev
-    $ mkdir python
-    $ cd python
-    $ python3 -m venv ezbeq
+    $ pip install poetry
+    $ git clone https://github.com/3ll3d00d/ezbeq
     $ cd ezbeq
-    $ . bin/activate
-    $ pip install ezbeq
+    $ poetry install
+
+### Docker
+
+The official ezBEQ docker image is published at https://github.com/3ll3d00d/ezbeq-docker.
+See that project's README for setup instructions, example compose files, and USB device configuration.
+
+#### Running in Docker
+
+Set `EZBEQ_ACCESS_LOG_STDOUT=1` in your container environment to echo every HTTP request to stdout so it appears in `docker compose logs`. This is independent of `accessLogging:` in `ezbeq.yml` (which controls the access log file).
 
 ### Example Config Files
 
@@ -59,23 +104,90 @@ See the configuration section below
 
 ## Upgrade
 
-    $ ssh pi@myrpi
-    $ cd python/ezbeq
-    $ . bin/activate
-    $ pip install --upgrade --force-reinstall ezbeq
+    $ cd ezbeq
+    $ git pull
+    $ poetry install
 
 then restart the app
 
-## Running the app manually
+## Scripts (bin/)
 
-    $ ssh pi@myrpi
-    $ cd python/ezbeq
-    $ . bin/activate
-    $ ./bin/ezbeq
-      Loading config from /home/pi/.ezbeq/ezbeq.yml
-      2021-01-16 08:43:15,374 - twisted - INFO - __init__ - Serving ui from /home/pi/python/ezbeq/lib/python3.8/site-packages/ezbeq/ui
+| Script | Purpose |
+|--------|---------|
+| [`bin/run-server`](#running-the-app) | Start the server with real hardware |
+| [`bin/run-server-stub`](#stub-mode--no-hardware-required) | Start with a simulated device — no hardware needed |
+| [`bin/run-ui-dev`](#frontend-hot-reload-ui-development) | Hot-reload UI dev mode (Vite + Python backend) |
+| [`bin/run-tests`](#running-the-tests) | Run pytest suite + smoke test |
+| [`bin/smoke-test`](#smoke-test) | HTTP smoke test against a running server |
 
-Now open http://youripaddress:8080/index.html in your browser
+## How the app is structured
+
+ezbeq is a single Python server (Twisted) that does two things:
+
+1. **Serves the REST API** — `/api/...` routes handled by Flask
+2. **Serves the React UI** — pre-built static files from `ezbeq/ui/`
+
+The UI source lives in `ui/` and is built with [Vite](https://vitejs.dev/) /
+[Yarn](https://yarnpkg.com/). Running `yarn build` compiles it into
+`ezbeq/ui/`, which the Python server then picks up automatically. The Docker
+image ships with the UI pre-built.
+
+## Running the app
+
+    $ cd ezbeq
+    $ bin/run-server
+
+Then open http://localhost:8080 in your browser.
+
+> **Note:** `bin/run-server` requires the `minidsp` binary in your PATH.
+> Install it from [minidsp-rs releases](https://github.com/mrene/minidsp-rs/releases).
+> To run without hardware, see *Stub mode* below.
+
+### Stub mode — no hardware required
+
+Simulates a MiniDSP 2x4HD in memory. No `minidsp` binary or physical device
+needed. Builds the UI automatically if it hasn't been built yet.
+
+    $ bin/run-server-stub
+
+Then open http://localhost:8080.
+
+### Frontend hot-reload (UI development)
+
+For iterating on the React UI without rebuilding after every change:
+
+    $ bin/run-ui-dev
+
+This starts **two** processes and wires them together:
+
+| Process | URL | Purpose |
+|---------|-----|---------|
+| Python backend (stub) | http://localhost:8080 | API + WebSocket |
+| Vite dev server | http://localhost:5174 | UI with hot-reload |
+
+Open **http://localhost:5174** in your browser. Edits to files under `ui/src/`
+are reflected instantly. The Python backend does not hot-reload; restart the
+script when you change backend code.
+
+> **Requires Node + Yarn.** Node is available via
+> [homebrew](https://formulae.brew.sh/formula/node) (`brew install node`).
+> Yarn is activated via `corepack enable yarn`.
+
+### Running the tests
+
+    $ bin/run-tests
+
+This runs the pytest suite followed by an HTTP smoke test that starts a stub
+server, makes real HTTP requests, and checks the responses.
+
+### Smoke test
+
+`bin/smoke-test` can also be run standalone — useful for checking a server
+that is already running:
+
+    $ bin/smoke-test                  # start a temporary stub server, run checks, stop
+    $ bin/smoke-test --port 9999      # same, but on a custom port
+    $ bin/smoke-test --no-start       # check a server already running on port 8080
 
 ## Configuration
 
