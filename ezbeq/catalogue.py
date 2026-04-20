@@ -634,6 +634,20 @@ class Catalogues:
         else:
             return None
 
+    def whats_new(self, since: int, limit: int = 50) -> list[dict]:
+        catalogue = self.latest
+        if not catalogue:
+            return []
+        fields = [ID, FORMATTED_TITLE, YEAR, AUTHOR, CONTENT_TYPE, AUDIO_TYPES, CREATED_AT, UPDATED_AT]
+        fields_str = ', '.join(fields)
+        sql = (
+            f"SELECT {fields_str} FROM catalogue_entry "
+            f"WHERE version = '{catalogue.version}' "
+            f"AND ({CREATED_AT} >= {since} OR {UPDATED_AT} >= {since}) "
+            f"ORDER BY MAX({CREATED_AT}, {UPDATED_AT}) DESC"
+        )
+        return self.__fetch_entries(sql, fields, limit)
+
     def search(self, authors: list[str], years: list[int], audio_types: list[str], content_types: list[str],
                tmdb_id: str, text: str | None, audio_codecs: list[str], audio_channel_counts: list[str],
                fields: list[str], limit: int | None) -> list[dict]:
@@ -772,6 +786,11 @@ class CatalogueProvider:
     @property
     def years(self) -> list[str]:
         return self.__load_meta_if_present(YEAR)
+
+    def whats_new(self, since: int, limit: int = 50) -> list[dict]:
+        from twisted.internet import reactor
+        reactor.callLater(0, self.__catalogues.refresh_if_stale)
+        return self.__catalogues.whats_new(since, limit)
 
     def search(self, authors: list[str], years: list[int], audio_types: list[str], content_types: list[str],
                tmdb_id: str, text: str | None, audio_codecs: list[str], audio_channel_counts: list[str],

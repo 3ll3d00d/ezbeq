@@ -9,7 +9,7 @@ from flask_compress import Compress
 from flask_restx import Api
 
 from ezbeq.apis import search, version, devices, authors, audiotypes, years, contenttypes, languages, meta, \
-    catalogue as cat_api, diagnostics, load
+    catalogue as cat_api, diagnostics, load, whatsnew
 from ezbeq.apis.ws import WsServer, AutobahnWsServer
 from ezbeq.catalogue import CatalogueProvider, LoadTester
 from ezbeq.config import Config
@@ -59,6 +59,7 @@ def create_app(config: Config, ws: WsServer = AutobahnWsServer()) -> tuple[Flask
     decorate_ns(languages.api)
     decorate_ns(meta.api)
     decorate_ns(cat_api.api)
+    decorate_ns(whatsnew.api)
     if tracemalloc.is_tracing():
         decorate_ns(diagnostics.api)
     return app, ws_server
