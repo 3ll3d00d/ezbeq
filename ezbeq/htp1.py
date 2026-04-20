@@ -152,7 +152,7 @@ class Htp1(PersistentDevice[Htp1State]):
         version = version[1:] if version[0] == 'v' or version[0] == 'V' else version
         try:
             self.__supports_shelf = semver.parse_version_info(version) > semver.parse_version_info('1.4.0')
-        except:
+        except ValueError as e:
             logger.error(f"Unable to parse version {mso['versions']['swVer']}, will not send shelf filters")
             self.__supports_shelf = False
         if not self.__supports_shelf:
