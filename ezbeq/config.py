@@ -29,6 +29,19 @@ class Config:
         if not os.path.exists(d):
             os.makedirs(d)
 
+    def as_dict(self) -> dict:
+        """Return the raw config dict (without internal make_runner callables)."""
+        result = {}
+        for k, v in self.config.items():
+            if k == 'devices':
+                result['devices'] = {
+                    name: {dk: dv for dk, dv in dev.items() if not callable(dv)}
+                    for name, dev in v.items()
+                }
+            else:
+                result[k] = v
+        return result
+
     @property
     def enable_metrics(self) -> bool:
         return self.__enable_metrics
@@ -52,9 +65,9 @@ class Config:
     @property
     def is_debug_logging(self):
         """
-        :return: if debug logging mode is on, defaults to False.
+        :return: if debug logging mode is on, defaults to True.
         """
-        return self.config.get('debugLogging', False)
+        return self.config.get('debugLogging', True)
 
     @property
     def is_access_logging(self):
@@ -170,8 +183,35 @@ class Config:
         return logger
 
     def create_minidsp_runner(self, exe: str, options: str):
+        """
+        Build the command object used to invoke the minidsp-rs binary.
+
+        If exe is 'stub', returns a MinidspStubRunner that simulates a MiniDSP
+        2x4HD in memory — no hardware or binary required.  Otherwise resolves
+        the named executable via plumbum and applies any extra CLI options.
+        Exits with a helpful message if the binary cannot be found.
+        """
+        if exe == 'stub':
+            from ezbeq.minidsp import MinidspStubRunner
+            return MinidspStubRunner()
         from plumbum import local
-        cmd = local[exe]
+        from plumbum.commands.processes import CommandNotFound
+        try:
+            cmd = local[exe]
+        except CommandNotFound:
+            raise SystemExit(
+                f"Error: '{exe}' binary not found in PATH.\n"
+                f"\n"
+                f"To connect to real hardware, install minidsp-rs:\n"
+                f"  https://github.com/mrene/minidsp-rs/releases\n"
+                f"\n"
+                f"To run without hardware (stub mode), use:\n"
+                f"  bin/run-server-stub\n"
+                f"  (or set exe: stub in your ezbeq.yml)\n"
+                f"\n"
+                f"Or run via Docker (no local deps required):\n"
+                f"  https://github.com/3ll3d00d/ezbeq-docker"
+            )
         return cmd[options.split(' ')] if options else cmd
 
     def create_ws_client(self, ip: str, port: int, listener):
@@ -193,6 +233,28 @@ class Config:
         return v
 
     @property
+    def git_info(self) -> dict:
+        import subprocess
+        result = {
+            'branch': os.environ.get('GIT_BRANCH'),
+            'sha': os.environ.get('GIT_SHA'),
+        }
+        if result['branch'] and result['sha']:
+            return result
+        try:
+            result['sha'] = subprocess.check_output(
+                ['git', 'rev-parse', '--short', 'HEAD'],
+                stderr=subprocess.DEVNULL, cwd=os.path.dirname(__file__)
+            ).decode().strip()
+            result['branch'] = subprocess.check_output(
+                ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+                stderr=subprocess.DEVNULL, cwd=os.path.dirname(__file__)
+            ).decode().strip()
+        except Exception:
+            pass
+        return result
+
+    @property
     def load_catalogue_at_startup(self):
         return False
 
@@ -208,7 +270,7 @@ class Config:
                 mmap_mb = 50
             else:
                 mmap_mb = 0
-        except:
+        except Exception as e:
             self.logger.exception('Unable to get total physical memory, will default to 0')
         return self.config.get('db_mmap_mb', mmap_mb)
 

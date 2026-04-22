@@ -125,7 +125,7 @@ class CatalogueEntry:
         y = 0
         try:
             y = int(vals.get(YEAR, 0))
-        except:
+        except ValueError as e:
             logger.error(f"Invalid year {vals.get(YEAR, 0)} in {self.title}")
         self.year = y
 
@@ -171,7 +171,7 @@ class CatalogueEntry:
         self.formatted_title = self.__format_title()
         try:
             r = int(vals.get(RUNTIME, 0))
-        except:
+        except ValueError as e:
             logger.error(f"Invalid runtime {vals.get('runtime', 0)} in {self.title}")
             r = 0
         self.runtime = r
@@ -180,7 +180,7 @@ class CatalogueEntry:
             v = vals['mv']
             try:
                 self.mv_adjust = float(v)
-            except:
+            except (ValueError, TypeError) as e:
                 logger.error(f"Unknown mv_adjust value in {self.title} - {vals['mv']}")
         self.freshness = compute_freshness(self.created_at, self.updated_at)
 
@@ -344,7 +344,7 @@ class Catalogues:
                 'data': self.__fetch_entries(select, UI_FIELDS, limit, offset)
             }, ensure_ascii=False)
             end = time.time()
-            logger.info(f'Loaded chunk from {offset} to {next_offset} in {to_millis(begin, end)}ms')
+            logger.debug(f'Loaded chunk from {offset} to {next_offset} in {to_millis(begin, end)}ms')
             vals = {'count': count, 'limit': self.__chunk_sizes[1], 'offset': next_offset, 'start': start}
             from twisted.internet import threads
             threads.deferToThread(lambda: self.__load_next_chunk(publisher, version, **vals)).addCallback(publisher)
@@ -439,7 +439,7 @@ class Catalogues:
                             catalogue = self.__insert_catalogue(f.read().strip(), meta_only=loaded == 2)
                             if catalogue:
                                 catalogues.append(catalogue)
-                except:
+                except Exception as e:
                     logger.exception(
                         f'[{self.__db}] Failed to load catalogue at startup from {self.__catalogue_file}')
         return catalogues
@@ -608,7 +608,7 @@ class Catalogues:
                 after = time.time()
                 logger.info(f'Vacuumed DB in {to_millis(before, after)} ms')
             else:
-                logger.info('Nothing to prune')
+                logger.debug(f'Nothing to prune')
 
     def refresh_if_stale(self):
         if not self.loaded or self.latest.stale:
@@ -633,6 +633,20 @@ class Catalogues:
             return results[0] if as_dict else CatalogueEntry(results[0][ID], results[0])
         else:
             return None
+
+    def whats_new(self, since: int, limit: int = 50) -> list[dict]:
+        catalogue = self.latest
+        if not catalogue:
+            return []
+        fields = [ID, FORMATTED_TITLE, YEAR, AUTHOR, CONTENT_TYPE, AUDIO_TYPES, CREATED_AT, UPDATED_AT]
+        fields_str = ', '.join(fields)
+        sql = (
+            f"SELECT {fields_str} FROM catalogue_entry "
+            f"WHERE version = '{catalogue.version}' "
+            f"AND ({CREATED_AT} >= {since} OR {UPDATED_AT} >= {since}) "
+            f"ORDER BY MAX({CREATED_AT}, {UPDATED_AT}) DESC"
+        )
+        return self.__fetch_entries(sql, fields, limit)
 
     def search(self, authors: list[str], years: list[int], audio_types: list[str], content_types: list[str],
                tmdb_id: str, text: str | None, audio_codecs: list[str], audio_channel_counts: list[str],
@@ -710,7 +724,7 @@ class Catalogues:
             res = cur.execute(select)
             rows = res.fetchmany(size=limit if limit else 20000)
             after_load = time.time()
-            logger.info(f'Loaded {len(rows)} entries from db in {to_millis(before, after_load)} ms')
+            logger.debug(f'Loaded {len(rows)} entries from db in {to_millis(before, after_load)} ms')
             for row in rows:
                 vals = {k: v for k, v in {fields[i]: reformat(i, r) for i, r in enumerate(row)}.items() if v}
                 if UPDATED_AT in vals and CREATED_AT in vals:
@@ -724,8 +738,7 @@ class Catalogues:
                     vals['mvAdjust'] = vals[MV_ADJUST]
                 entries.append(vals)
             after = time.time()
-            logger.info(
-                f'Parsed {len(entries)} entries from db in {to_millis(after_load, after)} ms, total time {to_millis(before, after)} ms')
+            logger.debug(f'Parsed {len(entries)} entries from db in {to_millis(after_load, after)} ms, total time {to_millis(before, after)} ms')
             return entries
 
 
@@ -774,6 +787,11 @@ class CatalogueProvider:
     def years(self) -> list[str]:
         return self.__load_meta_if_present(YEAR)
 
+    def whats_new(self, since: int, limit: int = 50) -> list[dict]:
+        from twisted.internet import reactor
+        reactor.callLater(0, self.__catalogues.refresh_if_stale)
+        return self.__catalogues.whats_new(since, limit)
+
     def search(self, authors: list[str], years: list[int], audio_types: list[str], content_types: list[str],
                tmdb_id: str, text: str | None, audio_codecs: list[str], audio_channel_counts: list[str],
                fields: list[str], limit: int | None = 100) -> list[dict]:
@@ -795,7 +813,7 @@ class CatalogueProvider:
         return finder(val)
 
     def __load_meta_if_present(self, meta_type: str):
-        logger.info(f'Loading meta for {meta_type}')
+        logger.debug(f'Loading meta for {meta_type}')
         from twisted.internet import reactor
         reactor.callLater(0, self.__catalogues.refresh_if_stale)
         latest = self.__catalogues.latest
@@ -847,7 +865,7 @@ class DatabaseDownloader:
                     return True
                 else:
                     logger.warning(f"Unable to download catalogue, response is {r.status_code}")
-            except:
+            except Exception as e:
                 logger.exception("Unable to download catalogue, unexpected error")
         else:
             logger.info(f"No reload required {remote_version} vs {self.__cached_version}")
@@ -865,7 +883,7 @@ class DatabaseDownloader:
                 return txt.strip() if txt else txt
             else:
                 logger.warning(f"Unable to get {self.__version_url}, response was {r.status_code}")
-        except:
+        except Exception as e:
             logger.exception(f"Failed to get {self.__version_url}")
         return None
 

@@ -2059,6 +2059,115 @@ def test_patch_v3_multiple_fields(minidsp_client, minidsp_app):
             verify_slot(s, idx + 1)
 
 
+@pytest.mark.parametrize("slot", [1, 2, 3, 4])
+@pytest.mark.parametrize("mute_value", [True, False])
+def test_patch_v3_output_mute_all_channels(minidsp_client, minidsp_app, slot, mute_value):
+    """PATCH v3 with outputMutes for every output channel issues one `output N mute on/off` per channel."""
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    assert isinstance(config, MinidspSpyConfig)
+    payload = {
+        'slots': [{
+            'id': str(slot),
+            'outputMutes': [{'id': str(i), 'value': mute_value} for i in range(1, 5)]
+        }]
+    }
+    r = minidsp_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
+    assert r.status_code == 200
+    cmds = verify_cmd_count(config.spy, slot, 4)
+    op = 'on' if mute_value else 'off'
+    for i in range(4):
+        assert cmds[i] == f"output {i} mute {op}"
+    # state includes outputMutes for the target slot
+    slot_state = next(s for s in r.json['slots'] if s['id'] == str(slot))
+    assert len(slot_state['outputMutes']) == 4
+    for m in slot_state['outputMutes']:
+        assert m['value'] is mute_value
+
+
+@pytest.mark.parametrize("slot", [1, 2, 3, 4])
+@pytest.mark.parametrize("channel", [1, 2, 3, 4])
+@pytest.mark.parametrize("mute_value", [True, False])
+def test_patch_v3_output_mute_single_channel(minidsp_client, minidsp_app, slot, channel, mute_value):
+    """PATCH v3 with outputMutes for one channel only issues that single minidsp command."""
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    payload = {
+        'slots': [{
+            'id': str(slot),
+            'outputMutes': [{'id': str(channel), 'value': mute_value}]
+        }]
+    }
+    r = minidsp_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
+    assert r.status_code == 200
+    cmds = verify_cmd_count(config.spy, slot, 1)
+    op = 'on' if mute_value else 'off'
+    assert cmds[0] == f"output {channel - 1} mute {op}"
+    # state has mute set only on the target channel, others remain default (False)
+    slot_state = next(s for s in r.json['slots'] if s['id'] == str(slot))
+    assert len(slot_state['outputMutes']) == 4
+    for m in slot_state['outputMutes']:
+        if m['id'] == str(channel):
+            assert m['value'] is mute_value
+        else:
+            assert m['value'] is False
+
+
+@pytest.mark.parametrize("slot", [1, 2, 3, 4])
+@pytest.mark.parametrize("gain", [-12.5, 0.0, 6.25])
+def test_patch_v3_output_gain_all_channels(minidsp_client, minidsp_app, slot, gain):
+    """PATCH v3 with outputGains sets gain on every output channel."""
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    payload = {
+        'slots': [{
+            'id': str(slot),
+            'outputGains': [{'id': str(i), 'value': gain} for i in range(1, 5)]
+        }]
+    }
+    r = minidsp_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
+    assert r.status_code == 200
+    cmds = verify_cmd_count(config.spy, slot, 4)
+    for i in range(4):
+        assert cmds[i] == f"output {i} gain -- {gain:.2f}"
+    slot_state = next(s for s in r.json['slots'] if s['id'] == str(slot))
+    assert len(slot_state['outputGains']) == 4
+    for g in slot_state['outputGains']:
+        assert g['value'] == gain
+
+
+@pytest.mark.parametrize("channel", [1, 2, 3, 4])
+def test_patch_v3_output_gain_single_channel(minidsp_client, minidsp_app, channel):
+    """PATCH v3 with one outputGain only touches that channel; others remain 0.0."""
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    payload = {
+        'slots': [{
+            'id': '1',
+            'outputGains': [{'id': str(channel), 'value': -3.5}]
+        }]
+    }
+    r = minidsp_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
+    assert r.status_code == 200
+    cmds = verify_cmd_count(config.spy, 1, 1)
+    assert cmds[0] == f"output {channel - 1} gain -- -3.50"
+    slot_state = next(s for s in r.json['slots'] if s['id'] == '1')
+    for g in slot_state['outputGains']:
+        if g['id'] == str(channel):
+            assert g['value'] == -3.5
+        else:
+            assert g['value'] == 0.0
+
+
+def test_default_state_includes_output_gains_and_mutes(minidsp_client, minidsp_app):
+    """2x4HD has 4 outputs so every slot exposes outputGains/outputMutes in the default state."""
+    r = minidsp_client.get("/api/1/devices")
+    assert r.status_code == 200
+    for slot in r.json['slots']:
+        assert len(slot['outputGains']) == 4
+        assert len(slot['outputMutes']) == 4
+        for g in slot['outputGains']:
+            assert g['value'] == 0.0
+        for m in slot['outputMutes']:
+            assert m['value'] is False
+
+
 def test_patch_v2_multiple_fields(minidsp_client, minidsp_app):
     config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
     assert isinstance(config, MinidspSpyConfig)

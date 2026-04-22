@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Run ezbeq with a stub device - no hardware or minidsp binary required.
+# Config is written to a temporary directory so it doesn't interfere with
+# your real ~/.ezbeq setup.
+#
+# The React UI is built into ezbeq/ui/ before starting if it isn't already
+# present. Re-run `yarn build` in the ui/ directory any time you change the
+# frontend code.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+# ── Build the UI if it hasn't been built yet ──────────────────────────────────
+if [[ ! -f ezbeq/ui/index.html ]]; then
+    echo "UI not built — running yarn build in ui/ ..."
+    (cd ui && yarn install --silent && yarn build)
+    echo
+fi
+
+# ── Write a throw-away config and start the server ───────────────────────────
+STUB_CONFIG_DIR="${TMPDIR:-/tmp}/ezbeq-stub"
+mkdir -p "$STUB_CONFIG_DIR"
+
+cat > "$STUB_CONFIG_DIR/ezbeq.yml" << 'EOF'
+port: 9968
+accessLogging: false
+debugLogging: true
+devices:
+  master:
+    type: minidsp
+    exe: stub
+EOF
+
+echo "Starting ezbeq in stub mode"
+echo "  Config : $STUB_CONFIG_DIR/ezbeq.yml"
+echo "  Open   : http://localhost:9968"
+echo
+EZBEQ_CONFIG_HOME="$STUB_CONFIG_DIR" exec poetry run ezbeq

@@ -148,7 +148,7 @@ const Uploader = ({
     );
 };
 
-const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotId, setError}) => {
+const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotId, setError, setSuccess, setUploadPendingSlotId}) => {
     const [uploadSlotId, setUploadSlotId] = useState(null);
     const [sendGain, setSendGain] = useState(false);
     const [pending, setPending] = useState(false);
@@ -183,16 +183,20 @@ const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotI
                     }) : []
                 } : null;
                 setPending(true);
+                if (setUploadPendingSlotId) setUploadPendingSlotId(uploadSlotId);
                 try {
                     const call = gains
                         ? () => ezbeq.loadWithMV(selectedDevice.name, selectedEntry.id, uploadSlotId, gains)
                         : () => ezbeq.sendFilter(selectedDevice.name, selectedEntry.id, uploadSlotId);
                     const device = await call();
                     setPending(false);
+                    if (setUploadPendingSlotId) setUploadPendingSlotId(null);
                     setDevice(device);
+                    if (setSuccess) setSuccess('Filter loaded');
                 } catch (e) {
                     setError(e);
                     setPending(false);
+                    if (setUploadPendingSlotId) setUploadPendingSlotId(null);
                 }
             }
         }

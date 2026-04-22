@@ -1,0 +1,32 @@
+# Never send these to the Docker build context
+
+# JS build artefacts — Docker installs and builds these itself
+ui/node_modules/
+ui/.yarn/cache/
+ui/dist/
+
+# Python build artefacts
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# The built React output — Docker builds this inside the image
+ezbeq/ui/
+
+# Git history
+.git/
+.gitignore
+
+# Local dev / worktree metadata
+.claude/
+dev-config/
+docker-compose*.yml
+
+# Logs and local state
+*.log
+**/*.log

@@ -274,7 +274,7 @@ class DevicesV2(Resource):
         from ezbeq import to_millis
         start = time.time()
         v = {n: d.serialise() for n, d in self.__bridge.all_devices(refresh=True).items()}
-        logger.info(f'Loaded device state in {to_millis(start, time.time())}ms')
+        logger.debug(f'Loaded device state in {to_millis(start, time.time())}ms')
         return v
 
 
@@ -312,9 +312,9 @@ class DeviceV2(Resource):
                 slot['gains'] = [{'id': str(i + 1), 'value': v} for i, v in enumerate(slot['gains'])]
             if 'mutes' in slot:
                 slot['mutes'] = [{'id': str(i + 1), 'value': v} for i, v in enumerate(slot['mutes'])]
-        logger.info(f"PATCHing {device_name} with {payload}")
+        logger.debug(f"PATCHing {device_name} with {payload}")
         if not self.__bridge.update(device_name, payload):
-            logger.info(f"PATCH {device_name} was a nop")
+            logger.debug(f"PATCH {device_name} was a nop")
         return self.__bridge.state(device_name).serialise()
 
 
@@ -336,6 +336,10 @@ slot_model_v3 = v3_api.model('SlotV3', {
                          description='(Optional) gains to set on the specified input channels (minidsp, camilladsp)'),
     'mutes': fields.List(fields.Nested(mute_model_v3), required=False,
                          description='(Optional) allows each input channel to be muted or unmuted individually (minidsp, camilladsp)'),
+    'outputGains': fields.List(fields.Nested(gain_model_v3), required=False,
+                               description='(Optional) gains to set on the specified output channels (minidsp)'),
+    'outputMutes': fields.List(fields.Nested(mute_model_v3), required=False,
+                               description='(Optional) allows each output channel to be muted or unmuted individually (minidsp)'),
     'entry': fields.String(required=False, description='(Optional) Accepts value from either the id or digest fields')
 })
 
@@ -358,13 +362,13 @@ class DeviceV3(Resource):
     @v3_api.expect(device_model_v3, validate=True)
     def patch(self, device_name: str) -> tuple[dict, int]:
         payload = request.get_json()
-        logger.info(f"PATCHing {device_name} with {payload}")
+        logger.debug(f"PATCHing {device_name} with {payload}")
         try:
             updated = self.__bridge.update(device_name, payload)
             if updated:
                 logger.info(f"PATCHed {device_name}")
             else:
-                logger.info(f"PATCH {device_name} was a nop")
+                logger.debug(f"PATCH {device_name} was a nop")
         except UnableToPatchDeviceError as e:
             logger.exception(f'PATCH {device_name} failure')
             return {'message': f'Update failed : {e.msg}'}, e.code

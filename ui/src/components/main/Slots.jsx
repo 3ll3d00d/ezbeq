@@ -1,5 +1,5 @@
 import { styled } from '@mui/material/styles';
-import React, {useCallback, useEffect, useState} from "react";
+import React, {useCallback, useEffect, useRef, useState} from "react";
 import ezbeq from "../../services/ezbeq";
 import {CircularProgress, Grid, IconButton, Paper} from "@mui/material";
 import Box from '@mui/material/Box';
@@ -65,7 +65,7 @@ const getCurrentState = (active, label, slotId) => {
 const chunk = (arr, size) => arr.reduce((chunks, el, i) => (i % size ? chunks[chunks.length - 1].push(el) : chunks.push([el])) && chunks, []);
 
 const defaultGain = {
-    master_mv: 0.0, master_mute: false, gains: [], mutes: []
+    master_mv: 0.0, master_mute: false, gains: [], mutes: [], output_gains: [], output_mutes: []
 };
 
 const Slot = ({selected, slot, onSelect, isPending, onClear}) => {
@@ -94,60 +94,67 @@ const Slot = ({selected, slot, onSelect, isPending, onClear}) => {
     );
 };
 
-const Slots = ({selectedDevice, selectedSlotId, useWide, setDevice, setUserDriven, setError}) => {
+const Slots = ({selectedDevice, selectedSlotId, useWide, setDevice, setUserDriven, setError, setSuccess, uploadPendingSlotId}) => {
 
     const [pending, setPending] = useState([]);
     const [currentGains, setCurrentGains] = useState(defaultGain);
-    const [deviceGains, setDeviceGains] = useState({});
+    const [deviceGains, setDeviceGains] = useState({...defaultGain});
+    const prevDeviceNameRef = useRef(null);
+    const prevSlotIdRef = useRef(null);
 
-    const updateGain = useCallback((parent, key, value) => {
-        const newGains = JSON.parse(JSON.stringify(currentGains));
-        let updated = true;
+    const applyGainChange = (gains, parent, key, value) => {
+        const newGains = JSON.parse(JSON.stringify(gains));
+        const isOutput = typeof parent === 'string' && parent.startsWith('out_');
+        const channelId = isOutput ? parent.slice(4) : parent;
         if (key === 'mv') {
-            if (parent === 'master') {
-                newGains.master_mv = value;
-            } else {
-                const match = newGains.gains.find(e => e.id === parent);
-                if (match) {
-                    match.value = value
-                } else {
-                    updated = false;
-                }
-            }
+            if (parent === 'master') newGains.master_mv = value;
+            else if (isOutput) { const m = newGains.output_gains.find(e => e.id === channelId); if (m) m.value = value; }
+            else { const m = newGains.gains.find(e => e.id === parent); if (m) m.value = value; }
         } else if (key === 'mute') {
-            if (parent === 'master') {
-                newGains.master_mute = value;
-            } else {
-                const match = newGains.mutes.find(e => e.id === parent);
-                if (match) {
-                    match.value = value
-                } else {
-                    updated = false;
-                }
-            }
-        } else {
-            updated = false;
+            if (parent === 'master') newGains.master_mute = value;
+            else if (isOutput) { const m = newGains.output_mutes.find(e => e.id === channelId); if (m) m.value = value; }
+            else { const m = newGains.mutes.find(e => e.id === parent); if (m) m.value = value; }
         }
-        if (updated) {
-            setCurrentGains(newGains);
-        } else {
-            console.warn(`Ignoring unknown update : ${parent}.${key}=${value}`);
-        }
-    }, [currentGains, setCurrentGains]);
+        return newGains;
+    };
 
-    // reset gain on slot (de)select or device update
+    // local state only — for smooth slider drag display
+    const updateGain = useCallback((parent, key, value) => {
+        setCurrentGains(g => applyGainChange(g, parent, key, value));
+    }, []);
+
+    // update state AND send only the changed field to device
+    const commitGain = useCallback((parent, key, value) => {
+        setCurrentGains(g => applyGainChange(g, parent, key, value));
+        ezbeq.patchSingle(selectedDevice.name, parent, key, value, selectedSlotId)
+            .catch(e => setError(e));
+    }, [selectedSlotId, selectedDevice]);
+
+    // sync gains from device state
     useEffect(() => {
         if (selectedDevice) {
             const gain = {...defaultGain};
-            gain.master_mv = selectedDevice.masterVolume;
-            gain.master_mute = selectedDevice.mute;
-            if (selectedSlotId && selectedDevice && selectedDevice.hasOwnProperty('slots')) {
+            gain.master_mv = selectedDevice.masterVolume ?? 0.0;
+            gain.master_mute = selectedDevice.mute ?? false;
+            if (selectedSlotId && selectedDevice.hasOwnProperty('slots')) {
                 const slot = selectedDevice.slots.find(s => s.id === selectedSlotId);
-                gain.gains = slot.hasOwnProperty('gains') ? slot.gains : [];
-                gain.mutes = slot.hasOwnProperty('mutes') ? slot.mutes : [];
+                if (slot) {
+                    gain.gains = slot.hasOwnProperty('gains') ? slot.gains : [];
+                    gain.mutes = slot.hasOwnProperty('mutes') ? slot.mutes : [];
+                    gain.output_gains = slot.hasOwnProperty('outputGains') ? slot.outputGains : [];
+                    gain.output_mutes = slot.hasOwnProperty('outputMutes') ? slot.outputMutes : [];
+                }
             }
             setDeviceGains(gain);
-            setCurrentGains(gain);
+            // Only reset the user-facing controls when the device or slot actually changes,
+            // not on every WebSocket update (which would fight the user's in-progress changes)
+            const deviceChanged = selectedDevice.name !== prevDeviceNameRef.current;
+            const slotChanged = selectedSlotId !== prevSlotIdRef.current;
+            if (deviceChanged || slotChanged) {
+                setCurrentGains(gain);
+                prevDeviceNameRef.current = selectedDevice.name;
+                prevSlotIdRef.current = selectedSlotId;
+            }
         }
     }, [selectedDevice, selectedSlotId]);
 
@@ -172,12 +179,10 @@ const Slots = ({selectedDevice, selectedSlotId, useWide, setDevice, setUserDrive
         }
     };
 
-    const sendGainToDevice = (slotId, gains) => {
-        trackDeviceUpdate('gain', slotId, () => ezbeq.setGains(selectedDevice.name, slotId, gains));
-    };
-
-    const clearDeviceSlot = (slotId) => {
-        trackDeviceUpdate('clear', slotId, () => ezbeq.clearSlot(selectedDevice.name, slotId));
+const clearDeviceSlot = (slotId) => {
+        trackDeviceUpdate('clear', slotId, () => ezbeq.clearSlot(selectedDevice.name, slotId), () => {
+            if (setSuccess) setSuccess('Slot cleared');
+        });
     };
 
     const activateSlot = (slotId) => {
@@ -185,7 +190,7 @@ const Slots = ({selectedDevice, selectedSlotId, useWide, setDevice, setUserDrive
     };
 
     const isPending = (slotId) => {
-        return getCurrentState(pending, 'clear', slotId) === 1 || getCurrentState(pending, 'activate', slotId) === 1;
+        return getCurrentState(pending, 'clear', slotId) === 1 || getCurrentState(pending, 'activate', slotId) === 1 || uploadPendingSlotId === slotId;
     };
 
     const rows = chunk(selectedDevice && selectedDevice.hasOwnProperty('slots') ? selectedDevice.slots : [], 2);
@@ -203,13 +208,13 @@ const Slots = ({selectedDevice, selectedSlotId, useWide, setDevice, setUserDrive
         </Grid>
     );
 
+    // Show gain panel whenever device supports it (not gated on slot selection)
     if (selectedDevice && selectedDevice.hasOwnProperty('masterVolume')) {
         const gain = <Gain selectedSlotId={selectedSlotId}
                            deviceGains={deviceGains}
                            gains={currentGains}
                            updateGain={updateGain}
-                           sendGains={sendGainToDevice}
-                           isActive={() => getCurrentState(pending, 'gain', selectedSlotId) === 1}/>;
+                           commitGain={commitGain}/>;
         if (useWide) {
             return (
                 <Box sx={{flexGrow: 1}}>
