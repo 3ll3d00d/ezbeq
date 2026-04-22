@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Build and run ezbeq from the local source tree.
+# Reads configuration from .env (copy .env.example and fill in values).
+# Run this script from the docker/ directory.
+#
+# Usage:
+#   bin/run-local               # build + start detached
+#   bin/run-local --logs        # build + start + follow logs
+#   bin/run-local --rebuild     # force clean rebuild + follow logs
+#   bin/run-local --stop        # stop and remove the container
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+# ── Load .env ─────────────────────────────────────────────────────────────────
+if [[ -f .env ]]; then
+    set -o allexport; source .env; set +o allexport
+fi
+
+EZBEQ_CONFIG="${EZBEQ_CONFIG:-$HOME/.ezbeq/ezbeq.yml}"
+if [[ ! -f "$EZBEQ_CONFIG" ]]; then
+    echo "Error: config not found: $EZBEQ_CONFIG"; exit 1
+fi
+
+# ── Auto-detect port from ezbeq.yml (EZBEQ_PORT in .env overrides) ────────────
+if [[ -z "${EZBEQ_PORT:-}" ]]; then
+    EZBEQ_PORT=$(grep -E '^\s*port\s*:' "$EZBEQ_CONFIG" 2>/dev/null | head -1 \
+        | sed 's/[^:]*:[[:space:]]*//' | tr -d ' \r\n')
+    EZBEQ_PORT="${EZBEQ_PORT:-8080}"
+fi
+
+# ── Git build info (passed into container for the UI footer) ─────────────────
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+GIT_BRANCH=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+GIT_SHA=$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo "")
+
+export EZBEQ_CONFIG_HOME="$(dirname "$EZBEQ_CONFIG")" EZBEQ_PORT GIT_BRANCH GIT_SHA
+
+echo "Source : $REPO_ROOT"
+echo "Config : $EZBEQ_CONFIG"
+echo "Port   : $EZBEQ_PORT"
+echo "Branch : ${GIT_BRANCH:-unknown}"
+echo "SHA    : ${GIT_SHA:-unknown}"
+
+# ── Run ───────────────────────────────────────────────────────────────────────
+BUILD="--build"
+case "${1:-}" in
+    --rebuild) BUILD="--build --no-cache" ;;
+    --stop)    docker compose -f docker-compose.yaml -f docker-compose.dev.yaml down; exit 0 ;;
+esac
+
+COMPOSE="docker compose -f docker-compose.yaml -f docker-compose.dev.yaml"
+
+if [[ "${1:-}" == "--logs" || "${1:-}" == "--rebuild" ]]; then
+    $COMPOSE up -d $BUILD
+    $COMPOSE logs -f
+else
+    $COMPOSE up -d $BUILD
+    echo ""
+    echo "Running at http://localhost:$EZBEQ_PORT"
+    echo "Logs: bin/run-local --logs   |   Stop: bin/run-local --stop"
+fi

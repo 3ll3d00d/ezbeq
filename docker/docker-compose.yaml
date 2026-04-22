@@ -1,0 +1,14 @@
+services:
+  ezbeq-docker:
+    image: ghcr.io/astubbs/ezbeq:main
+    container_name: ezbeq
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f -s http://localhost:${EZBEQ_PORT:-8080}/api/1/version || exit 1"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+    volumes:
+      - ${EZBEQ_CONFIG_HOME:-~/.ezbeq}:/config
+    ports:
+      - "${EZBEQ_PORT:-8080}:${EZBEQ_PORT:-8080}"

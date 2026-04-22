@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# Integration test: verify that GIT_BRANCH and GIT_SHA are visible in the
+# version API when the Docker image is built with --build-arg.
+#
+# Uses a minimal inline Dockerfile so the test works on any branch that
+# has the version API git_info support (no dependency on docker/).
+#
+# Usage:
+#   bin/test-docker-git-info
+#
+# Exit code 0 = pass, 1 = fail.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+CONTAINER_NAME="ezbeq-git-info-test"
+TEST_BRANCH="test/integration-branch"
+TEST_SHA="abc1234"
+PORT=19968
+IMAGE="ezbeq-git-info-test:latest"
+
+cleanup() {
+    docker rm -f "$CONTAINER_NAME" > /dev/null 2>&1 || true
+    rm -f "$DOCKERFILE_TMP" 2>/dev/null || true
+    rm -rf "$STUB_CONFIG_DIR" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+# ── Inline Dockerfile (minimal, just enough to run ezbeq) ────────────────────
+DOCKERFILE_TMP=$(mktemp)
+cat > "$DOCKERFILE_TMP" << 'DOCKERFILE'
+FROM python:3.13-slim-trixie
+ARG GIT_BRANCH=""
+ARG GIT_SHA=""
+ENV GIT_BRANCH=${GIT_BRANCH}
+ENV GIT_SHA=${GIT_SHA}
+ENV EZBEQ_CONFIG_HOME=/config
+WORKDIR /app
+RUN pip install --no-cache-dir poetry
+COPY pyproject.toml poetry.lock ./
+COPY ezbeq/ ./ezbeq/
+COPY README.md ./
+RUN mkdir -p ezbeq/ui && echo '<html><body>test</body></html>' > ezbeq/ui/index.html
+RUN poetry config virtualenvs.create false && poetry install --no-interaction
+VOLUME ["/config"]
+CMD ["ezbeq"]
+DOCKERFILE
+
+echo "=== Building Docker image with GIT_BRANCH=$TEST_BRANCH GIT_SHA=$TEST_SHA ==="
+docker build \
+    -f "$DOCKERFILE_TMP" \
+    --build-arg "GIT_BRANCH=$TEST_BRANCH" \
+    --build-arg "GIT_SHA=$TEST_SHA" \
+    -t "$IMAGE" \
+    . 2>&1 | tail -5
+
+echo "=== Starting container on port $PORT ==="
+STUB_CONFIG_DIR=$(mktemp -d)
+cat > "$STUB_CONFIG_DIR/ezbeq.yml" << 'YAML'
+port: 19968
+accessLogging: false
+debugLogging: false
+devices:
+  master:
+    type: minidsp
+    exe: stub
+YAML
+
+docker run -d \
+    --name "$CONTAINER_NAME" \
+    -p "$PORT:$PORT" \
+    -v "$STUB_CONFIG_DIR:/config" \
+    "$IMAGE" > /dev/null
+
+echo "=== Waiting for server to be ready ==="
+RETRIES=30
+for i in $(seq 1 $RETRIES); do
+    if curl -sf "http://localhost:$PORT/api/1/version" > /dev/null 2>&1; then
+        break
+    fi
+    if [ "$i" -eq "$RETRIES" ]; then
+        echo "FAIL: server did not start within ${RETRIES}s"
+        docker logs "$CONTAINER_NAME" 2>&1 | tail -20
+        exit 1
+    fi
+    sleep 1
+done
+
+echo "=== Checking /api/1/version ==="
+RESPONSE=$(curl -sf "http://localhost:$PORT/api/1/version")
+echo "Response: $RESPONSE"
+
+# Verify branch
+ACTUAL_BRANCH=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('branch',''))")
+if [ "$ACTUAL_BRANCH" != "$TEST_BRANCH" ]; then
+    echo "FAIL: expected branch '$TEST_BRANCH', got '$ACTUAL_BRANCH'"
+    exit 1
+fi
+
+# Verify SHA
+ACTUAL_SHA=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('sha',''))")
+if [ "$ACTUAL_SHA" != "$TEST_SHA" ]; then
+    echo "FAIL: expected sha '$TEST_SHA', got '$ACTUAL_SHA'"
+    exit 1
+fi
+
+echo ""
+echo "PASS: version API returned branch=$ACTUAL_BRANCH sha=$ACTUAL_SHA"

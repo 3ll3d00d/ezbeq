@@ -1,0 +1,24 @@
+# Local development compose override.
+# Used by bin/run-local via: docker compose -f docker-compose.yaml -f docker-compose.dev.yaml
+# Not loaded automatically — regular users running `docker compose up` are unaffected.
+#
+# Build context is the repo root (..) so source changes are picked up.
+# All values are read from environment variables set in .env (copy .env.example).
+
+services:
+  ezbeq-docker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: dev
+    image: ezbeq-local
+    container_name: ezbeq-local
+    environment:
+      # Echo every HTTP request to stdout so it appears in `docker compose logs`.
+      - EZBEQ_ACCESS_LOG_STDOUT=1
+      # Git build info injected by bin/run-local - surfaces in the UI footer.
+      - GIT_BRANCH
+      - GIT_SHA
+    # Optional: map hostnames to IPs for your network setup
+    # extra_hosts:
+    #   - "minidsp:192.168.1.86"
