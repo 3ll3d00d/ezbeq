@@ -282,10 +282,11 @@ image: ghcr.io/<owner>/ezbeq:main
 scripts/publish-image              # prompt for tag (default: demo)
 scripts/publish-image demo         # build + push ghcr.io/<owner>/ezbeq:demo
 scripts/publish-image demo v1.2.3  # multiple tags in one push
-OWNER=3ll3d00d scripts/publish-image demo   # override the GHCR owner
+OWNER=3ll3d00d scripts/publish-image demo           # override the GHCR owner
+PLATFORMS=linux/amd64 scripts/publish-image demo    # single-arch (faster)
 ```
 
-Requires `docker login ghcr.io` first (use a PAT with `write:packages`). The owner is auto-detected from the `origin` remote unless `OWNER` is set. Always rebuilds - no cache shortcut. GIT_BRANCH and GIT_SHA are extracted from the local repo and baked into the image so the UI footer reflects the exact source.
+Produces a multi-arch manifest (`linux/amd64` + `linux/arm64`) in a single buildx step, so the image runs natively on both Apple Silicon and x86_64 hosts. Requires `docker login ghcr.io` first (use a PAT with `write:packages`) and a buildx builder supporting the requested platforms — on Docker Desktop this works out of the box; elsewhere see [Docker buildx docs](https://docs.docker.com/build/building/multi-platform/). The owner is auto-detected from the `origin` remote unless `OWNER` is set. Always rebuilds — no cache shortcut. GIT_BRANCH and GIT_SHA are extracted from the local repo and baked into the image so the UI footer reflects the exact source.
 
 ---
 
