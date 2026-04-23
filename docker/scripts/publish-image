@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+# Build and push a multi-arch Docker image tagged ghcr.io/<owner>/ezbeq:<tag>.
+# Always rebuilds from source. Prompts for a tag if none supplied.
+#
+# Produces images for both linux/amd64 and linux/arm64 (override with PLATFORMS).
+#
+# Usage:
+#   scripts/publish-image              # prompt for tag (default: demo)
+#   scripts/publish-image demo         # build + push ghcr.io/<owner>/ezbeq:demo
+#   scripts/publish-image demo v1.2.3  # multiple tags in one push
+#   OWNER=3ll3d00d scripts/publish-image demo   # override the GHCR owner
+#   PLATFORMS=linux/amd64 scripts/publish-image demo   # single-arch (faster)
+#
+# Requires `docker login ghcr.io` (use a PAT with write:packages) and a buildx
+# builder that supports the requested platforms. On Docker Desktop this works
+# out of the box; elsewhere you may need:
+#   docker buildx create --name multi --use && docker buildx inspect --bootstrap
+set -euo pipefail
+
+PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64}"
+
+# Resolve the repo root from the script's own location, then cd into it so the
+# Dockerfile path resolves correctly under any builder. Works regardless of
+# where the user invoked the script from.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$REPO_ROOT"
+
+# Pre-flight checks.
+if ! command -v docker >/dev/null 2>&1; then
+    echo "Error: docker CLI not found in PATH." >&2
+    exit 1
+fi
+if ! docker buildx version >/dev/null 2>&1; then
+    echo "Error: docker buildx not available." >&2
+    echo "       Install Docker Desktop, or install the buildx plugin:" >&2
+    echo "       https://docs.docker.com/build/install-buildx/" >&2
+    exit 1
+fi
+if [[ ! -f "$REPO_ROOT/docker/Dockerfile" ]]; then
+    echo "Error: $REPO_ROOT/docker/Dockerfile not found." >&2
+    exit 1
+fi
+if ! git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+    echo "Error: $REPO_ROOT is not a git repository." >&2
+    exit 1
+fi
+
+# Verify the current buildx builder supports every requested platform. The
+# default Docker Desktop builder handles both natively; otherwise the user may
+# need to create a container-driver builder.
+current_platforms=$(docker buildx inspect --bootstrap 2>/dev/null | awk -F': ' '/^Platforms:/{print $2}' | tr -d ' ')
+IFS=',' read -r -a requested <<<"$PLATFORMS"
+for p in "${requested[@]}"; do
+    if [[ ",${current_platforms}," != *",${p},"* ]]; then
+        echo "Error: current buildx builder cannot build for $p." >&2
+        echo "       Requested platforms : $PLATFORMS" >&2
+        echo "       Builder platforms   : ${current_platforms:-<none>}" >&2
+        echo "       Fix: docker buildx create --name multi --use && docker buildx inspect --bootstrap" >&2
+        exit 1
+    fi
+done
+
+# Resolve GHCR owner: OWNER env var wins, else parse from `origin` remote.
+if [[ -z "${OWNER:-}" ]]; then
+    origin=$(git remote get-url origin 2>/dev/null || true)
+    OWNER=$(echo "$origin" | sed -nE 's#.*[:/]([^/]+)/ezbeq(\.git)?$#\1#p')
+    if [[ -z "$OWNER" ]]; then
+        echo "Error: could not determine owner from origin remote." >&2
+        echo "       origin url: ${origin:-<unset>}" >&2
+        echo "       Set OWNER=<github-user-or-org> and rerun." >&2
+        exit 1
+    fi
+fi
+
+# Collect tags (positional args) or prompt.
+tags=("$@")
+if [[ ${#tags[@]} -eq 0 ]]; then
+    if [[ ! -t 0 ]]; then
+        echo "Error: no tag given and stdin is not a TTY (cannot prompt)." >&2
+        echo "       Pass a tag as an argument: scripts/publish-image demo" >&2
+        exit 1
+    fi
+    read -r -p "Image tag [demo]: " tag
+    tags=("${tag:-demo}")
+fi
+
+GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "")
+
+# Warn on a dirty worktree — the baked-in SHA won't reflect uncommitted edits.
+if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
+    echo "Warning: uncommitted changes present - baked-in GIT_SHA ($GIT_SHA)" >&2
+    echo "         will not reflect your local edits." >&2
+fi
+
+tag_args=()
+for t in "${tags[@]}"; do
+    tag_args+=(-t "ghcr.io/${OWNER}/ezbeq:${t}")
+done
+
+echo "Owner     : $OWNER"
+echo "Branch    : ${GIT_BRANCH:-unknown}"
+echo "SHA       : ${GIT_SHA:-unknown}"
+echo "Platforms : $PLATFORMS"
+echo "Tags      : ${tags[*]}"
+echo
+
+# Single buildx invocation: builds every requested platform and pushes the
+# manifest list to GHCR in one step. --push is mutually exclusive with --load,
+# so the image is not available locally; to smoke-test first, pass --load and
+# a single platform manually.
+if ! docker buildx build \
+    --platform "$PLATFORMS" \
+    --target production \
+    --build-arg "GIT_BRANCH=${GIT_BRANCH}" \
+    --build-arg "GIT_SHA=${GIT_SHA}" \
+    -f "$REPO_ROOT/docker/Dockerfile" \
+    "${tag_args[@]}" \
+    --push \
+    "$REPO_ROOT"; then
+    echo "Error: buildx build/push failed. If the push step failed, did you run 'docker login ghcr.io'?" >&2
+    echo "       (use a PAT with write:packages)" >&2
+    exit 1
+fi
+
+echo
+echo "Published ${#tags[@]} tag(s) to ghcr.io/${OWNER}/ezbeq for platforms: $PLATFORMS"

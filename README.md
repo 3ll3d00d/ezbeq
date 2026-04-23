@@ -6,6 +6,27 @@ for local remote control of a minidsp or HTP-1.
 
 # Setup
 
+## Docker (recommended)
+
+A Docker image is published to the GitHub Container Registry on every release:
+
+```bash
+docker pull ghcr.io/3ll3d00d/ezbeq:latest
+```
+
+**Quick start with Docker Compose:**
+
+```bash
+cd docker
+docker compose up -d
+```
+
+Then open `http://localhost:8080` in your browser.
+
+The container exposes port `8080` and expects a volume mounted at `/config` for your `ezbeq.yml`. Copy `docker/.env.example` to `docker/.env` to customise the port or config path.
+
+See [docker/README.md](docker/README.md) for full details including local development builds, manual build instructions, and build targets.
+
 ## Windows / MacOS
 
 Python is required so use an appropriate package manager to install it.

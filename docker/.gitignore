@@ -1,0 +1,3 @@
+# docker-local test config and env vars (not covered by repo-root .gitignore)
+config/
+.env

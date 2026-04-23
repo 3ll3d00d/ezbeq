@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# Build and run ezbeq from the local source tree (dev Dockerfile target).
+# Loads optional configuration from docker/.env (copy .env.example if you
+# need to override defaults).
+#
+# Usage:
+#   scripts/run-local               # build + start detached
+#   scripts/run-local --logs        # build + start + follow logs
+#   scripts/run-local --rebuild     # force clean rebuild + follow logs
+#   scripts/run-local --stop        # stop and remove the container
+#   scripts/run-local --help        # show this message
+#
+# Works regardless of the directory the script is invoked from.
+set -euo pipefail
+
+# Resolve the script's own absolute location up front, before any cd, so later
+# path derivations don't depend on CWD.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
+DOCKER_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$DOCKER_DIR/.." && pwd)"
+
+# Operate from the docker/ directory so docker-compose.*.yaml paths are local.
+cd "$DOCKER_DIR"
+
+case "${1:-}" in
+    -h|--help)
+        sed -n '2,13p' "$SCRIPT_PATH" | sed -E 's/^# ?//'
+        exit 0
+        ;;
+esac
+
+# Pre-flight checks.
+if ! command -v docker >/dev/null 2>&1; then
+    echo "Error: docker CLI not found in PATH." >&2
+    exit 1
+fi
+if ! docker compose version >/dev/null 2>&1; then
+    echo "Error: docker compose v2 plugin not available." >&2
+    echo "       Install Docker Desktop or the docker-compose-plugin package." >&2
+    exit 1
+fi
+if [[ ! -f "$DOCKER_DIR/docker-compose.yaml" || ! -f "$DOCKER_DIR/docker-compose.dev.yaml" ]]; then
+    echo "Error: compose files missing in $DOCKER_DIR" >&2
+    exit 1
+fi
+
+# Load .env (optional).
+if [[ -f .env ]]; then
+    set -o allexport; source .env; set +o allexport
+fi
+
+EZBEQ_CONFIG="${EZBEQ_CONFIG:-$HOME/.ezbeq/ezbeq.yml}"
+if [[ ! -f "$EZBEQ_CONFIG" ]]; then
+    echo "Error: ezbeq.yml not found at $EZBEQ_CONFIG" >&2
+    echo "       Create it, or set EZBEQ_CONFIG to its path in docker/.env." >&2
+    exit 1
+fi
+
+# Auto-detect port from ezbeq.yml (EZBEQ_PORT in .env overrides).
+if [[ -z "${EZBEQ_PORT:-}" ]]; then
+    EZBEQ_PORT=$(grep -E '^\s*port\s*:' "$EZBEQ_CONFIG" 2>/dev/null | head -1 \
+        | sed 's/[^:]*:[[:space:]]*//' | tr -d ' \r\n')
+    EZBEQ_PORT="${EZBEQ_PORT:-8080}"
+fi
+
+# Git build info (passed into the container so the UI footer reflects source).
+GIT_BRANCH=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+GIT_SHA=$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo "")
+
+export EZBEQ_CONFIG_HOME="$(dirname "$EZBEQ_CONFIG")" EZBEQ_PORT GIT_BRANCH GIT_SHA
+
+echo "Source : $REPO_ROOT"
+echo "Config : $EZBEQ_CONFIG"
+echo "Port   : $EZBEQ_PORT"
+echo "Branch : ${GIT_BRANCH:-unknown}"
+echo "SHA    : ${GIT_SHA:-unknown}"
+
+COMPOSE=(docker compose -f docker-compose.yaml -f docker-compose.dev.yaml)
+
+BUILD_FLAGS=(--build)
+case "${1:-}" in
+    "") ;;  # default: detached up with build
+    --logs) ;;
+    --rebuild) BUILD_FLAGS=(--build --no-cache) ;;
+    --stop)
+        "${COMPOSE[@]}" down
+        exit 0
+        ;;
+    *)
+        echo "Error: unknown option '$1'. Run with --help to see usage." >&2
+        exit 2
+        ;;
+esac
+
+if [[ "${1:-}" == "--logs" || "${1:-}" == "--rebuild" ]]; then
+    "${COMPOSE[@]}" up -d "${BUILD_FLAGS[@]}"
+    "${COMPOSE[@]}" logs -f
+else
+    "${COMPOSE[@]}" up -d "${BUILD_FLAGS[@]}"
+    echo
+    echo "Running at http://localhost:$EZBEQ_PORT"
+    echo "Logs: scripts/run-local --logs   |   Stop: scripts/run-local --stop"
+fi
