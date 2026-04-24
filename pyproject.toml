@@ -1,6 +1,6 @@
 [project]
 name = "ezbeq"
-version = "2.7.0"
+version = "2.8.0a0"
 description = "A webapp which can send beqcatalogue filters to a DSP device"
 authors = [
     { name = "3ll3d00d", email = "mattkhan+ezbeq@gmail.com" }
@@ -38,10 +38,10 @@ include = [
 pytest = "^9.0.3"
 pytest-httpserver = "^1.0.7"
 pytest-cov = "^7.1.0"
-busypie = "^0.5.1"
+busypie = "^0.6.1"
 pyupgrade = "^3.21.2"
 ruff = ">=0.15.5,<0.16.0"
-ty = ">=0.0.21,<0.0.22"
+ty = ">=0.0.32,<0.0.33"
 
 [tool.poetry.group.docs]
 optional = true
