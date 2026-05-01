@@ -1,0 +1,28 @@
+# Reference docker-compose for the published ezbeq image. Use directly, or
+# layer a docker-compose.override.yaml on top (compose picks it up
+# automatically) for site-specific extras like extra_hosts or USB mounts.
+#
+# All ${VAR:-default} entries read from docker/.env if present (see
+# .env.example) or from the shell environment.
+
+services:
+  ezbeq-docker:
+    # EZBEQ_OWNER lets a fork pull from its own GHCR namespace. Defaults to
+    # the upstream 3ll3d00d. EZBEQ_TAG selects the GHCR tag: :latest (most
+    # recent main build), :dev (dev branch), or a specific release like
+    # :v1.2.3. scripts/run-published exports both from its arguments.
+    image: ghcr.io/${EZBEQ_OWNER:-3ll3d00d}/ezbeq:${EZBEQ_TAG:-latest}
+    container_name: ezbeq
+    restart: unless-stopped
+    # EZBEQ_PORT MUST match `port:` in ezbeq.yml. Passed through to the
+    # container so the image's HEALTHCHECK (defined in the Dockerfile,
+    # uses runtime $EZBEQ_PORT expansion) reads it without a rebuild.
+    # The Dockerfile HEALTHCHECK already includes start-period and the
+    # right interval/retries; not overriding here.
+    environment:
+      - EZBEQ_PORT=${EZBEQ_PORT:-8080}
+    # EZBEQ_CONFIG_HOME is the host directory holding your ezbeq.yml.
+    volumes:
+      - ${EZBEQ_CONFIG_HOME:-~/.ezbeq}:/config
+    ports:
+      - "${EZBEQ_PORT:-8080}:${EZBEQ_PORT:-8080}"

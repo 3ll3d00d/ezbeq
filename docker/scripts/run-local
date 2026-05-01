@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Build and run ezbeq from the local source tree (dev Dockerfile target).
+# Loads optional configuration from docker/.env (copy .env.example to override).
+# A re-invocation while the container is running restarts it (--force-recreate)
+# so code/image changes always take effect.
+#
+# Usage:
+#   scripts/run-local               # build + (re)start + follow logs
+#   scripts/run-local --detach, -d  # build + (re)start detached; print URL
+#   scripts/run-local --rebuild     # force clean rebuild + follow logs
+#   scripts/run-local --stop        # stop and remove the container
+#   scripts/run-local --help        # show this message
+#
+# Ctrl+C while tailing logs detaches from the stream; the container keeps
+# running. Use --stop to tear it down.
+set -euo pipefail
+# shellcheck source=_lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
+cd "$DOCKER_DIR"
+
+COMPOSE=(docker compose -f docker-compose.yaml -f docker-compose.dev.yaml)
+
+case "${1:-}" in
+    -h|--help) ezbeq::print_help; exit 0 ;;
+    --stop) "${COMPOSE[@]}" down; exit 0 ;;
+esac
+
+ezbeq::load_env
+ezbeq::resolve_config
+ezbeq::resolve_git_info
+export GIT_BRANCH GIT_SHA
+
+UP_FLAGS=(--build --force-recreate)
+FOLLOW_LOGS=1
+case "${1:-}" in
+    "") ;;
+    -d|--detach) FOLLOW_LOGS=0 ;;
+    --rebuild) UP_FLAGS=(--build --no-cache --force-recreate) ;;
+    *) echo "Error: unknown option '$1'. Run with --help." >&2; exit 2 ;;
+esac
+
+echo "Source : $REPO_ROOT"
+echo "Config : $EZBEQ_CONFIG"
+echo "Port   : $EZBEQ_PORT"
+echo "Branch : ${GIT_BRANCH:-unknown}"
+echo "SHA    : ${GIT_SHA:-unknown}"
+
+"${COMPOSE[@]}" up -d "${UP_FLAGS[@]}"
+
+echo
+echo "Running at http://localhost:$EZBEQ_PORT"
+if (( FOLLOW_LOGS )); then
+    echo "(Ctrl+C detaches from logs; the container keeps running)"
+    echo
+    "${COMPOSE[@]}" logs -f
+else
+    echo "Logs: scripts/run-local   |   Stop: scripts/run-local --stop"
+fi

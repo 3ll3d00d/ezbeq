@@ -210,7 +210,7 @@ class Config:
                 f"  (or set exe: stub in your ezbeq.yml)\n"
                 f"\n"
                 f"Or run via Docker (no local deps required):\n"
-                f"  https://github.com/3ll3d00d/ezbeq-docker"
+                f"  https://github.com/3ll3d00d/ezbeq/tree/main/docker"
             )
         return cmd[options.split(' ')] if options else cmd
 
@@ -219,18 +219,54 @@ class Config:
         return CamillaDspClient(ip, port, listener)
 
     @property
-    def version(self):
+    def version(self) -> str:
+        """Resolve the running ezbeq version, trying three sources in order.
+
+        1. **VERSION file** at the package root (or ``sys._MEIPASS`` when
+           running as a PyInstaller bundle). Written by CI on tag builds and
+           on branch builds (where it carries a PEP 440 local-version
+           snapshot like ``2.7.0+dev.5341b1d``). Authoritative when present.
+        2. **pyproject.toml** ``project.version`` (or legacy
+           ``tool.poetry.version``). Used in source-tree builds where no
+           VERSION file has been written. Always reflects the in-progress
+           version, unlike importlib.metadata which can be stale after a
+           pyproject bump.
+        3. **importlib.metadata** for the installed ``ezbeq`` package. The
+           production Docker image's last resort: pip-installed package,
+           no source tree, no VERSION file.
+
+        Returns the literal string ``'UNKNOWN'`` only if all three sources
+        fail. A malformed pyproject.toml logs a warning and falls through
+        to step 3 rather than raising.
+        """
+        # Step 1: VERSION file
         if getattr(sys, 'frozen', False):
-            # pyinstaller lets you copy files to arbitrary locations under the _MEIPASS root dir
-            root = os.path.join(sys._MEIPASS)
+            # PyInstaller copies bundled files to a temp dir at _MEIPASS.
+            root = sys._MEIPASS
         else:
             root = os.path.dirname(__file__)
         v_name = os.path.join(root, 'VERSION')
-        v = 'UNKNOWN'
         if os.path.exists(v_name):
-            with open(v_name) as f:
-                v = f.read()
-        return v
+            with open(v_name, encoding='utf-8-sig') as f:
+                return f.read().strip()
+        # Step 2: pyproject.toml
+        import tomllib
+        pyproject = os.path.join(os.path.dirname(root), 'pyproject.toml')
+        if os.path.exists(pyproject):
+            try:
+                with open(pyproject, 'rb') as f:
+                    data = tomllib.load(f)
+                v = data.get('project', {}).get('version') or data.get('tool', {}).get('poetry', {}).get('version')
+                if v:
+                    return v
+            except (OSError, tomllib.TOMLDecodeError) as e:
+                self.logger.warning('Failed to read pyproject.toml for version: %s', e)
+        # Step 3: installed package metadata
+        from importlib.metadata import version as _pkg_version, PackageNotFoundError
+        try:
+            return _pkg_version('ezbeq')
+        except PackageNotFoundError:
+            return 'UNKNOWN'
 
     @property
     def git_info(self) -> dict:

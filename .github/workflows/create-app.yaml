@@ -1,28 +1,42 @@
 name: create apps
 on:
   push:
+    # Only semver-shaped tags trigger the release pipeline. Non-semver tags
+    # (e.g. `edge`, `nightly`) would have produced an empty semver tag set
+    # while the `:latest` raw rule still fired, silently promoting an
+    # unversioned snapshot as latest. Restricting the trigger here makes
+    # that class of mistake impossible.
     tags:
-      - '*'
+      - 'v[0-9]*'
+    branches:
+      - main
+      - dev
+    paths-ignore:
+      - README.md
+      - docs/**
+      - 'docker/README.md'
+  workflow_dispatch:
 defaults:
   run:
     shell: bash
 jobs:
   create_release:
     name: Create Release
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       - name: Set up Python 3.13
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
         with:
           python-version: 3.13
       - name: Install Poetry
-        uses: snok/install-poetry@v1
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a  # v1
         with:
           virtualenvs-in-project: true
       - name: Load cached venv
         id: cached-poetry-dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5
         with:
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
@@ -36,19 +50,19 @@ jobs:
           source .venv/bin/activate
           pytest --cov=./ezbeq --cov-report=xml
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238  # v4
         with:
           files: ./coverage.xml
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       - name: Generate changelog
         id: changelog
-        uses: metcalfc/changelog-generator@v4.3.1
+        uses: metcalfc/changelog-generator@17705fc5b16e5af8689f309574adecf86bd2eebd  # v4.3.1
         with:
           myToken: ${{ secrets.GITHUB_TOKEN }}
       - name: Create release
         id: create_release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -57,6 +71,7 @@ jobs:
           prerelease: true
   buildpypi:
     name: Publish to Pypi
+    if: startsWith(github.ref, 'refs/tags/')
     needs: create_release
     runs-on: ubuntu-latest
     environment:
@@ -65,9 +80,9 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       - name: Use node.js lts
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
         with:
           node-version: lts/*
       - name: Setup node_modules
@@ -83,16 +98,16 @@ jobs:
         run: |
           echo ${{ steps.get_version.outputs.version-without-v }} > ezbeq/VERSION
       - name: Set up Python 3.13
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
         with:
           python-version: 3.13
       - name: Install Poetry
-        uses: snok/install-poetry@v1
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a  # v1
         with:
           virtualenvs-in-project: true
       - name: Load cached venv
         id: cached-poetry-dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5
         with:
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
@@ -104,17 +119,10 @@ jobs:
       - name: Build dist
         run: poetry build
       - name: Publish a Python distribution to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-      - uses: octokit/request-action@v2.x
-        with:
-          route: POST /repos/{owner}/{repo}/dispatches
-          owner: 3ll3d00d
-          repo: ezbeq-docker
-          event_type: 'trigger'
-        env:
-          GITHUB_TOKEN: ${{ secrets.EZBEQJR }}
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b  # release/v1
   buildpyinstaller:
     name: Publish to Github
+    if: startsWith(github.ref, 'refs/tags/')
     needs: create_release
     permissions:
       contents: write
@@ -124,9 +132,9 @@ jobs:
         os: [ macos-latest, windows-latest ]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       - name: Use node.js lts
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
         with:
           node-version: lts/*
       - name: Setup node_modules
@@ -142,16 +150,16 @@ jobs:
         run: |
           echo ${{ steps.get_version.outputs.version-without-v }} > ezbeq/VERSION
       - name: Set up Python 3.13
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
         with:
           python-version: 3.13
       - name: Install Poetry
-        uses: snok/install-poetry@v1
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a  # v1
         with:
           virtualenvs-in-project: true
       - name: Load cached venv
         id: cached-poetry-dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5
         with:
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
@@ -185,3 +193,72 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
             gh release upload ${{ github.ref_name }} ${{ steps.create_dist.outputs.binary_path }}
+  builddocker:
+    name: Build and push Docker image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      # Set up Python so the Set version step's `python3 -c "import tomllib"`
+      # is guaranteed to find tomllib (stdlib only on 3.11+, and the runner's
+      # system Python may be older).
+      - name: Set up Python 3.13
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
+        with:
+          python-version: 3.13
+      # Write ezbeq/VERSION so the image banner reports a meaningful version.
+      # Tag pushes get the released version (e.g. "2.7.0"). Branch and dispatch
+      # pushes get a PEP 440 local-version snapshot (e.g. "2.7.0+dev.5341b1d")
+      # so nobody mistakes an unreleased build for the real thing.
+      - name: Set version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "${GITHUB_REF_NAME#v}" > ezbeq/VERSION
+          else
+            BASE=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+            BRANCH_CLEAN=$(echo "$GITHUB_REF_NAME" | tr -c '[:alnum:]' '.' | tr -s '.' | sed 's/^\.//; s/\.$//')
+            echo "${BASE}+${BRANCH_CLEAN}.${GITHUB_SHA:0:7}" > ezbeq/VERSION
+          fi
+          echo "VERSION stamped: $(cat ezbeq/VERSION)"
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130  # v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3
+      - name: Log in to the Container registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: production
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_BRANCH=${{ github.ref_name }}
+            GIT_SHA=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

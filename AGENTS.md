@@ -28,6 +28,7 @@ ui/              # React source code
 tests/           # Pytest test suite
 docs/            # MkDocs documentation
 examples/        # Device configuration YAML examples
+docker/          # Dockerfile, compose files, helper scripts for containerised deployment
 ```
 
 **Server architecture:** Flask (REST API at `/api`) + Twisted (static frontend + WebSocket) hybrid.
