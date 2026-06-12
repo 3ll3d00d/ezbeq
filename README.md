@@ -7,6 +7,7 @@ for local remote control of a minidsp or HTP-1.
 ## Table of Contents
 
 - [Setup](#setup)
+  - [Python 3.14+ Note][#python314]
   - [Windows / MacOS](#windows--macos)
   - [Linux](#linux)
   - [Installation](#installation)
@@ -36,6 +37,10 @@ for local remote control of a minidsp or HTP-1.
   - [Slower but Accurate](#slower-but-accurate)
 
 # Setup
+
+## Python 3.14+ 
+
+ezbeq is compatible with python 3.14 but depends on the presence of the [compression.zstd][https://docs.python.org/3/library/compression.zstd.html#module-compression.zstd] **optional** module. It will fail to start in the absence of this module. [pyenv][https://github.com/pyenv/pyenv] users should ensure that libzstd_dev (or equivalent for their OS/distro) is installed as a prerequisite.
 
 ## Windows / MacOS
 
