@@ -7,7 +7,7 @@ for local remote control of a minidsp or HTP-1.
 ## Table of Contents
 
 - [Setup](#setup)
-  - [Python 3.14+ Note][#python314]
+  - [Python 3.14+ Note](#python314)
   - [Windows / MacOS](#windows--macos)
   - [Linux](#linux)
   - [Installation](#installation)
@@ -40,7 +40,7 @@ for local remote control of a minidsp or HTP-1.
 
 ## Python 3.14+ 
 
-ezbeq is compatible with python 3.14 but depends on the presence of the [compression.zstd][https://docs.python.org/3/library/compression.zstd.html#module-compression.zstd] **optional** module. It will fail to start in the absence of this module. [pyenv][https://github.com/pyenv/pyenv] users should ensure that libzstd_dev (or equivalent for their OS/distro) is installed as a prerequisite.
+ezbeq is compatible with python 3.14 but depends on the presence of the [compression.zstd](https://docs.python.org/3/library/compression.zstd.html#module-compression.zstd) **optional** module. It will fail to start in the absence of this module. [pyenv](https://github.com/pyenv/pyenv) users should ensure that libzstd_dev (or equivalent for their OS/distro) is installed as a prerequisite.
 
 ## Windows / MacOS
 
@@ -642,14 +642,16 @@ After=network.target
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/home/pi
-ExecStart=/home/pi/python/ezbeq/bin/ezbeq
+WorkingDirectory=/home/youruser
+ExecStart=/home/youruser/your_venv_name/ezbeq/bin/ezbeq
 Restart=always
 RestartSec=1
 
 [Install]
 WantedBy=multi-user.target
 ```
+
+ensure the paths are updated for your user/system setup.
 
 2) enable the service and start it up::
 
