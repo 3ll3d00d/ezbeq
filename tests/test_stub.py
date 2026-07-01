@@ -5,7 +5,6 @@ Fast tests use the Flask test client (no Twisted, no subprocess).
 Integration tests (marked 'integration') start the real Twisted server
 as a subprocess and make actual HTTP requests to it.
 """
-import json
 import os
 import socket
 import subprocess
@@ -97,7 +96,11 @@ def live_stub_server(tmp_path_factory):
     yield base_url
 
     proc.terminate()
-    proc.wait(timeout=5)
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=5)
 
 
 @pytest.mark.integration
