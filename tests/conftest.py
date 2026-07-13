@@ -55,6 +55,26 @@ def minidsp_client(minidsp_app):
 
 
 @pytest.fixture
+def reaper_app(httpserver: HTTPServer, tmp_path):
+    """
+    Create and configure a new app instance for each test, wired up to
+    talk to the SAME fake httpserver used for catalogue downloads
+    (configure_downloader above) - reaper.py's HTTP calls to REAPER's Web
+    Control interface land on this same fake server, so we can use
+    httpserver.log to inspect exactly what was sent, the same way the
+    real REAPER machine would receive it.
+    """
+    app, ws = main.create_app(ReaperSpyConfig(httpserver.host, httpserver.port, tmp_path))
+    yield app
+
+
+@pytest.fixture
+def reaper_client(reaper_app):
+    """A test client for the app."""
+    return reaper_app.test_client()
+
+
+@pytest.fixture
 def minidsp_ddrc24_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new app instance for each test."""
     app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='DDRC24'))
@@ -319,6 +339,52 @@ class MinidspSpyConfig(Config):
 
     def create_minidsp_runner(self, exe: str, options: str):
         return self.spy
+
+    @property
+    def config_path(self):
+        return self.__tmp_path
+
+    @property
+    def version(self):
+        return '1.2.3'
+
+
+class ReaperSpyConfig(Config):
+    """
+    Test double for the Reaper device's config. Unlike MinidspSpyConfig
+    (which fakes the minidsp CLI process) or CamillaDspSpyConfig (which
+    fakes a websocket server), Reaper's device talks plain HTTP - so this
+    just points reaper.py's 'ip' config value at the SAME fake httpserver
+    already used for catalogue downloads, letting tests inspect exactly
+    what reaper.py sent via httpserver.log rather than needing a custom
+    spy/mock object.
+    """
+
+    def __init__(self, host: str, port: int, tmp_path):
+        self.__host = host
+        self.__port = port
+        self.__tmp_path = tmp_path
+        super().__init__('spy', beqcatalogue_url=f"http://{host}:{port}/")
+
+    @property
+    def load_catalogue_at_startup(self):
+        return True
+
+    def load_config(self):
+        return {
+            'debugLogging': False,
+            'accessLogging': False,
+            'port': 8080,
+            'devices': {
+                'reaper1': {
+                    'type': 'reaper',
+                    'ip': f'{self.__host}:{self.__port}',
+                    # short timeout so a test that deliberately doesn't stub
+                    # a response (if any) fails fast rather than hanging
+                    'timeout': 2,
+                }
+            }
+        }
 
     @property
     def config_path(self):
