@@ -1,7 +1,8 @@
 import Header from "../Header";
 import Filter from "./Filter";
 import {Grid} from "@mui/material";
-import React, {useEffect, useState} from "react";
+import React, {useEffect, useMemo, useState} from "react";
+import {debounce} from "lodash/function";
 import {pushData, useLocalStorage} from "../../services/util";
 import Slots from "./Slots";
 import Catalogue from "./Catalogue";
@@ -30,6 +31,7 @@ const MainView = ({
     const [selectedContentTypes, setSelectedContentTypes] = useState([]);
     const [selectedFreshness, setSelectedFreshness] = useState([]);
     const [txtFilter, setTxtFilter] = useState('');
+    const [debouncedTxtFilter, setDebouncedTxtFilter] = useState('');
     const [showFilters, setShowFilters] = useState(false);
     const [selectedEntryId, setSelectedEntryId] = useState(-1);
     const [userDriven, setUserDriven] = useState(false);
@@ -39,6 +41,12 @@ const MainView = ({
     const toggleShowFilters = () => {
         setShowFilters((prev) => !prev);
     };
+
+    const debounceTxtFilter = useMemo(() => debounce(v => setDebouncedTxtFilter(v), 300), []);
+
+    useEffect(() => {
+        debounceTxtFilter(txtFilter);
+    }, [txtFilter, debounceTxtFilter]);
 
     useEffect(() => {
         if (availableDevices) {
@@ -51,7 +59,7 @@ const MainView = ({
 
     useEffect(() => {
         const txtMatch = e => {
-            const matchOn = txtFilter.toLowerCase()
+            const matchOn = debouncedTxtFilter.toLowerCase()
             if (e.formattedTitle.toLowerCase().includes(matchOn)) {
                 return true;
             }
@@ -72,7 +80,7 @@ const MainView = ({
                         if (!selectedContentTypes.length || selectedContentTypes.indexOf(entry.contentType) > -1) {
                             if (!selectedFreshness.length || selectedFreshness.indexOf(entry.freshness) > -1) {
                                 if (!selectedLanguages.length || selectedLanguages.indexOf(entry.language) > -1) {
-                                    if (!txtFilter || txtMatch(entry)) {
+                                    if (!debouncedTxtFilter || txtMatch(entry)) {
                                         return true;
                                     }
                                 }
@@ -84,7 +92,7 @@ const MainView = ({
             return false;
         }
         pushData(setFilteredEntries, () => entries.filter(isMatch), setErr);
-    }, [entries, selectedAudioTypes, selectedYears, selectedAuthors, selectedContentTypes, selectedFreshness, selectedLanguages, txtFilter, setErr]);
+    }, [entries, selectedAudioTypes, selectedYears, selectedAuthors, selectedContentTypes, selectedFreshness, selectedLanguages, debouncedTxtFilter, setErr]);
 
     useEffect(() => {
         const d = availableDevices[selectedDeviceName];
@@ -95,6 +103,11 @@ const MainView = ({
             }
         }
     }, [availableDevices, selectedDeviceName, selectedSlotId, setTxtFilter, userDriven]);
+
+    const selectedEntry = useMemo(
+        () => selectedEntryId ? entries.find(e => e.id === selectedEntryId) : null,
+        [entries, selectedEntryId]
+    );
 
     const devices = <Slots selectedDevice={availableDevices[selectedDeviceName]}
                            selectedEntryId={selectedEntryId}
@@ -111,7 +124,7 @@ const MainView = ({
                                  useWide={useWide}
                                  selectedDevice={availableDevices[selectedDeviceName]}/>;
     const entry = <Entry selectedDevice={availableDevices[selectedDeviceName]}
-                         selectedEntry={selectedEntryId ? entries.find(e => e.id === selectedEntryId) : null}
+                         selectedEntry={selectedEntry}
                          useWide={useWide}
                          setDevice={d => replaceDevice(d)}
                          selectedSlotId={selectedSlotId}

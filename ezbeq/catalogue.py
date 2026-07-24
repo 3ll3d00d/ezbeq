@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from collections.abc import Callable
+from threading import Thread
 
 import ijson
 import requests
@@ -281,7 +282,8 @@ class Catalogue:
 
     @property
     def stale(self):
-        return (datetime.now() - self.loaded_at) > timedelta(minutes=5)
+        now = datetime.now(self.loaded_at.tzinfo) if self.loaded_at.tzinfo else datetime.now()
+        return (now - self.loaded_at) > timedelta(minutes=5)
 
     def json(self) -> dict:
         return {
@@ -311,6 +313,9 @@ class Catalogues:
         self.__ws = ws
         self.__ws.factory.init_meta_provider(lambda: self.latest.meta_msg if self.latest else None)
         self.__ws.factory.init_catalogue_loader(self.__send_chunked_catalogue)
+        self.__prune_pool = None
+        from twisted.internet import reactor
+        reactor.addSystemEventTrigger('before', 'shutdown', self.stop)
         if sync_load:
             self.__download()
             self.__last_refresh_check = time.time()
@@ -321,6 +326,27 @@ class Catalogues:
         from twisted.internet import task
         self.__reload_task = task.LoopingCall(self.__reload)
         self.__reload_task.start(self.__refresh_interval, now=True)
+
+    def stop(self):
+        if self.__reload_task.running:
+            self.__reload_task.stop()
+        if self.__prune_pool is not None:
+            self.__prune_pool.stop()
+
+    def __get_prune_pool(self):
+        if self.__prune_pool is None:
+            from twisted.python.threadpool import ThreadPool
+
+            def daemon_thread_factory(*args, **kwargs) -> Thread:
+                t = Thread(*args, **kwargs)
+                t.daemon = True
+                return t
+
+            pool = ThreadPool(minthreads=1, maxthreads=1, name='catalogue-prune')
+            pool.threadFactory = daemon_thread_factory
+            pool.start()
+            self.__prune_pool = pool
+        return self.__prune_pool
 
     def __send_chunked_catalogue(self, sender: Callable[[str], None]):
         catalogue = self.latest
@@ -399,6 +425,7 @@ class Catalogues:
             add_column(AUDIO_CODECS)
             add_column(AUDIO_CHANNEL_COUNTS)
             cur.execute(f"CREATE INDEX IF NOT EXISTS entry_digest ON catalogue_entry ({DIGEST});")
+            cur.execute("CREATE INDEX IF NOT EXISTS entry_version ON catalogue_entry (version);")
             cur.execute("CREATE TABLE IF NOT EXISTS catalogue_meta("
                         "meta_type TEXT NOT NULL, "
                         "value TEXT NOT NULL, "
@@ -426,8 +453,7 @@ class Catalogues:
                 v = catalogues[-1].version
                 catalogues[-1].meta = {t: self.load_meta(v, t) for t in META_FIELDS}
                 if len(catalogues) > 1:
-                    from twisted.internet import reactor
-                    reactor.callInThread(lambda: self.__prune_entries(catalogues[-1].version))
+                    self.__schedule_prune(catalogues[-1].version)
                 for f, vals in catalogues[-1].meta.items():
                     if not vals:
                         logger.warning(f'No meta values found for {f} in catalogue {v}, will reload from disk')
@@ -583,8 +609,16 @@ class Catalogues:
         self.__catalogues = [i for i in self.__catalogues if i.version not in old_versions]
         self.__ws.broadcast(catalogue.meta_msg)
         if len(self.__catalogues) > 1:
-            from twisted.internet import reactor
-            reactor.callInThread(lambda: self.__prune_entries(self.__catalogues[-1].version))
+            self.__schedule_prune(self.__catalogues[-1].version)
+
+    def __schedule_prune(self, keep_version: str):
+        self.__get_prune_pool().callInThread(lambda: self.__prune_entries_safe(keep_version))
+
+    def __prune_entries_safe(self, keep_version: str):
+        try:
+            self.__prune_entries(keep_version)
+        except Exception:
+            logger.exception(f'[{self.__db}] Failed to prune entries, will retry on next reload')
 
     def __prune_entries(self, keep_version: str):
         min_loaded_at = int((datetime.now() - timedelta(days=1)).timestamp() * 1000)
@@ -869,10 +903,14 @@ class DatabaseDownloader:
         return None
 
 
+DB_BUSY_TIMEOUT_MILLIS = 30000
+
+
 @contextmanager
 def db_ops(db_name, cache_size: int = None, mmap_size: int = None):
     conn = sqlite3.connect(db_name)
     try:
+        conn.execute(f'pragma busy_timeout={DB_BUSY_TIMEOUT_MILLIS};')
         if cache_size:
             conn.execute(f'pragma cache_size=-{cache_size}')
         if mmap_size:

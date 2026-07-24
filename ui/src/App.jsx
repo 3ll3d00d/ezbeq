@@ -81,7 +81,9 @@ const App = () => {
             const current = e ? Object.fromEntries(Object.entries(e).filter(([key]) => key.startsWith(prefix))) : {};
             return Object.assign({}, current, newEntries)
         });
-    }, [version, setEntries, entries]);
+    }, [version, setEntries]);
+
+    const entryList = useMemo(() => Object.values(entries), [entries]);
 
     useEffect(() => {
         if (meta && (!version || meta.version !== version)) {
@@ -137,7 +139,7 @@ const App = () => {
                     {
                         selectedNav === 'catalogue'
                             ?
-                            <MainView entries={Object.keys(entries).map(e => entries[e])}
+                            <MainView entries={entryList}
                                       setErr={setErr}
                                       replaceDevice={d => {
                                           if (ss && ss.isConnected()) {

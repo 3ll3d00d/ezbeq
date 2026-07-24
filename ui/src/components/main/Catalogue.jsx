@@ -1,4 +1,4 @@
-import React from "react";
+import React, {useMemo} from "react";
 import {Avatar, Grid} from "@mui/material";
 import {DataGrid} from "@mui/x-data-grid";
 import {styled} from "@mui/material/styles";
@@ -98,7 +98,7 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, selec
     // console.debug(`numerator: ${window.innerHeight} - ${upperNavHeight} - ${bottomNavHeight} = ${window.innerHeight - upperNavHeight - bottomNavHeight}`);
     // console.debug(`denominator: ${halfHeight ? 2 : 1}`);
     // console.debug(`Grid Height: ${gridHeight}`);
-    const authors = new Set(entries.map(e => e.author));
+    const authors = useMemo(() => new Set(entries.map(e => e.author)), [entries]);
     const grid =
         <Grid style={{
             height: `${gridHeight}px`,
