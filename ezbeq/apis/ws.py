@@ -2,11 +2,10 @@ import abc
 import json
 import logging
 from collections import defaultdict
-from typing import TypeVar, Generic
 from collections.abc import Callable
 
 from autobahn.exception import Disconnected
-from autobahn.twisted import WebSocketServerProtocol, WebSocketServerFactory
+from autobahn.twisted import WebSocketServerFactory, WebSocketServerProtocol
 
 SUBSCRIBE_LEVELS_CMD = 'subscribe levels'
 
@@ -41,9 +40,6 @@ class WsServerFactory(abc.ABC):
         pass
 
 
-T = TypeVar("T", bound=WsServerFactory)
-
-
 class WsProtocol(WebSocketServerProtocol):
 
     def onConnect(self, request):
@@ -66,7 +62,7 @@ class WsProtocol(WebSocketServerProtocol):
                 self.factory.register_for_levels(device_name, self)
             elif s.startswith(LOAD_CATALOGUE_CMD):
                 self.factory.send_catalogue(self)
-        except Exception as e:
+        except Exception:
             logger.exception('Message received failure')
 
 
@@ -198,7 +194,7 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
         return len(self.__levels_client.get(device, [])) > 0
 
 
-class WsServer(abc.ABC, Generic[T]):
+class WsServer[T: WsServerFactory](abc.ABC):
 
     def __init__(self, factory: T):
         self.__factory = factory

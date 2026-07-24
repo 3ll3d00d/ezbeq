@@ -5,7 +5,6 @@ Fast tests use the Flask test client (no Twisted, no subprocess).
 Integration tests (marked 'integration') start the real Twisted server
 as a subprocess and make actual HTTP requests to it.
 """
-import json
 import os
 import socket
 import subprocess
@@ -15,7 +14,6 @@ import time
 import pytest
 import requests
 import yaml
-
 
 # ---------------------------------------------------------------------------
 # Fast API smoke tests (Flask test client)

@@ -1,25 +1,23 @@
 import json
 import os
-from typing import List
 
 import pytest
+from conftest import MinidspSpy, MinidspSpyConfig
 
-from conftest import MinidspSpyConfig, MinidspSpy
 
-
-def verify_slot(slot: dict, idx: int, active: bool = False, gain = (0.0, 0.0), mute = (False, False), last: str = 'Empty', author: str = None):
+def verify_slot(slot: dict, idx: int, active: bool = False, gain = (0.0, 0.0), mute = (False, False), last: str = 'Empty', author: str | None = None):
     assert slot['id'] == str(idx)
     assert slot['active'] == active
     if gain:
         assert len(slot['gains']) == len(gain)
-        for idx, g in enumerate(gain):
-            assert slot['gains'][idx]['value'] == g
+        for gain_idx, g in enumerate(gain):
+            assert slot['gains'][gain_idx]['value'] == g
     else:
         assert len(slot['gains']) == 0
     if mute:
         assert len(slot['mutes']) == len(mute)
-        for idx, g in enumerate(mute):
-            assert slot['mutes'][idx]['value'] == g
+        for mute_idx, g in enumerate(mute):
+            assert slot['mutes'][mute_idx]['value'] == g
     else:
         assert len(slot['mutes']) == 0
     assert slot['last'] == last
@@ -88,7 +86,7 @@ def verify_mute_both_inputs(config, mute_op, r, slot):
             verify_slot(s, idx + 1)
 
 
-def verify_cmd_count(spy: MinidspSpy, slot: int, expected_cmd_count: int, initial_slot=1) -> List[str]:
+def verify_cmd_count(spy: MinidspSpy, slot: int, expected_cmd_count: int, initial_slot=1) -> list[str]:
     cmds = spy.take_commands()
     if slot == initial_slot:
         assert len(cmds) == expected_cmd_count
@@ -151,7 +149,7 @@ def test_legacy_mute_master(minidsp_client, minidsp_app, mute_op):
         'value': mute_op,
         'command': 'mute'
     }
-    r = minidsp_client.put(f"/api/1/device/0", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.put("/api/1/device/0", data=json.dumps(payload), content_type='application/json')
     verify_mute_master(config, mute_op, r)
 
 
@@ -160,7 +158,7 @@ def test_mute_master(minidsp_client, minidsp_app, mute_op):
     config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
     assert isinstance(config, MinidspSpyConfig)
     call = minidsp_client.put if mute_op == 'on' else minidsp_client.delete
-    r = call(f"/api/1/devices/master/mute")
+    r = call("/api/1/devices/master/mute")
     verify_mute_master(config, mute_op, r)
 
 
@@ -170,7 +168,7 @@ def verify_mute_master(config, mute_op, r):
     cmds = config.spy.take_commands()
     assert len(cmds) == 1
     assert cmds[0] == f"mute {mute_op}"
-    slots = verify_master_device_state(r.json, mute=True if mute_op == 'on' else False)
+    slots = verify_master_device_state(r.json, mute=mute_op == 'on')
     for idx, s in enumerate(slots):
         verify_slot(s, idx + 1, active=idx == 0)
 
@@ -279,7 +277,7 @@ def test_legacy_set_master_gain(minidsp_client, minidsp_app, gain, is_valid):
         'value': gain,
         'command': 'gain'
     }
-    r = minidsp_client.put(f"/api/1/device/0", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.put("/api/1/device/0", data=json.dumps(payload), content_type='application/json')
     verify_set_master_gain(config, gain, is_valid, r)
 
 
@@ -288,7 +286,7 @@ def test_set_master_gain(minidsp_client, minidsp_app, gain, is_valid):
     config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
     assert isinstance(config, MinidspSpyConfig)
     payload = {'gain': gain}
-    r = minidsp_client.put(f"/api/1/devices/master/gain", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.put("/api/1/devices/master/gain", data=json.dumps(payload), content_type='application/json')
     verify_set_master_gain(config, gain, is_valid, r)
 
 
@@ -348,7 +346,7 @@ def test_legacy_state_maintained_over_multiple_updates(minidsp_client, minidsp_a
     config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
     assert isinstance(config, MinidspSpyConfig)
     # when: activate slot 2
-    r = minidsp_client.put(f"/api/1/device/2", data=json.dumps({'command': 'activate'}),
+    r = minidsp_client.put("/api/1/device/2", data=json.dumps({'command': 'activate'}),
                            content_type='application/json')
     assert r.status_code == 200
     # and: set master gain
@@ -357,7 +355,7 @@ def test_legacy_state_maintained_over_multiple_updates(minidsp_client, minidsp_a
         'value': -10.2,
         'command': 'gain'
     }
-    r = minidsp_client.put(f"/api/1/device/0", data=json.dumps(gain_payload), content_type='application/json')
+    r = minidsp_client.put("/api/1/device/0", data=json.dumps(gain_payload), content_type='application/json')
     assert r.status_code == 200
     # and: set input gain on slot 3
     gain_payload = {
@@ -365,7 +363,7 @@ def test_legacy_state_maintained_over_multiple_updates(minidsp_client, minidsp_a
         'value': 5.1,
         'command': 'gain'
     }
-    r = minidsp_client.put(f"/api/1/device/3", data=json.dumps(gain_payload), content_type='application/json')
+    r = minidsp_client.put("/api/1/device/3", data=json.dumps(gain_payload), content_type='application/json')
     assert r.status_code == 200
     # and: set input gain on one channel on slot 3
     gain_payload = {
@@ -373,7 +371,7 @@ def test_legacy_state_maintained_over_multiple_updates(minidsp_client, minidsp_a
         'value': 6.1,
         'command': 'gain'
     }
-    r = minidsp_client.put(f"/api/1/device/3", data=json.dumps(gain_payload), content_type='application/json')
+    r = minidsp_client.put("/api/1/device/3", data=json.dumps(gain_payload), content_type='application/json')
     assert r.status_code == 200
 
     # then: expected commands are sent
@@ -444,7 +442,7 @@ def test_legacy_load_unknown_entry(minidsp_client, minidsp_app):
     config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
     assert isinstance(config, MinidspSpyConfig)
 
-    r = minidsp_client.put(f"/api/1/device/1", data=json.dumps({'command': 'load', 'id': 'super'}),
+    r = minidsp_client.put("/api/1/device/1", data=json.dumps({'command': 'load', 'id': 'super'}),
                            content_type='application/json')
     assert r.status_code == 404
     cmds = config.spy.take_commands()
@@ -454,14 +452,14 @@ def test_legacy_load_unknown_entry(minidsp_client, minidsp_app):
 def test_load_unknown_entry(minidsp_client, minidsp_app):
     config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
     assert isinstance(config, MinidspSpyConfig)
-    r = minidsp_client.put(f"/api/1/devices/master/filter/1/super")
+    r = minidsp_client.put("/api/1/devices/master/filter/1/super")
     assert r.status_code == 404
     cmds = config.spy.take_commands()
     assert len(cmds) == 0
 
 
 def test_search_all(minidsp_client, minidsp_app):
-    r = minidsp_client.get(f"/api/1/search")
+    r = minidsp_client.get("/api/1/search")
     assert r.status_code == 200
     catalogue = r.json
     assert catalogue
@@ -472,14 +470,14 @@ def test_search_all(minidsp_client, minidsp_app):
 
 
 def test_search_no_match(minidsp_client, minidsp_app):
-    r = minidsp_client.get(f"/api/1/search", query_string={'authors': 'me'})
+    r = minidsp_client.get("/api/1/search", query_string={'authors': 'me'})
     assert r.status_code == 200
     catalogue = r.json
     assert len(catalogue) == 0
 
 
 def test_search_title(minidsp_client, minidsp_app):
-    r = minidsp_client.get(f"/api/1/search", query_string={'text': 'Resur'})
+    r = minidsp_client.get("/api/1/search", query_string={'text': 'Resur'})
     assert r.status_code == 200
     catalogue = r.json
     assert catalogue
@@ -488,14 +486,14 @@ def test_search_title(minidsp_client, minidsp_app):
     assert entry['id'] == '123456_0'
     assert entry['title'] == 'Alien Resurrection'
 
-    r = minidsp_client.get(f"/api/1/search", query_string={'text': 'Resurrrrr'})
+    r = minidsp_client.get("/api/1/search", query_string={'text': 'Resurrrrr'})
     assert r.status_code == 200
     catalogue = r.json
     assert len(catalogue) == 0
 
 
 def test_search_tmdbid(minidsp_client, minidsp_app):
-    r = minidsp_client.get(f"/api/1/search", query_string={'tmdbid': '8078'})
+    r = minidsp_client.get("/api/1/search", query_string={'tmdbid': '8078'})
     assert r.status_code == 200
     catalogue = r.json
     assert catalogue
@@ -504,14 +502,14 @@ def test_search_tmdbid(minidsp_client, minidsp_app):
     assert entry['id'] == '123456_0'
     assert entry['title'] == 'Alien Resurrection'
 
-    r = minidsp_client.get(f"/api/1/search", query_string={'tmdbid': '807'})
+    r = minidsp_client.get("/api/1/search", query_string={'tmdbid': '807'})
     assert r.status_code == 200
     catalogue = r.json
     assert len(catalogue) == 0
 
 
 def test_search_alt_title(minidsp_client, minidsp_app):
-    r = minidsp_client.get(f"/api/1/search", query_string={'text': 'err'})
+    r = minidsp_client.get("/api/1/search", query_string={'text': 'err'})
     assert r.status_code == 200
     catalogue = r.json
     assert catalogue
@@ -520,14 +518,14 @@ def test_search_alt_title(minidsp_client, minidsp_app):
     assert entry['id'] == '123456_0'
     assert entry['title'] == 'Alien Resurrection'
 
-    r = minidsp_client.get(f"/api/1/search", query_string={'text': 'errrr'})
+    r = minidsp_client.get("/api/1/search", query_string={'text': 'errrr'})
     assert r.status_code == 200
     catalogue = r.json
     assert len(catalogue) == 0
 
 
 def test_search_collection(minidsp_client, minidsp_app):
-    r = minidsp_client.get(f"/api/1/search", query_string={'text': 'Olle'})
+    r = minidsp_client.get("/api/1/search", query_string={'text': 'Olle'})
     assert r.status_code == 200
     catalogue = r.json
     assert catalogue
@@ -536,14 +534,14 @@ def test_search_collection(minidsp_client, minidsp_app):
     assert entry['id'] == '123456_0'
     assert entry['title'] == 'Alien Resurrection'
 
-    r = minidsp_client.get(f"/api/1/search", query_string={'text': 'Ollt'})
+    r = minidsp_client.get("/api/1/search", query_string={'text': 'Ollt'})
     assert r.status_code == 200
     catalogue = r.json
     assert len(catalogue) == 0
 
 
 def test_search_codec(minidsp_client, minidsp_app):
-    r = minidsp_client.get(f"/api/1/search", query_string={'audiocodecs': 'DTS-HD MA'})
+    r = minidsp_client.get("/api/1/search", query_string={'audiocodecs': 'DTS-HD MA'})
     assert r.status_code == 200
     catalogue = r.json
     assert catalogue
@@ -552,14 +550,14 @@ def test_search_codec(minidsp_client, minidsp_app):
     assert entry['id'] == '123456_0'
     assert entry['title'] == 'Alien Resurrection'
 
-    r = minidsp_client.get(f"/api/1/search", query_string={'text': 'DTS-HD.MA'})
+    r = minidsp_client.get("/api/1/search", query_string={'text': 'DTS-HD.MA'})
     assert r.status_code == 200
     catalogue = r.json
     assert len(catalogue) == 0
 
 
 def test_search_channel_count(minidsp_client, minidsp_app):
-    r = minidsp_client.get(f"/api/1/search", query_string={'audiochannelcounts': '5.1'})
+    r = minidsp_client.get("/api/1/search", query_string={'audiochannelcounts': '5.1'})
     assert r.status_code == 200
     catalogue = r.json
     assert catalogue
@@ -568,14 +566,14 @@ def test_search_channel_count(minidsp_client, minidsp_app):
     assert entry['id'] == '123456_0'
     assert entry['title'] == 'Alien Resurrection'
 
-    r = minidsp_client.get(f"/api/1/search", query_string={'text': '7.1'})
+    r = minidsp_client.get("/api/1/search", query_string={'text': '7.1'})
     assert r.status_code == 200
     catalogue = r.json
     assert len(catalogue) == 0
 
 
 def test_authors(minidsp_client):
-    r = minidsp_client.get(f"/api/1/authors")
+    r = minidsp_client.get("/api/1/authors")
     assert r.status_code == 200
     data = r.json
     assert data
@@ -584,7 +582,7 @@ def test_authors(minidsp_client):
 
 
 def test_contenttypes(minidsp_client):
-    r = minidsp_client.get(f"/api/1/contenttypes")
+    r = minidsp_client.get("/api/1/contenttypes")
     assert r.status_code == 200
     data = r.json
     assert data
@@ -593,7 +591,7 @@ def test_contenttypes(minidsp_client):
 
 
 def test_years(minidsp_client):
-    r = minidsp_client.get(f"/api/1/years")
+    r = minidsp_client.get("/api/1/years")
     assert r.status_code == 200
     data = r.json
     assert data
@@ -602,7 +600,7 @@ def test_years(minidsp_client):
 
 
 def test_audiotypes(minidsp_client):
-    r = minidsp_client.get(f"/api/1/audiotypes")
+    r = minidsp_client.get("/api/1/audiotypes")
     assert r.status_code == 200
     data = r.json
     assert data
@@ -611,7 +609,7 @@ def test_audiotypes(minidsp_client):
 
 
 def test_metadata(minidsp_client):
-    r = minidsp_client.get(f"/api/1/meta")
+    r = minidsp_client.get("/api/1/meta")
     assert r.status_code == 200
     data = r.json
     assert data
@@ -621,7 +619,7 @@ def test_metadata(minidsp_client):
 
 
 def test_version(minidsp_client):
-    r = minidsp_client.get(f"/api/1/version")
+    r = minidsp_client.get("/api/1/version")
     assert r.status_code == 200
     data = r.json
     assert data
@@ -638,7 +636,7 @@ def test_legacy_load_known_entry_and_then_clear(minidsp_client, minidsp_app, slo
     if is_valid:
         assert r.status_code == 200
         cmds = verify_cmd_count(config.spy, slot, 30)
-        expected_commands = f"""input 0 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+        expected_commands = """input 0 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 0 peq 0 bypass off
 input 1 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 1 peq 0 bypass off
@@ -686,7 +684,7 @@ input 1 peq 9 bypass on"""
         assert r.status_code == 200
         cmds = config.spy.take_commands()
         assert len(cmds) == 24
-        expected_commands = f"""input 0 peq 0 bypass on
+        expected_commands = """input 0 peq 0 bypass on
 input 1 peq 0 bypass on
 input 0 peq 1 bypass on
 input 1 peq 1 bypass on
@@ -727,7 +725,7 @@ def test_load_known_entry_and_then_clear(minidsp_client, minidsp_app, slot, is_v
     if is_valid:
         assert r.status_code == 200
         cmds = verify_cmd_count(config.spy, slot, 30)
-        expected_commands = f"""input 0 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+        expected_commands = """input 0 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 0 peq 0 bypass off
 input 1 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 1 peq 0 bypass off
@@ -775,7 +773,7 @@ input 1 peq 9 bypass on"""
         assert r.status_code == 200
         cmds = config.spy.take_commands()
         assert len(cmds) == 24
-        expected_commands = f"""input 0 peq 0 bypass on
+        expected_commands = """input 0 peq 0 bypass on
 input 1 peq 0 bypass on
 input 0 peq 1 bypass on
 input 1 peq 1 bypass on
@@ -816,7 +814,7 @@ def test_load_known_entry_to_ddrc24_and_then_clear(minidsp_ddrc24_client, minids
     if is_valid:
         assert r.status_code == 200
         cmds = verify_cmd_count(config.spy, slot, 60)
-        expected_commands = f"""output 0 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+        expected_commands = """output 0 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 0 peq 0 bypass off
 output 1 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 1 peq 0 bypass off
@@ -894,7 +892,7 @@ output 3 peq 9 bypass on"""
         assert r.status_code == 200
         cmds = config.spy.take_commands()
         assert len(cmds) == 40
-        expected_commands = f"""output 0 peq 0 bypass on
+        expected_commands = """output 0 peq 0 bypass on
 output 1 peq 0 bypass on
 output 2 peq 0 bypass on
 output 3 peq 0 bypass on
@@ -951,7 +949,7 @@ def test_load_known_entry_to_ddrc88_and_then_clear(minidsp_ddrc88_client, minids
     if is_valid:
         assert r.status_code == 200
         cmds = verify_cmd_count(config.spy, slot, 15)
-        expected_commands = f"""output 3 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+        expected_commands = """output 3 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 3 peq 0 bypass off
 output 3 peq 1 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 3 peq 1 bypass off
@@ -984,7 +982,7 @@ output 3 peq 9 bypass on"""
         assert r.status_code == 200
         cmds = config.spy.take_commands()
         assert len(cmds) == 10
-        expected_commands = f"""output 3 peq 0 bypass on
+        expected_commands = """output 3 peq 0 bypass on
 output 3 peq 1 bypass on
 output 3 peq 2 bypass on
 output 3 peq 3 bypass on
@@ -1011,7 +1009,7 @@ def test_load_known_entry_to_htx_and_then_clear(minidsp_htx_client, minidsp_htx_
     if is_valid:
         assert r.status_code == 200
         cmds = verify_cmd_count(config.spy, slot, 15)
-        expected_commands = f"""output 3 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+        expected_commands = """output 3 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 3 peq 0 bypass off
 output 3 peq 1 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 output 3 peq 1 bypass off
@@ -1044,7 +1042,7 @@ output 3 peq 9 bypass on"""
         assert r.status_code == 200
         cmds = config.spy.take_commands()
         assert len(cmds) == 10
-        expected_commands = f"""output 3 peq 0 bypass on
+        expected_commands = """output 3 peq 0 bypass on
 output 3 peq 1 bypass on
 output 3 peq 2 bypass on
 output 3 peq 3 bypass on
@@ -1071,7 +1069,7 @@ def test_load_known_entry_to_htx_inputs_and_then_clear(minidsp_htx_inputs_client
     if is_valid:
         assert r.status_code == 200
         cmds = verify_cmd_count(config.spy, slot, 15)
-        expected_commands = f"""input 3 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+        expected_commands = """input 3 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 input 3 peq 0 bypass off
 input 3 peq 1 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 input 3 peq 1 bypass off
@@ -1104,7 +1102,7 @@ input 3 peq 9 bypass on"""
         assert r.status_code == 200
         cmds = config.spy.take_commands()
         assert len(cmds) == 12
-        expected_commands = f"""input 3 peq 0 bypass on
+        expected_commands = """input 3 peq 0 bypass on
 input 3 peq 1 bypass on
 input 3 peq 2 bypass on
 input 3 peq 3 bypass on
@@ -1133,7 +1131,7 @@ def test_load_known_entry_to_4x10_and_then_clear(minidsp_4x10_client, minidsp_4x
     if is_valid:
         assert r.status_code == 200
         cmds = verify_cmd_count(config.spy, slot, 60)
-        expected_commands = f"""input 0 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
+        expected_commands = """input 0 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 0 peq 0 bypass off
 input 1 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
 input 1 peq 0 bypass off
@@ -1211,7 +1209,7 @@ output 7 peq 4 bypass on"""
         assert r.status_code == 200
         cmds = config.spy.take_commands()
         assert len(cmds) == 54
-        expected_commands = f"""input 0 peq 0 bypass on
+        expected_commands = """input 0 peq 0 bypass on
 input 1 peq 0 bypass on
 input 0 peq 1 bypass on
 input 1 peq 1 bypass on
@@ -1282,7 +1280,7 @@ def test_load_known_entry_to_10x10_and_then_clear(minidsp_10x10_client, minidsp_
     if is_valid:
         assert r.status_code == 200
         cmds = verify_cmd_count(config.spy, slot, 120)
-        expected_commands = f"""input 0 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+        expected_commands = """input 0 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 input 0 peq 0 bypass off
 input 1 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 input 1 peq 0 bypass off
@@ -1420,7 +1418,7 @@ output 7 peq 3 bypass on"""
         assert r.status_code == 200
         cmds = config.spy.take_commands()
         assert len(cmds) == 96
-        expected_commands = f"""input 0 peq 0 bypass on
+        expected_commands = """input 0 peq 0 bypass on
 input 1 peq 0 bypass on
 input 2 peq 0 bypass on
 input 3 peq 0 bypass on
@@ -1533,7 +1531,7 @@ def test_load_known_entry_to_10x10xo0_and_then_clear(minidsp_10x10xo0_client, mi
     if is_valid:
         assert r.status_code == 200
         cmds = verify_cmd_count(config.spy, slot, 120)
-        expected_commands = f"""input 0 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+        expected_commands = """input 0 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 input 0 peq 0 bypass off
 input 1 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 input 1 peq 0 bypass off
@@ -1671,7 +1669,7 @@ output 7 crossover 0 3 bypass on"""
         assert r.status_code == 200
         cmds = config.spy.take_commands()
         assert len(cmds) == 96
-        expected_commands = f"""input 0 peq 0 bypass on
+        expected_commands = """input 0 peq 0 bypass on
 input 1 peq 0 bypass on
 input 2 peq 0 bypass on
 input 3 peq 0 bypass on
@@ -1784,7 +1782,7 @@ def test_load_known_entry_to_10x10xo1_and_then_clear(minidsp_10x10xo1_client, mi
     if is_valid:
         assert r.status_code == 200
         cmds = verify_cmd_count(config.spy, slot, 120)
-        expected_commands = f"""input 0 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
+        expected_commands = """input 0 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 input 0 peq 0 bypass off
 input 1 peq 0 set -- 1.0006943908064445 -1.9958328996351784 0.9951633403527971 1.9958383335011358 -0.9958522972932842
 input 1 peq 0 bypass off
@@ -1922,7 +1920,7 @@ output 7 crossover 1 3 bypass on"""
         assert r.status_code == 200
         cmds = config.spy.take_commands()
         assert len(cmds) == 96
-        expected_commands = f"""input 0 peq 0 bypass on
+        expected_commands = """input 0 peq 0 bypass on
 input 1 peq 0 bypass on
 input 2 peq 0 bypass on
 input 3 peq 0 bypass on
@@ -2040,7 +2038,7 @@ def test_patch_v3_multiple_fields(minidsp_client, minidsp_app):
             }
         ]
     }
-    r = minidsp_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.patch("/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
 
     # then: expected commands are sent
@@ -2074,7 +2072,7 @@ def test_patch_v2_multiple_fields(minidsp_client, minidsp_app):
             }
         ]
     }
-    r = minidsp_client.patch(f"/api/2/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.patch("/api/2/devices/master", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
 
     # then: expected commands are sent
@@ -2113,12 +2111,12 @@ def test_patch_v2_multiple_slots(minidsp_client, minidsp_app):
             }
         ]
     }
-    r = minidsp_client.patch(f"/api/2/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.patch("/api/2/devices/master", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
 
     # then: expected commands are sent
     cmds = verify_cmd_count(config.spy, 2, 38)
-    expected_commands = f"""input 0 gain -- 5.10
+    expected_commands = """input 0 gain -- 5.10
 input 1 gain -- 6.10
 config 2
 input 0 gain -- -1.10
@@ -2190,12 +2188,12 @@ def test_patch_v3_multiple_slots(minidsp_client, minidsp_app, entry_id):
             }
         ]
     }
-    r = minidsp_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.patch("/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
 
     # then: expected commands are sent
     cmds = verify_cmd_count(config.spy, 2, 38)
-    expected_commands = f"""input 0 gain -- 5.10
+    expected_commands = """input 0 gain -- 5.10
 input 1 gain -- 6.10
 config 2
 input 0 gain -- -1.10
@@ -2261,7 +2259,7 @@ def test_patch_v3_unknown_entry(minidsp_client, minidsp_app):
             }
         ]
     }
-    r = minidsp_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.patch("/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
 
     # then: no commands are sent
     assert r.status_code == 400
@@ -2269,85 +2267,8 @@ def test_patch_v3_unknown_entry(minidsp_client, minidsp_app):
     assert len(cmds) == 0
 
 
-@pytest.mark.parametrize('entry_id', ['123456_0', 'abcdefghijklm'])
-def test_patch_v3_multiple_slots(minidsp_client, minidsp_app, entry_id):
-    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
-    assert isinstance(config, MinidspSpyConfig)
-    # when: set master gain
-    # and: set input gains
-    payload = {
-        'masterVolume': -10.2,
-        'slots': [
-            {
-                'id': '2',
-                'gains': [{'id': '1', 'value': 5.1}, {'id': '2', 'value': 6.1}]
-            },
-            {
-                'id': '3',
-                'entry': entry_id,
-                'gains': [{'id': '1', 'value': -1.1}, {'id': '2', 'value': -1.1}],
-                'mutes': [{'id': '1', 'value': False}, {'id': '2', 'value': False}]
-            }
-        ]
-    }
-    r = minidsp_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
-    assert r.status_code == 200
-
-    # then: expected commands are sent
-    cmds = verify_cmd_count(config.spy, 2, 38)
-    expected_commands = f"""input 0 gain -- 5.10
-input 1 gain -- 6.10
-config 2
-input 0 gain -- -1.10
-input 1 gain -- -1.10
-input 0 mute off
-input 1 mute off
-input 0 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 0 peq 0 bypass off
-input 1 peq 0 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 1 peq 0 bypass off
-input 0 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 0 peq 1 bypass off
-input 1 peq 1 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 1 peq 1 bypass off
-input 0 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 0 peq 2 bypass off
-input 1 peq 2 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 1 peq 2 bypass off
-input 0 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 0 peq 3 bypass off
-input 1 peq 3 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 1 peq 3 bypass off
-input 0 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 0 peq 4 bypass off
-input 1 peq 4 set -- 1.0003468763586854 -1.9979191385126602 0.9975784764805841 1.9979204983896346 -0.9979239929622952
-input 1 peq 4 bypass off
-input 0 peq 5 bypass on
-input 1 peq 5 bypass on
-input 0 peq 6 bypass on
-input 1 peq 6 bypass on
-input 0 peq 7 bypass on
-input 1 peq 7 bypass on
-input 0 peq 8 bypass on
-input 1 peq 8 bypass on
-input 0 peq 9 bypass on
-input 1 peq 9 bypass on
-gain -- -10.20"""
-    assert '\n'.join(cmds) == expected_commands
-
-    # and: device state is accurate
-    slots = verify_master_device_state(r.json, gain=-10.2)
-    for idx, s in enumerate(slots):
-        if idx == 1:
-            verify_slot(s, idx + 1, gain=(5.10, 6.10))
-        elif idx == 2:
-            verify_slot(s, idx + 1, active=True, gain=(-1.1, -1.1), last='Alien Resurrection')
-        else:
-            verify_slot(s, idx + 1)
-
-
 def test_reload_from_cache(minidsp_client, tmp_path):
-    from ezbeq.minidsp import MinidspState, Minidsp24HD
+    from ezbeq.minidsp import Minidsp24HD, MinidspState
     expected = MinidspState('master', Minidsp24HD())
     expected.update_master_state(True, -5.4)
     slot = expected.get_slot('2')
@@ -2466,7 +2387,7 @@ a2=-0.0"""
         'slot': str(slot),
         'biquads': biquads
     }
-    r = minidsp_client.put(f"/api/1/devices/master/biquads", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.put("/api/1/devices/master/biquads", data=json.dumps(payload), content_type='application/json')
     if is_valid:
         assert r.status_code == 200
         single_channel_cmds = [
@@ -2539,7 +2460,7 @@ a2=-0.998914942208302,
         'slot': '1',
         'biquads': biquads
     }
-    r = minidsp_client.put(f"/api/1/devices/master/biquads", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.put("/api/1/devices/master/biquads", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
     single_channel_cmds = [
         'peq 0 set -- 1.0002465879245352 -1.9989127232747768 0.9986691478494831 1.9989135168404932 -0.998914942208302',
@@ -2583,7 +2504,7 @@ def test_load_single_filter(minidsp_client, minidsp_app, filter_idx):
         'commandType': 'filt',
         'commands': filters
     }
-    r = minidsp_client.put(f"/api/1/devices/master/commands", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.put("/api/1/devices/master/commands", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
     single_channel_cmds = [
         f"peq {filter_idx-1} set -- 0.9978500923871526 -1.9857813617501132 0.9881971257952954 1.9857813617501132 -0.9860472181824479",
@@ -2608,7 +2529,7 @@ def test_load_single_command(minidsp_client, minidsp_app):
     config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
     assert isinstance(config, MinidspSpyConfig)
     # when: load command
-    commands = f"gain -- -20"
+    commands = "gain -- -20"
     payload = {
         'overwrite': False,
         'inputs': [],
@@ -2617,7 +2538,7 @@ def test_load_single_command(minidsp_client, minidsp_app):
         'commandType': 'rs',
         'commands': commands
     }
-    r = minidsp_client.put(f"/api/1/devices/master/commands", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.put("/api/1/devices/master/commands", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
 
     expected_commands = f"output 1 {commands}"
@@ -2647,7 +2568,7 @@ def test_load_multi_command(minidsp_client, minidsp_app):
         'commandType': 'rs',
         'commands': '\n'.join(commands)
     }
-    r = minidsp_client.put(f"/api/1/devices/master/commands", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.put("/api/1/devices/master/commands", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
 
     expected_commands = [f"output 1 {l}" for l in commands]
@@ -2679,15 +2600,15 @@ Filter 9: OFF LS Fc 15.1 Hz Gain -3.2 dB Q 0.7
 Filter 1: ON HS Fc 25.1 Hz Gain 4.2 dB Q 0.8
 """
     }
-    r = minidsp_client.put(f"/api/1/devices/master/commands", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.put("/api/1/devices/master/commands", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
     single_channel_cmds = [
-        f"peq 0 set -- 1.6214064557154642 -3.2398617384986976 1.6184587156869308 1.9976818965843317 -0.997685329488029",
-        f"peq 0 bypass off",
-        f"peq 3 set -- 0.9978500923871526 -1.9857813617501132 0.9881971257952954 1.9857813617501132 -0.9860472181824479",
-        f"peq 3 bypass off",
-        f"peq 8 set -- 0.9998697905301912 -1.9984521459514417 0.9985831671951465 1.9984519651532529 -0.998453138523527",
-        f"peq 8 bypass on",
+        "peq 0 set -- 1.6214064557154642 -3.2398617384986976 1.6184587156869308 1.9976818965843317 -0.997685329488029",
+        "peq 0 bypass off",
+        "peq 3 set -- 0.9978500923871526 -1.9857813617501132 0.9881971257952954 1.9857813617501132 -0.9860472181824479",
+        "peq 3 bypass off",
+        "peq 8 set -- 0.9998697905301912 -1.9984521459514417 0.9985831671951465 1.9984519651532529 -0.998453138523527",
+        "peq 8 bypass on",
     ]
 
     expected_commands = [f"output 1 {l}" for l in single_channel_cmds]
@@ -2719,22 +2640,22 @@ Filter 9: ON LS Fc 15.1 Hz Gain -3.2 dB Q 0.7
 Filter 1: ON HS Fc 25.1 Hz Gain 4.2 dB Q 0.8
 """
     }
-    r = minidsp_client.put(f"/api/1/devices/master/commands", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.put("/api/1/devices/master/commands", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
     single_channel_cmds = [
-        f"peq 0 set -- 1.6214064557154642 -3.2398617384986976 1.6184587156869308 1.9976818965843317 -0.997685329488029",
-        f"peq 0 bypass off",
-        f"peq 1 bypass on",
-        f"peq 2 bypass on",
-        f"peq 3 set -- 0.9978500923871526 -1.9857813617501132 0.9881971257952954 1.9857813617501132 -0.9860472181824479",
-        f"peq 3 bypass off",
-        f"peq 4 bypass on",
-        f"peq 5 bypass on",
-        f"peq 6 bypass on",
-        f"peq 7 bypass on",
-        f"peq 8 set -- 0.9998697905301912 -1.9984521459514417 0.9985831671951465 1.9984519651532529 -0.998453138523527",
-        f"peq 8 bypass off",
-        f"peq 9 bypass on"
+        "peq 0 set -- 1.6214064557154642 -3.2398617384986976 1.6184587156869308 1.9976818965843317 -0.997685329488029",
+        "peq 0 bypass off",
+        "peq 1 bypass on",
+        "peq 2 bypass on",
+        "peq 3 set -- 0.9978500923871526 -1.9857813617501132 0.9881971257952954 1.9857813617501132 -0.9860472181824479",
+        "peq 3 bypass off",
+        "peq 4 bypass on",
+        "peq 5 bypass on",
+        "peq 6 bypass on",
+        "peq 7 bypass on",
+        "peq 8 set -- 0.9998697905301912 -1.9984521459514417 0.9985831671951465 1.9984519651532529 -0.998453138523527",
+        "peq 8 bypass off",
+        "peq 9 bypass on"
     ]
 
     expected_commands = [f"output 1 {l}" for l in single_channel_cmds]
@@ -2803,7 +2724,7 @@ def test_cfg_customise_ddrc88_sw():
     assert desc.__class__.__name__ == 'MinidspDDRC88'
     allocator = desc.to_allocator()
     assert len(allocator) == 10
-    for i in range(0, 10):
+    for i in range(10):
         s = allocator.pop()
         assert s
         assert s.name == 'output'
@@ -2832,7 +2753,7 @@ def test_cfg_customise_htx_sw():
     assert desc.__class__.__name__ == 'MinidspHTX'
     allocator = desc.to_allocator()
     assert len(allocator) == 10
-    for i in range(0, 10):
+    for i in range(10):
         s = allocator.pop()
         assert s.name == 'output'
         assert s.idx == i
@@ -2847,7 +2768,7 @@ def test_cfg_customise_htx_inputs(key_name: str):
     assert desc.__class__.__name__ == 'MinidspHTX'
     allocator = desc.to_allocator()
     assert len(allocator) == 10
-    for i in range(0, 10):
+    for i in range(10):
         s = allocator.pop()
         assert s.name == 'input'
         assert s.idx == i

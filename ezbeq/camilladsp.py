@@ -116,7 +116,7 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
                                     gains.append({"id": c, "value": f["parameters"]["gain"]})
                                     mutes.append({"id": c, "value": f["parameters"]["mute"]})
                             else:
-                                logging.warn(f"Ignoring unexpected filter type {f['type']} for {gain_filter}")
+                                logger.warning(f"Ignoring unexpected filter type {f['type']} for {gain_filter}")
                 self._current_state.slot.gains = gains
                 self._current_state.slot.mutes = mutes
 
@@ -143,16 +143,15 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
             loaded.master_volume = cached["masterVolume"]
         if "slots" in cached:
             for slot in cached["slots"]:
-                if "id" in slot:
-                    if slot["id"] == SLOT_ID:
-                        if slot["last"]:
-                            loaded.slot.last = slot["last"]
-                        if slot["author"]:
-                            loaded.slot.last_author = slot["author"]
-                        if slot["gains"]:
-                            loaded.slot.gains = slot["gains"]
-                        if slot["mutes"]:
-                            loaded.slot.mutes = slot["mutes"]
+                if "id" in slot and slot["id"] == SLOT_ID:
+                    if slot["last"]:
+                        loaded.slot.last = slot["last"]
+                    if slot["author"]:
+                        loaded.slot.last_author = slot["author"]
+                    if slot["gains"]:
+                        loaded.slot.gains = slot["gains"]
+                    if slot["mutes"]:
+                        loaded.slot.mutes = slot["mutes"]
         return loaded
 
     @property
@@ -170,7 +169,7 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
                                 match = self.__catalogue.find(slot["entry"])
                                 if match:
                                     mv = 0.0
-                                    if "gains" in slot and slot["gains"]:
+                                    if slot.get("gains"):
                                         mv = float(slot["gains"][0]["value"])
                                     self.load_filter(SLOT_ID, match, mv)
                                     any_update = True
@@ -196,7 +195,7 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
                                         f"Invalid channel id for gain setting {c_id}"
                                     )
 
-                            def completed(success: bool):
+                            def completed(success: bool, merged=merged):
                                 logger.log(
                                     logging.INFO if success else logging.WARNING,
                                     f"Completed gain update {success}",
@@ -336,9 +335,9 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
                 mv_adjust,
                 lambda b: self._hydrate_cache_broadcast(lambda: completed(b)),
             )
-        except Exception as e:
+        except Exception:
             self._current_state.slot.last = "ERROR"
-            raise e
+            raise
 
     def clear_filter(self, slot: str) -> None:
         self._hydrate_cache_broadcast(lambda: self.__do_load_filter(None))
@@ -347,10 +346,7 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         self._hydrate_cache_broadcast(lambda: self.__do_mute_op(True))
 
     def __do_mute_op(self, mute: bool):
-        try:
-            self.__send_command("Mute", mute)
-        except Exception as e:
-            raise e
+        self.__send_command("Mute", mute)
 
     def unmute(self, slot: str | None, channel: int | None) -> None:
         self._hydrate_cache_broadcast(lambda: self.__do_mute_op(False))
@@ -365,10 +361,7 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
         pass
 
     def __do_volume_op(self, level: float):
-        try:
-            self.__send_command("Volume", level)
-        except Exception as e:
-            raise e
+        self.__send_command("Volume", level)
 
     def request_levels(self):
         self.__ws_client.send(json.dumps("GetPlaybackSignalPeak"))
@@ -415,7 +408,7 @@ class CamillaDsp(PersistentDevice[CamillaDspState]):
             )
         else:
             if result == "Ok":
-                logger.info(f"SetConfigJson accepted")
+                logger.info("SetConfigJson accepted")
                 self.current_config = self.__config_updater.on_set_config()
             else:
                 self.__config_updater.failed("SetConfig", result)

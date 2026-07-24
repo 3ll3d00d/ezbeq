@@ -2,8 +2,7 @@ import logging
 import os
 import sys
 from logging import handlers
-from os import environ
-from os import path
+from os import environ, path
 
 import yaml
 
@@ -105,7 +104,7 @@ class Config:
         if cfg is None:
             cfg = self.load_default_config()
             self.__store_config(cfg, config_path)
-        for name, device in cfg['devices'].items():
+        for device in cfg['devices'].values():
             if device['type'] == 'minidsp':
                 device['make_runner'] = self.create_minidsp_runner
             elif device['type'] == 'camilladsp':
@@ -162,7 +161,7 @@ class Config:
         :return: the base logger.
         """
         base_log_level = logging.DEBUG if self.is_debug_logging is True else logging.INFO
-        console_log_level = logging.INFO if self.is_debug_logging is True else logging.WARN
+        console_log_level = logging.INFO if self.is_debug_logging is True else logging.WARNING
         # create root logger
         logger = logging.getLogger()
         logger.setLevel(base_log_level)
@@ -251,7 +250,7 @@ class Config:
                 stderr=subprocess.DEVNULL, cwd=os.path.dirname(__file__)
             ).decode().strip()
         except Exception:
-            pass
+            self.logger.debug('Unable to determine git branch/sha, not running from a git checkout')
         return result
 
     @property
@@ -270,7 +269,7 @@ class Config:
                 mmap_mb = 50
             else:
                 mmap_mb = 0
-        except Exception as e:
+        except Exception:
             self.logger.exception('Unable to get total physical memory, will default to 0')
         return self.config.get('db_mmap_mb', mmap_mb)
 

@@ -3,18 +3,18 @@ import logging
 import os
 import re
 import threading
-from queue import SimpleQueue
+from collections.abc import Callable
+from queue import Empty, SimpleQueue
 from threading import Thread
 from time import sleep
-from typing import List, Optional, Callable
 
 import pytest
 import yaml
 from pytest_httpserver import HTTPServer
 
 from ezbeq import main
-from ezbeq.config import Config
 from ezbeq.apis.ws import WsServer, WsServerFactory
+from ezbeq.config import Config
 
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
@@ -44,7 +44,7 @@ def logger():
 @pytest.fixture
 def minidsp_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new app instance for each test."""
-    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path))
+    app, _ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path))
     yield app
 
 
@@ -57,7 +57,7 @@ def minidsp_client(minidsp_app):
 @pytest.fixture
 def minidsp_ddrc24_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new app instance for each test."""
-    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='DDRC24'))
+    app, _ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='DDRC24'))
     yield app
 
 
@@ -70,7 +70,7 @@ def minidsp_ddrc24_client(minidsp_ddrc24_app):
 @pytest.fixture
 def minidsp_ddrc88_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new app instance for each test."""
-    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='DDRC88'))
+    app, _ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='DDRC88'))
     yield app
 
 
@@ -83,7 +83,7 @@ def minidsp_ddrc88_client(minidsp_ddrc88_app):
 @pytest.fixture
 def minidsp_4x10_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new app instance for each test."""
-    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='4x10'))
+    app, _ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='4x10'))
     yield app
 
 
@@ -96,7 +96,7 @@ def minidsp_4x10_client(minidsp_4x10_app):
 @pytest.fixture
 def minidsp_10x10_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new app instance for each test."""
-    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='10x10'))
+    app, _ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='10x10'))
     yield app
 
 
@@ -109,7 +109,7 @@ def minidsp_10x10_client(minidsp_10x10_app):
 @pytest.fixture
 def minidsp_10x10xo0_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new app instance for each test."""
-    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='10x10xo0'))
+    app, _ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='10x10xo0'))
     yield app
 
 
@@ -122,7 +122,7 @@ def minidsp_10x10xo0_client(minidsp_10x10xo0_app):
 @pytest.fixture
 def minidsp_10x10xo1_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new app instance for each test."""
-    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='10x10xo1'))
+    app, _ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='10x10xo1'))
     yield app
 
 
@@ -135,7 +135,7 @@ def minidsp_10x10xo1_client(minidsp_10x10xo1_app):
 @pytest.fixture
 def minidsp_shd_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new app instance for each test."""
-    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='SHD'))
+    app, _ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='SHD'))
     yield app
 
 
@@ -148,7 +148,7 @@ def minidsp_shd_client(minidsp_shd_app):
 @pytest.fixture
 def minidsp_htx_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new app instance for each test."""
-    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='HTx', version=''))
+    app, _ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='HTx', version=''))
     yield app
 
 
@@ -161,7 +161,7 @@ def minidsp_htx_client(minidsp_htx_app):
 @pytest.fixture
 def minidsp_htx_inputs_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new app instance for each test."""
-    app, ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='HTx', version='0.1.13'))
+    app, _ws = main.create_app(MinidspSpyConfig(httpserver.host, httpserver.port, tmp_path, device_type='HTx', version='0.1.13'))
     yield app
 
 
@@ -175,7 +175,7 @@ def minidsp_htx_inputs_client(minidsp_htx_inputs_app):
 def single_camilladsp3_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new app instance for each test."""
     cfg = CamillaDspSpyConfig(httpserver.host, httpserver.port, tmp_path, cfg_name='single3.yaml', version=3, channels=[1])
-    app, ws = main.create_app(cfg, cfg.msg_spy)
+    app, _ws = main.create_app(cfg, cfg.msg_spy)
     yield app
 
 
@@ -189,7 +189,7 @@ def single_camilladsp3_client(single_camilladsp3_app):
 def multi_camilladsp3_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new app instance for each test."""
     cfg = CamillaDspSpyConfig(httpserver.host, httpserver.port, tmp_path, cfg_name='multi3.yaml', version=3, channels=[2,3])
-    app, ws = main.create_app(cfg, cfg.msg_spy)
+    app, _ws = main.create_app(cfg, cfg.msg_spy)
     yield app
 
 
@@ -202,7 +202,7 @@ def multi_camilladsp3_client(multi_camilladsp3_app):
 @pytest.fixture
 def stub_app(tmp_path):
     """App instance using MinidspStubRunner - no hardware required."""
-    app, ws = main.create_app(StubConfig(tmp_path))
+    app, _ws = main.create_app(StubConfig(tmp_path))
     yield app
 
 
@@ -282,7 +282,7 @@ class MinidspSpy:
 
 class MinidspSpyConfig(Config):
 
-    def __init__(self, host: str, port: int, tmp_path, device_type: str = None, version: str = ''):
+    def __init__(self, host: str, port: int, tmp_path, device_type: str | None = None, version: str = ''):
         if device_type and device_type[-3:-1] == 'xo':
             self.device_type = device_type[:-3]
             self.use_xo = device_type[-1]
@@ -333,7 +333,7 @@ class CamillaDspSpy:
 
     def __init__(self, base_cfg: dict):
         from ezbeq.camilladsp import CamillaDsp
-        self.__listener: Optional[CamillaDsp] = None
+        self.__listener: CamillaDsp | None = None
         self.__inited = threading.Event()
         self.__inited.clear()
         self.__slot = 1
@@ -357,7 +357,7 @@ class CamillaDspSpy:
                     cmds.append(cmd)
                 else:
                     break
-            except:
+            except Empty:
                 break
         return cmds
 
@@ -409,7 +409,7 @@ class CamillaDspSpy:
 
 class CamillaDspSpyConfig(Config):
 
-    def __init__(self, host: str, port: int, tmp_path, cfg_name: str, version: int, channels: List[int] = None):
+    def __init__(self, host: str, port: int, tmp_path, cfg_name: str, version: int, channels: list[int] | None = None):
         self.channels = channels if channels else [3]
         self.__version = version
         super().__init__('spy', beqcatalogue_url=f"http://{host}:{port}/")
@@ -527,6 +527,6 @@ class CapturingWsServer(WsServer[CapturingWsServerFactory]):
                     msgs.append(cmd)
                 else:
                     break
-            except:
+            except Empty:
                 break
         return msgs

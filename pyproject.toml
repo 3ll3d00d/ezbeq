@@ -62,12 +62,6 @@ markers = [
     "integration: starts a real Twisted server subprocess (slower)",
 ]
 
-[tool.ruff.lint]
-# ruff 0.16 expanded its zero-config default rule set from 59 to 413 rules.
-# Pinned here to keep the pre-upgrade lint surface (E4/E7/E9/F) stable across
-# ruff version bumps. TODO: triage and phase in the wider default rule set.
-select = ["E4", "E7", "E9", "F"]
-
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

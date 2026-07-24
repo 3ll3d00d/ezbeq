@@ -5,7 +5,7 @@ import requests
 
 from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
-from ezbeq.device import SlotState, DeviceState, PersistentDevice
+from ezbeq.device import DeviceState, PersistentDevice, SlotState
 
 logger = logging.getLogger('ezbeq.jriver')
 
@@ -39,7 +39,7 @@ class JRiverState(DeviceState):
         slot = self.__slots.get(zone, None)
         return slot.zone_id if slot else None
 
-    def set_title(self, zone: str, title: str, ignore: bool = False, author: str = None):
+    def set_title(self, zone: str, title: str, ignore: bool = False, author: str | None = None):
         slot = self.__slots.get(zone, None)
         if slot:
             slot.last = title
@@ -102,16 +102,15 @@ class JRiver(PersistentDevice[JRiverState]):
         any_update = False
         if 'slots' in params:
             for slot in params['slots']:
-                if self._current_state.has_zone(slot['id']):
-                    if 'entry' in slot:
-                        if slot['entry']:
-                            match = self.__catalogue.find(slot['entry'])
-                            if match:
-                                self.load_filter(slot['id'], match)
-                                any_update = True
-                        else:
-                            self.clear_filter(slot['id'])
+                if self._current_state.has_zone(slot['id']) and 'entry' in slot:
+                    if slot['entry']:
+                        match = self.__catalogue.find(slot['entry'])
+                        if match:
+                            self.load_filter(slot['id'], match)
                             any_update = True
+                    else:
+                        self.clear_filter(slot['id'])
+                        any_update = True
         return any_update
 
     def load_biquads(self, slot: str, overwrite: bool, inputs: list[int], outputs: list[int], biquads: list[dict]) -> None:
@@ -134,10 +133,10 @@ class JRiver(PersistentDevice[JRiverState]):
             try:
                 self.__mcws.set_dsp(zone_id, new_config_txt)
                 self._current_state.set_title(slot, entry.formatted_title, author=entry.author)
-            except Exception as e:
+            except Exception:
                 self._current_state.slot.last = 'ERROR'
                 self._current_state.slot.last_author = None
-                raise e
+                raise
         self._hydrate_cache_broadcast(__do_it)
 
     def __remove_all_beq(self, current_config_txt) -> str:
@@ -160,9 +159,9 @@ class JRiver(PersistentDevice[JRiverState]):
                 if new_config_txt != current_config_txt:
                     self.__mcws.set_dsp(zone_id, new_config_txt)
                 self._current_state.set_title(slot, 'Empty')
-            except Exception as e:
+            except Exception:
                 self._current_state.error(slot)
-                raise e
+                raise
         self._hydrate_cache_broadcast(__do_it)
 
     def mute(self, slot: str | None, channel: int | None) -> None:
@@ -544,9 +543,7 @@ class MediaServer:
         cl2 = list(x2)
         if len(cl1) != len(cl2):
             return False
-        i = 0
         for c1, c2 in zip(cl1, cl2):
-            i += 1
             if not MediaServer.__compare_xml(c1, c2):
                 return False
         return True

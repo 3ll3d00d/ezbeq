@@ -1,6 +1,6 @@
 import logging
 
-from flask_restx import Resource, reqparse, Namespace
+from flask_restx import Namespace, Resource, reqparse
 
 from ezbeq.catalogue import CatalogueProvider
 

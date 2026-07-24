@@ -2,8 +2,9 @@ import os
 
 import pytest
 import yaml
+
 from ezbeq.camilladsp import create_cfg_for_entry, get_filter_type
-from ezbeq.catalogue import CatalogueEntry, TITLE, DIGEST, FILTERS, YEAR
+from ezbeq.catalogue import DIGEST, FILTERS, TITLE, YEAR, CatalogueEntry
 
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 

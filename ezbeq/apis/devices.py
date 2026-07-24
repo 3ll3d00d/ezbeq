@@ -4,11 +4,11 @@ import re
 import time
 
 from flask import request
-from flask_restx import Resource, Namespace, fields
+from flask_restx import Namespace, Resource, fields
 
-from ezbeq.catalogue import CatalogueProvider, CatalogueEntry
+from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
 from ezbeq.device import DeviceRepository, InvalidRequestError, UnableToPatchDeviceError
-from ezbeq.iir import PeakingEQ, LowShelf, HighShelf
+from ezbeq.iir import HighShelf, LowShelf, PeakingEQ
 
 logger = logging.getLogger('ezbeq.devices')
 
@@ -258,7 +258,7 @@ class DevicesV1(Resource):
 
     def get(self):
         all_devices = self.__bridge.all_devices()
-        for k, v in all_devices.items():
+        for v in all_devices.values():
             return v.serialise()
         return None, 404
 
@@ -586,21 +586,20 @@ class DeviceSender(Resource):
                     return load_filter(entry, self.__bridge, 'master', slot)
             elif cmd == 'activate':
                 return activate_slot(self.__bridge, 'master', slot)
-            elif cmd == 'mute' or cmd == 'gain':
-                if 'value' in payload:
-                    channel = payload['channel'] if 'channel' in payload else None
-                    if channel == 'master':
-                        slot = None
-                        channel = None
-                    elif channel == '0':
-                        channel = None
-                    channel = int(channel) if channel is not None else None
-                    if cmd == 'mute':
-                        return mute_device(self.__bridge, 'master', slot,
-                                           False if payload['value'] == 'off' else True, channel)
-                    else:
-                        return set_gain(self.__bridge, 'master', slot, round(float(payload['value']), 2),
-                                        channel)
+            elif (cmd == 'mute' or cmd == 'gain') and 'value' in payload:
+                channel = payload.get('channel', None)
+                if channel == 'master':
+                    slot = None
+                    channel = None
+                elif channel == '0':
+                    channel = None
+                channel = int(channel) if channel is not None else None
+                if cmd == 'mute':
+                    return mute_device(self.__bridge, 'master', slot,
+                                       payload['value'] != 'off', channel)
+                else:
+                    return set_gain(self.__bridge, 'master', slot, round(float(payload['value']), 2),
+                                    channel)
         return None, 400
 
     def delete(self, slot):

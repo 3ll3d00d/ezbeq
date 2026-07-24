@@ -4,17 +4,17 @@ import sqlite3
 import threading
 import time
 import types
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from pytest_httpserver import HTTPServer
 
 from ezbeq.catalogue import (
+    DB_BUSY_TIMEOUT_MILLIS,
+    TWO_WEEKS_AGO_SECONDS,
     Catalogue,
     Catalogues,
     DatabaseDownloader,
-    DB_BUSY_TIMEOUT_MILLIS,
-    TWO_WEEKS_AGO_SECONDS,
     compute_freshness,
     db_ops,
 )
@@ -98,10 +98,9 @@ class TestDbOps:
         db_file = str(tmp_path / 'x.db')
         with db_ops(db_file) as cur:
             cur.execute('CREATE TABLE t(a INT)')
-        with pytest.raises(sqlite3.OperationalError):
-            with db_ops(db_file) as cur:
-                cur.execute('INSERT INTO t VALUES (1)')
-                cur.execute('INSERT INTO not_a_table VALUES (1)')
+        with pytest.raises(sqlite3.OperationalError), db_ops(db_file) as cur:
+            cur.execute('INSERT INTO t VALUES (1)')
+            cur.execute('INSERT INTO not_a_table VALUES (1)')
         with db_ops(db_file) as cur:
             assert cur.execute('SELECT COUNT(*) FROM t').fetchone()[0] == 0
 
@@ -208,7 +207,7 @@ class TestPruneEntries:
 
     def test_removes_entries_past_retention(self, tmp_path):
         cat = self._load_two_versions(tmp_path)
-        old_loaded_at = int((datetime.now() - timedelta(days=2)).timestamp() * 1000)
+        old_loaded_at = int((datetime.now(UTC) - timedelta(days=2)).timestamp() * 1000)
         with db_ops(cat._Catalogues__db) as cur:
             cur.execute("UPDATE catalogue_entry SET loaded_at = ? WHERE version = 'old-version'",
                        (old_loaded_at,))
@@ -302,25 +301,25 @@ class TestPrunePool:
 
 class TestCatalogueStale:
     """
-    Regression coverage: __insert_catalogue builds Catalogue.loaded_at as a
-    timezone-aware UTC datetime, while __load_catalogues builds it naive.
-    `stale` must handle both without raising.
+    All production code now builds Catalogue.loaded_at as timezone-aware UTC,
+    but `stale` also tolerates a naive loaded_at defensively - these guard
+    that fallback path explicitly.
     """
 
     def test_stale_with_naive_loaded_at(self):
-        c = Catalogue(count=1, version='v1', loaded_at=datetime.now() - timedelta(minutes=10))
+        c = Catalogue(count=1, version='v1', loaded_at=datetime.now() - timedelta(minutes=10))  # noqa: DTZ005
         assert c.stale is True
 
     def test_not_stale_with_naive_loaded_at(self):
-        c = Catalogue(count=1, version='v1', loaded_at=datetime.now())
+        c = Catalogue(count=1, version='v1', loaded_at=datetime.now())  # noqa: DTZ005
         assert c.stale is False
 
     def test_stale_with_aware_loaded_at(self):
-        c = Catalogue(count=1, version='v1', loaded_at=datetime.now(timezone.utc) - timedelta(minutes=10))
+        c = Catalogue(count=1, version='v1', loaded_at=datetime.now(UTC) - timedelta(minutes=10))
         assert c.stale is True
 
     def test_not_stale_with_aware_loaded_at(self):
-        c = Catalogue(count=1, version='v1', loaded_at=datetime.now(timezone.utc))
+        c = Catalogue(count=1, version='v1', loaded_at=datetime.now(UTC))
         assert c.stale is False
 
 

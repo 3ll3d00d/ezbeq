@@ -5,7 +5,7 @@ import socket
 
 from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
-from ezbeq.device import SlotState, DeviceState, PersistentDevice
+from ezbeq.device import DeviceState, PersistentDevice, SlotState
 
 SLOT_NAME = 'QSYS'
 TERMINATOR = '\0'
@@ -55,12 +55,11 @@ class Qsys(PersistentDevice[QsysState]):
     def _merge_state(self, loaded: QsysState, cached: dict) -> QsysState:
         if 'slots' in cached:
             for slot in cached['slots']:
-                if 'id' in slot:
-                    if slot['id'] == 'Qsys':
-                        if slot['last']:
-                            loaded.slot.last = slot['last']
-                        if slot['author']:
-                            loaded.slot.author = slot['author']
+                if 'id' in slot and slot['id'] == 'Qsys':
+                    if slot['last']:
+                        loaded.slot.last = slot['last']
+                    if slot['author']:
+                        loaded.slot.author = slot['author']
         return loaded
 
     @property
@@ -71,16 +70,15 @@ class Qsys(PersistentDevice[QsysState]):
         any_update = False
         if 'slots' in params:
             for slot in params['slots']:
-                if slot['id'] == SLOT_NAME:
-                    if 'entry' in slot:
-                        if slot['entry']:
-                            match = self.__catalogue.find(slot['entry'])
-                            if match:
-                                self.load_filter(SLOT_NAME, match)
-                                any_update = True
-                        else:
-                            self.clear_filter(SLOT_NAME)
+                if slot['id'] == SLOT_NAME and 'entry' in slot:
+                    if slot['entry']:
+                        match = self.__catalogue.find(slot['entry'])
+                        if match:
+                            self.load_filter(SLOT_NAME, match)
                             any_update = True
+                    else:
+                        self.clear_filter(SLOT_NAME)
+                        any_update = True
         return any_update
 
     def __send(self, to_load: list['PEQ'], entry: CatalogueEntry | str):
@@ -173,7 +171,7 @@ class Qsys(PersistentDevice[QsysState]):
             try:
                 result = json.loads(msg)
                 logger.info(f"Received from {name}: {result}")
-            except json.JSONDecodeError as e:
+            except json.JSONDecodeError:
                 logger.exception(f"Unable to decode {msg}")
         else:
             logger.info(f"Received no data from {name}")
@@ -204,10 +202,10 @@ class Qsys(PersistentDevice[QsysState]):
             else:
                 self._current_state.slot.last = entry
                 self._current_state.slot.last_author = None
-        except Exception as e:
+        except Exception:
             self._current_state.slot.last = 'ERROR'
             self._current_state.slot.last_author = None
-            raise e
+            raise
 
     def clear_filter(self, slot: str) -> None:
         self._hydrate_cache_broadcast(lambda: self.__do_it([], 'Empty'))

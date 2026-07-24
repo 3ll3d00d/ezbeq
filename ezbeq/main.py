@@ -8,9 +8,21 @@ from flask import Flask
 from flask_compress import Compress
 from flask_restx import Api
 
-from ezbeq.apis import search, version, devices, authors, audiotypes, years, contenttypes, languages, meta, \
-    catalogue as cat_api, diagnostics, load
-from ezbeq.apis.ws import WsServer, AutobahnWsServer
+from ezbeq.apis import (
+    audiotypes,
+    authors,
+    contenttypes,
+    devices,
+    diagnostics,
+    languages,
+    load,
+    meta,
+    search,
+    version,
+    years,
+)
+from ezbeq.apis import catalogue as cat_api
+from ezbeq.apis.ws import AutobahnWsServer, WsServer
 from ezbeq.catalogue import CatalogueProvider, LoadTester
 from ezbeq.config import Config
 from ezbeq.device import DeviceRepository
@@ -22,9 +34,9 @@ if hasattr(faulthandler, 'register'):
     faulthandler.register(signal.SIGUSR2, all_threads=True)
 
 
-def create_app(config: Config, ws: WsServer = AutobahnWsServer()) -> tuple[Flask, WsServer]:
-    ws_server = ws
-    catalogue = CatalogueProvider(config, ws)
+def create_app(config: Config, ws: WsServer | None = None) -> tuple[Flask, WsServer]:
+    ws_server = ws if ws is not None else AutobahnWsServer()
+    catalogue = CatalogueProvider(config, ws_server)
     resource_args = {
         'config': config,
         'ws_server': ws_server,
@@ -96,11 +108,10 @@ def main(args=None):
 
     import logging
     logger = logging.getLogger('twisted')
-    from twisted.internet import reactor
+    from twisted.internet import endpoints, reactor
+    from twisted.web import server, static
     from twisted.web.resource import Resource
-    from twisted.web import static, server
     from twisted.web.wsgi import WSGIResource
-    from twisted.internet import endpoints
 
     class ReactApp:
         """

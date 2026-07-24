@@ -3,12 +3,16 @@ import logging
 
 import semver
 from autobahn.exception import Disconnected
-from autobahn.twisted.websocket import WebSocketClientFactory, connectWS, WebSocketClientProtocol
+from autobahn.twisted.websocket import (
+    WebSocketClientFactory,
+    WebSocketClientProtocol,
+    connectWS,
+)
 from twisted.internet.protocol import ReconnectingClientFactory
 
 from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
-from ezbeq.device import DeviceState, SlotState, PersistentDevice
+from ezbeq.device import DeviceState, PersistentDevice, SlotState
 
 logger = logging.getLogger('ezbeq.htp1')
 
@@ -57,12 +61,11 @@ class Htp1(PersistentDevice[Htp1State]):
     def _merge_state(self, loaded: Htp1State, cached: dict) -> Htp1State:
         if 'slots' in cached:
             for slot in cached['slots']:
-                if 'id' in slot:
-                    if slot['id'] == 'HTP1':
-                        if slot['last']:
-                            loaded.slot.last = slot['last']
-                        if slot['author']:
-                            loaded.slot.last_author = slot['author']
+                if 'id' in slot and slot['id'] == 'HTP1':
+                    if slot['last']:
+                        loaded.slot.last = slot['last']
+                    if slot['author']:
+                        loaded.slot.last_author = slot['author']
         return loaded
 
     @property
@@ -73,16 +76,15 @@ class Htp1(PersistentDevice[Htp1State]):
         any_update = False
         if 'slots' in params:
             for slot in params['slots']:
-                if slot['id'] == 'HTP1':
-                    if 'entry' in slot:
-                        if slot['entry']:
-                            match = self.__catalogue.find(slot['entry'])
-                            if match:
-                                self.load_filter('HTP1', match)
-                                any_update = True
-                        else:
-                            self.clear_filter('HTP1')
+                if slot['id'] == 'HTP1' and 'entry' in slot:
+                    if slot['entry']:
+                        match = self.__catalogue.find(slot['entry'])
+                        if match:
+                            self.load_filter('HTP1', match)
                             any_update = True
+                    else:
+                        self.clear_filter('HTP1')
+                        any_update = True
         return any_update
 
     def __send(self, to_load: list['PEQ']):
@@ -90,7 +92,7 @@ class Htp1(PersistentDevice[Htp1State]):
         while len(to_load) < 10:
             peq = PEQ(len(to_load), fc=100, q=1, gain=0, filter_type_name='PeakingEQ')
             to_load.append(peq)
-        ops = [peq.as_ops(c, use_shelf=self.__supports_shelf) for peq in to_load for c in self.__peq.keys()]
+        ops = [peq.as_ops(c, use_shelf=self.__supports_shelf) for peq in to_load for c in self.__peq]
         ops = [op for slot_ops in ops for op in slot_ops if op]
         if ops:
             self.__client.send('changemso [{"op":"replace","path":"/peq/peqsw","value":true}]')
@@ -116,15 +118,15 @@ class Htp1(PersistentDevice[Htp1State]):
                    for idx, f in enumerate(entry.filters)]
         self._hydrate_cache_broadcast(lambda: self.__do_it(to_load, entry.formatted_title, entry.author))
 
-    def __do_it(self, to_load: list['PEQ'], title: str, author: str = None):
+    def __do_it(self, to_load: list['PEQ'], title: str, author: str | None = None):
         try:
             self.__send(to_load)
             self._current_state.slot.last = title
             self._current_state.slot.last_author = author
-        except Exception as e:
+        except Exception:
             self._current_state.slot.last = 'ERROR'
             self._current_state.slot.last_author = None
-            raise e
+            raise
 
     def clear_filter(self, slot: str) -> None:
         self._hydrate_cache_broadcast(lambda: self.__do_it([], 'Empty'))
@@ -152,7 +154,7 @@ class Htp1(PersistentDevice[Htp1State]):
         version = version[1:] if version[0] == 'v' or version[0] == 'V' else version
         try:
             self.__supports_shelf = semver.parse_version_info(version) > semver.parse_version_info('1.4.0')
-        except ValueError as e:
+        except ValueError:
             logger.error(f"Unable to parse version {mso['versions']['swVer']}, will not send shelf filters")
             self.__supports_shelf = False
         if not self.__supports_shelf:
@@ -181,12 +183,12 @@ class Htp1(PersistentDevice[Htp1State]):
         if unknown_channels:
             peq_channels = peq_slots[0]['channels'].keys()
             logger.error(f"Unknown channels encountered [peq channels: {peq_channels}, unknown: {unknown_channels}]")
-        for c in filters.keys():
+        for c, value in filters.items():
             if c in self.__channels:
-                logger.info(f"Updating PEQ channel {c} with {filters[c]}")
-                self.__peq[c] = filters[c]
+                logger.info(f"Updating PEQ channel {c} with {value}")
+                self.__peq[c] = value
             else:
-                logger.info(f"Discarding filter channel {c} - {filters[c]}")
+                logger.info(f"Discarding filter channel {c} - {value}")
 
     def on_msoupdate(self, msoupdate: list[dict]):
         for upd in msoupdate:

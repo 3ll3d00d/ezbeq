@@ -3,7 +3,7 @@ import logging
 import time
 import tracemalloc
 
-from flask_restx import Resource, Namespace
+from flask_restx import Namespace, Resource
 
 logger = logging.getLogger('ezbeq.diagnostics')
 

@@ -1,9 +1,7 @@
-import logging
-from abc import ABC, abstractmethod
-
 import decimal
-
+import logging
 import math
+from abc import ABC, abstractmethod
 
 ctx = decimal.Context()
 ctx.prec = 17

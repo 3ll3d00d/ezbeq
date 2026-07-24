@@ -1,4 +1,4 @@
-from flask_restx import Resource, Namespace
+from flask_restx import Namespace, Resource
 
 from ezbeq.catalogue import CatalogueProvider
 
@@ -13,4 +13,4 @@ class ContentTypes(Resource):
         self.__provider: CatalogueProvider = kwargs['catalogue']
 
     def get(self):
-        return list(sorted({c for c in self.__provider.content_types}))
+        return sorted({c for c in self.__provider.content_types})

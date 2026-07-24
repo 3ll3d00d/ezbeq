@@ -1,10 +1,10 @@
 import json
 
 import pytest
-from busypie import wait, SECOND, MILLISECOND
+from busypie import MILLISECOND, SECOND, wait
+from conftest import CamillaDspSpyConfig
 
 from ezbeq.camilladsp import NOP_LS
-from conftest import CamillaDspSpyConfig
 
 
 @pytest.mark.parametrize("mute_op", [True, False])
@@ -14,7 +14,7 @@ def test_mute_master(single_camilladsp3_client, single_camilladsp3_app, mute_op)
     ensure_inited(config)
 
     call = single_camilladsp3_client.put if mute_op is True else single_camilladsp3_client.delete
-    r = call(f"/api/1/devices/master/mute")
+    r = call("/api/1/devices/master/mute")
     assert r
     assert r.status_code == 200
 
@@ -42,7 +42,7 @@ def test_set_volume(single_camilladsp3_client, single_camilladsp3_app, volume):
     ensure_inited(config)
 
     payload = {'gain': volume}
-    r = single_camilladsp3_client.put(f"/api/1/devices/master/gain", data=json.dumps(payload),
+    r = single_camilladsp3_client.put("/api/1/devices/master/gain", data=json.dumps(payload),
                                       content_type='application/json')
     assert r
     assert r.status_code == 200
@@ -70,7 +70,7 @@ def test_load_known_entry_and_then_clear(single_camilladsp3_client, single_camil
     assert isinstance(config, CamillaDspSpyConfig)
     ensure_inited(config)
 
-    r = single_camilladsp3_client.put(f"/api/1/devices/master/filter/CamillaDSP",
+    r = single_camilladsp3_client.put("/api/1/devices/master/filter/CamillaDSP",
                                       data=json.dumps({'entryId': '123456_0'}),
                                       content_type='application/json')
     assert r.status_code == 200
@@ -101,7 +101,7 @@ def test_load_known_entry_and_then_clear(single_camilladsp3_client, single_camil
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('entry_is_shown').until_asserted(
         entry_is_shown)
 
-    r = single_camilladsp3_client.delete(f"/api/1/devices/master/filter/CamillaDSP")
+    r = single_camilladsp3_client.delete("/api/1/devices/master/filter/CamillaDSP")
     assert r.status_code == 200
 
     set_config_response = None
@@ -136,7 +136,7 @@ def test_load_known_entry_with_gain_and_then_clear(single_camilladsp3_client, si
     ensure_inited(config)
 
     payload = {"slots": [{"id": "CamillaDSP", "gains": [{"id": "1", "value": -1.5}], "mutes": [], "entry": "123456_0"}]}
-    r = single_camilladsp3_client.patch(f"/api/3/devices/master", data=json.dumps(payload),
+    r = single_camilladsp3_client.patch("/api/3/devices/master", data=json.dumps(payload),
                                         content_type='application/json')
     assert r.status_code == 200
 
@@ -166,7 +166,7 @@ def test_load_known_entry_with_gain_and_then_clear(single_camilladsp3_client, si
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('entry_is_shown').until_asserted(
         entry_is_shown)
 
-    r = single_camilladsp3_client.delete(f"/api/1/devices/master/filter/CamillaDSP")
+    r = single_camilladsp3_client.delete("/api/1/devices/master/filter/CamillaDSP")
     assert r.status_code == 200
 
     set_config_response = None
@@ -203,7 +203,7 @@ def test_load_known_entry_then_load_gain_and_then_clear(single_camilladsp3_clien
     ensure_inited(config)
 
     payload = {"slots": [{"id": "CamillaDSP", "entry": "123456_0"}]}
-    r = single_camilladsp3_client.patch(f"/api/3/devices/master", data=json.dumps(payload),
+    r = single_camilladsp3_client.patch("/api/3/devices/master", data=json.dumps(payload),
                                         content_type='application/json')
     assert r.status_code == 200
 
@@ -234,7 +234,7 @@ def test_load_known_entry_then_load_gain_and_then_clear(single_camilladsp3_clien
         entry_is_shown)
 
     payload = {"slots": [{"id": "CamillaDSP", "gains": [{"id": "1", "value": -1.5}]}]}
-    r = single_camilladsp3_client.patch(f"/api/3/devices/master", data=json.dumps(payload),
+    r = single_camilladsp3_client.patch("/api/3/devices/master", data=json.dumps(payload),
                                         content_type='application/json')
     assert r.status_code == 200
 
@@ -256,7 +256,7 @@ def test_load_known_entry_then_load_gain_and_then_clear(single_camilladsp3_clien
         gain_changed)
     beq_is_loaded(set_config_response, -1.5, has_vol=True)
 
-    r = single_camilladsp3_client.delete(f"/api/1/devices/master/filter/CamillaDSP")
+    r = single_camilladsp3_client.delete("/api/1/devices/master/filter/CamillaDSP")
     assert r.status_code == 200
 
     set_config_response = None
@@ -294,7 +294,7 @@ def test_input_gain_and_mute(single_camilladsp3_client, single_camilladsp3_app):
 
     payload = {
         "slots": [{"id": "CamillaDSP", "gains": [{"id": "1", "value": -1.5}], "mutes": [{"id": "1", "value": True}]}]}
-    r = single_camilladsp3_client.patch(f"/api/3/devices/master", data=json.dumps(payload),
+    r = single_camilladsp3_client.patch("/api/3/devices/master", data=json.dumps(payload),
                                         content_type='application/json')
     assert r.status_code == 200
 
@@ -342,7 +342,7 @@ def test_input_gain_and_mute_on_unsupported_channel(single_camilladsp3_client, s
 
     payload = {
         "slots": [{"id": "CamillaDSP", "gains": [{"id": "0", "value": -1.5}], "mutes": [{"id": "0", "value": True}]}]}
-    r = single_camilladsp3_client.patch(f"/api/3/devices/master", data=json.dumps(payload),
+    r = single_camilladsp3_client.patch("/api/3/devices/master", data=json.dumps(payload),
                                         content_type='application/json')
     assert r.status_code == 500
 
@@ -361,7 +361,7 @@ def test_load_known_entry_to_multiple_channels_with_gain_and_then_clear(multi_ca
             "entry": "123456_0"
         }
     ]}
-    r = multi_camilladsp3_client.patch(f"/api/3/devices/master", data=json.dumps(payload),
+    r = multi_camilladsp3_client.patch("/api/3/devices/master", data=json.dumps(payload),
                                        content_type='application/json')
     assert r.status_code == 200
 
@@ -395,7 +395,7 @@ def test_load_known_entry_to_multiple_channels_with_gain_and_then_clear(multi_ca
     wait().at_most(2 * SECOND).poll_interval(10 * MILLISECOND).with_description('entry_is_shown').until_asserted(
         entry_is_shown)
 
-    r = multi_camilladsp3_client.delete(f"/api/1/devices/master/filter/CamillaDSP")
+    r = multi_camilladsp3_client.delete("/api/1/devices/master/filter/CamillaDSP")
     assert r.status_code == 200
 
     cfg = None

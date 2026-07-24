@@ -3,10 +3,10 @@ import logging
 import os
 import sqlite3
 import time
+from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from threading import Thread
 
 import ijson
@@ -126,7 +126,7 @@ class CatalogueEntry:
         y = 0
         try:
             y = int(vals.get(YEAR, 0))
-        except ValueError as e:
+        except ValueError:
             logger.error(f"Invalid year {vals.get(YEAR, 0)} in {self.title}")
         self.year = y
 
@@ -172,7 +172,7 @@ class CatalogueEntry:
         self.formatted_title = self.__format_title()
         try:
             r = int(vals.get(RUNTIME, 0))
-        except ValueError as e:
+        except ValueError:
             logger.error(f"Invalid runtime {vals.get('runtime', 0)} in {self.title}")
             r = 0
         self.runtime = r
@@ -181,7 +181,7 @@ class CatalogueEntry:
             v = vals['mv']
             try:
                 self.mv_adjust = float(v)
-            except (ValueError, TypeError) as e:
+            except (ValueError, TypeError):
                 logger.error(f"Unknown mv_adjust value in {self.title} - {vals['mv']}")
         self.freshness = compute_freshness(self.created_at, self.updated_at)
 
@@ -282,7 +282,7 @@ class Catalogue:
 
     @property
     def stale(self):
-        now = datetime.now(self.loaded_at.tzinfo) if self.loaded_at.tzinfo else datetime.now()
+        now = datetime.now(self.loaded_at.tzinfo) if self.loaded_at.tzinfo else datetime.now()  # noqa: DTZ005
         return (now - self.loaded_at) > timedelta(minutes=5)
 
     def json(self) -> dict:
@@ -444,7 +444,7 @@ class Catalogues:
         with db_ops(self.__db) as cur:
             res = cur.execute(
                 "SELECT version, MAX(loaded_at), COUNT(id) FROM catalogue_entry GROUP BY version ORDER BY MAX(loaded_at) ASC")
-            catalogues = [Catalogue(row[2], row[0], loaded_at=datetime.utcfromtimestamp(row[1] / 1000)) for row in
+            catalogues = [Catalogue(row[2], row[0], loaded_at=datetime.fromtimestamp(row[1] / 1000, tz=UTC)) for row in
                           res.fetchall()]
             loaded = 0
             if catalogues:
@@ -465,13 +465,13 @@ class Catalogues:
                             catalogue = self.__insert_catalogue(f.read().strip(), meta_only=loaded == 2)
                             if catalogue:
                                 catalogues.append(catalogue)
-                except Exception as e:
+                except Exception:
                     logger.exception(
                         f'[{self.__db}] Failed to load catalogue at startup from {self.__catalogue_file}')
         return catalogues
 
     def __insert_catalogue(self, version: str, meta_only: bool = False) -> Catalogue | None:
-        now = int(datetime.now().timestamp() * 1000)
+        now = int(datetime.now(UTC).timestamp() * 1000)
         audio_types = set()
         authors = set()
         contenttypes = set()
@@ -486,61 +486,60 @@ class Catalogues:
             s2 = time.time()
             logger.info(f'[{self.__db} / {version}] Inserted {len(v)} (of {c}) entries in {to_millis(s1, s2)}ms')
 
-        with open(self.__catalogue_file, 'rb') as infile:
-            with db_ops(self.__db) as cur:
-                values = []
-                count = 0
-                insert_sql = f"INSERT INTO catalogue_entry({FIELDS_STR},version,loaded_at) VALUES({', '.join(['?'] * (len(FIELDS) + 2))})"
-                start = time.time()
-                t1 = start
-                for idx, c in enumerate(ijson.items(infile, 'item', use_float=True)):
-                    count = count + 1
-                    entry = CatalogueEntry(f"{version}_{idx}", c)
-                    for v in entry.audio_types:
-                        audio_types.add(v)
-                    if entry.author:
-                        authors.add(entry.author)
-                    if entry.content_type:
-                        contenttypes.add(entry.content_type)
-                    if entry.language:
-                        languages.add(entry.language)
-                    if entry.year:
-                        years.add(entry.year)
-                    values.append(entry.values + extra_vals)
-                    if len(values) % 1000 == 0 and not meta_only:
-                        t2 = time.time()
-                        logger.info(
-                            f'[{self.__db} / {version}] Parsed {len(v)} (of {c}) entries in {to_millis(t1, t2)}ms')
-                        insert_commit(values, count, insert_sql)
-                        values = []
-                        t1 = time.time()
-                if values and not meta_only:
-                    insert_commit(values, count, insert_sql)
-                if not meta_only:
+        with open(self.__catalogue_file, 'rb') as infile, db_ops(self.__db) as cur:
+            values = []
+            count = 0
+            insert_sql = f"INSERT INTO catalogue_entry({FIELDS_STR},version,loaded_at) VALUES({', '.join(['?'] * (len(FIELDS) + 2))})"
+            start = time.time()
+            t1 = start
+            for idx, c in enumerate(ijson.items(infile, 'item', use_float=True)):
+                count = count + 1
+                entry = CatalogueEntry(f"{version}_{idx}", c)
+                for v in entry.audio_types:
+                    audio_types.add(v)
+                if entry.author:
+                    authors.add(entry.author)
+                if entry.content_type:
+                    contenttypes.add(entry.content_type)
+                if entry.language:
+                    languages.add(entry.language)
+                if entry.year:
+                    years.add(entry.year)
+                values.append(entry.values + extra_vals)
+                if len(values) % 1000 == 0 and not meta_only:
+                    t2 = time.time()
                     logger.info(
-                        f'[{self.__db} / {version}] Inserted {count} entries in {to_millis(start, time.time())}ms')
+                        f'[{self.__db} / {version}] Parsed {len(v)} (of {c}) entries in {to_millis(t1, t2)}ms')
+                    insert_commit(values, count, insert_sql)
+                    values = []
+                    t1 = time.time()
+            if values and not meta_only:
+                insert_commit(values, count, insert_sql)
+            if not meta_only:
+                logger.info(
+                    f'[{self.__db} / {version}] Inserted {count} entries in {to_millis(start, time.time())}ms')
 
-                def insert_if(meta_type: str, vals: set):
-                    if vals:
-                        s1 = time.time()
-                        cur.executemany("INSERT INTO catalogue_meta VALUES(?, ?, ?)",
-                                        [(meta_type, v, version) for v in vals])
-                        cur.connection.commit()
-                        s2 = time.time()
-                        logger.info(
-                            f'[{self.__db} / {version}] Inserted {len(vals)} {meta_type} entries in {to_millis(s1, s2)}ms')
-                    else:
-                        logger.info(f'[{self.__db} / {version}] No {meta_type} entries to insert')
+            def insert_if(meta_type: str, vals: set):
+                if vals:
+                    s1 = time.time()
+                    cur.executemany("INSERT INTO catalogue_meta VALUES(?, ?, ?)",
+                                    [(meta_type, v, version) for v in vals])
+                    cur.connection.commit()
+                    s2 = time.time()
+                    logger.info(
+                        f'[{self.__db} / {version}] Inserted {len(vals)} {meta_type} entries in {to_millis(s1, s2)}ms')
+                else:
+                    logger.info(f'[{self.__db} / {version}] No {meta_type} entries to insert')
 
-                insert_if(AUDIO_TYPES, audio_types)
-                insert_if(AUTHOR, authors)
-                insert_if(CONTENT_TYPE, contenttypes)
-                insert_if(LANGUAGE, languages)
-                insert_if(YEAR, years)
+            insert_if(AUDIO_TYPES, audio_types)
+            insert_if(AUTHOR, authors)
+            insert_if(CONTENT_TYPE, contenttypes)
+            insert_if(LANGUAGE, languages)
+            insert_if(YEAR, years)
 
-                return Catalogue(count, version, {AUDIO_TYPES: audio_types, AUTHOR: authors, CONTENT_TYPE: contenttypes,
-                                                  LANGUAGE: languages, YEAR: years},
-                                 datetime.fromtimestamp(now / 1000, tz=timezone.utc)) if count else None
+            return Catalogue(count, version, {AUDIO_TYPES: audio_types, AUTHOR: authors, CONTENT_TYPE: contenttypes,
+                                              LANGUAGE: languages, YEAR: years},
+                             datetime.fromtimestamp(now / 1000, tz=UTC)) if count else None
 
     def load_meta(self, version: str, meta_type: str) -> list[str]:
         with db_ops(self.__db) as cur:
@@ -604,7 +603,7 @@ class Catalogues:
     def __on_catalogue_update(self, catalogue: Catalogue):
         logger.info(f'Caching fresh catalogue {catalogue.version}')
         self.__catalogues.append(catalogue)
-        one_day_ago = datetime.now() - timedelta(days=1)
+        one_day_ago = datetime.now(UTC) - timedelta(days=1)
         old_versions = [c.version for c in self.__catalogues if c.loaded_at and c.loaded_at < one_day_ago]
         self.__catalogues = [i for i in self.__catalogues if i.version not in old_versions]
         self.__ws.broadcast(catalogue.meta_msg)
@@ -621,9 +620,9 @@ class Catalogues:
             logger.exception(f'[{self.__db}] Failed to prune entries, will retry on next reload')
 
     def __prune_entries(self, keep_version: str):
-        min_loaded_at = int((datetime.now() - timedelta(days=1)).timestamp() * 1000)
+        min_loaded_at = int((datetime.now(UTC) - timedelta(days=1)).timestamp() * 1000)
         logger.info(
-            f'Pruning catalogues older than {datetime.fromtimestamp(min_loaded_at / 1000).strftime("%c")} except version {keep_version}')
+            f'Pruning catalogues older than {datetime.fromtimestamp(min_loaded_at / 1000, tz=UTC).strftime("%c")} except version {keep_version}')
         with db_ops(self.__db) as cur:
             before = time.time()
             cur.execute(
@@ -642,14 +641,14 @@ class Catalogues:
                 after = time.time()
                 logger.info(f'Vacuumed DB in {to_millis(before, after)} ms')
             else:
-                logger.debug(f'Nothing to prune')
+                logger.debug('Nothing to prune')
 
     def refresh_if_stale(self):
         if not self.loaded or self.latest.stale:
             try:
                 self.__reload()
-            except Exception as e:
-                logger.exception("Failed to refresh catalogue", e)
+            except Exception:
+                logger.exception("Failed to refresh catalogue")
 
     def find_by_id(self, entry_id: str, as_dict: bool = False) -> CatalogueEntry | dict | None:
         return self.__find(f"{ID} = '{entry_id}'", as_dict)
@@ -846,10 +845,9 @@ class DatabaseDownloader:
         self.__cached_db_file = cached_db_file
         self.__cached_version_file = cached_version_file
         self.__cached_version = ''
-        if os.path.exists(self.__cached_version_file):
-            if os.path.exists(self.__cached_db_file):
-                with open(self.__cached_version_file) as f:
-                    self.__cached_version = f.read()
+        if os.path.exists(self.__cached_version_file) and os.path.exists(self.__cached_db_file):
+            with open(self.__cached_version_file) as f:
+                self.__cached_version = f.read()
 
     @property
     def version(self) -> str | None:
@@ -880,7 +878,7 @@ class DatabaseDownloader:
                     return True
                 else:
                     logger.warning(f"Unable to download catalogue, response is {r.status_code}")
-            except Exception as e:
+            except Exception:
                 logger.exception("Unable to download catalogue, unexpected error")
         else:
             logger.info(f"No reload required {remote_version} vs {self.__cached_version}")
@@ -898,7 +896,7 @@ class DatabaseDownloader:
                 return txt.strip() if txt else txt
             else:
                 logger.warning(f"Unable to get {self.__version_url}, response was {r.status_code}")
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to get {self.__version_url}")
         return None
 
@@ -907,7 +905,7 @@ DB_BUSY_TIMEOUT_MILLIS = 30000
 
 
 @contextmanager
-def db_ops(db_name, cache_size: int = None, mmap_size: int = None):
+def db_ops(db_name, cache_size: int | None = None, mmap_size: int | None = None):
     conn = sqlite3.connect(db_name)
     try:
         conn.execute(f'pragma busy_timeout={DB_BUSY_TIMEOUT_MILLIS};')
@@ -921,9 +919,9 @@ def db_ops(db_name, cache_size: int = None, mmap_size: int = None):
         conn.execute('pragma temp_store = memory;')
         cur = conn.cursor()
         yield cur
-    except Exception as e:
+    except Exception:
         conn.rollback()
-        raise e
+        raise
     else:
         conn.commit()
     finally:
@@ -953,7 +951,7 @@ class LoadTester:
                               "FROM catalogue_entry "
                               "GROUP BY version "
                               "ORDER BY MAX(loaded_at) DESC")
-            self.catalogues = [Catalogue(row[2], row[0], loaded_at=datetime.utcfromtimestamp(row[1] / 1000)) for row in
+            self.catalogues = [Catalogue(row[2], row[0], loaded_at=datetime.fromtimestamp(row[1] / 1000, tz=UTC)) for row in
                                res.fetchall()]
             if not self.catalogues:
                 raise ValueError("No catalogues available for testing")

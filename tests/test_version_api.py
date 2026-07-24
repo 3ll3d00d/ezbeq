@@ -1,9 +1,6 @@
-import os
 
 import pytest
-
 from conftest import MinidspSpyConfig
-
 
 _UNSET = object()
 
@@ -87,7 +84,6 @@ def test_version_env_vars_take_priority(httpserver, tmp_path, monkeypatch):
     """GIT_BRANCH/GIT_SHA env vars (set by Docker) are used when present."""
     monkeypatch.setenv('GIT_BRANCH', 'feats/docker-branch')
     monkeypatch.setenv('GIT_SHA', 'cafebabe')
-    from ezbeq import main
     from ezbeq.config import Config
     cfg = Config.__new__(Config)
     info = cfg.git_info
