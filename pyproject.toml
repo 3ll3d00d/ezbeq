@@ -1,6 +1,6 @@
 [project]
 name = "ezbeq"
-version = "2.8.0"
+version = "2.8.1"
 description = "A webapp which can send beqcatalogue filters to a DSP device"
 authors = [
     { name = "3ll3d00d", email = "mattkhan+ezbeq@gmail.com" }
@@ -13,11 +13,11 @@ requires-python = ">=3.13, <3.15"
 dependencies = [
     "Flask-Compress >=1.13, <2.0",
     "PyYAML >=6.0, <7.0",
-    "plumbum >=1.8.1, <2.0",
-    "Twisted >=24.3.0, <26.0",
+    "plumbum >=1.8.1, <3.0",
+    "Twisted >=24.3.0, <27.0",
     "requests >=2.30.0, <3.0",
     "python-dateutil >=2.8.2, <3.0",
-    "autobahn[twisted] >=24.4.2, <26.0",
+    "autobahn[twisted] >=24.4.2, <27.0",
     "semver >=3.0.0, <4.0",
     "flask-restx >=1.3.0, <2.0",
     "prometheus-client >=0.17.1, <1.0",
@@ -40,8 +40,8 @@ pytest-httpserver = "^1.0.7"
 pytest-cov = "^7.1.0"
 busypie = "^0.6.1"
 pyupgrade = "^3.21.2"
-ruff = ">=0.15.5,<0.16.0"
-ty = ">=0.0.32,<0.0.33"
+ruff = ">=0.15.5,<0.17.0"
+ty = ">=0.0.32,<0.1.0"
 
 [tool.poetry.group.docs]
 optional = true
@@ -61,6 +61,12 @@ pyinstaller = { version = "^6.9.0", python = ">=3.13,<3.15" }
 markers = [
     "integration: starts a real Twisted server subprocess (slower)",
 ]
+
+[tool.ruff.lint]
+# ruff 0.16 expanded its zero-config default rule set from 59 to 413 rules.
+# Pinned here to keep the pre-upgrade lint surface (E4/E7/E9/F) stable across
+# ruff version bumps. TODO: triage and phase in the wider default rule set.
+select = ["E4", "E7", "E9", "F"]
 
 [build-system]
 requires = ["poetry-core"]
