@@ -202,7 +202,7 @@ def multi_camilladsp3_client(multi_camilladsp3_app):
 @pytest.fixture
 def stormaudio_app(httpserver: HTTPServer, tmp_path):
     """Create and configure a new StormAudio app instance for each test."""
-    app, ws = main.create_app(StormAudioSpyConfig(httpserver.host, httpserver.port, tmp_path))
+    app, _ws = main.create_app(StormAudioSpyConfig(httpserver.host, httpserver.port, tmp_path))
     yield app
 
 

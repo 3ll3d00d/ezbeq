@@ -2,7 +2,7 @@
 
 ## Tech Stack
 
-- **Python 3.11+** required
+- **Python 3.13+** required
 - **Flask** + **Flask-RESTx** for REST API with automatic Swagger docs
 - **Twisted** + **Autobahn** for async networking and WebSockets
 - **PyYAML** for configuration

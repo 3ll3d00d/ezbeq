@@ -5,7 +5,7 @@ from werkzeug import Response
 
 from ezbeq.catalogue import CatalogueEntry
 from ezbeq.device import InvalidRequestError
-from ezbeq.stormaudio import RatioConfig, SLOT_ID, StormAudio, make_mso_payload
+from ezbeq.stormaudio import SLOT_ID, RatioConfig, StormAudio, make_mso_payload
 
 
 def test_devices(stormaudio_client):

@@ -3,9 +3,15 @@ import re
 
 import requests
 
-from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
 from ezbeq.apis.ws import WsServer
-from ezbeq.device import DeviceState, InvalidRequestError, PersistentDevice, SlotState, UnableToPatchDeviceError
+from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
+from ezbeq.device import (
+    DeviceState,
+    InvalidRequestError,
+    PersistentDevice,
+    SlotState,
+    UnableToPatchDeviceError,
+)
 
 logger = logging.getLogger('ezbeq.stormaudio')
 
@@ -113,15 +119,15 @@ class StormAudio(PersistentDevice[StormAudioState]):
         payload = make_mso_payload(entry, self.__profile_name, self.__sub_count, self.__ratio, mv_adjust=mv_adjust)
         self._hydrate_cache_broadcast(lambda: self.__load_payload(payload, entry.formatted_title, entry.author))
 
-    def __load_payload(self, payload: dict, title: str, author: str = None):
+    def __load_payload(self, payload: dict, title: str, author: str | None = None):
         try:
             self.__post(payload)
             self._current_state.slot.last = title
             self._current_state.slot.last_author = author
-        except Exception as e:
+        except Exception:
             self._current_state.slot.last = 'ERROR'
             self._current_state.slot.last_author = None
-            raise e
+            raise
 
     def __post(self, payload: dict):
         logger.info(f"Sending {len(payload.get('Sub', []))} StormAudio sub blocks")
