@@ -186,6 +186,9 @@ def create_devices(cfg: Config, ws_server: WsServer, catalogue: CatalogueProvide
         elif d_type == 'camilladsp':
             from ezbeq.camilladsp import CamillaDsp
             devices.append(CamillaDsp(name, cfg.config_path, values, ws_server, catalogue))
+        elif d_type == 'reaper':
+            from ezbeq.reaper import Reaper
+            devices.append(Reaper(name, cfg.config_path, values, ws_server, catalogue))
     if not devices:
         raise ValueError('No device configured')
     else:
