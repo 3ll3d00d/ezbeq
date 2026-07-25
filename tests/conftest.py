@@ -64,7 +64,7 @@ def reaper_app(httpserver: HTTPServer, tmp_path):
     httpserver.log to inspect exactly what was sent, the same way the
     real REAPER machine would receive it.
     """
-    app, ws = main.create_app(ReaperSpyConfig(httpserver.host, httpserver.port, tmp_path))
+    app, _ws = main.create_app(ReaperSpyConfig(httpserver.host, httpserver.port, tmp_path))
     yield app
 
 

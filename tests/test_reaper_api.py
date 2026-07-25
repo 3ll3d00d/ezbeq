@@ -1,7 +1,6 @@
 import re
 import urllib.parse
 
-import pytest
 from pytest_httpserver import HTTPServer
 
 EXTSTATE_URI_PATTERN = re.compile(r"^/_/SET/EXTSTATE/.*")

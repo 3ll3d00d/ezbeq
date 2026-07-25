@@ -1,10 +1,10 @@
 # Adding a REAPER + FabFilter Pro-Q 4 Device to ezbeq
 
-This guide adds a new `reaper` device type to ezbeq, so it can push BEQ
-filters directly into a FabFilter Pro-Q 4 instance running inside REAPER,
-using REAPER's built-in Web Control interface. No NixOS required - this
-works on any machine that can run Python (Linux, macOS, Windows) for the
-ezbeq side, and any Windows/Mac machine running REAPER on the other end.
+The `reaper` device type pushes BEQ filters directly into a FabFilter Pro-Q 4
+instance running inside REAPER, using REAPER's built-in Web Control
+interface. ezbeq can run on any machine that can run Python (Linux, macOS,
+Windows); REAPER can run on any Windows/Mac machine reachable over the
+network (or the same machine).
 
 The REAPER-side script referenced throughout this guide,
 [`proq4_apply_filters.lua`](proq4_apply_filters.lua), lives alongside this
@@ -15,63 +15,12 @@ in the repository root.
 
 ## What you need
 
-- ezbeq source code (clone from https://github.com/3ll3d00d/ezbeq)
-- `reaper.py` (the new device module)
-- `proq4_apply_filters.lua` (the REAPER-side script)
 - REAPER, with FabFilter Pro-Q 4 installed
 - Both machines reachable over the network (can be the same machine)
 
 ---
 
-## Step 1: Add `reaper.py` to the ezbeq source
-
-Copy `reaper.py` into ezbeq's package folder, alongside the other device
-modules:
-
-```
-ezbeq/ezbeq/reaper.py
-```
-
-(i.e. next to `ezbeq/ezbeq/htp1.py`, `ezbeq/ezbeq/minidsp.py`, etc - same
-folder, same level.)
-
-## Step 2: Modify `device.py` to register the new device type
-
-Open `ezbeq/ezbeq/device.py` and find the `create_devices` function. It
-contains a chain of `elif d_type == '...':` blocks, one per supported
-device type - something like:
-
-```python
-elif d_type == 'camilladsp':
-    from ezbeq.camilladsp import CamillaDsp
-    devices.append(CamillaDsp(name, cfg.config_path, values, ws_server, catalogue))
-```
-
-Add a new `elif` block for `reaper` immediately after it (order among the
-`elif` blocks doesn't matter, but keeping it near the end is tidy):
-
-```python
-elif d_type == 'reaper':
-    from ezbeq.reaper import Reaper
-    devices.append(Reaper(name, cfg.config_path, values, ws_server, catalogue))
-```
-
-Save the file. That's the only source change needed - `reaper.py` itself
-doesn't require any other file to be touched.
-
-## Step 3: Reinstall/rebuild ezbeq so the change is picked up
-
-If you're running ezbeq from source with `pip install -e .` (editable
-install), no reinstall is needed - just restart ezbeq. If you installed it
-as a regular package, reinstall from your modified source tree, e.g.:
-
-```
-pip install --break-system-packages .
-```
-
-(run from inside the ezbeq source folder)
-
-## Step 4: Configure the device in ezbeq's `config.yml`
+## Step 1: Configure the device in ezbeq's `config.yml`
 
 Add a `reaper1` entry (name is up to you) under `devices:`:
 
@@ -79,7 +28,7 @@ Add a `reaper1` entry (name is up to you) under `devices:`:
 devices:
   reaper1:
     type: reaper
-    ip: 192.168.1.50:8080       # the REAPER machine's IP and Web Control port (see Step 5)
+    ip: 192.168.1.50:8080       # the REAPER machine's IP and Web Control port (see Step 2)
     extstate_section: beqbridge  # optional, this is the default
     extstate_key: filters        # optional, this is the default
     timeout: 3                   # optional, HTTP timeout in seconds
@@ -90,7 +39,7 @@ up in ezbeq's web UI.
 
 ---
 
-## Step 5: Enable REAPER's Web Control interface
+## Step 2: Enable REAPER's Web Control interface
 
 This is what lets ezbeq talk to REAPER over HTTP. On the machine running
 REAPER:
@@ -122,7 +71,7 @@ If REAPER is reachable, this returns without a network error (the actual
 HTTP response body doesn't matter much here - a connection failure is the
 thing to watch for).
 
-## Step 6: Set up the track and Pro-Q 4 instance in REAPER
+## Step 3: Set up the track and Pro-Q 4 instance in REAPER
 
 1. Create a track in your REAPER project (or use an existing one) that sits
    in your BEQ signal path.
@@ -132,7 +81,7 @@ thing to watch for).
    One instance gives you 24 bands, which is enough headroom for any BEQ
    profile likely to be encountered.
 
-## Step 7: Install and run `proq4_apply_filters.lua`
+## Step 4: Install and run `proq4_apply_filters.lua`
 
 1. Copy `proq4_apply_filters.lua` into REAPER's Scripts folder. You can
    find/create this folder via **Options → Show REAPER resource path in
@@ -175,7 +124,7 @@ local TRACK_NAME = "BEQ"
 ```
 
 Must **exactly match** (case-sensitive) the name of the track holding your
-Pro-Q 4 instance (Step 6). If you named your track something other than
+Pro-Q 4 instance (Step 3). If you named your track something other than
 `BEQ`, change this to match. If it doesn't match, the script will print
 `Track '<name>' not found.` and won't do anything else.
 
