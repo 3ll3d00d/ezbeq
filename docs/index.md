@@ -1,6 +1,6 @@
 ## Overview
 
-ezbeq is a web interface which allows for simplistic selection of a movie / TV show BEQ filter to load into a MiniDSP 2x4HD, an HTP-1, or JRiver Media Center solution. It was originally developed for use with MiniDSP 2x4HD hardware (in conjunction with a tool called minidsp-rs) without having to use the proprietary minidsp plugin, but has expanded to include several other solutions, as well as an API layer for futher extensibility.
+ezbeq is a web interface which allows for simplistic selection of a movie / TV show BEQ filter to load into a MiniDSP 2x4HD, an HTP-1, a StormAudio processor, or JRiver Media Center solution. It was originally developed for use with MiniDSP 2x4HD hardware (in conjunction with a tool called minidsp-rs) without having to use the proprietary minidsp plugin, but has expanded to include several other solutions, as well as an API layer for futher extensibility.
 
 The web interface is usable from phones, tablets, laptops or desktops.
 
@@ -8,7 +8,7 @@ The web interface is usable from phones, tablets, laptops or desktops.
 
 ezbeq and minidsp-rs run on Linux, Windows, or Mac operating systems. Basic instructions are provided for installation and setup on Raspberry Pi (running RaspberryOS/raspbian) and Windows. The RPi documentation may also be used on an x86 machine running a Debian-based linux distribution (Debian, Ubuntu, Mint, etc), with some slight tweaks.
 
-NB: Python 3.11 is the minimum version supported.
+NB: Python 3.13 is the minimum version supported.
 
 The following requirements should be met before attempting an installation:
 
@@ -27,6 +27,12 @@ NOTE – ezbeq and minidsp-rs will be modifying the INPUT settings of the MiniDS
 - Functional HTP-1 ([https://www.monoprice.com/product?p_id=37887](https://www.monoprice.com/product?p_id=37887))
 - Windows or Linux based system (Raspberry Pi) with network connectivity
 - Network connectivity from ezbeq server to HTP-1
+- Internet connection
+
+### StormAudio:
+- Functional StormAudio ISP processor running firmware 4.7r2 or newer
+- Windows or Linux based system (Raspberry Pi) with network connectivity
+- Network connectivity from ezbeq server to the StormAudio processor Web UI
 - Internet connection
 
 ### JRiver Media Center:

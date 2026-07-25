@@ -174,6 +174,9 @@ def create_devices(cfg: Config, ws_server: WsServer, catalogue: CatalogueProvide
         elif d_type == 'htp1':
             from ezbeq.htp1 import Htp1
             devices.append(Htp1(name, cfg.config_path, values, ws_server, catalogue))
+        elif d_type == 'stormaudio':
+            from ezbeq.stormaudio import StormAudio
+            devices.append(StormAudio(name, cfg.config_path, values, ws_server, catalogue))
         elif d_type == 'jriver':
             from ezbeq.jriver import JRiver
             devices.append(JRiver(name, cfg.config_path, values, ws_server, catalogue))

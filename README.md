@@ -2,7 +2,7 @@
 
 A simple web browser for [beqcatalogue](https://beqcatalogue.readthedocs.io/en/latest/) which integrates
 with [minidsp-rs](https://github.com/mrene/minidsp-rs)
-for local remote control of a minidsp or HTP-1.
+for local remote control of a minidsp, HTP-1, StormAudio processor or other supported DSP.
 
 ## Table of Contents
 
@@ -28,6 +28,7 @@ for local remote control of a minidsp or HTP-1.
   - [Configuring Devices](#configuring-devices)
     - [Minidsp](#minidsp)
     - [Monolith HTP1](#monolith-htp1)
+    - [StormAudio](#stormaudio)
     - [JRiver Media Center](#jriver-media-center)
     - [Q-Sys](#q-sys)
     - [CamillaDSP](#camilladsp)
@@ -97,6 +98,7 @@ See [examples](examples)
 | Minidsp SHD                 | [ezbeq_shd.yml](examples/ezbeq_shd.yml)                                                                                                                                     |
 | Monolith HTP-1              | [ezbeq_htp1.yml](examples/ezbeq_htp1.yml)                                                                                                                                   |
 | Q-Sys                       | [ezbeq_qsys.yml](examples/ezbeq_qsys.yml)                                                                                                                                   |
+| StormAudio                  | [ezbeq_stormaudio.yml](examples/ezbeq_stormaudio.yml)                                                                                                                       |
 | Multiple, different devices | [ezbeq_multi.yml](examples/ezbeq_multi.yml)                                                                                                                                 |
 
 ### Using with a Minidsp
@@ -493,6 +495,45 @@ BEQ filters are loaded into the bottom 10 slots of the specified channels only.
 * ip: ip address of the HTP1
 * channels: list of channels to apply filters to (sub1, sub2 and sub3 are the standard subwoofer channels in the HTP1)
 * autoclear: if set to true, BEQ filters will be reset on power state or input change
+
+#### StormAudio
+
+StormAudio ISP processors are supported via the processor Web UI MSO import endpoint.
+
+Requires StormAudio firmware 4.7r2 or newer.
+
+```
+  storm:
+    ip: 192.0.2.10
+    profileName: ezBEQ
+    subCount: 1
+    timeout: 30
+    ratio:
+      default:
+        gain: 1.0
+        q: 1.0
+      byType:
+        PeakingEQ:
+          gain: 1.0
+          q: 1.0
+        LowShelf:
+          gain: 1.0
+          q: 1.0
+        HighShelf:
+          gain: 1.0
+          q: 1.0
+    type: stormaudio
+```
+
+* ip: ip address of the StormAudio processor. Use `url` instead when the endpoint is not at `http://<ip>/mso.php`.
+* profileName: name for the profile created by the MSO import.
+* subCount: number of subwoofer blocks to include in the import payload. The same BEQ filters are written to each block.
+* timeout: request timeout in seconds.
+* ratio: optional per-filter type multipliers applied before sending filters to StormAudio. `PeakingEQ` maps to
+  `Bell`, `LowShelf` maps to `Low Shelf`, and `HighShelf` maps to `High Shelf`.
+
+Loading a filter creates a StormAudio profile from the current processor state. ezbeq does not activate or delete
+StormAudio profiles; clearing the ezbeq slot only clears ezbeq's local state.
 
 #### JRiver Media Center
 

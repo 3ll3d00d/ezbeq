@@ -200,6 +200,19 @@ def multi_camilladsp3_client(multi_camilladsp3_app):
 
 
 @pytest.fixture
+def stormaudio_app(httpserver: HTTPServer, tmp_path):
+    """Create and configure a new StormAudio app instance for each test."""
+    app, ws = main.create_app(StormAudioSpyConfig(httpserver.host, httpserver.port, tmp_path))
+    yield app
+
+
+@pytest.fixture
+def stormaudio_client(stormaudio_app):
+    """A test client for the app."""
+    return stormaudio_app.test_client()
+
+
+@pytest.fixture
 def stub_app(tmp_path):
     """App instance using MinidspStubRunner - no hardware required."""
     app, _ws = main.create_app(StubConfig(tmp_path))
@@ -443,6 +456,55 @@ class CamillaDspSpyConfig(Config):
     def create_ws_client(self, ip: str, port: int, listener):
         self.spy.listener = listener
         return self.spy
+
+    @property
+    def config_path(self):
+        return self.__tmp_path
+
+    @property
+    def version(self):
+        return '1.2.3'
+
+
+class StormAudioSpyConfig(Config):
+
+    def __init__(self, host: str, port: int, tmp_path):
+        self.__host = host
+        self.__port = port
+        self.__tmp_path = tmp_path
+        super().__init__('spy', beqcatalogue_url=f"http://{host}:{port}/")
+
+    @property
+    def load_catalogue_at_startup(self):
+        return True
+
+    def load_config(self):
+        return {
+            'debugLogging': False,
+            'accessLogging': False,
+            'port': 8080,
+            'devices': {
+                'master': {
+                    'type': 'stormaudio',
+                    'url': f"http://{self.__host}:{self.__port}/mso.php",
+                    'profileName': 'New Profile 1',
+                    'subCount': 2,
+                    'timeout': 5,
+                    'ratio': {
+                        'default': {
+                            'gain': 1.0,
+                            'q': 1.0,
+                        },
+                        'byType': {
+                            'LowShelf': {
+                                'gain': 0.5,
+                                'q': 2.0,
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
     @property
     def config_path(self):

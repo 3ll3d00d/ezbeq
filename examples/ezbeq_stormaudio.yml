@@ -1,0 +1,24 @@
+accessLogging: false
+debugLogging: true
+devices:
+  storm:
+    ip: 192.0.2.10
+    profileName: ezBEQ
+    ratio:
+      byType:
+        HighShelf:
+          gain: 1.0
+          q: 1.0
+        LowShelf:
+          gain: 1.0
+          q: 1.0
+        PeakingEQ:
+          gain: 1.0
+          q: 1.0
+      default:
+        gain: 1.0
+        q: 1.0
+    subCount: 1
+    timeout: 30
+    type: stormaudio
+port: 8080

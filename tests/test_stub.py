@@ -95,7 +95,11 @@ def live_stub_server(tmp_path_factory):
     yield base_url
 
     proc.terminate()
-    proc.wait(timeout=5)
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=5)
 
 
 @pytest.mark.integration
