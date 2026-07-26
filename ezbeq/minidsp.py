@@ -140,7 +140,7 @@ class MinidspState(DeviceState):
         slot.last_author = author
         self.activate(slot_id)
 
-    def get_slot(self, slot_id: str) -> Optional['MinidspSlotState']:
+    def get_slot(self, slot_id: str) -> 'MinidspSlotState | None':
         return next((s for s in self.__slots if s.slot_id == slot_id), None)
 
     def clear(self, slot_id: str) -> None:

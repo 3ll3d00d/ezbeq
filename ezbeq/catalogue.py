@@ -1,3 +1,4 @@
+import enum
 import json
 import logging
 import os
@@ -668,6 +669,10 @@ class Catalogues:
             return None
 
     def whats_new(self, since: int, limit: int = 50) -> list[dict]:
+        # Queried the same way as search()/find() rather than kept in memory - the
+        # index-backed sqlite table is already the single source of truth for entry
+        # data, and this is only triggered on catalogue reload (see App.jsx's `meta`
+        # effect), not on a per-poll basis.
         catalogue = self.latest
         if not catalogue:
             return []
@@ -947,14 +952,20 @@ def db_ops(db_name, cache_size: int | None = None, mmap_size: int | None = None)
         conn.close()
 
 
-def compute_freshness(created_at, updated_at):
+class Freshness(enum.StrEnum):
+    FRESH = 'Fresh'
+    UPDATED = 'Updated'
+    STALE = 'Stale'
+
+
+def compute_freshness(created_at, updated_at) -> Freshness:
     now = time.time()
     if created_at >= (now - TWO_WEEKS_AGO_SECONDS):
-        return 'Fresh'
+        return Freshness.FRESH
     elif updated_at >= (now - TWO_WEEKS_AGO_SECONDS):
-        return 'Updated'
+        return Freshness.UPDATED
     else:
-        return 'Stale'
+        return Freshness.STALE
 
 
 class LoadTester:

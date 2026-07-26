@@ -240,6 +240,10 @@ class Config:
         }
         if result['branch'] and result['sha']:
             return result
+        # Docker images set GIT_BRANCH/GIT_SHA above; this fallback is for `poetry run ezbeq`
+        # from a git checkout during local development. Packaged installs (e.g. an rpi with
+        # no git and no .git directory) simply fail the subprocess call and fall through to
+        # the debug log below, leaving both fields None.
         try:
             result['sha'] = subprocess.check_output(
                 ['git', 'rev-parse', '--short', 'HEAD'],

@@ -1,15 +1,13 @@
 import logging
 import time
 
-from flask_restx import Resource, reqparse, Namespace
+from flask_restx import Namespace, Resource, reqparse
 
-from ezbeq.catalogue import CatalogueProvider
+from ezbeq.catalogue import TWO_WEEKS_AGO_SECONDS, CatalogueProvider
 
 logger = logging.getLogger('ezbeq.catalogue')
 
 api = Namespace('1/whats-new', description='Returns recently added or updated BEQ entries')
-
-TWO_WEEKS_SECONDS = 2 * 7 * 24 * 60 * 60
 
 
 @api.route('')
@@ -28,7 +26,7 @@ class WhatsNew(Resource):
         args = self.__parser.parse_args()
         since = args.get('since')
         if since is None:
-            since = int(time.time() - TWO_WEEKS_SECONDS)
+            since = int(time.time() - TWO_WEEKS_AGO_SECONDS)
         limit = args.get('limit')
         if limit is None:
             limit = 50

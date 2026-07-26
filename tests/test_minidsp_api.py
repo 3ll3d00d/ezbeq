@@ -2069,7 +2069,7 @@ def test_patch_v3_output_mute_all_channels(minidsp_client, minidsp_app, slot, mu
             'outputMutes': [{'id': str(i), 'value': mute_value} for i in range(1, 5)]
         }]
     }
-    r = minidsp_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.patch("/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
     cmds = verify_cmd_count(config.spy, slot, 4)
     op = 'on' if mute_value else 'off'
@@ -2094,7 +2094,7 @@ def test_patch_v3_output_mute_single_channel(minidsp_client, minidsp_app, slot, 
             'outputMutes': [{'id': str(channel), 'value': mute_value}]
         }]
     }
-    r = minidsp_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.patch("/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
     cmds = verify_cmd_count(config.spy, slot, 1)
     op = 'on' if mute_value else 'off'
@@ -2120,7 +2120,7 @@ def test_patch_v3_output_gain_all_channels(minidsp_client, minidsp_app, slot, ga
             'outputGains': [{'id': str(i), 'value': gain} for i in range(1, 5)]
         }]
     }
-    r = minidsp_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.patch("/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
     cmds = verify_cmd_count(config.spy, slot, 4)
     for i in range(4):
@@ -2141,7 +2141,7 @@ def test_patch_v3_output_gain_single_channel(minidsp_client, minidsp_app, channe
             'outputGains': [{'id': str(channel), 'value': -3.5}]
         }]
     }
-    r = minidsp_client.patch(f"/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
+    r = minidsp_client.patch("/api/3/devices/master", data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
     cmds = verify_cmd_count(config.spy, 1, 1)
     assert cmds[0] == f"output {channel - 1} gain -- -3.50"
