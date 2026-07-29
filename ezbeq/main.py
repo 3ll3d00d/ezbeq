@@ -126,6 +126,15 @@ def main(args=None):
         if not isinstance(file_resource, static.File) or not file_resource.isfile():
             return file_resource
         request.setHeader(b'vary', b'Accept-Encoding')
+        if os.path.basename(os.path.dirname(file_resource.path)) == 'assets':
+            # vite content-hashes every filename under assets/ (e.g. index-DSKaXI3R.js), so a given URL's
+            # content never changes - repeat visits can skip the network (and the compression/304 work
+            # below) entirely instead of just getting a fast conditional-GET round trip.
+            request.setHeader(b'cache-control', b'public, max-age=31536000, immutable')
+        else:
+            # index.html (and other unhashed top-level files) references the current asset filenames, so
+            # it must be revalidated on every load rather than cached, even heuristically.
+            request.setHeader(b'cache-control', b'no-cache')
         accept_encoding = (request.getHeader(b'accept-encoding') or b'').decode('latin-1').lower()
         for token, ext in (('br', '.br'), ('gzip', '.gz')):
             if token in accept_encoding:
