@@ -115,6 +115,42 @@ def main(args=None):
     from twisted.web.resource import Resource
     from twisted.web.wsgi import WSGIResource
 
+    def _use_precompressed(file_resource, request):
+        """
+        Swaps file_resource for a pre-built .br/.gz sibling (see the compression plugin in ui/vite.config.js)
+        when the client's Accept-Encoding allows it, so the JS/CSS bundle doesn't have to be compressed on
+        the fly on every request - a real cost on the weak CPUs (RPi Zero 2 / Pi 3) some users run this on.
+        Falls back to serving file_resource unmodified if there's no matching sibling or the client didn't
+        ask for it.
+        """
+        if not isinstance(file_resource, static.File) or not file_resource.isfile():
+            return file_resource
+        request.setHeader(b'vary', b'Accept-Encoding')
+        accept_encoding = (request.getHeader(b'accept-encoding') or b'').decode('latin-1').lower()
+        for token, ext in (('br', '.br'), ('gzip', '.gz')):
+            if token in accept_encoding:
+                compressed_path = file_resource.path + ext
+                if os.path.isfile(compressed_path):
+                    content_type, _ = static.getTypeAndEncoding(
+                        file_resource.basename(), file_resource.contentTypes,
+                        file_resource.contentEncodings, file_resource.defaultType
+                    )
+                    compressed = file_resource.createSimilarFile(compressed_path)
+                    compressed.type = content_type
+                    compressed.encoding = token
+                    return compressed
+        return file_resource
+
+    class PrecompressedFile(static.File):
+        """
+        A static.File whose getChild prefers a pre-built .br/.gz sibling of the resolved child, when the
+        client supports it (see _use_precompressed). Used for directories (e.g. the vite 'assets' dir) since
+        getChild is where Twisted resolves each path segment to a file on disk.
+        """
+
+        def getChild(self, path, request):
+            return _use_precompressed(super().getChild(path, request), request)
+
     class ReactApp:
         """
         Handles the react app (excluding the static dir).
@@ -122,16 +158,16 @@ def main(args=None):
 
         def __init__(self, path):
             # TODO allow this to load when in debug mode even if the files don't exist
-            self.publicFiles = {f: static.File(os.path.join(path, f)) for f in os.listdir(path) if
+            self.publicFiles = {f: PrecompressedFile(os.path.join(path, f)) for f in os.listdir(path) if
                                 os.path.exists(os.path.join(path, f))}
             self.indexHtml = ReactIndex(os.path.join(path, 'index.html'))
 
-        def get_file(self, path):
+        def get_file(self, path, request):
             """
             overrides getChild so it always just serves index.html unless the file does actually exist (i.e. is an
             icon or something like that)
             """
-            return self.publicFiles.get(path.decode('utf-8'), self.indexHtml)
+            return _use_precompressed(self.publicFiles.get(path.decode('utf-8'), self.indexHtml), request)
 
     class ReactIndex(static.File):
         """
@@ -180,7 +216,7 @@ def main(args=None):
             if os.path.exists(uiRoot):
                 logger.info(f'Serving ui from {uiRoot}')
                 self.react = ReactApp(uiRoot)
-                self.static = static.File(os.path.join(uiRoot, 'static'))
+                self.static = PrecompressedFile(os.path.join(uiRoot, 'static'))
             else:
                 logger.error(f'No UI available in {uiRoot}')
             self.metrics = None
@@ -218,7 +254,7 @@ def main(args=None):
                 return self.metrics
             else:
                 if hasattr(self, 'react'):
-                    return self.react.get_file(path)
+                    return self.react.get_file(path, request)
                 # No UI built — serve a helpful placeholder for the root, 404 for everything else
                 if path == b'':
                     return _NoUIPlaceholder()

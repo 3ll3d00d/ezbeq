@@ -1,16 +1,24 @@
 import Header from "../Header";
 import Filter from "./Filter";
 import WhatsNew from "./WhatsNew";
-import {Grid} from "@mui/material";
-import React, {useEffect, useMemo, useState} from "react";
+import {Box, CircularProgress, Grid} from "@mui/material";
+import React, {lazy, Suspense, useEffect, useMemo, useState} from "react";
 import {debounce} from "lodash/function";
 import {pushData, useLocalStorage} from "../../services/util";
 import Slots from "./Slots";
-import Catalogue from "./Catalogue";
 import Entry from "./Entry";
 import Search from "./Search";
 import Footer from "./Footer";
 import ezbeq from "../../services/ezbeq";
+
+// pulls in @mui/x-data-grid, the single biggest chunk in the bundle - loading it lazily lets the
+// app shell paint before it's fetched/parsed, which matters on the weak wifi/CPU of a Pi-hosted server
+const Catalogue = lazy(() => import("./Catalogue"));
+
+const catalogueFallback =
+    <Box sx={{display: 'flex', justifyContent: 'center', p: 4}}>
+        <CircularProgress size={28}/>
+    </Box>;
 
 const TWO_WEEKS_AGO_SECS = () => Math.floor(Date.now() / 1000) - 2 * 7 * 24 * 60 * 60;
 
@@ -144,11 +152,14 @@ const MainView = ({
                            setError={setErr}
                            setSuccess={setSuccess}
                            uploadPendingSlotId={uploadPendingSlotId}/>;
-    const catalogue = <Catalogue entries={filteredEntries}
-                                 setSelectedEntryId={setSelectedEntryId}
-                                 selectedEntryId={selectedEntryId}
-                                 useWide={useWide}
-                                 selectedDevice={availableDevices[selectedDeviceName]}/>;
+    const catalogue =
+        <Suspense fallback={catalogueFallback}>
+            <Catalogue entries={filteredEntries}
+                       setSelectedEntryId={setSelectedEntryId}
+                       selectedEntryId={selectedEntryId}
+                       useWide={useWide}
+                       selectedDevice={availableDevices[selectedDeviceName]}/>
+        </Suspense>;
     const entry = <Entry selectedDevice={availableDevices[selectedDeviceName]}
                          selectedEntry={selectedEntry}
                          useWide={useWide}
