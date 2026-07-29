@@ -1,6 +1,7 @@
 import Header from "../Header";
 import {styled} from '@mui/material/styles';
 import React, {useCallback, useEffect, useRef, useState} from "react";
+import {debounce} from "lodash/function";
 import {
     Button,
     Chip,
@@ -196,13 +197,31 @@ const Minidsp = ({
         setCurrentGains(g => applyGainChange(g, parent, key, value));
     }, []);
 
+    // debounced per-channel so keyboard repeat / rapid edits collapse to one PATCH
+    const deviceRef = useRef(selectedDevice);
+    const slotIdRef = useRef(selectedSlotId);
+    useEffect(() => {
+        deviceRef.current = selectedDevice;
+        slotIdRef.current = selectedSlotId;
+    }, [selectedDevice, selectedSlotId]);
+
+    const debouncedPatchers = useRef(new Map());
+    useEffect(() => () => debouncedPatchers.current.forEach(fn => fn.cancel()), []);
+
     const commitGain = useCallback((parent, key, value) => {
         setCurrentGains(g => applyGainChange(g, parent, key, value));
-        if (selectedDevice) {
-            ezbeq.patchSingle(selectedDevice.name, parent, key, value, selectedSlotId)
-                .catch(e => setErr(e));
+        if (!deviceRef.current) return;
+        const mapKey = `${parent}-${key}`;
+        let patcher = debouncedPatchers.current.get(mapKey);
+        if (!patcher) {
+            patcher = debounce((p, k, v) => {
+                ezbeq.patchSingle(deviceRef.current.name, p, k, v, slotIdRef.current)
+                    .catch(e => setErr(e));
+            }, 200);
+            debouncedPatchers.current.set(mapKey, patcher);
         }
-    }, [selectedDevice, selectedSlotId]);
+        patcher(parent, key, value);
+    }, []);
 
     const uploadTextCommands = async () => {
         setPending(true);

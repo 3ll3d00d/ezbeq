@@ -1,6 +1,7 @@
 import { styled } from '@mui/material/styles';
 import React, {useCallback, useEffect, useRef, useState} from "react";
 import ezbeq from "../../services/ezbeq";
+import {debounce} from "lodash/function";
 import {CircularProgress, Grid, IconButton, Paper} from "@mui/material";
 import Box from '@mui/material/Box';
 import ClearIcon from "@mui/icons-material/Clear";
@@ -123,12 +124,31 @@ const Slots = ({selectedDevice, selectedSlotId, useWide, setDevice, setUserDrive
         setCurrentGains(g => applyGainChange(g, parent, key, value));
     }, []);
 
+    // debounced per-channel so keyboard repeat / rapid edits collapse to one PATCH
+    const deviceRef = useRef(selectedDevice);
+    const slotIdRef = useRef(selectedSlotId);
+    useEffect(() => {
+        deviceRef.current = selectedDevice;
+        slotIdRef.current = selectedSlotId;
+    }, [selectedDevice, selectedSlotId]);
+
+    const debouncedPatchers = useRef(new Map());
+    useEffect(() => () => debouncedPatchers.current.forEach(fn => fn.cancel()), []);
+
     // update state AND send only the changed field to device
     const commitGain = useCallback((parent, key, value) => {
         setCurrentGains(g => applyGainChange(g, parent, key, value));
-        ezbeq.patchSingle(selectedDevice.name, parent, key, value, selectedSlotId)
-            .catch(e => setError(e));
-    }, [selectedSlotId, selectedDevice]);
+        const mapKey = `${parent}-${key}`;
+        let patcher = debouncedPatchers.current.get(mapKey);
+        if (!patcher) {
+            patcher = debounce((p, k, v) => {
+                ezbeq.patchSingle(deviceRef.current.name, p, k, v, slotIdRef.current)
+                    .catch(e => setError(e));
+            }, 200);
+            debouncedPatchers.current.set(mapKey, patcher);
+        }
+        patcher(parent, key, value);
+    }, []);
 
     // sync gains from device state
     useEffect(() => {
