@@ -40,13 +40,14 @@ const GainRow = ({label, minGain, maxGain, step, value, muted, savedValue, saved
             />
             <TextField
                 size="small"
+                type="number"
                 value={value}
                 onChange={e => onValueChange(e.target.value)}
                 onBlur={e => {
                     const f = parseFloat(e.target.value);
                     if (!isNaN(f)) onValueCommit(Math.min(maxGain, Math.max(minGain, f)).toFixed(decimals));
                 }}
-                inputProps={{inputMode: 'decimal'}}
+                slotProps={{htmlInput: {inputMode: 'decimal', step, min: minGain, max: maxGain}}}
                 sx={{
                     width: 68,
                     flexShrink: 0,
@@ -105,39 +106,45 @@ const Gain = ({selectedSlotId, deviceGains, gains, updateGain, commitGain}) => {
                     </Box>
                     <Collapse in={channelsOpen} timeout="auto" unmountOnExit>
                         <Divider sx={{mb: 0.5}}/>
-                        {hasInputChannels && gains.gains.map((g, i) => (
-                            <GainRow
-                                key={`input-${g.id}`}
-                                label={`In ${g.id}`}
-                                minGain={-72} maxGain={12} step={0.25}
-                                value={g.value}
-                                muted={gains.mutes[i]?.value ?? false}
-                                savedValue={deviceGains.gains[i]?.value ?? 0}
-                                savedMuted={deviceGains.mutes[i]?.value ?? false}
-                                onValueChange={v => updateGain(g.id, 'mv', v)}
-                                onValueCommit={v => commitGain(g.id, 'mv', v)}
-                                onMuteToggle={v => commitGain(g.id, 'mute', v)}
-                            />
-                        ))}
-                        {hasOutputChannels && (
-                            <>
-                                {hasInputChannels && <Divider sx={{my: 0.5}}/>}
-                                {gains.output_gains.map((g, i) => (
-                                    <GainRow
-                                        key={`output-${g.id}`}
-                                        label={`Out ${g.id}`}
-                                        minGain={-72} maxGain={12} step={0.25}
-                                        value={g.value}
-                                        muted={gains.output_mutes[i]?.value ?? false}
-                                        savedValue={deviceGains.output_gains?.[i]?.value ?? 0}
-                                        savedMuted={deviceGains.output_mutes?.[i]?.value ?? false}
-                                        onValueChange={v => updateGain(`out_${g.id}`, 'mv', v)}
-                                        onValueCommit={v => commitGain(`out_${g.id}`, 'mv', v)}
-                                        onMuteToggle={v => commitGain(`out_${g.id}`, 'mute', v)}
-                                    />
-                                ))}
-                            </>
-                        )}
+                        <Box sx={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                            columnGap: 1.5
+                        }}>
+                            {hasInputChannels && gains.gains.map((g, i) => (
+                                <GainRow
+                                    key={`input-${g.id}`}
+                                    label={`In ${g.id}`}
+                                    minGain={-72} maxGain={12} step={0.25}
+                                    value={g.value}
+                                    muted={gains.mutes[i]?.value ?? false}
+                                    savedValue={deviceGains.gains[i]?.value ?? 0}
+                                    savedMuted={deviceGains.mutes[i]?.value ?? false}
+                                    onValueChange={v => updateGain(g.id, 'mv', v)}
+                                    onValueCommit={v => commitGain(g.id, 'mv', v)}
+                                    onMuteToggle={v => commitGain(g.id, 'mute', v)}
+                                />
+                            ))}
+                            {hasOutputChannels && (
+                                <>
+                                    {hasInputChannels && <Divider sx={{gridColumn: '1 / -1', my: 0.5}}/>}
+                                    {gains.output_gains.map((g, i) => (
+                                        <GainRow
+                                            key={`output-${g.id}`}
+                                            label={`Out ${g.id}`}
+                                            minGain={-72} maxGain={12} step={0.25}
+                                            value={g.value}
+                                            muted={gains.output_mutes[i]?.value ?? false}
+                                            savedValue={deviceGains.output_gains?.[i]?.value ?? 0}
+                                            savedMuted={deviceGains.output_mutes?.[i]?.value ?? false}
+                                            onValueChange={v => updateGain(`out_${g.id}`, 'mv', v)}
+                                            onValueCommit={v => commitGain(`out_${g.id}`, 'mv', v)}
+                                            onMuteToggle={v => commitGain(`out_${g.id}`, 'mute', v)}
+                                        />
+                                    ))}
+                                </>
+                            )}
+                        </Box>
                     </Collapse>
                 </>
             )}
