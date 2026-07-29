@@ -604,11 +604,12 @@ class Catalogues:
     def __on_catalogue_update(self, catalogue: Catalogue):
         logger.info(f'Caching fresh catalogue {catalogue.version}')
         self.__catalogues.append(catalogue)
+        should_prune = len(self.__catalogues) > 1
         one_day_ago = datetime.now(UTC) - timedelta(days=1)
         old_versions = [c.version for c in self.__catalogues if c.loaded_at and c.loaded_at < one_day_ago]
         self.__catalogues = [i for i in self.__catalogues if i.version not in old_versions]
         self.__ws.broadcast(catalogue.meta_msg)
-        if len(self.__catalogues) > 1:
+        if should_prune:
             self.__schedule_prune(self.__catalogues[-1].version)
 
     def __schedule_prune(self, keep_version: str):

@@ -299,6 +299,55 @@ class TestPrunePool:
             cat._Catalogues__get_prune_pool().stop()
 
 
+class TestOnCatalogueUpdate:
+
+    @staticmethod
+    def _cat_with_ws(tmp_path):
+        cat = make_catalogues(tmp_path)
+        cat._Catalogues__ws = types.SimpleNamespace(broadcast=lambda msg: None)
+        return cat
+
+    def test_schedules_prune_when_a_stale_version_collapses_the_in_memory_list(self, tmp_path):
+        # A single, already-day-old catalogue in memory is exactly the case that needs a DB
+        # prune - but it also gets dropped from __catalogues by the same call, so the count
+        # check must be taken before that drop, not after.
+        cat = self._cat_with_ws(tmp_path)
+        old = Catalogue(count=1, version='old-version', loaded_at=datetime.now(UTC) - timedelta(days=2))
+        cat._Catalogues__catalogues = [old]
+        received = {}
+        cat._Catalogues__schedule_prune = lambda keep_version: received.setdefault('version', keep_version)
+
+        new = Catalogue(count=1, version='new-version', loaded_at=datetime.now(UTC))
+        cat._Catalogues__on_catalogue_update(new)
+
+        assert [c.version for c in cat._Catalogues__catalogues] == ['new-version']
+        assert received.get('version') == 'new-version'
+
+    def test_does_not_schedule_prune_for_the_first_catalogue(self, tmp_path):
+        cat = self._cat_with_ws(tmp_path)
+        cat._Catalogues__catalogues = []
+        received = {}
+        cat._Catalogues__schedule_prune = lambda keep_version: received.setdefault('version', keep_version)
+
+        new = Catalogue(count=1, version='v1', loaded_at=datetime.now(UTC))
+        cat._Catalogues__on_catalogue_update(new)
+
+        assert 'version' not in received
+
+    def test_schedules_prune_when_a_recent_version_is_still_in_memory(self, tmp_path):
+        cat = self._cat_with_ws(tmp_path)
+        recent = Catalogue(count=1, version='recent-version', loaded_at=datetime.now(UTC))
+        cat._Catalogues__catalogues = [recent]
+        received = {}
+        cat._Catalogues__schedule_prune = lambda keep_version: received.setdefault('version', keep_version)
+
+        new = Catalogue(count=1, version='new-version', loaded_at=datetime.now(UTC))
+        cat._Catalogues__on_catalogue_update(new)
+
+        assert [c.version for c in cat._Catalogues__catalogues] == ['recent-version', 'new-version']
+        assert received.get('version') == 'new-version'
+
+
 class TestCatalogueStale:
     """
     All production code now builds Catalogue.loaded_at as timezone-aware UTC,
