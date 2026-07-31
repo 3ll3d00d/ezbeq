@@ -1,6 +1,8 @@
 import Header from "../Header";
 import Filter from "./Filter";
 import WhatsNew from "./WhatsNew";
+import UpdateAvailableSnack from "./UpdateAvailableSnack";
+import PythonVersionWarningSnack from "./PythonVersionWarningSnack";
 import {Box, CircularProgress, Grid} from "@mui/material";
 import React, {lazy, Suspense, useEffect, useMemo, useState} from "react";
 import {debounce} from "lodash/function";
@@ -61,6 +63,21 @@ const MainView = ({
     }, [meta]);
 
     const newCount = recentEntries.filter(e => Math.max(e.created_at || 0, e.updated_at || 0) >= lastChecked).length;
+
+    // outdated version / unsupported python notices
+    const [versionInfo, setVersionInfo] = useState({});
+    const [dismissedUpdateVersion, setDismissedUpdateVersion] = useLocalStorage('dismissedUpdateVersion', null);
+    const [dismissedPythonWarningVersion, setDismissedPythonWarningVersion] = useLocalStorage('dismissedPythonWarningVersion', null);
+
+    useEffect(() => {
+        pushData(setVersionInfo, () => ezbeq.getVersion(), setErr);
+    }, []);
+
+    const updateAvailable = !!(versionInfo.updateAvailable && versionInfo.latestVersion && versionInfo.latestVersion !== dismissedUpdateVersion);
+    const pythonUnsupported = versionInfo.pythonSupported === false && versionInfo.minPythonVersion !== dismissedPythonWarningVersion;
+
+    const dismissUpdate = () => setDismissedUpdateVersion(versionInfo.latestVersion);
+    const dismissPythonWarning = () => setDismissedPythonWarningVersion(versionInfo.minPythonVersion);
 
     const openWhatsNew = () => {
         if (whatsNewOpen) {
@@ -176,7 +193,7 @@ const MainView = ({
                     selectedDeviceName={selectedDeviceName}
                     selectedNav={selectedNav}
                     setSelectedNav={setSelectedNav}
-                    whatsNewCount={newCount}
+                    whatsNewCount={newCount + (updateAvailable ? 1 : 0) + (pythonUnsupported ? 1 : 0)}
                     onWhatsNewOpen={openWhatsNew}>
                 <Search txtFilter={txtFilter}
                         setTxtFilter={setTxtFilter}
@@ -186,7 +203,18 @@ const MainView = ({
             {whatsNewOpen && <WhatsNew onClose={() => setWhatsNewOpen(false)} entries={recentEntries}
                       lastChecked={lastChecked}
                       initialMode={newCount > 0 ? 'new' : 'recent'}
-                      onSelect={id => setSelectedEntryId(id)}/>}
+                      onSelect={id => setSelectedEntryId(id)}
+                      updateInfo={{latestVersion: versionInfo.latestVersion, updateAvailable}}
+                      onDismissUpdate={dismissUpdate}
+                      pythonInfo={{pythonVersion: versionInfo.pythonVersion, minPythonVersion: versionInfo.minPythonVersion, pythonUnsupported}}
+                      onDismissPythonWarning={dismissPythonWarning}/>}
+            <UpdateAvailableSnack updateAvailable={updateAvailable}
+                                   latestVersion={versionInfo.latestVersion}
+                                   onDismiss={dismissUpdate}/>
+            <PythonVersionWarningSnack pythonUnsupported={pythonUnsupported}
+                                        pythonVersion={versionInfo.pythonVersion}
+                                        minPythonVersion={versionInfo.minPythonVersion}
+                                        onDismiss={dismissPythonWarning}/>
             <Filter visible={showFilters}
                     selectedAudioTypes={selectedAudioTypes}
                     setSelectedAudioTypes={setSelectedAudioTypes}

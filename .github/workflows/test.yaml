@@ -22,12 +22,23 @@ defaults:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12', '3.13', '3.14']
+        experimental: [false]
+        include:
+          - python-version: '3.15.0-beta.4'
+            experimental: true
+    continue-on-error: ${{ matrix.experimental }}
     steps:
       - uses: actions/checkout@v6
-      - name: Set up Python 3.13
+      - name: Set up Python ${{ matrix.python-version }}
+        id: setup-python
         uses: actions/setup-python@v6
         with:
-          python-version: 3.13
+          python-version: ${{ matrix.python-version }}
+          allow-prereleases: ${{ matrix.experimental }}
       - name: Install Poetry
         uses: snok/install-poetry@v1
         with:
@@ -48,6 +59,7 @@ jobs:
           source .venv/bin/activate
           pytest --cov=./ezbeq --cov-report=xml
       - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.14'
         uses: codecov/codecov-action@v7
         with:
           files: ./coverage.xml

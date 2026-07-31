@@ -361,6 +361,11 @@ class MinidspSpyConfig(Config):
     def version(self):
         return '1.2.3'
 
+    @property
+    def check_for_updates(self):
+        # Spy configs must never make live network calls to GitHub during tests.
+        return False
+
 
 class ReaperSpyConfig(Config):
     """
@@ -406,6 +411,11 @@ class ReaperSpyConfig(Config):
     @property
     def version(self):
         return '1.2.3'
+
+    @property
+    def check_for_updates(self):
+        # Spy configs must never make live network calls to GitHub during tests.
+        return False
 
 
 class CamillaDspSpy:
@@ -531,6 +541,11 @@ class CamillaDspSpyConfig(Config):
     def version(self):
         return '1.2.3'
 
+    @property
+    def check_for_updates(self):
+        # Spy configs must never make live network calls to GitHub during tests.
+        return False
+
 
 class StormAudioSpyConfig(Config):
 
@@ -579,6 +594,11 @@ class StormAudioSpyConfig(Config):
     @property
     def version(self):
         return '1.2.3'
+
+    @property
+    def check_for_updates(self):
+        # Spy configs must never make live network calls to GitHub during tests.
+        return False
 
 
 class CapturingWsServerFactory(WsServerFactory):
@@ -634,6 +654,11 @@ class StubConfig(Config):
     @property
     def version(self):
         return '1.2.3'
+
+    @property
+    def check_for_updates(self):
+        # Spy configs must never make live network calls to GitHub during tests.
+        return False
 
     @property
     def load_catalogue_at_startup(self):

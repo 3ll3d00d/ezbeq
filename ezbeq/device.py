@@ -2,6 +2,7 @@ import json
 import logging
 import os
 from abc import ABC, abstractmethod
+from typing import Generic, TypeVar
 
 from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
@@ -10,7 +11,10 @@ from ezbeq.config import Config
 logger = logging.getLogger('ezbeq.device')
 
 
-class SlotState[S: 'SlotState']:
+S = TypeVar('S', bound='SlotState')
+
+
+class SlotState(Generic[S]):
 
     def __init__(self, slot_id: str):
         self.__slot_id = slot_id
@@ -53,7 +57,10 @@ class DeviceState(ABC):
         return f"{self.__class__.__name__} : {self.serialise()}"
 
 
-class Device[T: 'DeviceState'](ABC):
+T = TypeVar('T', bound='DeviceState')
+
+
+class Device(ABC, Generic[T]):
 
     @property
     @abstractmethod
@@ -203,7 +210,7 @@ class NoSuchDevice(Exception):
     pass
 
 
-class PersistentDevice[T: 'DeviceState'](Device, ABC):
+class PersistentDevice(Device, ABC, Generic[T]):
 
     def __init__(self, cache_path: str, name: str, ws_server: WsServer):
         self.__name = name

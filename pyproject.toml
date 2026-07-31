@@ -1,6 +1,6 @@
 [project]
 name = "ezbeq"
-version = "2.9.0"
+version = "2.9.1"
 description = "A webapp which can send beqcatalogue filters to a DSP device"
 authors = [
     { name = "3ll3d00d", email = "mattkhan+ezbeq@gmail.com" }
@@ -9,7 +9,7 @@ license = "MIT"
 readme = "README.md"
 homepage = "https://ezbeq.readthedocs.io/"
 repository = "https://github.com/3ll3d00d/ezbeq"
-requires-python = ">=3.13, <3.15"
+requires-python = ">=3.11, <3.15"
 dependencies = [
     "Flask-Compress >=1.13, <2.0",
     "PyYAML >=6.0, <7.0",
@@ -55,7 +55,7 @@ mkdocs-material-extensions = "^1.1.1"
 optional = true
 
 [tool.poetry.group.exe.dependencies]
-pyinstaller = { version = "^6.9.0", python = ">=3.13,<3.15" }
+pyinstaller = { version = "^6.9.0", python = ">=3.11,<3.15" }
 
 [tool.pytest.ini_options]
 markers = [

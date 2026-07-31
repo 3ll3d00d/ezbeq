@@ -1,8 +1,18 @@
 
+import sys
+
 import pytest
 from conftest import MinidspSpyConfig
 
+from ezbeq.apis.version import Version
+from ezbeq.config import MIN_SUPPORTED_PYTHON
+
 _UNSET = object()
+
+
+class StubUpdateChecker:
+    def __init__(self, result):
+        self.result = result
 
 
 class VersionedConfig(MinidspSpyConfig):
@@ -102,3 +112,30 @@ def test_version_env_vars_surfaced_in_api(httpserver, tmp_path, monkeypatch):
     assert r.status_code == 200
     assert r.json['branch'] == 'feats/docker-branch'
     assert r.json['sha'] == 'cafebabe'
+
+
+def test_version_omits_update_fields_when_no_checker():
+    result = Version(version='1.2.3', git_info={}).get()
+    assert 'latestVersion' not in result
+    assert 'updateAvailable' not in result
+
+
+def test_version_omits_update_fields_when_check_not_yet_complete():
+    result = Version(version='1.2.3', git_info={}, update_checker=StubUpdateChecker(None)).get()
+    assert 'latestVersion' not in result
+    assert 'updateAvailable' not in result
+
+
+def test_version_includes_update_fields_when_available():
+    checker = StubUpdateChecker({'latest_version': '9.9.9', 'update_available': True})
+    result = Version(version='1.2.3', git_info={}, update_checker=checker).get()
+    assert result['latestVersion'] == '9.9.9'
+    assert result['updateAvailable'] is True
+
+
+def test_version_includes_python_fields_reflecting_config(version_client_no_git):
+    r = version_client_no_git.get('/api/1/version')
+    assert r.status_code == 200
+    assert r.json['pythonVersion'] == '.'.join(str(v) for v in sys.version_info[:3])
+    assert r.json['minPythonVersion'] == '.'.join(str(v) for v in MIN_SUPPORTED_PYTHON)
+    assert r.json['pythonSupported'] == (sys.version_info[:2] >= MIN_SUPPORTED_PYTHON)

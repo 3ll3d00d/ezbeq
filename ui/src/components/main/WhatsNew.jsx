@@ -10,8 +10,10 @@ import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import ToggleButton from '@mui/material/ToggleButton';
+import Alert from '@mui/material/Alert';
+import Button from '@mui/material/Button';
 
-const WhatsNew = ({onClose, entries, lastChecked, onSelect, initialMode}) => {
+const WhatsNew = ({onClose, entries, lastChecked, onSelect, initialMode, updateInfo, onDismissUpdate, pythonInfo, onDismissPythonWarning}) => {
     const [mode, setMode] = useState(initialMode ?? 'new');
 
     const visible = mode === 'new'
@@ -33,6 +35,23 @@ const WhatsNew = ({onClose, entries, lastChecked, onSelect, initialMode}) => {
                     <IconButton size="small" onClick={onClose}><CloseIcon/></IconButton>
                 </Box>
                 <Divider/>
+                {updateInfo?.updateAvailable &&
+                    <Alert severity="info" action={
+                        <Button color="inherit" size="small" onClick={onDismissUpdate}>Dismiss</Button>
+                    }>
+                        ezbeq {updateInfo.latestVersion} is available.{' '}
+                        <a href={`https://github.com/3ll3d00d/ezbeq/releases/tag/${updateInfo.latestVersion}`} target="_blank" rel="noreferrer">
+                            View release
+                        </a>
+                    </Alert>
+                }
+                {pythonInfo?.pythonUnsupported &&
+                    <Alert severity="warning" action={
+                        <Button color="inherit" size="small" onClick={onDismissPythonWarning}>Dismiss</Button>
+                    }>
+                        Running Python {pythonInfo.pythonVersion}; ezbeq requires {pythonInfo.minPythonVersion}+. Some features may not work correctly.
+                    </Alert>
+                }
                 {visible.length === 0
                     ? <Box sx={{p: 3}}><Typography color="text.secondary">
                         {mode === 'new' ? 'Nothing new since your last check.' : 'No recent titles in the last 2 weeks.'}

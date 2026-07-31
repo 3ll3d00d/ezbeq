@@ -3,6 +3,7 @@ import json
 import logging
 from collections import defaultdict
 from collections.abc import Callable
+from typing import Generic, TypeVar
 
 from autobahn.exception import Disconnected
 from autobahn.twisted import WebSocketServerFactory, WebSocketServerProtocol
@@ -194,7 +195,10 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
         return len(self.__levels_client.get(device, [])) > 0
 
 
-class WsServer[T: WsServerFactory](abc.ABC):
+T = TypeVar('T', bound=WsServerFactory)
+
+
+class WsServer(abc.ABC, Generic[T]):
 
     def __init__(self, factory: T):
         self.__factory = factory

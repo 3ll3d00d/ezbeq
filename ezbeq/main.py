@@ -27,6 +27,7 @@ from ezbeq.apis.ws import AutobahnWsServer, WsServer
 from ezbeq.catalogue import CatalogueProvider, LoadTester
 from ezbeq.config import Config
 from ezbeq.device import DeviceRepository
+from ezbeq.update import UpdateChecker
 
 faulthandler.enable()
 if hasattr(faulthandler, 'register'):
@@ -38,6 +39,7 @@ if hasattr(faulthandler, 'register'):
 def create_app(config: Config, ws: WsServer | None = None) -> tuple[Flask, WsServer]:
     ws_server = ws if ws is not None else AutobahnWsServer()
     catalogue = CatalogueProvider(config, ws_server)
+    update_checker = UpdateChecker(config.version, config.update_check_interval, config.check_for_updates)
     resource_args = {
         'config': config,
         'ws_server': ws_server,
@@ -45,6 +47,10 @@ def create_app(config: Config, ws: WsServer | None = None) -> tuple[Flask, WsSer
         'catalogue': catalogue,
         'version': config.version,
         'git_info': config.git_info,
+        'update_checker': update_checker,
+        'python_version': config.python_version,
+        'min_python_version': config.min_python_version,
+        'python_supported': config.python_supported,
         'load': LoadTester(os.path.join(config.config_path, 'ezbeq.db'))
     }
     app = Flask('ezbeq')

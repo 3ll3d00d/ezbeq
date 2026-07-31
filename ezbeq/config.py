@@ -6,6 +6,8 @@ from os import environ, path
 
 import yaml
 
+MIN_SUPPORTED_PYTHON = (3, 11)  # keep in sync with pyproject.toml's `requires-python`
+
 
 class Config:
 
@@ -256,6 +258,26 @@ class Config:
         except Exception:
             self.logger.debug('Unable to determine git branch/sha, not running from a git checkout')
         return result
+
+    @property
+    def python_version(self) -> str:
+        return '.'.join(str(v) for v in sys.version_info[:3])
+
+    @property
+    def min_python_version(self) -> str:
+        return '.'.join(str(v) for v in MIN_SUPPORTED_PYTHON)
+
+    @property
+    def python_supported(self) -> bool:
+        return sys.version_info[:2] >= MIN_SUPPORTED_PYTHON
+
+    @property
+    def check_for_updates(self) -> bool:
+        return self.config.get('checkForUpdates', True)
+
+    @property
+    def update_check_interval(self) -> float:
+        return self.config.get('updateCheckIntervalSeconds', 86400.0)
 
     @property
     def load_catalogue_at_startup(self):

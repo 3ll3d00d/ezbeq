@@ -143,7 +143,7 @@ description = "Backport of compression.zstd"
 optional = false
 python-versions = "<3.14,>=3.10"
 groups = ["main"]
-markers = "python_version == \"3.13\""
+markers = "python_version < \"3.14\""
 files = [
     {file = "backports_zstd-1.6.0-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:73000459db113a658c4fb0510100ef0e79137b5828bf957b7709aacae4eb1b87"},
     {file = "backports_zstd-1.6.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:d6e78d5e28f812b39f92397806ecddd4a6f3bf35531a8c039a1f187abc931af8"},
@@ -402,7 +402,10 @@ files = [
 ]
 
 [package.dependencies]
-cffi = {version = ">=1.17.0", markers = "python_version >= \"3.13\""}
+cffi = [
+    {version = ">=1.0.0", markers = "python_version < \"3.13\""},
+    {version = ">=1.17.0", markers = "python_version >= \"3.13\""},
+]
 
 [[package]]
 name = "busypie"
@@ -1707,6 +1710,9 @@ files = [
     {file = "plumbum-2.0.2.tar.gz", hash = "sha256:233751d7819c9e6743ec1c2405927eb4fa52a284c7b894bd10e28106a9309a92"},
 ]
 
+[package.dependencies]
+typing-extensions = {version = "*", markers = "python_version < \"3.13\""}
+
 [package.extras]
 ssh = ["paramiko"]
 
@@ -2072,6 +2078,7 @@ files = [
 [package.dependencies]
 attrs = ">=22.2.0"
 rpds-py = ">=0.7.0"
+typing-extensions = {version = ">=4.4.0", markers = "python_version < \"3.13\""}
 
 [[package]]
 name = "requests"
@@ -2654,5 +2661,5 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 
 [metadata]
 lock-version = "2.1"
-python-versions = ">=3.13, <3.15"
-content-hash = "c06aedc2ed6135c206ea279854f3483a7bb8553b02b5febbb1bfb660d45c8a9e"
+python-versions = ">=3.11, <3.15"
+content-hash = "dfc7bc1a1b3a1f2e94f998e7b3f39e82495f9f716163ccb78547c98af74cce04"
