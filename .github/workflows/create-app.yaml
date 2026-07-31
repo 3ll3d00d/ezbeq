@@ -46,6 +46,14 @@ jobs:
         uses: metcalfc/changelog-generator@v4.7.0
         with:
           myToken: ${{ secrets.GITHUB_TOKEN }}
+      - name: Determine release type
+        id: release_type
+        run: |
+          if [[ "${GITHUB_REF_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Create release
         id: create_release
         uses: softprops/action-gh-release@v3
@@ -54,7 +62,8 @@ jobs:
         with:
           body: ${{ steps.changelog.outputs.changelog }}
           draft: false
-          prerelease: true
+          prerelease: ${{ steps.release_type.outputs.prerelease }}
+          make_latest: ${{ steps.release_type.outputs.prerelease == 'false' }}
   buildpypi:
     name: Publish to Pypi
     needs: create_release
