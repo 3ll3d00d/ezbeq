@@ -69,6 +69,26 @@ const defaultGain = {
     master_mv: 0.0, master_mute: false, gains: [], mutes: [], output_gains: [], output_mutes: []
 };
 
+// merge fresh device state into local state, but leave any field the user has an
+// uncommitted local edit for untouched (i.e. it still differs from what the
+// device last reported) so in-progress slider drags aren't clobbered by polling
+const mergeGains = (local, prevDevice, newDevice) => {
+    const mergeVal = (localVal, prevVal, newVal) => localVal === prevVal ? newVal : localVal;
+    const mergeArray = (localArr, prevArr, newArr) => (newArr || []).map(n => {
+        const l = (localArr || []).find(e => e.id === n.id);
+        const p = (prevArr || []).find(e => e.id === n.id);
+        return l ? {id: n.id, value: mergeVal(l.value, p?.value, n.value)} : n;
+    });
+    return {
+        master_mv: mergeVal(local.master_mv, prevDevice.master_mv, newDevice.master_mv),
+        master_mute: mergeVal(local.master_mute, prevDevice.master_mute, newDevice.master_mute),
+        gains: mergeArray(local.gains, prevDevice.gains, newDevice.gains),
+        mutes: mergeArray(local.mutes, prevDevice.mutes, newDevice.mutes),
+        output_gains: mergeArray(local.output_gains, prevDevice.output_gains, newDevice.output_gains),
+        output_mutes: mergeArray(local.output_mutes, prevDevice.output_mutes, newDevice.output_mutes)
+    };
+};
+
 const Slot = ({selected, slot, onSelect, isPending, onClear}) => {
     const last_author = slot.author ? ` (${slot.author})` : '';
     return (
@@ -102,6 +122,7 @@ const Slots = ({selectedDevice, selectedSlotId, useWide, setDevice, setUserDrive
     const [deviceGains, setDeviceGains] = useState({...defaultGain});
     const prevDeviceNameRef = useRef(null);
     const prevSlotIdRef = useRef(null);
+    const prevDeviceGainsRef = useRef(defaultGain);
 
     const applyGainChange = (gains, parent, key, value) => {
         const newGains = JSON.parse(JSON.stringify(gains));
@@ -166,15 +187,20 @@ const Slots = ({selectedDevice, selectedSlotId, useWide, setDevice, setUserDrive
                 }
             }
             setDeviceGains(gain);
-            // Only reset the user-facing controls when the device or slot actually changes,
-            // not on every WebSocket update (which would fight the user's in-progress changes)
+            // Only reset the user-facing controls wholesale when the device or slot actually
+            // changes; otherwise merge in fields that aren't mid-edit, so an external change
+            // (e.g. "Set Input Gain" on upload) still shows up without fighting an
+            // in-progress slider drag on another field
             const deviceChanged = selectedDevice.name !== prevDeviceNameRef.current;
             const slotChanged = selectedSlotId !== prevSlotIdRef.current;
             if (deviceChanged || slotChanged) {
                 setCurrentGains(gain);
-                prevDeviceNameRef.current = selectedDevice.name;
-                prevSlotIdRef.current = selectedSlotId;
+            } else {
+                setCurrentGains(g => mergeGains(g, prevDeviceGainsRef.current, gain));
             }
+            prevDeviceGainsRef.current = gain;
+            prevDeviceNameRef.current = selectedDevice.name;
+            prevSlotIdRef.current = selectedSlotId;
         }
     }, [selectedDevice, selectedSlotId]);
 
