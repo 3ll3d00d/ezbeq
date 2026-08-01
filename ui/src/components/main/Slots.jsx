@@ -73,7 +73,16 @@ const defaultGain = {
 // uncommitted local edit for untouched (i.e. it still differs from what the
 // device last reported) so in-progress slider drags aren't clobbered by polling
 const mergeGains = (local, prevDevice, newDevice) => {
-    const mergeVal = (localVal, prevVal, newVal) => localVal === prevVal ? newVal : localVal;
+    // local values from a text field are raw strings ("-5"); device-reported values are
+    // numbers (-5). Normalize numerically so a round-tripped edit is recognised as clean
+    // instead of permanently reading as diverged and never syncing again.
+    const valuesEqual = (a, b) => {
+        if (a === b) return true;
+        const na = parseFloat(a);
+        const nb = parseFloat(b);
+        return !isNaN(na) && !isNaN(nb) && na === nb;
+    };
+    const mergeVal = (localVal, prevVal, newVal) => valuesEqual(localVal, prevVal) ? newVal : localVal;
     const mergeArray = (localArr, prevArr, newArr) => (newArr || []).map(n => {
         const l = (localArr || []).find(e => e.id === n.id);
         const p = (prevArr || []).find(e => e.id === n.id);
@@ -193,10 +202,13 @@ const Slots = ({selectedDevice, selectedSlotId, useWide, setDevice, setUserDrive
             // in-progress slider drag on another field
             const deviceChanged = selectedDevice.name !== prevDeviceNameRef.current;
             const slotChanged = selectedSlotId !== prevSlotIdRef.current;
+            // capture the pre-update baseline now - setCurrentGains's updater runs later,
+            // by which time prevDeviceGainsRef.current below would already point at `gain`
+            const prevGain = prevDeviceGainsRef.current;
             if (deviceChanged || slotChanged) {
                 setCurrentGains(gain);
             } else {
-                setCurrentGains(g => mergeGains(g, prevDeviceGainsRef.current, gain));
+                setCurrentGains(g => mergeGains(g, prevGain, gain));
             }
             prevDeviceGainsRef.current = gain;
             prevDeviceNameRef.current = selectedDevice.name;
