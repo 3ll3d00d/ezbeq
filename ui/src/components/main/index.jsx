@@ -24,6 +24,51 @@ const catalogueFallback =
 
 const TWO_WEEKS_AGO_SECS = () => Math.floor(Date.now() / 1000) - 2 * 7 * 24 * 60 * 60;
 
+// exported for direct testing, independent of the rest of MainView's heavy child tree
+export const computeNewCount = (recentEntries, lastChecked) =>
+    recentEntries.filter(e => Math.max(e.created_at || 0, e.updated_at || 0) >= lastChecked).length;
+
+export const txtMatch = (entry, txtFilter) => {
+    const matchOn = txtFilter.toLowerCase();
+    if (entry.formattedTitle.toLowerCase().includes(matchOn)) {
+        return true;
+    }
+    if (entry.hasOwnProperty('altTitle') && entry.altTitle.toLowerCase().includes(matchOn)) {
+        return true;
+    }
+    if (entry.hasOwnProperty('collection') && entry.collection.toLowerCase().includes(matchOn)) {
+        return true;
+    }
+    return false;
+};
+
+// catalogue filter: entry passes only if it satisfies every selected filter dimension
+export const isMatch = (entry, filters) => {
+    const {
+        selectedAuthors, selectedYears, selectedAudioTypes, selectedContentTypes,
+        selectedFreshness, selectedLanguages, debouncedTxtFilter
+    } = filters;
+    if (selectedAuthors.length && selectedAuthors.indexOf(entry.author) === -1) return false;
+    if (selectedYears.length && selectedYears.indexOf(entry.year) === -1) return false;
+    if (selectedAudioTypes.length && !entry.audioTypes.some(at => selectedAudioTypes.indexOf(at) > -1)) return false;
+    if (selectedContentTypes.length && selectedContentTypes.indexOf(entry.contentType) === -1) return false;
+    if (selectedFreshness.length && selectedFreshness.indexOf(entry.freshness) === -1) return false;
+    if (selectedLanguages.length && selectedLanguages.indexOf(entry.language) === -1) return false;
+    if (debouncedTxtFilter && !txtMatch(entry, debouncedTxtFilter)) return false;
+    return true;
+};
+
+// null means "leave the current text filter alone" - only a genuinely loaded slot should
+// overwrite whatever the user may have typed
+export const deriveTxtFilterFromActiveSlot = (device, userDriven, selectedSlotId) => {
+    if (!device || !userDriven || !device.hasOwnProperty('slots')) return null;
+    const slot = device.slots.find(s => s.id === selectedSlotId);
+    if (slot && slot.last && slot.last !== 'ERROR' && slot.last !== 'Empty') {
+        return slot.last;
+    }
+    return null;
+};
+
 const MainView = ({
                       entries,
                       availableDevices,
@@ -62,7 +107,7 @@ const MainView = ({
         pushData(setRecentEntries, () => ezbeq.getWhatsNew(), setErr);
     }, [meta]);
 
-    const newCount = recentEntries.filter(e => Math.max(e.created_at || 0, e.updated_at || 0) >= lastChecked).length;
+    const newCount = computeNewCount(recentEntries, lastChecked);
 
     // outdated version / unsupported python notices
     const [versionInfo, setVersionInfo] = useState({});
@@ -108,49 +153,17 @@ const MainView = ({
     }, [availableDevices, selectedDeviceName, setSelectedDeviceName]);
 
     useEffect(() => {
-        const txtMatch = e => {
-            const matchOn = debouncedTxtFilter.toLowerCase()
-            if (e.formattedTitle.toLowerCase().includes(matchOn)) {
-                return true;
-            }
-            if (e.hasOwnProperty('altTitle') && e.altTitle.toLowerCase().includes(matchOn)) {
-                return true;
-            }
-            if (e.hasOwnProperty('collection') && e.collection.toLowerCase().includes(matchOn)) {
-                return true;
-            }
-            return false;
-        }
-
-        // catalogue filter
-        const isMatch = (entry) => {
-            if (!selectedAuthors.length || selectedAuthors.indexOf(entry.author) > -1) {
-                if (!selectedYears.length || selectedYears.indexOf(entry.year) > -1) {
-                    if (!selectedAudioTypes.length || entry.audioTypes.some(at => selectedAudioTypes.indexOf(at) > -1)) {
-                        if (!selectedContentTypes.length || selectedContentTypes.indexOf(entry.contentType) > -1) {
-                            if (!selectedFreshness.length || selectedFreshness.indexOf(entry.freshness) > -1) {
-                                if (!selectedLanguages.length || selectedLanguages.indexOf(entry.language) > -1) {
-                                    if (!debouncedTxtFilter || txtMatch(entry)) {
-                                        return true;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            return false;
-        }
-        pushData(setFilteredEntries, () => entries.filter(isMatch), setErr);
+        const filters = {
+            selectedAuthors, selectedYears, selectedAudioTypes, selectedContentTypes,
+            selectedFreshness, selectedLanguages, debouncedTxtFilter
+        };
+        pushData(setFilteredEntries, () => entries.filter(e => isMatch(e, filters)), setErr);
     }, [entries, selectedAudioTypes, selectedYears, selectedAuthors, selectedContentTypes, selectedFreshness, selectedLanguages, debouncedTxtFilter, setErr]);
 
     useEffect(() => {
-        const d = availableDevices[selectedDeviceName];
-        if (d && userDriven && d.hasOwnProperty('slots')) {
-            const slot = d.slots.find(s => s.id === selectedSlotId);
-            if (slot && slot.last && slot.last !== "ERROR" && slot.last !== "Empty") {
-                setTxtFilter(slot.last);
-            }
+        const next = deriveTxtFilterFromActiveSlot(availableDevices[selectedDeviceName], userDriven, selectedSlotId);
+        if (next) {
+            setTxtFilter(next);
         }
     }, [availableDevices, selectedDeviceName, selectedSlotId, setTxtFilter, userDriven]);
 
