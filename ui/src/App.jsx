@@ -44,6 +44,13 @@ const Root = ({children}) => {
 const wsProtocol = `ws${window.location.protocol === 'https:' ? 's' : ''}`;
 const ss = new StateService(`${wsProtocol}://${window.location.host}/ws`);
 
+// exported for testing in isolation from the rest of App's rendering/singleton wiring
+export const mergeDeviceByName = (devices, replacement) => Object.assign({}, devices, {[replacement.name]: replacement});
+
+// a REST poll response is stale by the time it lands once the websocket is up (it'll have
+// already pushed a DeviceState message), so only apply it while the socket is down
+export const shouldAcceptRestDeviceUpdate = (stateService) => !(stateService && stateService.isConnected());
+
 const App = () => {
     const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
     const theme = React.useMemo(
@@ -74,7 +81,7 @@ const App = () => {
     const [selectedSlotId, setSelectedSlotId] = useState(null);
 
     const replaceDevice = useMemo(() => replacement => {
-        setAvailableDevices(Object.assign({}, availableDevices, {[replacement.name]: replacement}));
+        setAvailableDevices(mergeDeviceByName(availableDevices, replacement));
     }, [setAvailableDevices, availableDevices]);
 
     const loadEntries = useMemo(() => newEntries => {
@@ -146,11 +153,11 @@ const App = () => {
                                       setErr={setErr}
                                       setSuccess={setSuccessMsg}
                                       replaceDevice={d => {
-                                          if (ss && ss.isConnected()) {
-                                              console.debug(`Discarding update, ws is connected`);
-                                          } else {
+                                          if (shouldAcceptRestDeviceUpdate(ss)) {
                                               console.debug(`Accepting update, ws is disconnected`);
                                               replaceDevice(d);
+                                          } else {
+                                              console.debug(`Discarding update, ws is connected`);
                                           }
                                       }}
                                       availableDevices={availableDevices}
