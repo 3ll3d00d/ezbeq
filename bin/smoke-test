@@ -178,7 +178,12 @@ request_check() {
 
     if echo "$body" | python3 -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
         info "Body (JSON):"
-        echo "$body" | python3 -m json.tool 2>/dev/null | head -20 | sed 's/^/    /'
+        # buffer the pretty-printed JSON into a variable first, then pipe *that*
+        # through head - piping python3 -m json.tool straight into head risks
+        # SIGPIPE (and, under set -o pipefail, killing the whole script) if head
+        # closes the pipe before python finishes writing a large body.
+        local pretty; pretty=$(echo "$body" | python3 -m json.tool 2>/dev/null)
+        echo "$pretty" | head -20 | sed 's/^/    /'
     fi
     echo
 }
@@ -219,8 +224,16 @@ check "GET /api/1/version — expect version field" \
 check "GET /static/foo.js (not built — expect 404, not a crash)" \
     "$BASE/static/foo.js" "404" "Processing Failed"
 
-check "GET /somepage (unknown path — with UI built, React SPA serves index.html as 200)" \
-    "$BASE/somepage"      "200" "Processing Failed"
+# Whether an unknown path 200s (React SPA serves index.html) or 404s depends on
+# whether `ezbeq/ui` has actually been built (see main.py's uiRoot check) - true
+# after `npm run build`, false on a clean backend-only checkout like CI's.
+if [[ -f "ezbeq/ui/index.html" ]]; then
+    UI_BUILT_STATUS="200"
+else
+    UI_BUILT_STATUS="404"
+fi
+check "GET /somepage (unknown path — expect $UI_BUILT_STATUS, UI built: $([[ $UI_BUILT_STATUS == 200 ]] && echo yes || echo no))" \
+    "$BASE/somepage"      "$UI_BUILT_STATUS" "Processing Failed"
 
 check "GET /ws (WebSocket endpoint — expect Autobahn info page)" \
     "$BASE/ws"            "200" "Processing Failed"
