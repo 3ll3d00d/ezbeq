@@ -1,4 +1,5 @@
-import {beforeAll, describe, expect, it, vi} from 'vitest';
+import {beforeAll, beforeEach, describe, expect, it, vi} from 'vitest';
+import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 
 // App.jsx instantiates a module-level `new StateService(...)` (a real WebSocket connection)
 // as a side effect of import, so WebSocket must be stubbed before the module is evaluated -
@@ -9,8 +10,24 @@ class FakeWebSocket {
     }
 }
 
+vi.mock('./services/ezbeq', () => ({
+    default: {
+        getDevices: vi.fn(() => Promise.resolve({})),
+        getVersion: vi.fn(() => Promise.resolve({})),
+        getWhatsNew: vi.fn(() => Promise.resolve([])),
+        getAuthors: vi.fn(() => Promise.resolve([])),
+        getLanguages: vi.fn(() => Promise.resolve([])),
+        getYears: vi.fn(() => Promise.resolve([])),
+        getAudioTypes: vi.fn(() => Promise.resolve([])),
+        getContentTypes: vi.fn(() => Promise.resolve([])),
+        getLevels: vi.fn(() => Promise.resolve({}))
+    }
+}));
+
+let App;
 let mergeDeviceByName;
 let shouldAcceptRestDeviceUpdate;
+let ezbeq;
 
 beforeAll(async () => {
     vi.stubGlobal('WebSocket', FakeWebSocket);
@@ -21,7 +38,8 @@ beforeAll(async () => {
         addEventListener: () => {},
         removeEventListener: () => {}
     }));
-    ({mergeDeviceByName, shouldAcceptRestDeviceUpdate} = await import('./App'));
+    ({default: App, mergeDeviceByName, shouldAcceptRestDeviceUpdate} = await import('./App'));
+    ({default: ezbeq} = await import('./services/ezbeq'));
 });
 
 describe('mergeDeviceByName', () => {
@@ -69,5 +87,60 @@ describe('shouldAcceptRestDeviceUpdate', () => {
 
     it('accepts the update when there is no state service at all', () => {
         expect(shouldAcceptRestDeviceUpdate(null)).toBe(true);
+    });
+});
+
+// Full render: confirms App actually wires ezbeq.getDevices()'s response through to the
+// rendered view, and that switching nav tabs swaps which top-level view is shown. Levels/Chart
+// (uPlot, needs a canvas 2d context jsdom doesn't provide) is out of scope here - only
+// catalogue/control are exercised.
+describe('App', () => {
+    const gainDevice = () => ({
+        d1: {name: 'd1', type: 'minidsp', connected: true, masterVolume: -10, mute: false, slots: []}
+    });
+
+    beforeEach(() => {
+        ezbeq.getDevices.mockReset().mockResolvedValue({});
+        ezbeq.getVersion.mockReset().mockResolvedValue({});
+    });
+
+    it('renders the catalogue view by default', async () => {
+        render(<App/>);
+        expect(await screen.findByPlaceholderText('Search…')).toBeInTheDocument();
+    });
+
+    it("wires a device from getDevices() through to the rendered Slots gain panel", async () => {
+        ezbeq.getDevices.mockResolvedValue(gainDevice());
+        const {container} = render(<App/>);
+
+        await waitFor(() => expect(container.querySelector('input[type="range"]')).toBeInTheDocument());
+    });
+
+    it('switches to the Control (Minidsp) view and back via the header nav menu', async () => {
+        ezbeq.getDevices.mockResolvedValue(gainDevice());
+        const {container} = render(<App/>);
+        // wait for the device to actually load - Header only shows the nav menu once it
+        // knows the selected device's type supports more than one tab
+        await waitFor(() => expect(container.querySelector('input[type="range"]')).toBeInTheDocument());
+
+        fireEvent.click(screen.getByRole('button', {name: 'show more'}));
+        fireEvent.click(screen.getByText('Control'));
+
+        expect(await screen.findByText('Advanced')).toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('Search…')).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', {name: 'show more'}));
+        fireEvent.click(screen.getByText('Catalogue'));
+
+        expect(await screen.findByPlaceholderText('Search…')).toBeInTheDocument();
+    });
+
+    it('shows the disconnected banner when the selected device reports connected: false', async () => {
+        ezbeq.getDevices.mockResolvedValue({
+            d1: {name: 'd1', type: 'minidsp', connected: false, masterVolume: -10, mute: false, slots: []}
+        });
+        render(<App/>);
+
+        expect(await screen.findByText('Device Unreachable')).toBeInTheDocument();
     });
 });
