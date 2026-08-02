@@ -35,6 +35,18 @@ jobs:
         run: |
           source .venv/bin/activate
           pytest --cov=./ezbeq --cov-report=xml
+      - name: smoke test
+        run: bin/smoke-test
+      - name: Use node.js lts
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+      - name: Setup node_modules
+        working-directory: ./ui
+        run: yarn install --immutable
+      - name: UI unit tests
+        working-directory: ./ui
+        run: yarn test:unit --run
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7
         with:
