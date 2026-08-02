@@ -35,18 +35,21 @@ const MultiSelect = ({
         };
     };
 
-    const optionRenderer = (props, option, {selected}) => (
-        <li {...props}>
-            <Checkbox
-                color="primary"
-                icon={<CheckBoxOutlineBlankIcon fontSize="small"/>}
-                checkedIcon={<CheckBoxIcon fontSize="small"/>}
-                style={{marginRight: 8}}
-                checked={selected}
-            />
-            <div style={getOptionStyle(option)}>{getOptionLabel(option)}</div>
-        </li>
-    );
+    const optionRenderer = (props, option, {selected}) => {
+        const {key, ...rest} = props;
+        return (
+            <li key={key} {...rest}>
+                <Checkbox
+                    color="primary"
+                    icon={<CheckBoxOutlineBlankIcon fontSize="small"/>}
+                    checkedIcon={<CheckBoxIcon fontSize="small"/>}
+                    style={{marginRight: 8}}
+                    checked={selected}
+                />
+                <div style={getOptionStyle(option)}>{getOptionLabel(option)}</div>
+            </li>
+        );
+    };
 
     const inputRenderer = params => (
         <TextField variant="standard" {...params} label={label} placeholder={placeholder} />
