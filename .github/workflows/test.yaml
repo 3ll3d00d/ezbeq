@@ -58,6 +58,8 @@ jobs:
         run: |
           source .venv/bin/activate
           pytest --cov=./ezbeq --cov-report=xml
+      - name: smoke test
+        run: bin/smoke-test
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.14'
         uses: codecov/codecov-action@v7
