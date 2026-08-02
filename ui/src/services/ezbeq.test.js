@@ -146,4 +146,15 @@ describe('network calls', () => {
         await expect(ezbeq.patchSingle('d1', 'master', 'mv', '-5', '1'))
             .rejects.toThrow(/invalid request \(400\)/);
     });
+
+    it('targets a composite device name exactly like any other device - device is just an opaque URL segment', async () => {
+        global.fetch.mockResolvedValue({ok: true, json: () => Promise.resolve({name: 'bass_array'})});
+
+        await ezbeq.sendFilter('bass_array', 'entry-1', '1', {master_mv: -10});
+
+        expect(global.fetch).toHaveBeenCalledWith('/api/3/devices/bass_array', expect.objectContaining({
+            method: 'PATCH',
+            body: JSON.stringify({masterVolume: -10, slots: [{id: '1', entry: 'entry-1'}]})
+        }));
+    });
 });

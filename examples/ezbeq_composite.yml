@@ -1,0 +1,49 @@
+accessLogging: false
+debugLogging: true
+devices:
+  sub1:
+    type: minidsp
+    exe: minidsp
+    options: '--tcp 127.0.0.1:5333'
+    cmdTimeout: 10
+  sub2:
+    type: minidsp
+    exe: minidsp
+    options: '--tcp 127.0.0.1:5334'
+    cmdTimeout: 10
+  sub3:
+    type: minidsp
+    exe: minidsp
+    options: '--tcp 127.0.0.1:5335'
+    cmdTimeout: 10
+  bass_array:
+    type: composite
+    mode: mirror
+    members:
+    - sub1
+    - sub2
+    - sub3
+  proc:
+    type: htp1
+    ip: 127.0.0.1:1880
+    channels:
+    - rear_sub
+  rear_sub:
+    type: minidsp
+    exe: minidsp
+    options: '--tcp 127.0.0.1:5336'
+    cmdTimeout: 10
+  home_theatre:
+    type: composite
+    mode: mapped
+    primary: rear_sub
+    exposeMembers: true
+    members:
+      rear_sub: {}
+      proc:
+        slotMap:
+          '1': Movie
+          '2': Music
+        skipOps:
+        - set_gain
+port: 8080

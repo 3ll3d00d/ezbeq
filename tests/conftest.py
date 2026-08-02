@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import threading
+import time
 from collections.abc import Callable
 from queue import Empty, SimpleQueue
 from threading import Thread
@@ -683,3 +684,188 @@ class CapturingWsServer(WsServer[CapturingWsServerFactory]):
             except Empty:
                 break
         return msgs
+
+
+class FlakyMinidspSpy(MinidspSpy):
+    """
+    A MinidspSpy that can be told, via fail_next, to raise on its very next
+    invocation - used to simulate one member of a composite device going
+    offline/erroring while its siblings keep working. Can also be given an
+    artificial delay (and records each invocation's start time) to prove a
+    composite device's fan-out is parallel, not sequential.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.fail_next = False
+        self.delay = 0.0
+        self.call_starts: list[float] = []
+
+    def __call__(self, *args, **kwargs):
+        self.call_starts.append(time.time())
+        if self.delay:
+            sleep(self.delay)
+        if self.fail_next:
+            self.fail_next = False
+            self.pending = []
+            raise RuntimeError('simulated member failure')
+        return super().__call__(*args, **kwargs)
+
+
+class CompositeMirrorSpyConfig(Config):
+    """
+    Config for a mirror-mode composite ('bass_array') over N MinidspSpy-backed
+    minidsp members - the easy-mode path: identical member type, no
+    per-member slot/channel translation.
+    """
+
+    def __init__(self, host: str, port: int, tmp_path, member_count: int = 2, expose_members: bool = False):
+        self.spies: dict[str, FlakyMinidspSpy] = {f'sub{i + 1}': FlakyMinidspSpy() for i in range(member_count)}
+        self.__expose_members = expose_members
+        super().__init__('spy', beqcatalogue_url=f"http://{host}:{port}/")
+        self.__tmp_path = tmp_path
+
+    @property
+    def load_catalogue_at_startup(self):
+        return True
+
+    def load_config(self):
+        devices = {
+            name: {
+                'type': 'minidsp',
+                'exe': 'minidsp',
+                'cmdTimeout': 10,
+                'make_runner': self.__runner_factory(name)
+            }
+            for name in self.spies
+        }
+        devices['bass_array'] = {
+            'type': 'composite',
+            'mode': 'mirror',
+            'members': list(self.spies.keys()),
+            'exposeMembers': self.__expose_members
+        }
+        return {
+            'debugLogging': False,
+            'accessLogging': False,
+            'port': 8080,
+            'devices': devices
+        }
+
+    def __runner_factory(self, name: str):
+        def _make(exe: str, options: str):
+            return self.spies[name]
+        return _make
+
+    @property
+    def config_path(self):
+        return self.__tmp_path
+
+    @property
+    def version(self):
+        return '1.2.3'
+
+    @property
+    def check_for_updates(self):
+        return False
+
+
+class CompositeMappedSpyConfig(Config):
+    """
+    Config for a mapped-mode composite ('home_theatre') over two genuinely
+    different device types - a MinidspSpy-backed minidsp ('sub1') and an
+    HTTP-backed reaper ('reaper1', sharing the fake httpserver already used
+    for catalogue downloads) - the complex-mode path. sub1's slots '1'/'2'
+    both map onto reaper1's single 'REAPER' slot via slotMap, and reaper1
+    opts out of mute/unmute/set_gain via skipOps since Reaper doesn't
+    support them (see ezbeq/reaper.py).
+    """
+
+    def __init__(self, host: str, port: int, tmp_path, expose_members: bool = False):
+        self.spy = FlakyMinidspSpy()
+        self.__host = host
+        self.__port = port
+        self.__expose_members = expose_members
+        super().__init__('spy', beqcatalogue_url=f"http://{host}:{port}/")
+        self.__tmp_path = tmp_path
+
+    @property
+    def load_catalogue_at_startup(self):
+        return True
+
+    def load_config(self):
+        return {
+            'debugLogging': False,
+            'accessLogging': False,
+            'port': 8080,
+            'devices': {
+                'sub1': {
+                    'type': 'minidsp',
+                    'exe': 'minidsp',
+                    'cmdTimeout': 10,
+                    'make_runner': lambda exe, options: self.spy
+                },
+                'reaper1': {
+                    'type': 'reaper',
+                    'ip': f'{self.__host}:{self.__port}',
+                    'timeout': 2
+                },
+                'home_theatre': {
+                    'type': 'composite',
+                    'mode': 'mapped',
+                    'primary': 'sub1',
+                    'exposeMembers': self.__expose_members,
+                    'members': {
+                        'sub1': {},
+                        'reaper1': {
+                            'slotMap': {'1': 'REAPER', '2': 'REAPER'},
+                            'skipOps': ['mute', 'unmute', 'set_gain']
+                        }
+                    }
+                }
+            }
+        }
+
+    @property
+    def config_path(self):
+        return self.__tmp_path
+
+    @property
+    def version(self):
+        return '1.2.3'
+
+    @property
+    def check_for_updates(self):
+        return False
+
+
+@pytest.fixture
+def composite_mirror_cfg(httpserver: HTTPServer, tmp_path):
+    return CompositeMirrorSpyConfig(httpserver.host, httpserver.port, tmp_path)
+
+
+@pytest.fixture
+def composite_mirror_app(composite_mirror_cfg):
+    app, _ws = main.create_app(composite_mirror_cfg)
+    yield app
+
+
+@pytest.fixture
+def composite_mirror_client(composite_mirror_app):
+    return composite_mirror_app.test_client()
+
+
+@pytest.fixture
+def composite_mapped_cfg(httpserver: HTTPServer, tmp_path):
+    return CompositeMappedSpyConfig(httpserver.host, httpserver.port, tmp_path)
+
+
+@pytest.fixture
+def composite_mapped_app(composite_mapped_cfg):
+    app, _ws = main.create_app(composite_mapped_cfg)
+    yield app
+
+
+@pytest.fixture
+def composite_mapped_client(composite_mapped_app):
+    return composite_mapped_app.test_client()

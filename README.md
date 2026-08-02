@@ -100,6 +100,7 @@ See [examples](examples)
 | Q-Sys                       | [ezbeq_qsys.yml](examples/ezbeq_qsys.yml)                                                                                                                                   |
 | StormAudio                  | [ezbeq_stormaudio.yml](examples/ezbeq_stormaudio.yml)                                                                                                                       |
 | Multiple, different devices | [ezbeq_multi.yml](examples/ezbeq_multi.yml)                                                                                                                                 |
+| Composite (grouped) devices | [ezbeq_composite.yml](examples/ezbeq_composite.yml)                                                                                                                         |
 
 ### Using with a Minidsp
 
@@ -665,6 +666,75 @@ configured in the pipeline.
 
 BEQ specific input gain adjustments are supported via the use of a [Gain](https://github.com/HEnquist/camilladsp#gain)
 filter which is inserted into the pipeline ahead of the BEQ filters themselves.
+
+#### Composite Devices
+
+`minidsp-rs`'s own `--all-local-devices` option lets its CLI treat 2 locally attached miniDSPs as one target, but that's
+as far as it goes - it can't add a 3rd device, and it can't mix in a different device type at all. A composite device
+covers both of those cases: it's a named device, just like any other entry under `devices`, that fans a single command
+(load a filter, activate a slot, mute, set gain, ...) out to N other devices already defined in your config.
+
+There are two modes:
+
+* `mirror` - the easy case. All members must be the **same** device `type` (e.g. 3 minidsps forming a sub array) and
+  every command is forwarded to each of them unchanged, in parallel. No per-member config is needed.
+* `mapped` - the general case. Members can be **any mix** of device types. Each member can optionally translate
+  composite-level slot/channel ids onto its own via `slotMap`/`channelMap`, and opt out of operations it doesn't
+  support via `skipOps`. One member must be nominated as `primary` - its own state (slots, mute, master volume) is
+  what's shown for the composite in the UI.
+
+```
+  sub1:
+    type: minidsp
+    exe: minidsp
+    options: '--tcp 127.0.0.1:5333'
+  sub2:
+    type: minidsp
+    exe: minidsp
+    options: '--tcp 127.0.0.1:5334'
+  sub3:
+    type: minidsp
+    exe: minidsp
+    options: '--tcp 127.0.0.1:5335'
+  bass_array:
+    type: composite
+    mode: mirror
+    members: [sub1, sub2, sub3]
+
+  proc:
+    type: htp1
+    ip: 127.0.0.1:1880
+  rear_sub:
+    type: minidsp
+    exe: minidsp
+    options: '--tcp 127.0.0.1:5336'
+  home_theatre:
+    type: composite
+    mode: mapped
+    primary: rear_sub
+    exposeMembers: true
+    members:
+      rear_sub: {}
+      proc:
+        slotMap: {'1': Movie, '2': Music}
+        skipOps: [set_gain]
+```
+
+* `mode`: `mirror` or `mapped`, as above
+* `members`: a list of device names for `mirror` mode, or a map of device name to per-member overrides for `mapped`
+  mode (an empty map `{}` means "no translation needed")
+* `primary`: (`mapped` mode only, required) the member whose own state is shown for the composite
+* `exposeMembers`: defaults to `false` - once a device is a member of a composite it's hidden from the device
+  selector, since the whole point is to stop having to juggle it individually. Set to `true` to keep the member
+  individually selectable/controllable alongside the composite.
+* per-member overrides (`mapped` mode): `slotMap`/`channelMap` translate composite-level ids onto that member's own,
+  `skipOps` lists operations (e.g. `set_gain`, `mute`) that member should silently ignore, `mvAdjust` adds an extra
+  gain trim on top of a loaded filter's own `mv_adjust` for that member only
+
+A command is applied to every reachable member even if another one fails (e.g. one sub in an array is offline) - the
+composite reports an error naming which member(s) failed, but doesn't undo what succeeded on the others. A composite
+cannot contain another composite, and a device can only belong to one composite. See
+[ezbeq_composite.yml](examples/ezbeq_composite.yml) for a complete example.
 
 ## Starting ezbeq on bootup
 

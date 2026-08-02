@@ -123,6 +123,10 @@ class DeviceRepository:
         self.__devices: dict[str, Device] = {}
         for device in create_devices(cfg, ws_server, catalogue):
             self.__devices[device.name] = device
+        self.__hidden: set[str] = set()
+        for device in self.__devices.values():
+            if device.device_type == 'composite' and not device.expose_members:
+                self.__hidden.update(device.member_names)
 
     def device_type(self, name: str) -> str:
         return self.__get_device(name).device_type
@@ -137,7 +141,7 @@ class DeviceRepository:
         return self.__get_device(name).state()
 
     def all_devices(self, refresh: bool = False) -> dict[str, DeviceState]:
-        return {n: d.state(refresh=refresh) for n, d in self.__devices.items()}
+        return {n: d.state(refresh=refresh) for n, d in self.__devices.items() if n not in self.__hidden}
 
     def activate(self, name: str, slot: str) -> None:
         self.__get_device(name).activate(slot)
@@ -171,35 +175,94 @@ class DeviceRepository:
         return self.__get_device(device_name).levels()
 
 
+def _composite_member_names(values: dict) -> list[str]:
+    members = values.get('members')
+    if isinstance(members, dict):
+        return list(members.keys())
+    elif isinstance(members, list):
+        return list(members)
+    return []
+
+
+def _validate_composite_configs(cfg: Config) -> None:
+    """
+    Fail fast, at startup, on malformed composite device config - mirrors the
+    existing pattern of Minidsp.__init__ exiting via create_minidsp_runner if
+    its exe binary can't be found.
+    """
+    all_names = set(cfg.devices.keys())
+    composite_names = {n for n, v in cfg.devices.items() if v['type'] == 'composite'}
+    seen_as_member: dict[str, str] = {}
+    for name in composite_names:
+        values = cfg.devices[name]
+        mode = values.get('mode')
+        if mode not in ('mirror', 'mapped'):
+            raise ValueError(f"Composite device '{name}' has invalid mode '{mode}', must be 'mirror' or 'mapped'")
+        member_names = _composite_member_names(values)
+        if not member_names:
+            raise ValueError(f"Composite device '{name}' has no members configured")
+        for member_name in member_names:
+            if member_name not in all_names:
+                raise ValueError(f"Composite device '{name}' references unknown member '{member_name}'")
+            if member_name in composite_names:
+                raise ValueError(f"Composite device '{name}' references '{member_name}' which is itself a "
+                                 f"composite - nesting composite devices is not supported")
+            if member_name in seen_as_member:
+                raise ValueError(f"Device '{member_name}' cannot be a member of more than one composite "
+                                 f"('{seen_as_member[member_name]}' and '{name}')")
+            seen_as_member[member_name] = name
+        if mode == 'mirror':
+            member_types = {cfg.devices[m]['type'] for m in member_names}
+            if len(member_types) > 1:
+                raise ValueError(f"Composite device '{name}' is in mirror mode but its members have differing "
+                                 f"types ({sorted(member_types)}) - mirror mode requires members of one type, "
+                                 f"use mode: mapped for mixed device types")
+        else:
+            primary = values.get('primary')
+            if not primary:
+                raise ValueError(f"Composite device '{name}' is in mapped mode but has no 'primary' member set")
+            if primary not in member_names:
+                raise ValueError(f"Composite device '{name}' has primary '{primary}' which is not one of its members")
+
+
 def create_devices(cfg: Config, ws_server: WsServer, catalogue: CatalogueProvider) -> list[Device]:
-    devices = []
+    _validate_composite_configs(cfg)
+    devices: dict[str, Device] = {}
+    composite_configs: dict[str, dict] = {}
     for name, values in cfg.devices.items():
         d_type = values['type']
-        if d_type == 'minidsp':
+        if d_type == 'composite':
+            composite_configs[name] = values
+        elif d_type == 'minidsp':
             from ezbeq.minidsp import Minidsp
-            devices.append(Minidsp(name, cfg.config_path, values, ws_server, catalogue))
+            devices[name] = Minidsp(name, cfg.config_path, values, ws_server, catalogue)
         elif d_type == 'htp1':
             from ezbeq.htp1 import Htp1
-            devices.append(Htp1(name, cfg.config_path, values, ws_server, catalogue))
+            devices[name] = Htp1(name, cfg.config_path, values, ws_server, catalogue)
         elif d_type == 'stormaudio':
             from ezbeq.stormaudio import StormAudio
-            devices.append(StormAudio(name, cfg.config_path, values, ws_server, catalogue))
+            devices[name] = StormAudio(name, cfg.config_path, values, ws_server, catalogue)
         elif d_type == 'jriver':
             from ezbeq.jriver import JRiver
-            devices.append(JRiver(name, cfg.config_path, values, ws_server, catalogue))
+            devices[name] = JRiver(name, cfg.config_path, values, ws_server, catalogue)
         elif d_type == 'qsys':
             from ezbeq.qsys import Qsys
-            devices.append(Qsys(name, cfg.config_path, values, ws_server, catalogue))
+            devices[name] = Qsys(name, cfg.config_path, values, ws_server, catalogue)
         elif d_type == 'camilladsp':
             from ezbeq.camilladsp import CamillaDsp
-            devices.append(CamillaDsp(name, cfg.config_path, values, ws_server, catalogue))
+            devices[name] = CamillaDsp(name, cfg.config_path, values, ws_server, catalogue)
         elif d_type == 'reaper':
             from ezbeq.reaper import Reaper
-            devices.append(Reaper(name, cfg.config_path, values, ws_server, catalogue))
+            devices[name] = Reaper(name, cfg.config_path, values, ws_server, catalogue)
+    for name, values in composite_configs.items():
+        from ezbeq.composite import CompositeDevice
+        member_names = _composite_member_names(values)
+        members = {m: devices[m] for m in member_names}
+        devices[name] = CompositeDevice(name, cfg.config_path, values, ws_server, catalogue, members)
     if not devices:
         raise ValueError('No device configured')
     else:
-        return devices
+        return list(devices.values())
 
 
 class InvalidRequestError(Exception):

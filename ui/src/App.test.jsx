@@ -66,6 +66,26 @@ describe('mergeDeviceByName', () => {
         });
     });
 
+    it('merges a composite device state (with a members breakdown) by name like any other device', () => {
+        const devices = {sub1: {name: 'sub1', masterVolume: -10}};
+        const composite = {
+            name: 'bass_array',
+            type: 'composite',
+            masterVolume: -10,
+            slots: [{id: '1', active: true, last: 'Empty'}],
+            members: {
+                sub1: {name: 'sub1', type: 'minidsp', masterVolume: -10},
+                sub2: {name: 'sub2', type: 'minidsp', masterVolume: -10}
+            }
+        };
+        const merged = mergeDeviceByName(devices, composite);
+
+        expect(merged).toEqual({
+            sub1: {name: 'sub1', masterVolume: -10},
+            bass_array: composite
+        });
+    });
+
     it('does not mutate the input devices object', () => {
         const devices = {d1: {name: 'd1', masterVolume: -10}};
         const snapshot = JSON.parse(JSON.stringify(devices));
