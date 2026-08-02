@@ -52,8 +52,14 @@ class LevelsService {
                 this.seriesDirty = true;
             });
         } else {
+            // must build the same {name: descriptor} shape as the branch above (not a raw
+            // array of names) - createSeriesForDevice/ensureAllSeriesAreLoadedToChart both
+            // index into this by series name and read a .label off each entry
+            this.seriesByDeviceName[device] = {};
+            series.forEach(s => {
+                this.seriesByDeviceName[device][s] = this.createSeriesForDevice(device, s);
+            });
             this.seriesDirty = true;
-            this.seriesByDeviceName[device] = [...series];
         }
     };
 

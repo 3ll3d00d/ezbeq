@@ -116,7 +116,10 @@ const App = () => {
     }, [version]);
 
     useEffect(() => {
-        levelsService.loadDevices(Object.keys(availableDevices));
+        // loadDevices does its own Object.keys(...) internally (see Chart.jsx's call, and
+        // levels.js) - passing Object.keys(availableDevices) here double-extracts, registering
+        // bogus index-keyed pseudo-devices ('0', '1', ...) instead of the real device names
+        levelsService.loadDevices(availableDevices);
     }, [levelsService, availableDevices]);
 
     useEffect(() => {
