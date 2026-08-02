@@ -4,6 +4,20 @@ import {pushData} from "../../services/util";
 import ezbeq from "../../services/ezbeq";
 import Box from "@mui/material/Box";
 
+// exported for direct testing of the fuzzy free-text-create matching, independent of the
+// rest of Filter's rendering (which fetches from 5 endpoints on mount)
+export const matchAudioTypes = (audioTypes, values) =>
+    audioTypes.filter(at => values.some(v => v === at || at.toLowerCase().indexOf(v.toLowerCase()) > -1));
+
+export const matchFreshness = (freshness, values) =>
+    freshness.filter(at => values.some(v => v === at || at.toLowerCase().indexOf(v.toLowerCase()) > -1));
+
+export const matchYears = (years, values) =>
+    years.filter(y => values.some(v => v === y || `${y}`.indexOf(v) > -1));
+
+export const matchLanguages = (languages, values) =>
+    languages.filter(at => values.some(v => v === at || at.toLowerCase().indexOf(v.toLowerCase()) > -1));
+
 const Filter = ({
                     visible,
                     selectedAudioTypes,
@@ -60,25 +74,13 @@ const Filter = ({
         pushData(setFilteredLanguages, () => [...new Set(filteredEntries.map(e => e.language))], setError);
     }, [filteredEntries, setError]);
 
-    const addSelectedAudioTypes = values => {
-        const matches = audioTypes.filter(at => values.some(v => v === at || at.toLowerCase().indexOf(v.toLowerCase()) > -1));
-        setSelectedAudioTypes(matches);
-    };
+    const addSelectedAudioTypes = values => setSelectedAudioTypes(matchAudioTypes(audioTypes, values));
 
-    const addSelectedFreshness = values => {
-        const matches = freshness.filter(at => values.some(v => v === at || at.toLowerCase().indexOf(v.toLowerCase()) > -1));
-        setSelectedFreshness(matches);
-    };
+    const addSelectedFreshness = values => setSelectedFreshness(matchFreshness(freshness, values));
 
-    const addSelectedYears = values => {
-        const matches = years.filter(y => values.some(v => v === y || `${y}`.indexOf(v) > -1));
-        setSelectedYears(matches);
-    };
+    const addSelectedYears = values => setSelectedYears(matchYears(years, values));
 
-    const addSelectedLanguages = values => {
-        const matches = languages.filter(at => values.some(v => v === at || at.toLowerCase().indexOf(v.toLowerCase()) > -1));
-        setSelectedLanguages(matches);
-    };
+    const addSelectedLanguages = values => setSelectedLanguages(matchLanguages(languages, values));
 
     if (visible) {
         return (
