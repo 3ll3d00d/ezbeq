@@ -1,4 +1,5 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {useState} from 'react';
 import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {computeNewCount, deriveTxtFilterFromActiveSlot, isMatch, txtMatch} from './index';
 import MainView from './index';
@@ -224,5 +225,60 @@ describe('MainView', () => {
         renderMainView({});
 
         expect(await screen.findByText(/ezbeq 9\.9\.9 is available/)).toBeInTheDocument();
+    });
+
+    // The bug that kicked off this whole test-coverage effort lived exactly in this seam:
+    // Entry's "Set Input Gain" upload calls setDevice(...) with the backend's response, and
+    // Slots derives what it displays from that same availableDevices state. Each component's
+    // own test file only proves its half of the contract (Entry sends the right payload; Slots
+    // reflects whatever device prop it's given) - only rendering both for real, wired through
+    // the same state a parent would own, proves the seam itself is correct.
+    it('reflects a gain applied via Entry\'s "Set Input Gain" checkbox in the Slots gain panel', async () => {
+        const gainDevice = (channelGain) => ({
+            name: 'd1',
+            masterVolume: -10,
+            mute: false,
+            slots: [{
+                id: '1',
+                last: 'Empty',
+                gains: [{id: '1', value: channelGain}],
+                mutes: [{id: '1', value: false}],
+                outputGains: [],
+                outputMutes: []
+            }]
+        });
+
+        const StatefulMainView = (initialProps) => {
+            const Wrapper = () => {
+                const [availableDevices, setAvailableDevices] = useState(initialProps.availableDevices);
+                const replaceDevice = d => setAvailableDevices(prev => ({...prev, [d.name]: d}));
+                return <MainView {...initialProps} availableDevices={availableDevices} replaceDevice={replaceDevice}/>;
+            };
+            return render(<Wrapper/>);
+        };
+
+        ezbeq.loadWithMV.mockResolvedValue(gainDevice(3.5));
+
+        const {container} = StatefulMainView({
+            entries: [entry(1, {formattedTitle: 'Gain Movie', mvAdjust: 3.5})],
+            availableDevices: {d1: gainDevice(0)},
+            selectedDeviceName: 'd1',
+            selectedSlotId: '1'
+        });
+
+        fireEvent.click(await screen.findByText('Gain Movie'));
+        fireEvent.click(await screen.findByRole('checkbox', {name: /Set Input Gain/i}));
+        fireEvent.click(screen.getByRole('button', {name: /upload/i}));
+
+        await waitFor(() => expect(ezbeq.loadWithMV).toHaveBeenCalledWith('d1', 1, '1', {
+            gains: [{id: '1', value: 3.5}],
+            mutes: [{id: '1', value: false}]
+        }));
+
+        fireEvent.click(screen.getByText(/Channels/));
+        await waitFor(() => {
+            const channelInput = Array.from(container.querySelectorAll('input[type="number"]'))[1];
+            expect(channelInput.value).toBe('3.5');
+        });
     });
 });
