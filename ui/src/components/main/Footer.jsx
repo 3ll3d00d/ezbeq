@@ -35,7 +35,10 @@ const Footer = ({meta}) => {
     }
 
     useEffect(() => {
-        pushData(setVersion, ezbeq.getVersion);
+        // Footer has no setError prop from its caller and a failed version fetch here is
+        // non-critical (footer just stays blank), so swallow it rather than let pushData's
+        // catch block call an undefined setError and throw a more confusing error
+        pushData(setVersion, ezbeq.getVersion, () => {});
     }, []);
 
     if (meta || version) {
