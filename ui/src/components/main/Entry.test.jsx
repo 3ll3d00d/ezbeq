@@ -115,3 +115,157 @@ describe('Entry', () => {
         expect(setDevice).not.toHaveBeenCalled();
     });
 });
+
+describe('Entry slot selection', () => {
+    const multiSlotDevice = () => ({
+        name: 'd1',
+        slots: [{id: '1'}, {id: '2'}, {id: '3'}]
+    });
+
+    it('does not show a slot radio group for a device with only one slot', () => {
+        renderEntry({selectedDevice: plainDevice(), selectedEntry: entryWithMvAdjust(), selectedSlotId: '1'});
+        expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument();
+    });
+
+    it('shows a slot radio per slot for a multi-slot device, defaulting to the selected slot', () => {
+        renderEntry({selectedDevice: multiSlotDevice(), selectedEntry: entryWithMvAdjust(), selectedSlotId: '2'});
+        expect(screen.getByRole('radio', {name: '1'})).not.toBeChecked();
+        expect(screen.getByRole('radio', {name: '2'})).toBeChecked();
+        expect(screen.getByRole('radio', {name: '3'})).not.toBeChecked();
+    });
+
+    it('uploads to the slot picked via the radio group, not the originally selected one', async () => {
+        renderEntry({selectedDevice: multiSlotDevice(), selectedEntry: entryWithMvAdjust(), selectedSlotId: '1'});
+
+        fireEvent.click(screen.getByRole('radio', {name: '3'}));
+        fireEvent.click(screen.getByRole('button', {name: /upload/i}));
+
+        await waitFor(() => expect(ezbeq.sendFilter).toHaveBeenCalledWith('d1', 'entry-1', '3'));
+    });
+});
+
+describe('Entry gain checkbox reset', () => {
+    it('unchecks Set Input Gain when the selected entry changes', () => {
+        const entry1 = entryWithMvAdjust(3.5);
+        const {rerender} = renderEntry({selectedDevice: gainCapableDevice(), selectedEntry: entry1});
+
+        fireEvent.click(screen.getByRole('checkbox', {name: /Set Input Gain/i}));
+        expect(screen.getByRole('checkbox', {name: /Set Input Gain/i})).toBeChecked();
+
+        rerender(
+            <Entry selectedDevice={gainCapableDevice()} selectedEntry={{id: 'entry-2', title: 'Other Movie', mvAdjust: 2}}
+                   useWide={true} setDevice={vi.fn()} selectedSlotId="1" setError={vi.fn()}
+                   setSuccess={vi.fn()} setUploadPendingSlotId={vi.fn()}/>
+        );
+
+        expect(screen.getByRole('checkbox', {name: /Set Input Gain/i})).not.toBeChecked();
+    });
+});
+
+describe('Entry metadata rendering', () => {
+    it('shows the title with year, edition, and a distinct alt title', () => {
+        renderEntry({selectedEntry: {id: 1, title: 'Movie', year: 2020, edition: "Director's Cut", altTitle: 'Alt Name'}});
+        expect(screen.getByText('Movie (2020)')).toBeInTheDocument();
+        expect(screen.getByText("Director's Cut")).toBeInTheDocument();
+        expect(screen.getByText('Alt Name')).toBeInTheDocument();
+    });
+
+    it('does not repeat the alt title when it matches the title', () => {
+        renderEntry({selectedEntry: {id: 1, title: 'Movie', altTitle: 'Movie'}});
+        expect(screen.getAllByText('Movie')).toHaveLength(1);
+    });
+
+    it('formats season/episode information', () => {
+        renderEntry({selectedEntry: {id: 1, title: 'Show', season: '1', episodes: '5'}});
+        expect(screen.getByText('S1 E5')).toBeInTheDocument();
+    });
+
+    it('formats a non-numeric episode range', () => {
+        renderEntry({selectedEntry: {id: 1, title: 'Show', season: '1', episodes: '1-3'}});
+        expect(screen.getByText('S1 1-3')).toBeInTheDocument();
+    });
+
+    it('shows a positive MV adjustment with an explicit plus sign', () => {
+        renderEntry({selectedEntry: {id: 1, title: 'Movie', mvAdjust: 2.5}});
+        expect(screen.getByText(/MV Adjustment: \+2\.5 dB/)).toBeInTheDocument();
+    });
+
+    it('shows a negative MV adjustment without an extra sign', () => {
+        renderEntry({selectedEntry: {id: 1, title: 'Movie', mvAdjust: -2.5}});
+        expect(screen.getByText(/MV Adjustment: -2\.5 dB/)).toBeInTheDocument();
+    });
+
+    it('shows note and warning text', () => {
+        renderEntry({selectedEntry: {id: 1, title: 'Movie', note: 'A note', warning: 'A warning'}});
+        expect(screen.getByText('A note')).toBeInTheDocument();
+        expect(screen.getByText('A warning')).toBeInTheDocument();
+    });
+
+    it('shows extra metadata (rating, runtime, language, genres, author)', () => {
+        renderEntry({
+            selectedEntry: {
+                id: 1, title: 'Movie', rating: 'PG-13', runtime: 125,
+                language: 'French', genres: ['Action', 'Drama'], author: 'Some Author'
+            }
+        });
+        expect(screen.getByText(/PG-13/)).toBeInTheDocument();
+        expect(screen.getByText(/2h 5m/)).toBeInTheDocument();
+        expect(screen.getByText(/French/)).toBeInTheDocument();
+        expect(screen.getByText(/Action, Drama/)).toBeInTheDocument();
+        expect(screen.getByText(/Some Author/)).toBeInTheDocument();
+    });
+
+    it('omits English from the extra metadata (only non-English languages are called out)', () => {
+        renderEntry({selectedEntry: {id: 1, title: 'Movie', language: 'English', author: 'A'}});
+        expect(screen.queryByText(/English/)).not.toBeInTheDocument();
+    });
+});
+
+describe('Entry links', () => {
+    it('shows TMDb, Discuss and Catalogue links only when the corresponding url is present', () => {
+        renderEntry({
+            selectedEntry: {
+                id: 1, title: 'Movie', theMovieDB: '123', contentType: 'film',
+                avsUrl: 'https://avs.example/thread', beqcUrl: 'https://beqc.example/entry'
+            }
+        });
+        expect(screen.getByRole('link', {name: 'TMDb'})).toHaveAttribute('href', 'https://themoviedb.org/movie/123');
+        expect(screen.getByRole('link', {name: 'Discuss'})).toHaveAttribute('href', 'https://avs.example/thread');
+        expect(screen.getByRole('link', {name: 'Catalogue'})).toHaveAttribute('href', 'https://beqc.example/entry');
+    });
+
+    it('links to the tv path on TMDb for a non-film content type', () => {
+        renderEntry({selectedEntry: {id: 1, title: 'Show', theMovieDB: '123', contentType: 'tv'}});
+        expect(screen.getByRole('link', {name: 'TMDb'})).toHaveAttribute('href', 'https://themoviedb.org/tv/123');
+    });
+
+    it('shows none of the links when their urls are absent', () => {
+        renderEntry({selectedEntry: {id: 1, title: 'Movie'}});
+        expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    });
+});
+
+describe('Entry layout', () => {
+    const cardChildOrder = (container) => Array.from(container.querySelector('.MuiCard-root').children).length;
+
+    it('renders the upload action before the title/content in narrow (non-wide) mode', () => {
+        const {container} = renderEntry({selectedDevice: plainDevice(), selectedEntry: entryWithMvAdjust(), useWide: false});
+        const children = Array.from(container.querySelector('.MuiCard-root').children);
+        const uploadIdx = children.findIndex(c => c.textContent.includes('Upload'));
+        const titleIdx = children.findIndex(c => c.textContent.includes('Some Movie'));
+        expect(uploadIdx).toBeLessThan(titleIdx);
+    });
+
+    it('renders the title/content before the upload action in wide mode', () => {
+        const {container} = renderEntry({selectedDevice: plainDevice(), selectedEntry: entryWithMvAdjust(), useWide: true});
+        const children = Array.from(container.querySelector('.MuiCard-root').children);
+        const uploadIdx = children.findIndex(c => c.textContent.includes('Upload'));
+        const titleIdx = children.findIndex(c => c.textContent.includes('Some Movie'));
+        expect(titleIdx).toBeLessThan(uploadIdx);
+    });
+
+    it('does not render an upload action when there is no selected device', () => {
+        renderEntry({selectedDevice: null, selectedEntry: entryWithMvAdjust()});
+        expect(screen.queryByRole('button', {name: /upload/i})).not.toBeInTheDocument();
+    });
+});
