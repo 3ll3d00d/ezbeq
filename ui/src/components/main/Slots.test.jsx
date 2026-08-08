@@ -100,6 +100,16 @@ describe('Slots slot management', () => {
         expect(setUserDriven).toHaveBeenCalledWith(true);
     });
 
+    it('activates a slot when the surrounding card is clicked, not just its text', () => {
+        ezbeq.activateSlot.mockResolvedValue({name: 'minidsp', active: '2'});
+        renderSlotsFull();
+
+        const card = screen.getByText('2: Filter Two').closest('.MuiPaper-root');
+        fireEvent.click(card);
+
+        expect(ezbeq.activateSlot).toHaveBeenCalledWith('minidsp', '2');
+    });
+
     it('clears a slot when its clear button is clicked and reports success', async () => {
         const setDevice = vi.fn();
         const setSuccess = vi.fn();
@@ -111,6 +121,14 @@ describe('Slots slot management', () => {
         expect(ezbeq.clearSlot).toHaveBeenCalledWith('minidsp', '1');
         await waitFor(() => expect(setDevice).toHaveBeenCalledWith({name: 'minidsp'}));
         expect(setSuccess).toHaveBeenCalledWith('Slot cleared');
+    });
+
+    it('clearing a slot does not also activate it, even though the clear button now sits inside the clickable card', () => {
+        renderSlotsFull();
+
+        fireEvent.click(clearButtonFor('1: Filter One'));
+
+        expect(ezbeq.activateSlot).not.toHaveBeenCalled();
     });
 
     it('shows a pending spinner and disables the button while a clear is in flight', async () => {

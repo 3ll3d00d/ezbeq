@@ -43,12 +43,15 @@ const StyledPaper = styled(Paper, {
     padding: theme.spacing(0.5),
     flexGrow: 1,
     backgroundColor: slotIsSelected ? theme.palette.action.selected : theme.palette.background.default,
-    display: 'flex'
+    display: 'flex',
+    cursor: 'pointer'
 }));
 
 const ContentGrid = styled(Grid)(({ theme }) => ({
     padding: 4,
     paddingLeft: 8,
+    display: 'flex',
+    alignItems: 'center',
     '&:last-child': {
         paddingBottom: 4,
     }
@@ -68,16 +71,18 @@ const chunk = (arr, size) => arr.reduce((chunks, el, i) => (i % size ? chunks[ch
 const Slot = ({selected, slot, onSelect, isPending, onClear}) => {
     const last_author = slot.author ? ` (${slot.author})` : '';
     return (
-        <StyledPaper slotIsSelected={selected}>
+        <StyledPaper slotIsSelected={selected} onClick={onSelect}>
             <OuterGrid container justifyContent="space-between" alignItems="center">
-                <ContentGrid onClick={onSelect} size={{ xs: 8 }} className={`${classes.content}`}>
+                <ContentGrid size={{ xs: 8 }}>
                     <Typography component="p" variant="body2">{slot.name ? slot.name : slot.id}: {slot.last}{last_author}</Typography>
                 </ContentGrid>
                 <Grid size={{ xs: 4 }}>
                     <RightIconButton
-                        onClick={onClear}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onClear();
+                        }}
                         disabled={isPending}
-                        className={classes.right}
                         size="large">
                         {
                             isPending
