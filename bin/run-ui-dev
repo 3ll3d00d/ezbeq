@@ -34,7 +34,7 @@ trap cleanup EXIT INT TERM
 
 # Start the Python backend on port 8080
 echo "Starting Python backend (stub) on port 8080..."
-EZBEQ_CONFIG_HOME="$STUB_CONFIG_DIR" poetry run ezbeq &
+EZBEQ_CONFIG_HOME="$STUB_CONFIG_DIR" uv run ezbeq &
 BACKEND_PID=$!
 
 # Wait for backend to be ready

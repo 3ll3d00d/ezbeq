@@ -34,4 +34,4 @@ echo "Starting ezbeq in stub mode"
 echo "  Config : $STUB_CONFIG_DIR/ezbeq.yml"
 echo "  Open   : http://localhost:9968"
 echo
-EZBEQ_CONFIG_HOME="$STUB_CONFIG_DIR" exec poetry run ezbeq
+EZBEQ_CONFIG_HOME="$STUB_CONFIG_DIR" exec uv run ezbeq

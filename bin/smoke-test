@@ -73,7 +73,7 @@ EOF
     # EZBEQ_ACCESS_LOG_STDOUT=1 makes each HTTP request appear in the server log
     # (stdout/stderr) in addition to any access.log file.
     EZBEQ_CONFIG_HOME="$STUB_CONFIG_DIR" EZBEQ_ACCESS_LOG_STDOUT=1 \
-        poetry run ezbeq >"$LOG_FILE" 2>&1 &
+        uv run ezbeq >"$LOG_FILE" 2>&1 &
     SERVER_PID=$!
 
     echo -n "  Waiting for server to be ready"

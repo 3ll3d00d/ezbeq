@@ -6,13 +6,13 @@
 - **Flask** + **Flask-RESTx** for REST API with automatic Swagger docs
 - **Twisted** + **Autobahn** for async networking and WebSockets
 - **PyYAML** for configuration
-- **Poetry** for dependency management
+- **uv** for dependency management
 
 ## Development
 
 ```bash
-poetry install          # Install Python dependencies
-poetry run ezbeq        # Run the application (default port 8080)
+uv sync                 # Install Python dependencies
+uv run ezbeq            # Run the application (default port 8080)
 ```
 
 ## Coding Conventions

@@ -56,21 +56,21 @@ Use your distro package manager to install python.
 
 ## Installation
 
-ezbeq uses [Poetry](https://python-poetry.org/) for dependency management.
+ezbeq uses [uv](https://docs.astral.sh/uv/) for dependency management.
 
-    $ pip install poetry
+    $ curl -LsSf https://astral.sh/uv/install.sh | sh
     $ git clone https://github.com/3ll3d00d/ezbeq
     $ cd ezbeq
-    $ poetry install
+    $ uv sync
 
 Example is provided for rpi users
 
     $ ssh pi@myrpi
     $ sudo apt install python3 python3-venv python3-pip libyaml-dev
-    $ pip install poetry
+    $ curl -LsSf https://astral.sh/uv/install.sh | sh
     $ git clone https://github.com/3ll3d00d/ezbeq
     $ cd ezbeq
-    $ poetry install
+    $ uv sync
 
 ### Docker
 
@@ -114,7 +114,7 @@ See the configuration section below
 
     $ cd ezbeq
     $ git pull
-    $ poetry install
+    $ uv sync
 
 then restart the app
 

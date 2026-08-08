@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-poetry run pytest "$@"
+uv run pytest "$@"
 
 # Run the HTTP smoke test unless pytest args suggest a subset run (e.g. -k, specific file)
 if [[ $# -eq 0 ]]; then
