@@ -65,6 +65,9 @@ class CamillaDspState(DeviceState):
 
 
 class CamillaDsp(PersistentDevice[CamillaDspState]):
+    SUPPORTED_OPS = frozenset({'activate', 'load_filter', 'clear_filter', 'mute', 'unmute', 'set_gain'})
+    FIXED_SLOT_ID = SLOT_ID
+
     def __init__(
             self,
             name: str,

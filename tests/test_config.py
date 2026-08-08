@@ -68,14 +68,17 @@ def test_composite_example_config_parses():
     assert bass_array['mode'] == 'mirror'
     assert bass_array['members'] == ['sub1', 'sub2', 'sub3']
 
-    home_theatre = cfg.devices['home_theatre']
-    assert home_theatre['type'] == 'composite'
-    assert home_theatre['mode'] == 'mapped'
-    assert home_theatre['primary'] == 'rear_sub'
-    assert home_theatre['exposeMembers'] is True
-    assert set(home_theatre['members'].keys()) == {'rear_sub', 'proc'}
-    assert home_theatre['members']['proc']['slotMap'] == {'1': 'Movie', '2': 'Music'}
-    assert home_theatre['members']['proc']['skipOps'] == ['set_gain']
+    rear_subs = cfg.devices['rear_subs']
+    assert rear_subs['type'] == 'composite'
+    assert rear_subs['mode'] == 'mapped'
+    assert rear_subs['primary'] == 'rear_sub'
+    assert rear_subs['exposeMembers'] is True
+    assert rear_subs['allowPartialGain'] is True
+    assert set(rear_subs['members'].keys()) == {'rear_sub', 'side_sub'}
+    assert rear_subs['members']['side_sub']['slotMap'] == {'1': '3', '2': '4'}
+    assert rear_subs['members']['side_sub']['channelMap'] == {'1': '3'}
+    assert rear_subs['members']['side_sub']['skipOps'] == ['set_gain']
+    assert rear_subs['members']['side_sub']['mvAdjust'] == -1.5
 
 
 class _RawDevicesConfig(Config):
@@ -99,19 +102,22 @@ class _RawDevicesConfig(Config):
 @pytest.mark.parametrize('mutation,match', [
     (lambda d: d['bass_array'].__setitem__('members', ['sub1', 'sub2', 'nope']), "unknown member 'nope'"),
     (lambda d: d['bass_array'].__setitem__('mode', 'bogus'), "invalid mode 'bogus'"),
-    (lambda d: d['bass_array'].__setitem__('members', ['sub1', 'proc']), 'differing types'),
+    (lambda d: d['bass_array'].__setitem__('members', ['sub1', 'reaper1']), 'differing types'),
 ])
 def test_composite_example_config_rejects_mutations(mutation, match):
     """
     Sanity-checks that create_devices() actually enforces the validation
     rules the composite example config satisfies - by taking a parsed copy
     of examples/ezbeq_composite.yml and breaking bass_array in one specific
-    way. home_theatre is dropped first so its own use of 'proc'/'rear_sub'
+    way. rear_subs is dropped first so its own use of 'side_sub'/'rear_sub'
     can't interact with whatever we just did to bass_array's membership.
+    reaper1 is added purely as a different-typed device for the 'differing
+    types' case - every device in this example config is a minidsp otherwise.
     """
     cfg = _ExampleConfig('ezbeq_composite')
     devices = cfg.as_dict()['devices']
-    del devices['home_theatre']
+    del devices['rear_subs']
+    devices['reaper1'] = {'type': 'reaper', 'ip': '127.0.0.1:1'}
     mutation(devices)
     raw_cfg = _RawDevicesConfig(devices)
     with pytest.raises(ValueError, match=match):

@@ -39,6 +39,8 @@ class Htp1State(DeviceState):
 
 
 class Htp1(PersistentDevice[Htp1State]):
+    SUPPORTED_OPS = frozenset({'activate', 'load_filter', 'clear_filter'})
+    FIXED_SLOT_ID = 'HTP1'
 
     def __init__(self, name: str, config_path: str, cfg: dict, ws_server: WsServer, catalogue: CatalogueProvider):
         super().__init__(config_path, name, ws_server)

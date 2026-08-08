@@ -852,6 +852,7 @@ class Minidsp(PersistentDevice[MinidspState]):
             try:
                 code, _stdout, _stderr = exe.run(timeout=self.__cmd_timeout, **kwargs)
             except ProcessExecutionError as e:
+                logger.info(f'Failed commands: {config_cmds}')
                 raise UnableToPatchDeviceError(f'minidsp cmd failed due to : {e.stderr}', False) from e
             end = time.time()
             logger.info(

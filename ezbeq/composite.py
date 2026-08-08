@@ -14,11 +14,20 @@ logger = logging.getLogger('ezbeq.composite')
 @dataclass
 class MemberSpec:
     """
-    Per-member translation rules for a composite device. In mirror mode every
-    member gets the default (identity) spec - commands are forwarded verbatim.
-    In mapped mode a member can override how composite-level slot/channel ids
-    map onto its own, opt out of ops it doesn't support, and add an extra
-    gain trim on top of a catalogue entry's own mv_adjust.
+    Per-member translation rules for a composite device.
+
+    skip_ops is always the union of two things: ops the member's device class
+    structurally can't do at all (Device.ALL_OPS - dev.SUPPORTED_OPS, e.g. any
+    non-minidsp device doesn't implement set_gain), plus whatever the user
+    explicitly listed in skipOps for a device that *can* do the op but
+    shouldn't for this particular member (e.g. a fixed-gain amp stage). The
+    former is derived automatically for every member, mirror or mapped.
+
+    slot_map/channel_map only ever come from mapped-mode config, and slot_map
+    is only meaningful for a device with more than one real slot (its
+    FIXED_SLOT_ID is None) - a single-slot device is always routed straight to
+    that fixed id instead (see CompositeDevice.__translate_slot), so any
+    slotMap configured for one is never consulted.
     """
     slot_map: dict[str, str] = field(default_factory=dict)
     channel_map: dict[str, str] = field(default_factory=dict)
@@ -87,6 +96,7 @@ class CompositeDevice(PersistentDevice[CompositeDeviceState]):
           exposeMembers: false      # default: hide members from the selector
           primary: sub1             # mapped mode only, required
           cmdTimeout: 30            # seconds to wait for each member's op
+          allowPartialGain: false   # mapped mode only, see _validate_no_silent_partial_gain
     """
 
     def __init__(self, name: str, config_path: str, cfg: dict, ws_server: WsServer, catalogue: CatalogueProvider,
@@ -101,20 +111,20 @@ class CompositeDevice(PersistentDevice[CompositeDeviceState]):
         self.__executor = ThreadPoolExecutor(max_workers=max(len(members), 1))
 
     def __build_specs(self, cfg: dict) -> dict[str, MemberSpec]:
+        overrides = cfg.get('members', {}) if cfg['mode'] == 'mapped' else {}
         specs: dict[str, MemberSpec] = {}
-        if cfg['mode'] == 'mirror':
-            for name in self.__members:
-                specs[name] = MemberSpec()
-        else:
-            overrides = cfg.get('members', {})
-            for name in self.__members:
-                o = overrides.get(name) or {}
-                specs[name] = MemberSpec(
-                    slot_map={str(k): str(v) for k, v in o.get('slotMap', {}).items()},
-                    channel_map={str(k): str(v) for k, v in o.get('channelMap', {}).items()},
-                    skip_ops=set(o.get('skipOps', [])),
-                    mv_adjust=float(o.get('mvAdjust', 0.0))
-                )
+        for name, dev in self.__members.items():
+            o = overrides.get(name) or {}
+            auto_skip = Device.ALL_OPS - dev.SUPPORTED_OPS
+            explicit_skip = set(o.get('skipOps', []))
+            slot_map = {} if dev.FIXED_SLOT_ID is not None \
+                else {str(k): str(v) for k, v in o.get('slotMap', {}).items()}
+            specs[name] = MemberSpec(
+                slot_map=slot_map,
+                channel_map={str(k): str(v) for k, v in o.get('channelMap', {}).items()},
+                skip_ops=auto_skip | explicit_skip,
+                mv_adjust=float(o.get('mvAdjust', 0.0))
+            )
         return specs
 
     @property
@@ -132,6 +142,9 @@ class CompositeDevice(PersistentDevice[CompositeDeviceState]):
     def __translate_slot(self, member_name: str, slot: str | None) -> str | None:
         if slot is None:
             return None
+        fixed_slot_id = self.__members[member_name].FIXED_SLOT_ID
+        if fixed_slot_id is not None:
+            return fixed_slot_id
         return self.__specs[member_name].slot_map.get(slot, slot)
 
     def __translate_channel(self, member_name: str, channel: int | None) -> int | None:
@@ -139,6 +152,9 @@ class CompositeDevice(PersistentDevice[CompositeDeviceState]):
             return None
         mapped = self.__specs[member_name].channel_map.get(str(channel))
         return int(mapped) if mapped is not None else channel
+
+    def __translate_channels(self, member_name: str, channels: list[int]) -> list[int]:
+        return [self.__translate_channel(member_name, c) for c in channels]
 
     def __fan_out(self, op: str, call: Callable[[str, Device], None]) -> None:
         """
@@ -240,14 +256,16 @@ class CompositeDevice(PersistentDevice[CompositeDeviceState]):
                      biquads: list[dict]) -> None:
         def __do_it():
             self.__fan_out('load_biquads', lambda name, dev: dev.load_biquads(
-                self.__translate_slot(name, slot), overwrite, inputs, outputs, biquads))
+                self.__translate_slot(name, slot), overwrite,
+                self.__translate_channels(name, inputs), self.__translate_channels(name, outputs), biquads))
 
         self._hydrate_cache_broadcast(__do_it)
 
     def send_commands(self, slot: str, inputs: list[int], outputs: list[int], commands: list[str]) -> None:
         def __do_it():
             self.__fan_out('send_commands', lambda name, dev: dev.send_commands(
-                self.__translate_slot(name, slot), inputs, outputs, commands))
+                self.__translate_slot(name, slot),
+                self.__translate_channels(name, inputs), self.__translate_channels(name, outputs), commands))
 
         self._hydrate_cache_broadcast(__do_it)
 

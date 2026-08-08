@@ -45,7 +45,15 @@ const wsProtocol = `ws${window.location.protocol === 'https:' ? 's' : ''}`;
 const ss = new StateService(`${wsProtocol}://${window.location.host}/ws`);
 
 // exported for testing in isolation from the rest of App's rendering/singleton wiring
-export const mergeDeviceByName = (devices, replacement) => Object.assign({}, devices, {[replacement.name]: replacement});
+//
+// Only ever updates an already-known device, never adds one: a composite fanning an op out to
+// its members (e.g. activating a slot) makes each member broadcast its own DeviceState over the
+// websocket too, same as if it had been addressed directly - but a member hidden from the
+// selector (composite exposeMembers: false, the default) was deliberately left out of the
+// /api/2/devices response this state was seeded from, so it must stay out here as well, or it
+// reappears in the selector the moment any op is applied to the composite it belongs to.
+export const mergeDeviceByName = (devices, replacement) =>
+    devices.hasOwnProperty(replacement.name) ? Object.assign({}, devices, {[replacement.name]: replacement}) : devices;
 
 // a REST poll response is stale by the time it lands once the websocket is up (it'll have
 // already pushed a DeviceState message), so only apply it while the socket is down
@@ -80,9 +88,15 @@ const App = () => {
     const [availableDevices, setAvailableDevices] = useState({});
     const [selectedSlotId, setSelectedSlotId] = useState(null);
 
+    // Uses the functional setState form (reading the freshest state at apply time) rather than
+    // closing over `availableDevices` - a composite fans one op out to N members, each of which
+    // broadcasts its own DeviceState close enough together that several `replaceDevice` calls can
+    // land before a re-render lets this closure see the previous one's result. With a closed-over
+    // `availableDevices`, each of those calls would merge against the same stale snapshot and only
+    // the last one applied would survive, silently dropping every other member's update.
     const replaceDevice = useMemo(() => replacement => {
-        setAvailableDevices(mergeDeviceByName(availableDevices, replacement));
-    }, [setAvailableDevices, availableDevices]);
+        setAvailableDevices(current => mergeDeviceByName(current, replacement));
+    }, [setAvailableDevices]);
 
     const loadEntries = useMemo(() => newEntries => {
         setEntries(e => {

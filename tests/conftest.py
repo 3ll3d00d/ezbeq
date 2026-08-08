@@ -775,10 +775,14 @@ class CompositeMappedSpyConfig(Config):
     Config for a mapped-mode composite ('home_theatre') over two genuinely
     different device types - a MinidspSpy-backed minidsp ('sub1') and an
     HTTP-backed reaper ('reaper1', sharing the fake httpserver already used
-    for catalogue downloads) - the complex-mode path. sub1's slots '1'/'2'
-    both map onto reaper1's single 'REAPER' slot via slotMap, and reaper1
-    opts out of mute/unmute/set_gain via skipOps since Reaper doesn't
-    support them (see ezbeq/reaper.py).
+    for catalogue downloads) - the complex-mode path. No slotMap/skipOps
+    config is needed for reaper1 any more: composite.py auto-routes any
+    composite-level slot straight to Reaper.FIXED_SLOT_ID ('REAPER'), and
+    auto-skips mute/unmute/set_gain since they're outside Reaper.SUPPORTED_OPS
+    (see ezbeq/reaper.py). Because that leaves sub1 the only member actually
+    capable of set_gain/mute/unmute, allowPartialGain: true is required -
+    without it, device.py's startup validation refuses to load a composite
+    that would silently apply those ops to some members but not others.
     """
 
     def __init__(self, host: str, port: int, tmp_path, expose_members: bool = False):
@@ -815,12 +819,10 @@ class CompositeMappedSpyConfig(Config):
                     'mode': 'mapped',
                     'primary': 'sub1',
                     'exposeMembers': self.__expose_members,
+                    'allowPartialGain': True,
                     'members': {
                         'sub1': {},
-                        'reaper1': {
-                            'slotMap': {'1': 'REAPER', '2': 'REAPER'},
-                            'skipOps': ['mute', 'unmute', 'set_gain']
-                        }
+                        'reaper1': {}
                     }
                 }
             }

@@ -50,6 +50,8 @@ class StormAudioState(DeviceState):
 
 
 class StormAudio(PersistentDevice[StormAudioState]):
+    SUPPORTED_OPS = frozenset({'activate', 'load_filter', 'clear_filter'})
+    FIXED_SLOT_ID = SLOT_ID
 
     def __init__(self, name: str, config_path: str, cfg: dict, ws_server: WsServer, catalogue: CatalogueProvider):
         super().__init__(config_path, name, ws_server)

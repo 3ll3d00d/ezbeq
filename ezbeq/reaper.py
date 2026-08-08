@@ -61,6 +61,8 @@ class Reaper(PersistentDevice[ReaperState]):
           extstate_key: filters         # optional, defaults shown
           timeout: 3                    # optional, HTTP timeout in seconds (applies per retry attempt)
     """
+    SUPPORTED_OPS = frozenset({'activate', 'load_filter', 'clear_filter'})
+    FIXED_SLOT_ID = 'REAPER'
 
     def __init__(self, name: str, config_path: str, cfg: dict, ws_server: WsServer, catalogue: CatalogueProvider):
         super().__init__(config_path, name, ws_server)

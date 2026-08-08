@@ -7,8 +7,10 @@ import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 class FakeWebSocket {
     constructor() {
         this.readyState = 0;
+        FakeWebSocket.instances.push(this);
     }
 }
+FakeWebSocket.instances = [];
 
 vi.mock('./services/ezbeq', () => ({
     default: {
@@ -43,16 +45,6 @@ beforeAll(async () => {
 });
 
 describe('mergeDeviceByName', () => {
-    it('adds a new device keyed by name', () => {
-        const devices = {d1: {name: 'd1', masterVolume: -10}};
-        const merged = mergeDeviceByName(devices, {name: 'd2', masterVolume: -5});
-
-        expect(merged).toEqual({
-            d1: {name: 'd1', masterVolume: -10},
-            d2: {name: 'd2', masterVolume: -5}
-        });
-    });
-
     it('replaces an existing device with the same name, leaving other devices untouched', () => {
         const devices = {
             d1: {name: 'd1', masterVolume: -10},
@@ -67,15 +59,18 @@ describe('mergeDeviceByName', () => {
     });
 
     it('merges a composite device state (with a members breakdown) by name like any other device', () => {
-        const devices = {sub1: {name: 'sub1', masterVolume: -10}};
+        const devices = {
+            sub1: {name: 'sub1', masterVolume: -10},
+            bass_array: {name: 'bass_array', type: 'composite', masterVolume: -10}
+        };
         const composite = {
             name: 'bass_array',
             type: 'composite',
-            masterVolume: -10,
+            masterVolume: -3,
             slots: [{id: '1', active: true, last: 'Empty'}],
             members: {
-                sub1: {name: 'sub1', type: 'minidsp', masterVolume: -10},
-                sub2: {name: 'sub2', type: 'minidsp', masterVolume: -10}
+                sub1: {name: 'sub1', type: 'minidsp', masterVolume: -3},
+                sub2: {name: 'sub2', type: 'minidsp', masterVolume: -3}
             }
         };
         const merged = mergeDeviceByName(devices, composite);
@@ -84,6 +79,18 @@ describe('mergeDeviceByName', () => {
             sub1: {name: 'sub1', masterVolume: -10},
             bass_array: composite
         });
+    });
+
+    it('ignores a DeviceState for a device that is not already known', () => {
+        // this is what happens when a composite (exposeMembers: false, the default) fans an op
+        // out to its members: each member broadcasts its own DeviceState too, same as if it had
+        // been addressed directly - but a hidden member was deliberately left out of the
+        // /api/2/devices response availableDevices was seeded from, so its broadcasts must be
+        // ignored too, or it reappears in the selector the moment the composite is used.
+        const devices = {bass_array: {name: 'bass_array', type: 'composite', masterVolume: -10}};
+        const merged = mergeDeviceByName(devices, {name: 'sub1', type: 'minidsp', masterVolume: -10});
+
+        expect(merged).toBe(devices);
     });
 
     it('does not mutate the input devices object', () => {
@@ -162,5 +169,36 @@ describe('App', () => {
         render(<App/>);
 
         expect(await screen.findByText('Device Unreachable')).toBeInTheDocument();
+    });
+
+    it('applies rapid back-to-back DeviceState broadcasts for two different devices without dropping either', async () => {
+        // reproduces a composite (exposeMembers: true) fanning one op out to two members: each
+        // broadcasts its own DeviceState close enough together that, before the replaceDevice fix,
+        // the second call's setAvailableDevices(mergeDeviceByName(availableDevices, ...)) read the
+        // same stale `availableDevices` closure as the first - so only whichever was applied last
+        // actually stuck, and switching to the other member showed it as if nothing had happened.
+        const slotState = (last) => ({slots: [{id: '1', last, active: true}]});
+        ezbeq.getDevices.mockResolvedValue({
+            rear_sub: {name: 'rear_sub', type: 'minidsp', connected: true, masterVolume: -10, mute: false, ...slotState('Empty')},
+            side_sub: {name: 'side_sub', type: 'minidsp', connected: true, masterVolume: -10, mute: false, ...slotState('Empty')}
+        });
+        render(<App/>);
+        await waitFor(() => expect(ezbeq.getDevices).toHaveBeenCalled());
+
+        const fakeWs = FakeWebSocket.instances[FakeWebSocket.instances.length - 1];
+        const broadcast = (name) => fakeWs.onmessage({data: JSON.stringify({
+            message: 'DeviceState',
+            data: {name, type: 'minidsp', connected: true, masterVolume: -10, mute: false, ...slotState('BEQ Loaded')}
+        })});
+        // check the FIRST device broadcast, not the second - a naive last-write-wins bug would
+        // still show the second broadcast's update correctly, since nothing overwrites it after
+        // the fact; it's the earlier update that a stale closure clobbers.
+        broadcast('rear_sub');
+        broadcast('side_sub');
+
+        fireEvent.click(screen.getByRole('button', {name: 'show more'}));
+        fireEvent.click(screen.getByText('rear_sub'));
+
+        expect(await screen.findByText(/BEQ Loaded/)).toBeInTheDocument();
     });
 });

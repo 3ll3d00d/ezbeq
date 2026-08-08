@@ -674,14 +674,27 @@ as far as it goes - it can't add a 3rd device, and it can't mix in a different d
 covers both of those cases: it's a named device, just like any other entry under `devices`, that fans a single command
 (load a filter, activate a slot, mute, set gain, ...) out to N other devices already defined in your config.
 
+Every "slot" mentioned below is a whole-device configuration/preset slot - the same numbered (or, per
+[Naming Slots](#naming-slots), named) slot a device activates and loads a full BEQ profile into, and that appears as
+a row in the UI's Slots panel. It is unrelated to the per-channel biquad slot indexes from
+[Custom Layouts](#custom-layouts) - those live entirely inside a single loaded filter set and a composite has no
+visibility into them.
+
 There are two modes:
 
 * `mirror` - the easy case. All members must be the **same** device `type` (e.g. 3 minidsps forming a sub array) and
   every command is forwarded to each of them unchanged, in parallel. No per-member config is needed.
-* `mapped` - the general case. Members can be **any mix** of device types. Each member can optionally translate
-  composite-level slot/channel ids onto its own via `slotMap`/`channelMap`, and opt out of operations it doesn't
-  support via `skipOps`. One member must be nominated as `primary` - its own state (slots, mute, master volume) is
-  what's shown for the composite in the UI.
+* `mapped` - the general case, for members that don't already share identical slot/channel numbering - whether
+  that's because they're different device `type`s entirely, or because they're the same `type` (e.g. two different
+  minidsp models) but wired up or configured differently. One member must be nominated as `primary` - its own state
+  (slots, mute, master volume) is what's shown for the composite in the UI.
+
+Two things are handled automatically, for every member, without any config: a member is skipped for any operation
+its device type structurally can't do (e.g. nothing except minidsp implements `set_gain`, so a mapped composite
+never needs to be told that), and a member with only one real slot (every device type except minidsp and jriver -
+see [Naming Slots](#naming-slots)) is always routed straight to that slot, since there's only one it could mean.
+`slotMap`/`skipOps` (below) only need to be set explicitly for what's left: translating between two *genuinely*
+multi-slot members, or deliberately excluding a member from an op it's otherwise capable of.
 
 ```
   sub1:
@@ -701,40 +714,121 @@ There are two modes:
     mode: mirror
     members: [sub1, sub2, sub3]
 
-  proc:
-    type: htp1
-    ip: 127.0.0.1:1880
   rear_sub:
     type: minidsp
     exe: minidsp
     options: '--tcp 127.0.0.1:5336'
-  home_theatre:
+  side_sub:
+    type: minidsp
+    exe: minidsp
+    options: '--tcp 127.0.0.1:5337'
+    device_type: 4x10
+  rear_subs:
     type: composite
     mode: mapped
     primary: rear_sub
     exposeMembers: true
+    allowPartialGain: true
     members:
       rear_sub: {}
-      proc:
-        slotMap: {'1': Movie, '2': Music}
+      side_sub:
+        slotMap: {'1': '3', '2': '4'}
         skipOps: [set_gain]
 ```
 
+Every minidsp, regardless of model, exposes exactly 4 configuration slots (`1`-`4`, or their `slotNames` equivalents)
+- `slotMap` never invents slots that aren't there, it only relabels the ones the device already has. `rear_sub` is a
+2x4HD dedicated to this one sub, so slots `1`/`2` are free for whatever the composite loads into them. `side_sub` is
+a 4x10 that also serves other channels in the same rack, and slots `1`/`2` on that unit are already committed to
+unrelated presets for those channels - so the two BEQ profiles this composite manages live in its slots `3`/`4`
+instead, and `slotMap` maps the composite's `1`/`2` onto the device's `3`/`4`. Its gain trim is also fixed by an
+external amp, so `skipOps: [set_gain]` excludes it deliberately even though a 4x10 can otherwise do `set_gain` fine
+- which is exactly the case `allowPartialGain` exists for, see below.
+
 * `mode`: `mirror` or `mapped`, as above
 * `members`: a list of device names for `mirror` mode, or a map of device name to per-member overrides for `mapped`
-  mode (an empty map `{}` means "no translation needed")
+  mode (an empty map `{}` means "no overrides needed")
 * `primary`: (`mapped` mode only, required) the member whose own state is shown for the composite
 * `exposeMembers`: defaults to `false` - once a device is a member of a composite it's hidden from the device
   selector, since the whole point is to stop having to juggle it individually. Set to `true` to keep the member
   individually selectable/controllable alongside the composite.
-* per-member overrides (`mapped` mode): `slotMap`/`channelMap` translate composite-level ids onto that member's own,
-  `skipOps` lists operations (e.g. `set_gain`, `mute`) that member should silently ignore, `mvAdjust` adds an extra
-  gain trim on top of a loaded filter's own `mv_adjust` for that member only
+* `allowPartialGain`: (`mapped` mode only, defaults to `false`) required whenever `set_gain`/`mute`/`unmute` would
+  end up applying to some members but not others - see below.
+* per-member overrides (`mapped` mode, all optional):
+  * `slotMap` translates slot ids between the composite and that member, e.g. `{'1': '3', '2': '4'}` means "when
+    the composite is told to use slot `1`, tell this member to use its own slot `3`". Only meaningful for a member
+    with more than one real slot - a single-slot member is always routed to its one slot automatically, so any
+    `slotMap` configured for one is ignored. For the `primary` member the map is also applied in reverse, so the UI
+    shows the composite's slot ids rather than the primary's own.
+  * `channelMap` does the same translation for channel numbers - used both by `mute`/`unmute`/
+    `set_gain`'s single channel, and by the raw input/output channel lists behind the "Custom
+    Layouts" advanced editor (`load_biquads`/`send_commands`). The latter matters for a mapped
+    composite spanning two different minidsp models (e.g. a 2x4HD and a 4x10): their hardware
+    channel numbering isn't the same, so a raw channel index meaningful on one member needs
+    translating before it's sent to the other, or it applies to the wrong channel (or fails).
+  * `skipOps` additionally excludes a member from operation names - `activate`, `load_filter`, `load_biquads`,
+    `send_commands`, `clear_filter`, `mute`, `unmute`, `set_gain` - that it's technically capable of but shouldn't
+    receive for this composite (e.g. a fixed-gain amp stage, as `side_sub` above). Ops the member's device type
+    can't do at all are already excluded automatically and never need listing here.
+  * `mvAdjust` is a per-member gain trim applied on filter load: this member receives `entry.mv_adjust + mvAdjust`
+    while every other member still receives the catalogue entry's own unmodified `mv_adjust`. Use it when one member
+    needs a few dB more or less than the rest of the composite.
+
+**`allowPartialGain`**: if a mapped composite's members disagree on `set_gain`/`mute`/`unmute` support - whether
+because one member's device type structurally can't do it, or because a member that can was explicitly excluded via
+`skipOps` - applying that op would silently affect some members but not others, skewing the array's inter-channel
+balance without any error to signal it. ezbeq refuses to start in that situation unless `allowPartialGain: true`
+acknowledges it explicitly; the startup error names exactly which members disagree and on which op. `rear_subs`
+above needs it because `side_sub` opts out of `set_gain` while `rear_sub` doesn't. This never comes up in `mirror`
+mode, since mirror mode already requires every member to share one device `type` (so support is always uniform).
 
 A command is applied to every reachable member even if another one fails (e.g. one sub in an array is offline) - the
 composite reports an error naming which member(s) failed, but doesn't undo what succeeded on the others. A composite
 cannot contain another composite, and a device can only belong to one composite. See
 [ezbeq_composite.yml](examples/ezbeq_composite.yml) for a complete example.
+
+##### Worked example
+
+Take the `rear_subs` composite above and add a `channelMap` and `mvAdjust` to `side_sub` so all four overrides are in
+play - say `side_sub`'s output for this sub is wired to its own channel `3` (rather than channel `1`, which the
+composite uses as its canonical channel id), and that channel runs 1.5dB hot relative to the rest of the array:
+
+```
+  rear_subs:
+    type: composite
+    mode: mapped
+    primary: rear_sub
+    exposeMembers: true
+    allowPartialGain: true
+    members:
+      rear_sub: {}
+      side_sub:
+        slotMap: {'1': '3', '2': '4'}
+        channelMap: {'1': '3'}
+        skipOps: [set_gain]
+        mvAdjust: -1.5
+```
+
+* **Loading a filter** - the UI loads a catalogue entry with its own `mv_adjust` of `2.0` into composite slot `1`
+  (`rear_subs.load_filter('1', entry)`):
+  * `rear_sub` has no overrides, so it loads its own slot `1` at the entry's `mv_adjust` unchanged: `2.0`.
+  * `side_sub`'s `slotMap` turns composite slot `1` into its own slot `3`, so it loads slot `3`; `mvAdjust`
+    (`-1.5`) is added on top of the entry's `mv_adjust`, so `side_sub` loads at `2.0 + -1.5 = 0.5`.
+* **Setting gain** - the UI sets composite slot `1`, channel `1` to `-3dB`
+  (`rear_subs.set_gain('1', 1, -3.0)`):
+  * `rear_sub` sets its own slot `1`, channel `1` to `-3dB` (no translation needed).
+  * `side_sub` never receives this command at all - `set_gain` is in its `skipOps`, so it's left out of the fan-out
+    entirely (its gain is fixed at the amp, not remote-controllable).
+* **Muting** - the UI mutes composite slot `1`, channel `1` (`rear_subs.mute('1', 1)`):
+  * `rear_sub` mutes its own slot `1`, channel `1`.
+  * `side_sub`'s `slotMap` and `channelMap` both apply: it mutes its own slot `3`, channel `3`.
+* **What the UI shows** - `rear_subs`'s displayed state is `rear_sub`'s state verbatim, since `rear_sub` is
+  `primary` and has no `slotMap` to invert. If `side_sub` were `primary` instead, its slot `3` would be shown to the
+  user as slot `1` - the reverse of its own `slotMap` - so the UI always speaks in composite-level ids no matter
+  which member is primary.
+
+Note `allowPartialGain: true` is only needed here because of `set_gain` - both members are minidsp and neither opts
+out of `mute`/`unmute`, so muting always applies uniformly to both regardless of the flag.
 
 ## Starting ezbeq on bootup
 

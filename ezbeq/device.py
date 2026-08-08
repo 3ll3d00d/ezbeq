@@ -2,7 +2,7 @@ import json
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
+from typing import ClassVar, Generic, TypeVar
 
 from ezbeq.apis.ws import WsServer
 from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
@@ -61,6 +61,26 @@ T = TypeVar('T', bound='DeviceState')
 
 
 class Device(ABC, Generic[T]):
+    """
+    ALL_OPS is every fan-out-able operation a composite device knows about.
+    SUPPORTED_OPS is the subset a given device class actually implements -
+    the rest raise NotImplementedError if called directly. A composite uses
+    ALL_OPS - SUPPORTED_OPS to automatically skip a member for an op it
+    structurally can't do, instead of requiring the user to list it in
+    skipOps by hand (see CompositeDevice._CompositeDevice__build_specs).
+
+    FIXED_SLOT_ID is None for devices with more than one real, independently
+    addressable slot (minidsp's 4 memory configs, jriver's zones). Every
+    other device type has exactly one slot with a fixed id - FIXED_SLOT_ID
+    names it so a composite can route any composite-level slot straight to
+    it without a per-member slotMap.
+    """
+    ALL_OPS: ClassVar[frozenset[str]] = frozenset({
+        'activate', 'load_filter', 'clear_filter', 'load_biquads', 'send_commands',
+        'mute', 'unmute', 'set_gain',
+    })
+    SUPPORTED_OPS: ClassVar[frozenset[str]] = ALL_OPS
+    FIXED_SLOT_ID: ClassVar[str | None] = None
 
     @property
     @abstractmethod
@@ -184,6 +204,69 @@ def _composite_member_names(values: dict) -> list[str]:
     return []
 
 
+def _device_class_for_type(d_type: str) -> type[Device]:
+    """
+    Resolves a config 'type' value to its Device class without instantiating
+    it - used both by create_devices() (to build real devices) and by
+    _validate_composite_configs() (to read SUPPORTED_OPS/FIXED_SLOT_ID ahead
+    of time, before any hardware connection is attempted).
+    """
+    if d_type == 'minidsp':
+        from ezbeq.minidsp import Minidsp
+        return Minidsp
+    elif d_type == 'htp1':
+        from ezbeq.htp1 import Htp1
+        return Htp1
+    elif d_type == 'stormaudio':
+        from ezbeq.stormaudio import StormAudio
+        return StormAudio
+    elif d_type == 'jriver':
+        from ezbeq.jriver import JRiver
+        return JRiver
+    elif d_type == 'qsys':
+        from ezbeq.qsys import Qsys
+        return Qsys
+    elif d_type == 'camilladsp':
+        from ezbeq.camilladsp import CamillaDsp
+        return CamillaDsp
+    elif d_type == 'reaper':
+        from ezbeq.reaper import Reaper
+        return Reaper
+    raise ValueError(f"Unknown device type '{d_type}'")
+
+
+_BALANCE_OPS = ('set_gain', 'mute', 'unmute')
+
+
+def _validate_no_silent_partial_gain(name: str, values: dict, member_names: list[str], cfg: Config) -> None:
+    """
+    A mapped composite whose members disagree on set_gain/mute/unmute support
+    (whether structurally, via SUPPORTED_OPS, or because a member explicitly
+    opted out via skipOps) would apply the op to some members but not others -
+    silently skewing the array's inter-channel balance rather than erroring.
+    Require an explicit allowPartialGain: true acknowledging that before
+    letting it through.
+    """
+    if values.get('allowPartialGain', False):
+        return
+    overrides = values.get('members', {})
+    effective_support: dict[str, frozenset[str]] = {}
+    for member_name in member_names:
+        cls = _device_class_for_type(cfg.devices[member_name]['type'])
+        explicit_skip = set((overrides.get(member_name) or {}).get('skipOps', []))
+        effective_support[member_name] = cls.SUPPORTED_OPS - explicit_skip
+    for op in _BALANCE_OPS:
+        supporting = {m for m in member_names if op in effective_support[m]}
+        if supporting and len(supporting) < len(member_names):
+            missing = sorted(set(member_names) - supporting)
+            raise ValueError(
+                f"Composite device '{name}' would apply '{op}' to some members but not others "
+                f"({', '.join(missing)} do not support it) - this would silently skew inter-channel "
+                f"balance. Set allowPartialGain: true on '{name}' to apply it only to the members "
+                f"that support it anyway."
+            )
+
+
 def _validate_composite_configs(cfg: Config) -> None:
     """
     Fail fast, at startup, on malformed composite device config - mirrors the
@@ -223,6 +306,7 @@ def _validate_composite_configs(cfg: Config) -> None:
                 raise ValueError(f"Composite device '{name}' is in mapped mode but has no 'primary' member set")
             if primary not in member_names:
                 raise ValueError(f"Composite device '{name}' has primary '{primary}' which is not one of its members")
+            _validate_no_silent_partial_gain(name, values, member_names, cfg)
 
 
 def create_devices(cfg: Config, ws_server: WsServer, catalogue: CatalogueProvider) -> list[Device]:
@@ -233,27 +317,8 @@ def create_devices(cfg: Config, ws_server: WsServer, catalogue: CatalogueProvide
         d_type = values['type']
         if d_type == 'composite':
             composite_configs[name] = values
-        elif d_type == 'minidsp':
-            from ezbeq.minidsp import Minidsp
-            devices[name] = Minidsp(name, cfg.config_path, values, ws_server, catalogue)
-        elif d_type == 'htp1':
-            from ezbeq.htp1 import Htp1
-            devices[name] = Htp1(name, cfg.config_path, values, ws_server, catalogue)
-        elif d_type == 'stormaudio':
-            from ezbeq.stormaudio import StormAudio
-            devices[name] = StormAudio(name, cfg.config_path, values, ws_server, catalogue)
-        elif d_type == 'jriver':
-            from ezbeq.jriver import JRiver
-            devices[name] = JRiver(name, cfg.config_path, values, ws_server, catalogue)
-        elif d_type == 'qsys':
-            from ezbeq.qsys import Qsys
-            devices[name] = Qsys(name, cfg.config_path, values, ws_server, catalogue)
-        elif d_type == 'camilladsp':
-            from ezbeq.camilladsp import CamillaDsp
-            devices[name] = CamillaDsp(name, cfg.config_path, values, ws_server, catalogue)
-        elif d_type == 'reaper':
-            from ezbeq.reaper import Reaper
-            devices[name] = Reaper(name, cfg.config_path, values, ws_server, catalogue)
+        else:
+            devices[name] = _device_class_for_type(d_type)(name, cfg.config_path, values, ws_server, catalogue)
     for name, values in composite_configs.items():
         from ezbeq.composite import CompositeDevice
         member_names = _composite_member_names(values)
@@ -262,7 +327,11 @@ def create_devices(cfg: Config, ws_server: WsServer, catalogue: CatalogueProvide
     if not devices:
         raise ValueError('No device configured')
     else:
-        return list(devices.values())
+        # composites are necessarily built in a second pass (they need their members to already
+        # exist), so `devices` above ends up with every composite trailing after every
+        # non-composite regardless of where it was actually declared - reorder back to cfg.devices'
+        # original yaml order so the API/UI list devices the way the user wrote them.
+        return [devices[name] for name in cfg.devices]
 
 
 class InvalidRequestError(Exception):

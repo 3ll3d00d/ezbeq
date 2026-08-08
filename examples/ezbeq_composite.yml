@@ -23,27 +23,32 @@ devices:
     - sub1
     - sub2
     - sub3
-  proc:
-    type: htp1
-    ip: 127.0.0.1:1880
-    channels:
-    - rear_sub
   rear_sub:
     type: minidsp
     exe: minidsp
     options: '--tcp 127.0.0.1:5336'
     cmdTimeout: 10
-  home_theatre:
+  side_sub:
+    type: minidsp
+    exe: minidsp
+    options: '--tcp 127.0.0.1:5337'
+    device_type: 4x10
+    cmdTimeout: 10
+  rear_subs:
     type: composite
     mode: mapped
     primary: rear_sub
     exposeMembers: true
+    allowPartialGain: true
     members:
       rear_sub: {}
-      proc:
+      side_sub:
         slotMap:
-          '1': Movie
-          '2': Music
+          '1': '3'
+          '2': '4'
+        channelMap:
+          '1': '3'
         skipOps:
         - set_gain
+        mvAdjust: -1.5
 port: 8080
