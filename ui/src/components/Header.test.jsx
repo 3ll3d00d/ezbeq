@@ -109,3 +109,14 @@ describe("Header What's New badge", () => {
         expect(onWhatsNewOpen).toHaveBeenCalled();
     });
 });
+
+describe('Header pair mobile app dialog', () => {
+    it('opens the pairing dialog when the trigger is clicked', () => {
+        renderHeader({});
+        expect(screen.queryByText('Pair Mobile App')).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', {name: 'Pair Mobile App'}));
+
+        expect(screen.getByText('Pair Mobile App')).toBeInTheDocument();
+    });
+});

@@ -1717,6 +1717,7 @@ __metadata:
     clsx: "npm:^2.1.1"
     jsdom: "npm:^29.1.1"
     lodash: "npm:^4.18.1"
+    qrcode.react: "npm:^4.2.0"
     react: "npm:^19.2.8"
     react-dom: "npm:^19.2.8"
     uplot: "npm:^1.6.32"
@@ -2907,6 +2908,15 @@ __metadata:
   version: 2.3.1
   resolution: "punycode@npm:2.3.1"
   checksum: 10/febdc4362bead22f9e2608ff0171713230b57aff9dddc1c273aa2a651fbd366f94b7d6a71d78342a7c0819906750351ca7f2edd26ea41b626d87d6a13d1bd059
+  languageName: node
+  linkType: hard
+
+"qrcode.react@npm:^4.2.0":
+  version: 4.2.0
+  resolution: "qrcode.react@npm:4.2.0"
+  peerDependencies:
+    react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+  checksum: 10/665036d88b160e6d5de4e24d101bc63bd2b76712802e874bbffe56c6b6e5fe50c63f02c3cba2975b2e2b555c1f1e112cbb42987f8cb3a626ce2d17023cfde6ac
   languageName: node
   linkType: hard
 

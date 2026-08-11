@@ -10,7 +10,9 @@ import LocalLibraryIcon from "@mui/icons-material/LocalLibrary";
 import EqualizerIcon from "@mui/icons-material/Equalizer";
 import SettingsApplicationsIcon from "@mui/icons-material/SettingsApplications";
 import NewReleasesIcon from "@mui/icons-material/NewReleases";
+import PhoneIphoneIcon from "@mui/icons-material/PhoneIphone";
 import {Check} from "@mui/icons-material";
+import PairMobileAppDialog from "./PairMobileAppDialog";
 
 const Header = ({
                     availableDevices,
@@ -31,6 +33,8 @@ const Header = ({
     const handleMobileMenuOpen = (event) => {
         setMobileMoreAnchorEl(event.currentTarget);
     };
+
+    const [pairDialogOpen, setPairDialogOpen] = React.useState(false);
 
     const mainMenuId = 'main-menu';
     const [mainMenuAnchorEl, setMainMenuAnchorEl] = React.useState(null);
@@ -150,6 +154,10 @@ const Header = ({
                             <NewReleasesIcon/>
                         </Badge>
                     </IconButton>
+                    <IconButton size="small" onClick={() => setPairDialogOpen(true)} aria-label="Pair Mobile App"
+                                sx={{ml: 1}}>
+                        <PhoneIphoneIcon/>
+                    </IconButton>
                     <Box sx={{flexGrow: 0.5}}/>
                     {children}
                     <Box sx={{flexGrow: 0.5, flexShrink: 2}}/>
@@ -190,6 +198,7 @@ const Header = ({
             </AppBar>
             {renderMobileMenu}
             {renderMainMenu}
+            <PairMobileAppDialog open={pairDialogOpen} onClose={() => setPairDialogOpen(false)}/>
         </Box>
     );
 };
