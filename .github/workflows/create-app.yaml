@@ -190,3 +190,68 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
             gh release upload ${{ github.ref_name }} ${{ steps.create_dist.outputs.binary_path }}
+  buildmobileandroid:
+    name: Publish Android APK
+    needs: create_release
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./mobile
+    steps:
+      - uses: actions/checkout@v7
+      - name: Use node.js lts
+        uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      # JDK 24+ triggers a Gradle bug (a JEP 472 "restricted method" warning misreported as a
+      # build failure in the CMake-configure task native modules like react-native-worklets/
+      # react-native-screens use - see https://github.com/gradle/gradle/issues/31625, still open)
+      # - React Native's own docs recommend JDK 17. See mobile/README.md's "Dev client build"
+      # section for the same requirement/fix on a local machine.
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Get release version number
+        id: get_version
+        run: echo "version-without-v=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - name: Set app version from tag
+        run: |
+          jq --arg v "${{ steps.get_version.outputs.version-without-v }}" '.expo.version = $v' app.json > app.json.tmp
+          mv app.json.tmp app.json
+      - name: Prebuild native Android project
+        env:
+          CI: 1
+        run: npx expo prebuild --platform android --clean
+      # Decoded straight into android/app/ so the bare filename below (matching the debug
+      # keystore's own `file('debug.keystore')` convention in the Expo template) resolves
+      # correctly - Gradle's file() resolves relative to the module (android/app/) that declares
+      # it, not the repo root. See mobile/plugins/withAndroidReleaseSigning.js for the config
+      # plugin that wires these MOBILE_RELEASE_* properties into a release signingConfig - without
+      # them set, that plugin falls back to the debug keystore instead (what every local
+      # `expo run:android --variant release` uses, keeping local dev builds working with no setup).
+      - name: Decode release keystore
+        run: echo "${{ secrets.MOBILE_RELEASE_STORE_BASE64 }}" | base64 -d > android/app/ezbeq-mobile-release.keystore
+      - name: Build signed release APK
+        working-directory: ./mobile/android
+        run: |
+          ./gradlew app:assembleRelease --configure-on-demand --build-cache \
+            -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86,x86_64 \
+            -PMOBILE_RELEASE_STORE_FILE=ezbeq-mobile-release.keystore \
+            -PMOBILE_RELEASE_STORE_PASSWORD="${{ secrets.MOBILE_RELEASE_STORE_PASSWORD }}" \
+            -PMOBILE_RELEASE_KEY_ALIAS="${{ secrets.MOBILE_RELEASE_KEY_ALIAS }}" \
+            -PMOBILE_RELEASE_KEY_PASSWORD="${{ secrets.MOBILE_RELEASE_KEY_PASSWORD }}"
+      - name: Upload asset
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.ref_name }} android/app/build/outputs/apk/release/app-release.apk#ezbeq-mobile-android.apk

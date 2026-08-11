@@ -1,0 +1,61 @@
+{
+  "name": "ezbeq-mobile",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@expo/vector-icons": "^15.0.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/netinfo": "12.0.1",
+    "@react-native-community/slider": "5.2.0",
+    "@react-navigation/native": "^7.3.16",
+    "@react-navigation/native-stack": "^7.18.8",
+    "@shopify/flash-list": "2.0.2",
+    "expo": "~57.0.12",
+    "expo-asset": "~57.0.10",
+    "expo-build-properties": "~57.0.10",
+    "expo-camera": "~57.0.3",
+    "expo-dev-client": "~57.0.11",
+    "expo-font": "~57.0.1",
+    "expo-notifications": "~57.0.10",
+    "expo-splash-screen": "~57.0.6",
+    "expo-status-bar": "~57.0.1",
+    "lodash": "^4.18.1",
+    "react": "19.2.3",
+    "react-native": "0.86.2",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-paper": "^5.15.3",
+    "react-native-reanimated": "4.5.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-worklets": "0.10.1"
+  },
+  "devDependencies": {
+    "@expo/config-plugins": "~57.0.0",
+    "@testing-library/react-native": "^14.0.1",
+    "@types/jest": "29.5.14",
+    "@types/lodash": "^4.17.25",
+    "@types/react": "~19.2.2",
+    "babel-preset-expo": "^57.0.6",
+    "jest": "~29.7.0",
+    "jest-expo": "~57.0.4",
+    "jest-websocket-mock": "^2.5.0",
+    "mock-socket": "^9.3.1",
+    "react-test-renderer": "^19.2.3",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "test": "jest",
+    "typecheck": "tsc --noEmit"
+  },
+  "private": true,
+  "jest": {
+    "preset": "jest-expo",
+    "setupFiles": [
+      "./jest.setup.js"
+    ]
+  }
+}

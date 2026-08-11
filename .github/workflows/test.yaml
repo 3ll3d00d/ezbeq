@@ -2,7 +2,7 @@ name: run tests
 on:
   push:
     branches:
-      - '*'
+      - '**'
     paths:
       - 'ezbeq/**'
       - 'tests/**'
@@ -19,7 +19,7 @@ on:
       - 'uv.lock'
   workflow_dispatch:
     branches:
-      - '*'
+      - '**'
 defaults:
   run:
     shell: bash

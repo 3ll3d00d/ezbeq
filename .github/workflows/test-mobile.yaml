@@ -1,0 +1,37 @@
+name: run mobile tests
+on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/test-mobile.yaml'
+  pull_request:
+    branches:
+      - '*'
+    paths:
+      - 'mobile/**'
+  workflow_dispatch:
+    branches:
+      - '**'
+defaults:
+  run:
+    shell: bash
+    working-directory: ./mobile
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Use node.js lts
+        uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test -- --ci
