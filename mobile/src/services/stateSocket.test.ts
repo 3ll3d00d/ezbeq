@@ -151,7 +151,14 @@ test('reports connection changes via onConnectionChange, including across a reco
 });
 
 test('suppresses a connection error when the socket reconnects within the grace period', async () => {
-  const socket = new StateSocket(URL, { initialReconnectDelayMs: 5, connectionErrorGraceMs: 50 });
+  // The grace-period timer runs on the real (wall-clock) setTimeout, racing against a chain of
+  // exponential-backoff reconnect attempts (5ms, 10ms, 20ms, ...) that each need the mock socket
+  // to detect "no server yet" and fail before the next one fires - a 50ms grace period left only
+  // a ~10ms margin around that chain even under ideal scheduling, which a loaded CI runner's timer
+  // jitter regularly ate into (observed as a real, non-flaky-locally CI failure). Widen the grace
+  // period well past the worst-case reconnect chain so the outcome no longer depends on exact
+  // millisecond scheduling.
+  const socket = new StateSocket(URL, { initialReconnectDelayMs: 5, connectionErrorGraceMs: 300 });
   const callbacks = noopCallbacks();
   socket.init(callbacks.setErr, callbacks.replaceDevice, callbacks.setMeta, callbacks.loadEntries);
   await server.connected;
@@ -160,14 +167,15 @@ test('suppresses a connection error when the socket reconnects within the grace 
   await new Promise((resolve) => setTimeout(resolve, 20));
   expect(socket.isConnected()).toBe(false);
 
-  // Reconnects well inside the 50ms grace period - jest-websocket-mock's WS.clean() doesn't
-  // apply mid-test, so a fresh server on the same URL stands in for the automatic reconnect.
+  // Reconnects well inside the grace period - jest-websocket-mock's WS.clean() doesn't apply
+  // mid-test, so a fresh server on the same URL stands in for the automatic reconnect.
   const server2 = new WS(URL, { jsonProtocol: false });
   await server2.connected;
   expect(socket.isConnected()).toBe(true);
 
-  // Give the (now-cancelled) grace timer a chance to have fired if it wasn't actually cancelled.
-  await new Promise((resolve) => setTimeout(resolve, 60));
+  // Give the (now-cancelled) grace timer a generous chance to have fired if it wasn't actually
+  // cancelled.
+  await new Promise((resolve) => setTimeout(resolve, 350));
   expect(callbacks.setErr).not.toHaveBeenCalled();
 
   socket.close();
