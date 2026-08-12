@@ -197,6 +197,22 @@ test('reports a connection error once the socket stays down past the grace perio
   socket.close();
 });
 
+test('does not surface a phantom connection error after close() is called explicitly', async () => {
+  // Reproduces the switch-server flow: DeviceStateContext tears down the old socket (close())
+  // the moment `connection` changes, well before the old socket's async onclose event actually
+  // fires. That onclose must not go on to arm a grace-period timer for a socket nobody wants
+  // reconnected - see the closedByCaller guard in stateSocket.ts.
+  const socket = new StateSocket(URL, { initialReconnectDelayMs: 5, connectionErrorGraceMs: 30 });
+  const callbacks = noopCallbacks();
+  socket.init(callbacks.setErr, callbacks.replaceDevice, callbacks.setMeta, callbacks.loadEntries);
+  await server.connected;
+
+  socket.close();
+
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  expect(callbacks.setErr).not.toHaveBeenCalled();
+});
+
 test('reconnects immediately when connectivity is restored', async () => {
   let netInfoListener: ((state: { isConnected: boolean }) => void) | undefined;
   (NetInfo.addEventListener as jest.Mock).mockImplementation((listener) => {

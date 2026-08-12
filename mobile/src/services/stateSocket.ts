@@ -103,11 +103,16 @@ export class StateSocket {
       // here too would fire on every single failed attempt instead of only a sustained outage.
     };
     ws.onclose = () => {
+      // A deliberate close() (component unmount, or DeviceStateContext tearing this socket down
+      // because the paired server changed) already happened synchronously - close()'s own timer
+      // cleanup ran before this async event fired, so without this guard this handler would go on
+      // to arm a *new* grace-period timer for a socket nobody is trying to keep alive, which then
+      // fires "Failed to connect" for the old server's URL seconds after the caller replaced it
+      // with a working new one.
+      if (this.closedByCaller) return;
       this.callbacks?.onConnectionChange?.(false);
       this.startConnectionErrorTimer();
-      if (!this.closedByCaller) {
-        this.scheduleReconnect();
-      }
+      this.scheduleReconnect();
     };
     ws.onmessage = (event: WebSocketMessageEvent) => {
       const payload = JSON.parse(event.data);
