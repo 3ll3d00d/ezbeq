@@ -161,7 +161,20 @@ class DeviceRepository:
         return self.__get_device(name).state()
 
     def all_devices(self, refresh: bool = False) -> dict[str, DeviceState]:
-        return {n: d.state(refresh=refresh) for n, d in self.__devices.items() if n not in self.__hidden}
+        result: dict[str, DeviceState] = {}
+        for n, d in self.__devices.items():
+            if n in self.__hidden:
+                continue
+            try:
+                result[n] = d.state(refresh=refresh)
+            except Exception:
+                # A device that is unreachable (e.g. jriver with MCWS down) must not take every
+                # other device down with it - state() for a PersistentDevice retries from scratch
+                # on the next call (see PersistentDevice._hydrate), so simply omitting it here
+                # keeps this device recoverable on a later poll instead of raising and leaving
+                # every device - including healthy ones - unresolved for this call.
+                logger.exception(f"Failed to load state for device '{n}', excluding it from this response")
+        return result
 
     def activate(self, name: str, slot: str) -> None:
         self.__get_device(name).activate(slot)
