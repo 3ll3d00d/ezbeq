@@ -1,6 +1,6 @@
 [project]
 name = "ezbeq"
-version = "2.11.1"
+version = "2.11.2"
 description = "A webapp which can send beqcatalogue filters to a DSP device"
 authors = [
     { name = "3ll3d00d", email = "mattkhan+ezbeq@gmail.com" }
@@ -47,7 +47,7 @@ docs = [
     "mkdocs-material-extensions>=1.1.1,<1.4.0",
 ]
 exe = [
-    "pyinstaller ~=6.9.0; python_version >= '3.11' and python_version < '3.15'",
+    "pyinstaller ~=6.22.0; python_version >= '3.11' and python_version < '3.16'",
 ]
 
 [tool.pytest.ini_options]
