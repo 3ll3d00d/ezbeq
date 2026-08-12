@@ -563,16 +563,15 @@ describe('MainScreen', () => {
     await renderScreen();
 
     // The badge count combines two independently-resolving fetches (getWhatsNew and getVersion).
-    // Racing a single findByText(badge text) against a fixed timeout only works if *both* fetches
-    // happen to settle within that window - on a loaded CI runner (or even locally, running the
-    // whole suite rather than this test in isolation) one can outrun the other, failing the
-    // assertion even though the app is behaving correctly. Wait for each contributing signal
-    // individually (both derived from the same getVersion resolution), each with a generous
-    // timeout, before asserting the combined, by-then-already-settled value synchronously - no
-    // remaining race between "both fetches landed" and a single shared deadline.
-    expect(await screen.findByText('ezbeq 2.1.0 is available.', {}, { timeout: 5000 })).toBeTruthy();
-    expect(await screen.findByText(/Running Python 3\.9\.0/, {}, { timeout: 5000 })).toBeTruthy();
-    await waitFor(() => expect(api.getWhatsNew).toHaveBeenCalled(), { timeout: 5000 });
+    // A single waitFor polls the whole combination together on every tick, so it succeeds the
+    // moment both have landed regardless of which resolves first - unlike sequential findByText
+    // calls, which each get their own timeout budget and can stack up without ever expressing
+    // "wait for the combination" in one place.
+    await waitFor(() => {
+      expect(screen.getByText('ezbeq 2.1.0 is available.')).toBeTruthy();
+      expect(screen.getByText(/Running Python 3\.9\.0/)).toBeTruthy();
+      expect(api.getWhatsNew).toHaveBeenCalled();
+    }, { timeout: 5000 });
 
     expect(screen.getByText('2')).toBeTruthy(); // badge: 0 new + 1 update + 1 python
   });
