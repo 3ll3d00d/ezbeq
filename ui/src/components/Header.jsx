@@ -35,6 +35,14 @@ const Header = ({
     };
 
     const [pairDialogOpen, setPairDialogOpen] = React.useState(false);
+    const openWhatsNewFromMenu = () => {
+        handleMobileMenuClose();
+        onWhatsNewOpen();
+    };
+    const openPairDialogFromMenu = () => {
+        handleMobileMenuClose();
+        setPairDialogOpen(true);
+    };
 
     const mainMenuId = 'main-menu';
     const [mainMenuAnchorEl, setMainMenuAnchorEl] = React.useState(null);
@@ -91,6 +99,18 @@ const Header = ({
               }}
               open={isMobileMenuOpen}
               onClose={handleMobileMenuClose}>
+            {/* Below `sm` the toolbar hides the What's New/Pair Mobile App icons entirely (see
+                their xs display overrides below) to leave the search box as much room as
+                possible - these two entries are how that functionality stays reachable there. */}
+            <MenuItem onClick={openWhatsNewFromMenu}>
+                <ListItemIcon><NewReleasesIcon/></ListItemIcon>
+                <ListItemText>What's New</ListItemText>
+            </MenuItem>
+            <MenuItem onClick={openPairDialogFromMenu}>
+                <ListItemIcon><PhoneIphoneIcon/></ListItemIcon>
+                <ListItemText>Pair Mobile App</ListItemText>
+            </MenuItem>
+            <Divider/>
             {navMenuItems}
             {deviceMenuItems ? <Divider/> : null}
             {deviceMenuItems}
@@ -145,22 +165,33 @@ const Header = ({
         <Box sx={{flexGrow: 1}}>
             <AppBar position="static" sx={{marginLeft: '0px', marginTop: '0px'}}>
                 <Toolbar disableGutters={true}>
+                    {/* Hidden below `sm` - see the mobile menu's What's New/Pair Mobile App entries
+                        above, which take over on a phone-width screen so the search box (in
+                        children, just below) gets that space instead. */}
                     <Avatar alt="beqcatalogue"
                             variant="rounded"
                             src={beqcIcon}
-                            sx={{width: 32, height: 32, marginLeft: '12px'}}/>
-                    <IconButton size="small" onClick={onWhatsNewOpen} aria-label="What's New" sx={{ml: 1}}>
+                            sx={{width: 32, height: 32, marginLeft: '12px', display: {xs: 'none', sm: 'flex'}}}/>
+                    <IconButton size="small" onClick={onWhatsNewOpen} aria-label="What's New"
+                                sx={{ml: 1, display: {xs: 'none', sm: 'inline-flex'}}}>
                         <Badge badgeContent={whatsNewCount || 0} color="error" max={99}>
                             <NewReleasesIcon/>
                         </Badge>
                     </IconButton>
                     <IconButton size="small" onClick={() => setPairDialogOpen(true)} aria-label="Pair Mobile App"
-                                sx={{ml: 1}}>
+                                sx={{ml: 1, display: {xs: 'none', sm: 'inline-flex'}}}>
                         <PhoneIphoneIcon/>
                     </IconButton>
-                    <Box sx={{flexGrow: 0.5}}/>
+                    {/* These stop growing below `sm` so the search bar (in children - see its own
+                        flexGrow: 1 xs override in Search.jsx) gets first claim on the freed space
+                        instead of it going to empty spacers either side of it. The leading one
+                        keeps a fixed width at xs, though - below `sm` it's the search bar's only
+                        remaining inset from the toolbar's edge, now that the Avatar (whose own
+                        marginLeft used to be that inset) is hidden there too. Toolbar's own
+                        disableGutters means there's nothing else providing it. */}
+                    <Box sx={{flexGrow: {xs: 0, sm: 0.5}, width: {xs: '12px', sm: 0}}}/>
                     {children}
-                    <Box sx={{flexGrow: 0.5, flexShrink: 2}}/>
+                    <Box sx={{flexGrow: {xs: 0, sm: 0.5}, flexShrink: 2}}/>
                     <Box sx={{display: {xs: 'none', md: 'flex'}, marginRight: '8px'}}>
                         {
                             shouldShowMenu
@@ -179,20 +210,25 @@ const Header = ({
                                 null
                         }
                     </Box>
+                    {/* This box is visible from xs through sm (hidden at md+, same as the desktop
+                        trigger's own boundary above) - but unlike that one, it's always shown
+                        rather than gated on shouldShowMenu: below `sm` it's the *only* way to
+                        reach What's New/Pair Mobile App, so it can't disappear just because
+                        there's no device/tab choice to make too. The dot signals an unread count
+                        the same way the (now hidden-at-xs) numbered badge on the What's New icon
+                        does, so that signal isn't silently lost on a phone; it's harmlessly
+                        redundant with that badge across the sm range where both are visible. */}
                     <Box sx={{display: {xs: 'flex', md: 'none'}, marginRight: '8px'}}>
-                        {
-                            shouldShowMenu
-                                ?
-                                <IconButton
-                                    size="large"
-                                    aria-label="show more"
-                                    aria-controls={mobileMenuId}
-                                    aria-haspopup="true"
-                                    onClick={handleMobileMenuOpen}>
-                                    <MenuIcon/>
-                                </IconButton>
-                                : null
-                        }
+                        <IconButton
+                            size="large"
+                            aria-label="show more"
+                            aria-controls={mobileMenuId}
+                            aria-haspopup="true"
+                            onClick={handleMobileMenuOpen}>
+                            <Badge variant="dot" color="error" invisible={!(whatsNewCount > 0)}>
+                                <MenuIcon/>
+                            </Badge>
+                        </IconButton>
                     </Box>
                 </Toolbar>
             </AppBar>

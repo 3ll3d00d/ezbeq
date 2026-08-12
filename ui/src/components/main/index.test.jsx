@@ -212,7 +212,10 @@ describe('MainView', () => {
         await waitFor(() => expect(ezbeq.getWhatsNew).toHaveBeenCalled());
         fireEvent.click(screen.getByRole('button', {name: "What's New"}));
 
-        expect(await screen.findByText("What's New")).toBeInTheDocument();
+        // Queries by heading rather than plain text - the mobile header's overflow menu now also
+        // has a "What's New" entry of its own (see Header.jsx), so the text alone is no longer
+        // unique; the sheet's title is the only "What's New" rendered as a heading.
+        expect(await screen.findByRole('heading', {name: "What's New"})).toBeInTheDocument();
         fireEvent.click(screen.getByText('Recent Movie', {selector: 'p'}));
 
         // selecting from the drawer sets selectedEntryId, which the Entry pane then renders too

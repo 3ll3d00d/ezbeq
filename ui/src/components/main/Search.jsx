@@ -1,9 +1,8 @@
 import {alpha, styled} from '@mui/material/styles';
 import SearchIcon from "@mui/icons-material/Search";
-import {FormControlLabel, IconButton, InputBase, Switch} from "@mui/material";
+import {IconButton, InputBase, Switch} from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
 import React from "react";
-import Box from "@mui/material/Box";
 
 const SearchBar = styled('div')(({theme}) => ({
     position: 'relative',
@@ -15,9 +14,20 @@ const SearchBar = styled('div')(({theme}) => ({
     marginRight: theme.spacing(2),
     marginLeft: 0,
     width: 'auto',
+    // Below `sm`, the header has no room to spare - the two spacer Boxes either side of this in
+    // Header.jsx already stop growing at that point (see their own xs override), so this claims
+    // that freed space instead of shrinking to its unconstrained natural width, which is how the
+    // search box collapsed to almost nothing on a phone in the first place (see the "crowded
+    // search bar" bug report - a Galaxy S23 screenshot showed the input squeezed to a sliver by
+    // the other toolbar icons). minWidth: 0 overrides flexbox's default min-width:auto so it can
+    // still shrink below that if the row is ever tighter than the icons alone allow, rather than
+    // forcing horizontal overflow on the AppBar.
+    flexGrow: 1,
+    minWidth: 0,
     [theme.breakpoints.up('sm')]: {
         marginLeft: theme.spacing(3),
         width: 'auto',
+        flexGrow: 0,
     },
 }));
 
@@ -71,16 +81,22 @@ const Search = ({txtFilter, setTxtFilter, showFilters, toggleShowFilters}) => {
                 fullWidth={true}
             />
         </SearchBar>
-        <IconButton onClick={e => setTxtFilter("")} size="large">
-            <ClearIcon/>
-        </IconButton>
-        <FormControlLabel sx={{marginLeft: '4px'}}
-                          control={
-                              <Switch checked={showFilters}
-                                      onChange={toggleShowFilters}
-                                      size={'small'}
-                                      color="default"/>
-                          }/>
+        {
+            // Only takes up toolbar space once there's actually something to clear - on a phone
+            // this button sat there unusable (nothing to clear on an empty search) while eating
+            // ~48px the input desperately needed.
+            txtFilter
+                ? <IconButton onClick={e => setTxtFilter("")} size="small" aria-label="clear search">
+                    <ClearIcon/>
+                </IconButton>
+                : null
+        }
+        <Switch checked={showFilters}
+                onChange={toggleShowFilters}
+                size="small"
+                color="default"
+                sx={{marginLeft: '4px'}}
+                slotProps={{input: {'aria-label': 'show filters'}}}/>
     </>;
 };
 export default Search;

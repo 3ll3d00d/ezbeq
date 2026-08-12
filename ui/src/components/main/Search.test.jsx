@@ -17,6 +17,14 @@ describe('Search', () => {
         expect(setTxtFilter).toHaveBeenCalledWith('batman');
     });
 
+    it('hides the clear icon when the search box is empty', () => {
+        const {container} = render(
+            <Search txtFilter="" setTxtFilter={vi.fn()} showFilters={false} toggleShowFilters={vi.fn()}/>
+        );
+
+        expect(container.querySelector('[data-testid="ClearIcon"]')).toBeNull();
+    });
+
     it('clears the text filter when the clear icon is clicked', () => {
         const setTxtFilter = vi.fn();
         const {container} = render(

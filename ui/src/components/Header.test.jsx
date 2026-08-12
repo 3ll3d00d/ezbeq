@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest';
-import {fireEvent, render, screen} from '@testing-library/react';
+import {fireEvent, render, screen, within} from '@testing-library/react';
 import Header from './Header';
 
 const noop = () => {};
@@ -11,9 +11,12 @@ const renderHeader = (props) => render(
 );
 
 describe('Header nav tabs', () => {
-    it('shows no menu trigger when there is only one tab and no other devices', () => {
+    it('always shows the mobile menu trigger, even with only one tab and no other devices', () => {
+        // Below `sm` it's the only way to reach What's New/Pair Mobile App (see the "Header
+        // mobile overflow menu" tests below), so - unlike the desktop trigger - it can't disappear
+        // just because there's no device/tab choice to make too.
         renderHeader({});
-        expect(screen.queryByRole('button', {name: 'show more'})).not.toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'show more'})).toBeInTheDocument();
     });
 
     it('adds Levels and Control tabs for a minidsp device', () => {
@@ -42,7 +45,6 @@ describe('Header nav tabs', () => {
         });
         expect(screen.queryByText('Levels')).not.toBeInTheDocument();
         expect(screen.queryByText('Control')).not.toBeInTheDocument();
-        expect(screen.queryByRole('button', {name: 'show more'})).not.toBeInTheDocument();
     });
 
     it('selecting a tab calls setSelectedNav with its lowercased name', () => {
@@ -112,11 +114,47 @@ describe("Header What's New badge", () => {
 
 describe('Header pair mobile app dialog', () => {
     it('opens the pairing dialog when the trigger is clicked', () => {
+        // Queries the dialog by role rather than by the "Pair Mobile App" text itself - that text
+        // now also lives (permanently, since the mobile menu is keepMounted) in the mobile
+        // overflow menu's own "Pair Mobile App" entry, so it's no longer unique to the dialog.
         renderHeader({});
-        expect(screen.queryByText('Pair Mobile App')).not.toBeInTheDocument();
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('button', {name: 'Pair Mobile App'}));
 
-        expect(screen.getByText('Pair Mobile App')).toBeInTheDocument();
+        expect(within(screen.getByRole('dialog')).getByText('Pair Mobile App')).toBeInTheDocument();
+    });
+});
+
+describe('Header mobile overflow menu', () => {
+    it("includes a What's New entry that opens What's New and closes the menu", () => {
+        const onWhatsNewOpen = vi.fn();
+        renderHeader({onWhatsNewOpen});
+
+        fireEvent.click(screen.getByRole('button', {name: 'show more'}));
+        fireEvent.click(screen.getByRole('menuitem', {name: /What's New/}));
+
+        expect(onWhatsNewOpen).toHaveBeenCalled();
+        expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    });
+
+    it('includes a Pair Mobile App entry that opens the pairing dialog and closes the menu', () => {
+        renderHeader({});
+
+        fireEvent.click(screen.getByRole('button', {name: 'show more'}));
+        fireEvent.click(screen.getByRole('menuitem', {name: 'Pair Mobile App'}));
+
+        expect(within(screen.getByRole('dialog')).getByText('Pair Mobile App')).toBeInTheDocument();
+        expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    });
+
+    it("shows a dot on the menu trigger when there's an unread What's New count", () => {
+        const {container} = renderHeader({whatsNewCount: 3});
+        expect(container.querySelector('.MuiBadge-dot')).not.toHaveClass('MuiBadge-invisible');
+    });
+
+    it("hides the dot on the menu trigger when there's no unread What's New count", () => {
+        const {container} = renderHeader({whatsNewCount: 0});
+        expect(container.querySelector('.MuiBadge-dot')).toHaveClass('MuiBadge-invisible');
     });
 });
