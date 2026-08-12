@@ -6,6 +6,12 @@ import { EzbeqApi } from '../services/ezbeqApi';
 import { StateSocket } from '../services/stateSocket';
 import type { CatalogueEntry, CatalogueMeta, DeviceCollection, DeviceState } from '../types/ezbeq';
 
+// Devices poll retry schedule, mirroring StateSocket's own reconnect backoff (see
+// DEFAULT_INITIAL_RECONNECT_DELAY_MS/MAX_RECONNECT_DELAY_MS in stateSocket.ts) - see the effect
+// below for why a device (as opposed to the ezbeq server itself) needs its own retry loop.
+const DEFAULT_DEVICES_POLL_INITIAL_DELAY_MS = 2000;
+const DEFAULT_DEVICES_POLL_MAX_DELAY_MS = 30000;
+
 // Ported verbatim from ui/src/App.jsx: only ever updates an already-known device, never adds
 // one. A composite fanning an op out to its members (e.g. activating a slot) makes each member
 // broadcast its own DeviceState over the websocket too, same as if it had been addressed
@@ -48,7 +54,19 @@ type DeviceStateContextValue = {
 
 const DeviceStateContext = createContext<DeviceStateContextValue | null>(null);
 
-export const DeviceStateProvider = ({ children }: PropsWithChildren) => {
+type DeviceStateProviderProps = PropsWithChildren<{
+  // Overridable so tests can exercise the retry-until-populated devices poll without waiting out
+  // the production 2s/4s/8s/.../30s schedule - see StateSocketOptions in stateSocket.ts for the
+  // same pattern.
+  devicesPollInitialDelayMs?: number;
+  devicesPollMaxDelayMs?: number;
+}>;
+
+export const DeviceStateProvider = ({
+  children,
+  devicesPollInitialDelayMs = DEFAULT_DEVICES_POLL_INITIAL_DELAY_MS,
+  devicesPollMaxDelayMs = DEFAULT_DEVICES_POLL_MAX_DELAY_MS,
+}: DeviceStateProviderProps) => {
   const { connection, wsUrl } = useServerContext();
   const [availableDevices, setAvailableDevices] = useState<DeviceCollection>({});
   const [selectedDeviceName, setSelectedDeviceName] = useState<string | null>(null);
@@ -89,6 +107,49 @@ export const DeviceStateProvider = ({ children }: PropsWithChildren) => {
     const socket = new StateSocket(wsUrl);
     socketRef.current = socket;
 
+    let cancelled = false;
+    let devicesPollTimer: ReturnType<typeof setTimeout> | null = null;
+    let devicesPollAttempt = 0;
+
+    // A device (e.g. jriver with its MCWS connection down) can be unreachable while the ezbeq
+    // *server* - and so this websocket - is perfectly healthy throughout, so neither call site
+    // below is guaranteed a second chance: the cold-start poll only ever runs once, and
+    // onConnectionChange only fires again on an actual server-websocket reconnect, which a
+    // still-down *device* never triggers. Without an independent retry loop here, a device that's
+    // down at launch stayed missing from availableDevices - and the slot list stuck on its loading
+    // spinner - until the app was force-restarted, even minutes after the device came back up.
+    const fetchDevices = () => {
+      if (devicesPollTimer) {
+        clearTimeout(devicesPollTimer);
+        devicesPollTimer = null;
+      }
+      api
+        .getDevices()
+        .then((devices) => {
+          if (cancelled) return;
+          setAvailableDevices(devices);
+          if (Object.keys(devices).length === 0) {
+            scheduleDevicesRetry();
+          } else {
+            devicesPollAttempt = 0;
+          }
+        })
+        .catch((e) => {
+          if (cancelled) return;
+          setError(e);
+          scheduleDevicesRetry();
+        });
+    };
+
+    const scheduleDevicesRetry = () => {
+      const delay = Math.min(
+        devicesPollInitialDelayMs * 2 ** devicesPollAttempt,
+        devicesPollMaxDelayMs
+      );
+      devicesPollAttempt += 1;
+      devicesPollTimer = setTimeout(fetchDevices, delay);
+    };
+
     // Every successful (re)connection resyncs devices via REST, not just the second-and-later
     // ones - anything the server pushed while the socket was down is simply gone, not queued for
     // redelivery, and that's just as true of the *first* connection as any later reconnect. This
@@ -101,7 +162,7 @@ export const DeviceStateProvider = ({ children }: PropsWithChildren) => {
     const onConnectionChange = (connected: boolean) => {
       setWsConnected(connected);
       if (connected) {
-        api.getDevices().then(setAvailableDevices).catch((e) => setError(e));
+        fetchDevices();
       }
     };
     socket.init(setError, replaceDevice, setMeta, loadEntries, onConnectionChange);
@@ -114,13 +175,17 @@ export const DeviceStateProvider = ({ children }: PropsWithChildren) => {
     // never seen before is silently dropped - if this then also deferred to "the socket's push is
     // fresher", nothing would ever seed availableDevices and the app would sit on the loading
     // screen forever.
-    api.getDevices().then(setAvailableDevices).catch((e) => setError(e));
+    fetchDevices();
 
     return () => {
+      cancelled = true;
+      if (devicesPollTimer) {
+        clearTimeout(devicesPollTimer);
+      }
       socket.close();
       socketRef.current = null;
     };
-  }, [connection, wsUrl, api, replaceDevice, loadEntries]);
+  }, [connection, wsUrl, api, replaceDevice, loadEntries, devicesPollInitialDelayMs, devicesPollMaxDelayMs]);
 
   useEffect(() => {
     const names = Object.keys(availableDevices);

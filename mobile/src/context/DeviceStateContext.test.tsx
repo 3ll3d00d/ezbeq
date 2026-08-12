@@ -296,6 +296,65 @@ test('recovers devices once the socket connects even if the cold-start REST poll
   await waitFor(() => expect(screen.getByTestId('devices')).toHaveTextContent('d1', { exact: false }));
 });
 
+test('keeps retrying the devices poll with backoff until a device shows up', async () => {
+  // Regression test for a real bug: a device backed by e.g. jriver that's still down when the app
+  // launches (its DSP catalogue loads fine over the websocket, but /api/2/devices comes back
+  // without it) left availableDevices - and so the slot list - empty forever. The cold-start poll
+  // and the one onConnectionChange(true) fired when the ezbeq *server's* websocket first connects
+  // are both one-shot; neither has any reason to run again once that websocket is up, even though
+  // the underlying device might only come online seconds later. Nothing used to retry the REST
+  // fetch itself, so the slot list stuck on "Waiting for device data..." until a full app restart.
+  const getDevices = jest
+    .fn()
+    .mockResolvedValueOnce({})
+    .mockResolvedValueOnce({})
+    .mockResolvedValueOnce({ d1: { name: 'd1', connected: true, slots: [{ id: '1' }] } });
+  (EzbeqApi as jest.Mock).mockImplementation(() => ({ getDevices }));
+  await pairServer();
+
+  await render(
+    <ServerProvider>
+      <DeviceStateProvider devicesPollInitialDelayMs={5} devicesPollMaxDelayMs={20}>
+        <Consumer />
+      </DeviceStateProvider>
+    </ServerProvider>
+  );
+
+  await waitFor(() => expect(screen.getByTestId('devices')).toHaveTextContent('d1', { exact: false }));
+  expect(getDevices).toHaveBeenCalledTimes(3);
+});
+
+test('stops retrying the devices poll once a device shows up, and resumes it if a later fetch comes back empty', async () => {
+  const getDevices = jest
+    .fn()
+    .mockResolvedValueOnce({ d1: { name: 'd1', connected: true, slots: [] } }) // cold start
+    .mockResolvedValueOnce({}); // a later reconnect finds the device gone again
+  (EzbeqApi as jest.Mock).mockImplementation(() => ({ getDevices }));
+  await pairServer();
+
+  await render(
+    <ServerProvider>
+      <DeviceStateProvider devicesPollInitialDelayMs={100000} devicesPollMaxDelayMs={100000}>
+        <Consumer />
+      </DeviceStateProvider>
+    </ServerProvider>
+  );
+  await waitFor(() => expect(lastSocket).toBeDefined());
+  await waitFor(() => expect(getDevices).toHaveBeenCalledTimes(1));
+
+  // No retry was scheduled while a device was known - a long-lived interval wouldn't have quietly
+  // kept polling in the background this whole time.
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  expect(getDevices).toHaveBeenCalledTimes(1);
+
+  await act(async () => {
+    lastSocket.callbacks.onConnectionChange(true);
+  });
+
+  await waitFor(() => expect(getDevices).toHaveBeenCalledTimes(2));
+  expect(screen.getByTestId('devices')).toHaveTextContent('{}');
+});
+
 test('sends the load catalogue handshake as soon as a Catalogue message reports a version', async () => {
   // Regression test for a real bug: the server pushes meta (version) unprompted on connect, but
   // never the entries themselves - those only arrive in response to an explicit 'load catalogue'
