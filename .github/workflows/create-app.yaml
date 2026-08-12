@@ -219,6 +219,20 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      # Persists ~/.gradle/caches (downloaded dependencies + the --build-cache task-output cache
+      # below) and the wrapper distribution across runs, keyed on the wrapper/gradle files that
+      # `expo prebuild` generates - without this, every run started from a completely empty Gradle
+      # user home, so --build-cache had nothing to hit and every Maven dependency (AGP, Kotlin,
+      # every native module's AAR) was re-resolved from scratch on every single release build.
+      # Using the dedicated action rather than actions/setup-java's own `cache: gradle` input
+      # deliberately - the two caching mechanisms can conflict if both are enabled (see
+      # https://github.com/actions/setup-java/issues/588), and this one manages cache entries more
+      # precisely (per-dependency, with cleanup of stale/unused entries) than the coarser one built
+      # into setup-java.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
       - name: Get release version number
@@ -243,9 +257,14 @@ jobs:
         run: echo "${{ secrets.MOBILE_RELEASE_STORE_BASE64 }}" | base64 -d > android/app/ezbeq-mobile-release.keystore
       - name: Build signed release APK
         working-directory: ./mobile/android
+        # x86/x86_64 dropped from the release build - they're only relevant to Android emulators
+        # and long-obsolete Intel-based devices, essentially unused by anyone installing this APK
+        # on a real phone/tablet, and each extra ABI roughly multiplies every native module's
+        # compile step (Reanimated, Screens' Fabric bits, etc.) across the board. Local dev builds
+        # (`expo run:android`) still build all 4, so an emulator remains usable for development.
         run: |
           ./gradlew app:assembleRelease --configure-on-demand --build-cache \
-            -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86,x86_64 \
+            -PreactNativeArchitectures=arm64-v8a,armeabi-v7a \
             -PMOBILE_RELEASE_STORE_FILE=ezbeq-mobile-release.keystore \
             -PMOBILE_RELEASE_STORE_PASSWORD="${{ secrets.MOBILE_RELEASE_STORE_PASSWORD }}" \
             -PMOBILE_RELEASE_KEY_ALIAS="${{ secrets.MOBILE_RELEASE_KEY_ALIAS }}" \
