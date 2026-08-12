@@ -205,6 +205,12 @@ describe('deriveTxtFilterFromActiveSlot', () => {
 describe('MainScreen', () => {
   beforeEach(() => {
     mockUseDeviceState.mockReset();
+    // getWhatsNew/getVersion get overridden with a non-Once mockResolvedValue in several tests
+    // below (e.g. the "fetches What's New entries" and dismiss-banner tests) - without resetting
+    // back to the module-scope defaults here, that override leaks into every test that runs after
+    // it in file order and never sets its own value, silently changing their badge/count math.
+    (api.getWhatsNew as jest.Mock).mockResolvedValue([]);
+    (api.getVersion as jest.Mock).mockResolvedValue({});
   });
 
   it('shows a loading indicator while no device is selected yet', async () => {
@@ -544,30 +550,32 @@ describe('MainScreen', () => {
     expect(await screen.findByText(/Running Python 3\.9\.0/)).toBeTruthy();
   });
 
-  it(
-    "includes update/python-unsupported counts in the What's New badge",
-    async () => {
-      (api.getVersion as jest.Mock).mockResolvedValue({
-        updateAvailable: true,
-        latestVersion: '2.1.0',
-        pythonSupported: false,
-        pythonVersion: '3.9.0',
-        minPythonVersion: '3.10',
-      });
-      mockUseDeviceState.mockReturnValue(baseState());
+  it("includes update/python-unsupported counts in the What's New badge", async () => {
+    (api.getVersion as jest.Mock).mockResolvedValue({
+      updateAvailable: true,
+      latestVersion: '2.1.0',
+      pythonSupported: false,
+      pythonVersion: '3.9.0',
+      minPythonVersion: '3.10',
+    });
+    mockUseDeviceState.mockReturnValue(baseState());
 
-      await renderScreen();
+    await renderScreen();
 
-      // A longer timeout than the default 1000ms - this badge depends on two chained async
-      // fetches (getWhatsNew then getVersion) settling, which occasionally outruns the default on
-      // a loaded CI runner (observed as a real, if intermittent, CI failure). The test's own
-      // timeout (3rd arg) must exceed findByText's, or Jest's default 5000ms test-level timeout
-      // fires at the same instant findByText's would, with no margin - observed as a real,
-      // if intermittent, CI failure in its own right ("Exceeded timeout of 5000 ms for a test").
-      expect(await screen.findByText('2', {}, { timeout: 5000 })).toBeTruthy(); // badge: 0 new + 1 update + 1 python
-    },
-    8000
-  );
+    // The badge count combines two independently-resolving fetches (getWhatsNew and getVersion).
+    // Racing a single findByText(badge text) against a fixed timeout only works if *both* fetches
+    // happen to settle within that window - on a loaded CI runner (or even locally, running the
+    // whole suite rather than this test in isolation) one can outrun the other, failing the
+    // assertion even though the app is behaving correctly. Wait for each contributing signal
+    // individually (both derived from the same getVersion resolution), each with a generous
+    // timeout, before asserting the combined, by-then-already-settled value synchronously - no
+    // remaining race between "both fetches landed" and a single shared deadline.
+    expect(await screen.findByText('ezbeq 2.1.0 is available.', {}, { timeout: 5000 })).toBeTruthy();
+    expect(await screen.findByText(/Running Python 3\.9\.0/, {}, { timeout: 5000 })).toBeTruthy();
+    await waitFor(() => expect(api.getWhatsNew).toHaveBeenCalled(), { timeout: 5000 });
+
+    expect(screen.getByText('2')).toBeTruthy(); // badge: 0 new + 1 update + 1 python
+  });
 
   describe('wide layout (tablet / landscape)', () => {
     beforeEach(() => {
