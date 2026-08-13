@@ -20,7 +20,13 @@ defaults:
     shell: bash
     working-directory: ./mobile
 jobs:
-  warm_gradle_cache:
+  # Job id deliberately matches create-app.yaml's buildmobileandroid job, not just descriptive -
+  # gradle/actions/setup-gradle's cache key is `${os}|${job-id}[hash-of-matrix-and-workflow-name]-${sha}`,
+  # and its restore-key fallback's broadest tier only requires a same-OS, same-job-id match (see
+  # https://github.com/gradle/actions/blob/main/docs/setup-gradle.md#cache-keys). A different job id
+  # here - even with everything else about this workflow aimed at warming that exact job's cache -
+  # would never be found by it at any fallback tier.
+  buildmobileandroid:
     name: Warm Gradle cache for release build
     runs-on: ubuntu-latest
     steps:
