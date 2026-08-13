@@ -221,7 +221,7 @@ describe('MainScreen', () => {
     expect(screen.getByText('Waiting for device data…')).toBeTruthy();
   });
 
-  it('renders the selected device name and its slots', async () => {
+  it('renders the selected device name and its slots when multiple devices are available', async () => {
     mockUseDeviceState.mockReturnValue(
       baseState({
         availableDevices: {
@@ -233,6 +233,7 @@ describe('MainScreen', () => {
               { id: '2', active: false, last: 'Empty' },
             ],
           },
+          d2: { name: 'd2', connected: true, slots: [] },
         },
         selectedDeviceName: 'd1',
         selectedSlotId: '1',
@@ -246,6 +247,27 @@ describe('MainScreen', () => {
     expect(screen.getByText(/^1: Some BEQ/)).toBeTruthy();
     expect(screen.getByTestId('slot-card-1').props.accessibilityState).toEqual({ selected: true });
     expect(screen.getByTestId('slot-card-2').props.accessibilityState).toEqual({ selected: false });
+  });
+
+  it('hides the device name when only one device is available', async () => {
+    mockUseDeviceState.mockReturnValue(
+      baseState({
+        availableDevices: {
+          d1: {
+            name: 'd1',
+            connected: true,
+            slots: [{ id: '1', active: true, last: 'Some BEQ' }],
+          },
+        },
+        selectedDeviceName: 'd1',
+        selectedSlotId: '1',
+      })
+    );
+
+    await renderScreen();
+
+    expect(screen.queryByText('d1')).toBeNull();
+    expect(screen.getByTestId('slot-card-1')).toBeTruthy();
   });
 
   it('activating a slot calls activateSlot and applies the response via replaceDevice', async () => {

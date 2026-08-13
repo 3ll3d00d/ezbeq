@@ -308,9 +308,11 @@ export default function MainScreen({ navigation }: Props) {
     </View>
   ) : (
     <View style={styles.slots}>
-      <Text variant="titleMedium" style={styles.deviceName}>
-        {device.name}
-      </Text>
+      {Object.keys(availableDevices).length > 1 ? (
+        <Text variant="titleMedium" style={styles.deviceName}>
+          {device.name}
+        </Text>
+      ) : null}
       <SlotsGrid
         slots={device.slots ?? []}
         selectedSlotId={selectedSlotId}
