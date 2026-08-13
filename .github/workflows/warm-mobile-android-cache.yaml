@@ -44,6 +44,13 @@ jobs:
           cache-read-only: false
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+      # Mirrors create-app.yaml's own exclusion so this job's task graph - and hence the cache it
+      # populates - matches the real release build as closely as possible. See that workflow for
+      # the full rationale.
+      - name: Exclude dev-client-only modules from the release build
+        run: |
+          jq '.expo.autolinking.android.exclude = ["expo-dev-client", "expo-dev-launcher", "expo-dev-menu", "expo-dev-menu-interface"]' package.json > package.json.tmp
+          mv package.json.tmp package.json
       - name: Prebuild native Android project
         env:
           CI: 1
@@ -52,8 +59,12 @@ jobs:
       # withAndroidReleaseSigning.js) - the release build type just falls back to signing with the
       # debug keystore, exercising the exact same compile/R8/resource-shrink/dex task graph as the
       # real release build so the Gradle Home cache it populates is actually useful to it.
+      # --no-daemon/--parallel/GRADLE_OPTS mirror create-app.yaml's build step - see that workflow
+      # for the full rationale.
       - name: Build release APK (unsigned by release key - cache warm-up only)
         working-directory: ./mobile/android
+        env:
+          GRADLE_OPTS: -Xmx4096m -XX:MaxMetaspaceSize=1024m
         run: |
-          ./gradlew app:assembleRelease --configure-on-demand --build-cache \
+          ./gradlew app:assembleRelease --no-daemon --parallel --configure-on-demand --build-cache \
             -PreactNativeArchitectures=arm64-v8a,armeabi-v7a

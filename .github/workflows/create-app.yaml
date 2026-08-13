@@ -191,10 +191,11 @@ jobs:
         run: |
             gh release upload ${{ github.ref_name }} ${{ steps.create_dist.outputs.binary_path }}
   buildmobileandroid:
-    name: Publish Android APK
-    needs: create_release
-    permissions:
-      contents: write
+    name: Build Android APK
+    # Deliberately no `needs: create_release` - nothing in this job depends on the release
+    # existing (only the final upload does, see publishmobileandroid below), and create_release's
+    # pytest/UI-test/changelog steps take ~2.5 minutes that were previously serialized in front of
+    # this ~15+ minute build for no reason.
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -221,11 +222,12 @@ jobs:
           java-version: '17'
       # Persists ~/.gradle/caches (downloaded dependencies + the --build-cache task-output cache
       # below) and the wrapper distribution across runs, keyed on the wrapper/gradle files that
-      # `expo prebuild` generates - without this, every run started from a completely empty Gradle
-      # user home, so --build-cache had nothing to hit and every Maven dependency (AGP, Kotlin,
-      # every native module's AAR) was re-resolved from scratch on every single release build.
-      # Using the dedicated action rather than actions/setup-java's own `cache: gradle` input
-      # deliberately - the two caching mechanisms can conflict if both are enabled (see
+      # `expo prebuild` generates. This job's own ref (a release tag) is never reused, so it can
+      # only ever populate its own scope's cache, never restore it - the entry that actually gets
+      # restored here comes from warm-mobile-android-cache.yaml, which runs the same build on every
+      # push to main and saves under that scope, which tag builds *can* fall back to. Using the
+      # dedicated action rather than actions/setup-java's own `cache: gradle` input deliberately -
+      # the two caching mechanisms can conflict if both are enabled (see
       # https://github.com/actions/setup-java/issues/588), and this one manages cache entries more
       # precisely (per-dependency, with cleanup of stale/unused entries) than the coarser one built
       # into setup-java.
@@ -242,6 +244,18 @@ jobs:
         run: |
           jq --arg v "${{ steps.get_version.outputs.version-without-v }}" '.expo.version = $v' app.json > app.json.tmp
           mv app.json.tmp app.json
+      # expo-dev-client (and its own transitive expo-dev-launcher/expo-dev-menu/
+      # expo-dev-menu-interface deps) is a regular dependency because `expo run:android` needs it
+      # for local dev-client builds, but it has no purpose in a signed release APK. Autolinking
+      # normally links it into every build regardless of variant, accounting for ~180 of this
+      # build's ~850 Gradle tasks. CI-only exclusion (never committed) via the
+      # `expo.autolinking.android.exclude` package.json option expo-modules-autolinking's Gradle
+      # task reads directly at build time - see
+      # node_modules/expo-modules-autolinking/build/commands/autolinkingOptions.js.
+      - name: Exclude dev-client-only modules from the release build
+        run: |
+          jq '.expo.autolinking.android.exclude = ["expo-dev-client", "expo-dev-launcher", "expo-dev-menu", "expo-dev-menu-interface"]' package.json > package.json.tmp
+          mv package.json.tmp package.json
       - name: Prebuild native Android project
         env:
           CI: 1
@@ -262,15 +276,53 @@ jobs:
         # on a real phone/tablet, and each extra ABI roughly multiplies every native module's
         # compile step (Reanimated, Screens' Fabric bits, etc.) across the board. Local dev builds
         # (`expo run:android`) still build all 4, so an emulator remains usable for development.
+        #
+        # --no-daemon: this job invokes Gradle exactly once, so there's no second build in the same
+        # job to amortize a persistent daemon's warm-JVM/warm-classloader benefit against - the
+        # daemon here was pure overhead (a few extra seconds of startup bookkeeping, plus it was
+        # observed running out of JVM Metaspace mid-build and having to restart, per the "Daemon
+        # will expire..." warning in build logs). --no-daemon runs the build directly in the
+        # already-running gradlew process instead.
+        # --parallel: the prebuilt project has ~40 subprojects (one per native module) and ~850
+        # tasks; without --parallel Gradle executes them one project at a time despite most being
+        # mutually independent, wasting the runner's other CPU cores.
+        # GRADLE_OPTS raises the build JVM's heap/metaspace ceiling to give --parallel's extra
+        # concurrent task/classloader memory pressure headroom (the default 2048m/512m was already
+        # tight running serially) - set via GRADLE_OPTS rather than a gradle.properties
+        # org.gradle.jvmargs entry because that setting only configures the *daemon's* fork args and
+        # has no effect once --no-daemon skips spawning one.
+        env:
+          GRADLE_OPTS: -Xmx4096m -XX:MaxMetaspaceSize=1024m
         run: |
-          ./gradlew app:assembleRelease --configure-on-demand --build-cache \
+          ./gradlew app:assembleRelease --no-daemon --parallel --configure-on-demand --build-cache \
             -PreactNativeArchitectures=arm64-v8a,armeabi-v7a \
             -PMOBILE_RELEASE_STORE_FILE=ezbeq-mobile-release.keystore \
             -PMOBILE_RELEASE_STORE_PASSWORD="${{ secrets.MOBILE_RELEASE_STORE_PASSWORD }}" \
             -PMOBILE_RELEASE_KEY_ALIAS="${{ secrets.MOBILE_RELEASE_KEY_ALIAS }}" \
             -PMOBILE_RELEASE_KEY_PASSWORD="${{ secrets.MOBILE_RELEASE_KEY_PASSWORD }}"
+      - name: Upload APK build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ezbeq-mobile-android.apk
+          path: mobile/android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 1
+
+  publishmobileandroid:
+    name: Publish Android APK
+    needs: [create_release, buildmobileandroid]
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download APK build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ezbeq-mobile-android.apk
+      # --repo is required here (unlike the other Upload asset steps in this workflow) because this
+      # job has no actions/checkout step - gh normally resolves the target repo from the local git
+      # remote, which doesn't exist without one.
       - name: Upload asset
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload ${{ github.ref_name }} android/app/build/outputs/apk/release/app-release.apk#ezbeq-mobile-android.apk
+          gh release upload ${{ github.ref_name }} app-release.apk#ezbeq-mobile-android.apk --repo ${{ github.repository }}
