@@ -1,0 +1,59 @@
+name: warm mobile android cache
+# GitHub Actions cache entries are scoped to the ref that created them, with a fallback to the
+# *default* branch only - never to other refs. create-app.yaml's Android release build runs
+# exclusively on `push: tags: *`, and every release tag is a brand-new ref that's never reused, so
+# a Gradle Home cache saved by one tag build could never be restored by the next one (confirmed via
+# the "Gradle User Home cache not found. Will initialize empty." log line on every single release
+# build, even back-to-back ones sharing the same cache key prefix). This workflow runs the same
+# Gradle task graph on every push to main instead, so the cache it saves lives under
+# refs/heads/main - the one scope tag builds *can* fall back to.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/warm-mobile-android-cache.yaml'
+  workflow_dispatch: {}
+defaults:
+  run:
+    shell: bash
+    working-directory: ./mobile
+jobs:
+  warm_gradle_cache:
+    name: Warm Gradle cache for release build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Use node.js lts
+        uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Prebuild native Android project
+        env:
+          CI: 1
+        run: npx expo prebuild --platform android --clean
+      # No MOBILE_RELEASE_STORE_* properties here (those are release-only secrets - see
+      # withAndroidReleaseSigning.js) - the release build type just falls back to signing with the
+      # debug keystore, exercising the exact same compile/R8/resource-shrink/dex task graph as the
+      # real release build so the Gradle Home cache it populates is actually useful to it.
+      - name: Build release APK (unsigned by release key - cache warm-up only)
+        working-directory: ./mobile/android
+        run: |
+          ./gradlew app:assembleRelease --configure-on-demand --build-cache \
+            -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
