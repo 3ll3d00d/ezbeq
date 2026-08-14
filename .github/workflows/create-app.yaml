@@ -51,7 +51,7 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       - name: Generate changelog
         id: changelog
-        uses: metcalfc/changelog-generator@v4.7.0
+        uses: metcalfc/changelog-generator@v4.8.0
         with:
           myToken: ${{ secrets.GITHUB_TOKEN }}
       - name: Determine release type
