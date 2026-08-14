@@ -232,7 +232,7 @@ jobs:
       # precisely (per-dependency, with cleanup of stale/unused entries) than the coarser one built
       # into setup-java.
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: false
       - name: Set up Android SDK
