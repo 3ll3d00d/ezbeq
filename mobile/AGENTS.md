@@ -22,6 +22,7 @@ cd mobile
 npm install             # Install dependencies
 npm start                # Expo dev server (scan the QR with Expo Go, or press i/a)
 npm test                 # Run Jest unit tests
+npm test -- --coverage   # Same, with the coverage report CI gates on
 npm run typecheck        # tsc --noEmit
 ```
 

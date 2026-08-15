@@ -28,6 +28,7 @@ uv run ezbeq            # Run the application (default port 8080)
 ```bash
 pytest                  # Run all tests
 pytest --cov=ezbeq      # Run with coverage
+pytest --cov=./ezbeq --cov-report=xml  # Same report CI uploads to Codecov
 ```
 
 - Fixtures defined in `tests/conftest.py`

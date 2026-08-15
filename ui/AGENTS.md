@@ -15,6 +15,7 @@ yarn install            # Install Node dependencies
 yarn dev                # Dev server with hot reload
 yarn build              # Build production assets to ezbeq/ui/
 yarn test:unit          # Run Vitest unit tests
+yarn test:unit --run --coverage  # Same, with the coverage report CI gates on
 ```
 
 ## Coding Conventions

@@ -3,20 +3,9 @@ on:
   push:
     branches:
       - '**'
-    paths:
-      - 'ezbeq/**'
-      - 'tests/**'
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - '.github/workflows/test.yaml'
   pull_request:
     branches:
       - '*'
-    paths:
-      - 'ezbeq/**'
-      - 'tests/**'
-      - 'pyproject.toml'
-      - 'uv.lock'
   workflow_dispatch:
     branches:
       - '**'
@@ -64,6 +53,9 @@ jobs:
         uses: codecov/codecov-action@v7
         with:
           files: ./coverage.xml
+          flags: python
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
   required-checks:
     name: Required checks
     runs-on: ubuntu-latest
