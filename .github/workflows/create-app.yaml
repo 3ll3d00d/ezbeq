@@ -421,18 +421,21 @@ jobs:
       - name: Discover the generated Xcode workspace and scheme
         id: xcode_project
         working-directory: ./mobile/ios
-        # set -o pipefail: without it, a failing `xcodebuild -list` on the left of the `| jq` pipe
-        # doesn't fail this step under `bash -e` - it silently produced an empty `scheme` the first
-        # time this ran (root cause was the `ls` bug below, but this masked it as a confusing
-        # "-scheme ''" failure two steps later instead of failing here with the real error).
+        # `ls -d`, not `ls`: *.xcworkspace is a directory (bundle), and plain `ls` on a directory
+        # lists its *contents* rather than printing the directory's own name - confirmed by this
+        # exact bug shipping once already (workspace ended up as "contents.xcworkspacedata", a file
+        # inside the bundle, instead of "ezbeq.xcworkspace").
+        #
+        # Scheme is derived from the app's own .xcodeproj basename (Expo names both identically -
+        # confirmed by running `expo prebuild` locally), not by picking a scheme out of
+        # `xcodebuild -list`'s workspace.schemes - that list includes every *other* shared scheme
+        # CocoaPods pulls in too (e.g. an autolinked Expo module can ship its own internal
+        # "EXApplication" scheme), and one of those alphabetically preceded "ezbeq" and got built
+        # instead of the app on the first attempt at this approach. `ios/Pods/Pods.xcodeproj` lives
+        # one directory deeper than the app's own `ios/*.xcodeproj`, so the glob below can't match it.
         run: |
-          set -o pipefail
-          # `ls -d`, not `ls`: *.xcworkspace is a directory (bundle), and plain `ls` on a directory
-          # lists its *contents* rather than printing the directory's own name - confirmed by this
-          # exact bug shipping once already (workspace ended up as "contents.xcworkspacedata", a
-          # file inside the bundle, instead of "ezbeq.xcworkspace").
           workspace=$(ls -d *.xcworkspace)
-          scheme=$(xcodebuild -workspace "$workspace" -list -json | jq -r '.workspace.schemes | map(select(test("^Pods") | not)) | .[0]')
+          scheme=$(basename "$(ls -d *.xcodeproj)" .xcodeproj)
           echo "workspace=$workspace" >> "$GITHUB_OUTPUT"
           echo "scheme=$scheme" >> "$GITHUB_OUTPUT"
       # -sdk iphoneos targets real devices (not the Simulator) - see the job-level comment above for
