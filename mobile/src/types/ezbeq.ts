@@ -63,10 +63,15 @@ export type CatalogueEntry = {
 
 export type CatalogueMeta = {
   version?: string | number;
+  loaded?: number;
+  count?: number;
   [key: string]: unknown;
 };
 
 export type VersionInfo = {
+  version?: string;
+  branch?: string;
+  sha?: string;
   updateAvailable?: boolean;
   latestVersion?: string;
   pythonSupported?: boolean;

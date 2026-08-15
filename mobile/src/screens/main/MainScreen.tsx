@@ -404,6 +404,8 @@ export default function MainScreen({ navigation }: Props) {
         filterNotificationEnabled={filterNotificationEnabled}
         filterNotificationSupported={filterNotificationSupported}
         onToggleFilterNotification={setFilterNotificationEnabled}
+        versionInfo={versionInfo}
+        catalogueMeta={meta}
       />
 
       <UpdateAvailableBanner

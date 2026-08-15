@@ -1,6 +1,8 @@
 import { StyleSheet, View } from 'react-native';
 import { Divider, IconButton, List, Modal, Portal, Switch, Text, useTheme } from 'react-native-paper';
 
+import type { CatalogueMeta, VersionInfo } from '../../types/ezbeq';
+
 type Props = {
   visible: boolean;
   onClose: () => void;
@@ -9,6 +11,39 @@ type Props = {
   filterNotificationEnabled: boolean;
   filterNotificationSupported: boolean;
   onToggleFilterNotification: (next: boolean) => void;
+  versionInfo: VersionInfo;
+  catalogueMeta: CatalogueMeta;
+};
+
+const padZero = (n: number) => n.toString().padStart(2, '0');
+
+// Ported from ui/src/components/main/Footer.jsx - kept as close to that formatting as possible so
+// the two stay easy to diff against each other.
+const formatSeconds = (s: number | undefined): string => {
+  if (s) {
+    const d = new Date(0);
+    d.setUTCSeconds(s);
+    return `${d.getFullYear()}${padZero(d.getMonth() + 1)}${padZero(d.getDate())}_${padZero(d.getHours())}${padZero(d.getMinutes())}${padZero(d.getSeconds())}`;
+  }
+  return '?';
+};
+
+// Ported from ui/src/components/main/Footer.jsx.
+export const formatCatalogueVersion = (meta: CatalogueMeta | null | undefined): string | null => {
+  if (!meta) return null;
+  const sha1 = meta.version ? String(meta.version).substring(0, 7) : '';
+  return `${formatSeconds(meta.loaded)} / ${sha1}`;
+};
+
+// Ported from ui/src/components/main/Footer.jsx.
+export const formatAppVersion = (version: VersionInfo | null | undefined): string | null => {
+  if (!version) return null;
+  const gitRef = version.branch ? `${version.branch}@${version.sha || ''}` : version.sha || '';
+  const v = version.version;
+  const vStr = v && v !== 'UNKNOWN' ? `v${v}` : gitRef ? '' : v || '';
+  const gitStr = gitRef ? ` git: ${gitRef}` : '';
+  const result = `${vStr}${gitStr}`.trim();
+  return result || null;
 };
 
 // A single home for connection management and app-level toggles (currently just the persistent
@@ -22,8 +57,12 @@ export default function SettingsSheet({
   filterNotificationEnabled,
   filterNotificationSupported,
   onToggleFilterNotification,
+  versionInfo,
+  catalogueMeta,
 }: Props) {
   const theme = useTheme();
+  const appVersionText = formatAppVersion(versionInfo);
+  const catalogueVersionText = formatCatalogueVersion(catalogueMeta);
 
   return (
     <Portal>
@@ -80,6 +119,19 @@ export default function SettingsSheet({
             onPress={onDisconnect}
           />
         </List.Section>
+
+        {appVersionText || catalogueVersionText ? (
+          <>
+            <Divider />
+            <List.Section>
+              <List.Subheader>About</List.Subheader>
+              {appVersionText ? <List.Item title="App version" description={appVersionText} /> : null}
+              {catalogueVersionText ? (
+                <List.Item title="Catalogue version" description={catalogueVersionText} />
+              ) : null}
+            </List.Section>
+          </>
+        ) : null}
       </Modal>
     </Portal>
   );
