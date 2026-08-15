@@ -28,6 +28,12 @@ npm run typecheck        # tsc --noEmit
 To exercise the app against a real backend, run `bin/run-server-stub` from the repo root (no
 hardware required) and pair the app with `http://<host-LAN-IP>:9968`.
 
+Run `npm test` (the full suite, unfiltered) and `npm run typecheck` before every push, and if the
+change touches anything mirrored from `ui/src/components/main/`, run `ui/`'s suite too — see the
+root `AGENTS.md`'s "Before pushing" section for why this matters here specifically (a narrowed test
+run is how `f8c49c4` shipped a mobile-only regression that CI caught but nobody noticed for two
+days).
+
 ## Coding Conventions
 
 - Functional components with hooks; no class components
