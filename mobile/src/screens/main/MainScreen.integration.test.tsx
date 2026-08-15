@@ -107,7 +107,9 @@ test('pairing, a Catalogue push, then CatalogueEntries renders real entries with
   await renderApp();
 
   await waitFor(() => expect(lastSocket).toBeDefined());
-  expect(await screen.findByText('d1')).toBeTruthy();
+  // Single-device pairing hides the redundant device name (see f8c49c4) - wait on the slot
+  // card instead, which is what actually confirms device data has loaded.
+  expect(await screen.findByText('1: Empty')).toBeTruthy();
 
   // The server unsolicited-pushes a Catalogue message (-> meta) on register; DeviceStateContext's
   // version-change effect reacts by sending 'load catalogue' over the (mocked) socket.
