@@ -705,7 +705,7 @@ wheels = [
 
 [[package]]
 name = "ezbeq"
-version = "2.11.6"
+version = "2.11.7"
 source = { editable = "." }
 dependencies = [
     { name = "autobahn", extra = ["twisted"] },
