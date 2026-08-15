@@ -30,10 +30,13 @@ jobs:
         # expression. That would skip build/test on every pull_request run, not
         # just version-bump pushes. This job must always complete successfully;
         # the push-only logic lives entirely inside this step instead.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          COMMITS_JSON: ${{ toJson(github.event.commits) }}
         run: |
           skip=false
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            commit_count=$(echo '${{ toJson(github.event.commits) }}' | jq 'if type=="array" then length else 0 end')
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            commit_count=$(echo "$COMMITS_JSON" | jq 'if type=="array" then length else 0 end')
             msg=$(git log -1 --format=%B HEAD | sed -e 's/[[:space:]]*$//')
             if [[ "$commit_count" == "1" ]] && [[ "$msg" =~ ^[Bb]ump[[:space:]]version$ ]] && git rev-parse HEAD~1 >/dev/null 2>&1; then
               files=$(git diff --name-only HEAD~1 HEAD)
