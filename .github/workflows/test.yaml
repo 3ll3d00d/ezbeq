@@ -13,7 +13,11 @@ defaults:
   run:
     shell: bash
 jobs:
+  detect-version-bump:
+    uses: ./.github/workflows/detect-version-bump.yaml
   build:
+    needs: detect-version-bump
+    if: needs.detect-version-bump.outputs.skip != 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -59,11 +63,15 @@ jobs:
   required-checks:
     name: Required checks
     runs-on: ubuntu-latest
-    needs: build
+    needs: [detect-version-bump, build]
     if: always()
     steps:
       - name: Check build result
         run: |
+          if [[ "${{ needs.detect-version-bump.outputs.skip }}" == "true" ]]; then
+            echo "Skipping: version-only bump commit"
+            exit 0
+          fi
           if [[ "${{ needs.build.result }}" != "success" ]]; then
             echo "build job did not succeed: ${{ needs.build.result }}"
             exit 1
