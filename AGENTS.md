@@ -130,3 +130,5 @@ before pushing is what keeps that loop fast.
 5. **After opening/updating a PR, confirm its checks actually went green** — `gh pr checks
    <number>` (or `gh run list --branch <branch> --limit 5`). Don't rely on the merge button being
    blocked as your only signal; check what actually failed if something's red.
+
+<!-- codecov app verification -->
