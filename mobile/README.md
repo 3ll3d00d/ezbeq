@@ -184,7 +184,7 @@ CI runs both on every push/PR that touches `mobile/**` (`.github/workflows/test-
 `assets/icon.png`, `assets/android-icon-foreground.png`, `assets/android-icon-background.png`, and
 `assets/splash-icon.png` are all derived from the web UI's existing brand icon
 (`ui/public/android-chrome-512x512.png`) rather than a separate mobile-specific design, so the app
-reads as the same product across web and mobile. See `app.json`'s `icon`/`android.adaptiveIcon`/
+reads as the same product across web and mobile. See `app.config.ts`'s `icon`/`android.adaptiveIcon`/
 `expo-splash-screen` plugin config for how each is used. There's no Android 13+ themed
 (`monochromeImage`) variant - the source art's background bevel doesn't cleanly separate into a
 flat single-color silhouette, and a blank/undifferentiated one would be worse than none.
@@ -201,7 +201,7 @@ build on a real device):
   to a tester without going through Expo Go
 - `production` - store-ready, auto-incremented version
 
-`app.json`'s `ios.bundleIdentifier`/`android.package` (`com.ezbeq.mobile`) are placeholders - swap
+`app.config.ts`'s `ios.bundleIdentifier`/`android.package` (`com.ezbeq.mobile`) are placeholders - swap
 them for an identifier under a domain/account you control before submitting to the App Store or
 Play Store. Building requires `eas login` and, on the first run, `eas init` to link the project to
 an Expo account:

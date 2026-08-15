@@ -42,26 +42,37 @@ on macOS, full stop, independent of signing/payment questions.
 2. `actions/setup-node@v7` (`node-version: lts/*`, `cache: npm`,
    `cache-dependency-path: mobile/package-lock.json`) - matches the Android job.
 3. `npm ci` in `./mobile`.
-4. Set app version from the tag - same `jq '.expo.version = $v' app.json` step the Android job
-   already does. **Open question:** should this be factored into a small shared script
-   (`mobile/scripts/set-version.sh`) instead of duplicated inline in two jobs? Low priority, worth
-   doing while adding the second copy rather than after a third shows up.
+4. Set app version from the tag. **Originally** the same `jq '.expo.version = $v' app.json` step
+   the Android job used; **now** (2026-08-15) `echo "APP_VERSION=$v" >> "$GITHUB_ENV"` instead -
+   the Apple TV work replaced `app.json` with `app.config.ts` (a `.ts` file, not jq-editable, needed
+   to make the TV config plugin conditional), and `app.config.ts` reads `process.env.APP_VERSION`
+   directly (falling back to a hardcoded default for local/dev builds) rather than having a value
+   written into it. The **open question about a shared `mobile/scripts/set-version.sh`** is now
+   moot rather than answered: the step shrank from a multi-line jq read/transform/write to a single
+   `echo`, and a one-line duplicate across two jobs isn't worth a script indirection - revisit only
+   if the step grows complex again, not because a third job (e.g. a future `buildmobiletvos`) shows
+   up.
 5. Exclude dev-client-only modules from the release build - the Android job does this via
-   `expo.autolinking.android.exclude` in `package.json`; confirm during implementation whether the
-   iOS autolinker honors an analogous `expo.autolinking.ios.exclude` key (Expo's autolinking
-   plugin supports per-platform excludes) so `expo-dev-client`/`expo-dev-launcher`/
-   `expo-dev-menu`/`expo-dev-menu-interface` don't get linked into a build meant to be re-signed
-   and run standalone.
+   `expo.autolinking.android.exclude` in `package.json`. **Resolved**: yes, `expo.autolinking.ios.exclude`
+   works, confirmed by actually running this job - `expo-modules-autolinking`'s iOS platform is
+   internally named "apple" and falls back to reading an `"ios"` key from `package.json` when no
+   `"apple"` key is present, so this does take effect, just via that fallback rather than being the
+   primary key (see the `buildmobileios` job's own comment on this step for the exact source
+   reference).
 6. `npx expo prebuild --platform ios --clean` (`CI=1`, matching the Android job) - generates
-   `mobile/ios/`, including running `pod install` as part of prebuild's autolinking step. No Ruby/
-   CocoaPods setup step should be needed - GitHub's `macos-latest` image ships CocoaPods
-   preinstalled - but confirm the prebuild log actually runs `pod install` successfully during
-   implementation rather than assuming it.
-7. Discover the generated workspace/scheme rather than hardcoding a name: `ls ios/*.xcworkspace`
-   for the workspace, `xcodebuild -workspace <that> -list` to read the scheme name out of its
-   output. (Expected to be `ezbeq` or `mobile`, derived from `app.json`'s `expo.name`/`slug`, but
-   don't hardcode a guess into the workflow - derive it at run time so a future rename of either
-   field can't silently break the job.)
+   `mobile/ios/`, including running `pod install` as part of prebuild's autolinking step.
+   **Resolved**: no separate Ruby/CocoaPods setup step was needed - `macos-latest` ships CocoaPods
+   preinstalled and `pod install` runs cleanly as part of this step.
+7. Discover the generated workspace/scheme rather than hardcoding a name. **Resolved, but not as
+   originally planned**: `ls -d ios/*.xcworkspace` for the workspace (note `-d` - plain `ls` on a
+   directory/bundle lists its *contents*, not its own name; this shipped once with the wrong value
+   before being caught). The scheme is **not** read from `xcodebuild -workspace <workspace> -list`
+   as this step originally proposed - that list includes every *other* shared scheme CocoaPods pulls
+   in too (an autolinked Expo module can ship its own internal scheme), and one of those
+   alphabetically preceded `ezbeq` and got built instead of the app on the first real attempt.
+   Instead: the scheme is derived from the app's own `.xcodeproj` basename directly (Expo names the
+   scheme identically to the project, confirmed by actually running `expo prebuild`), which has no
+   such ambiguity.
 8. Archive unsigned, for a real device:
    ```
    xcodebuild -workspace ios/<workspace> -scheme <scheme> -configuration Release \
@@ -69,15 +80,14 @@ on macOS, full stop, independent of signing/payment questions.
      CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
      archive
    ```
-   **Risk to verify during implementation:** `expo-notifications` is in `package.json`. If its
-   config plugin writes a `aps-environment` push entitlement into the generated
-   `ios/mobile/mobile.entitlements` even though the app only ever calls the *local*-notification
-   APIs (see the Expo Go warning in `../README.md`), an unsigned archive could fail or silently
-   drop that entitlement. Since the app doesn't use remote push at all (confirmed in
-   `../README.md`'s "Backend compatibility" section), the fix if this happens is to confirm the
-   plugin isn't requesting the push capability in the first place (check
-   `ios/mobile/mobile.entitlements` after step 6, before assuming step 8 needs extra flags) -
-   there's no legitimate reason this app's entitlements file should reference `aps-environment`.
+   **Resolved, and the risk was real**: `expo-notifications`' config plugin does unconditionally
+   write an `aps-environment` entitlement even though the app only ever uses local notifications -
+   confirmed by actually running `expo prebuild` (it's the only entitlements file Expo generates for
+   this app). Free-tier Personal Team signing doesn't support the Push Notifications capability, so
+   rather than the "confirm it isn't requested" fallback this step originally described, the actual
+   fix strips the entitlement outright with a dedicated step
+   (`/usr/libexec/PlistBuddy -c "Delete :aps-environment" ...`) right after prebuild, before the
+   archive step runs.
 9. Package the unsigned `.ipa` from the archive's product, for Sideloadly/AltStore:
    ```
    mkdir -p Payload

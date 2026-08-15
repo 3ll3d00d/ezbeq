@@ -10,7 +10,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'ezbeq',
   slug: 'ezbeq-mobile',
-  version: '1.0.0',
+  // CI sets APP_VERSION from the release tag (see create-app.yaml's "Set app version from tag"
+  // steps) rather than jq-patching this file the way it patched app.json before this became
+  // app.config.ts - a .ts file isn't jq-editable, and rewriting a config plugin's own source at
+  // build time would be far more fragile than reading an env var here.
+  version: process.env.APP_VERSION ?? '1.0.0',
   orientation: 'default',
   icon: './assets/icon.png',
   userInterfaceStyle: 'automatic',

@@ -257,10 +257,13 @@ jobs:
       - name: Get release version number
         id: get_version
         run: echo "version-without-v=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      # app.config.ts reads APP_VERSION (falling back to a hardcoded default for local/dev builds)
+      # rather than this jq-patching a version field into app.json directly - app.json was
+      # replaced by app.config.ts (a .ts file, not jq-editable) when Apple TV support added a
+      # config plugin that needs to be conditional on an env var. Exported via $GITHUB_ENV so every
+      # later step in this job (prebuild and the native build itself) sees it, not just this one.
       - name: Set app version from tag
-        run: |
-          jq --arg v "${{ steps.get_version.outputs.version-without-v }}" '.expo.version = $v' app.json > app.json.tmp
-          mv app.json.tmp app.json
+        run: echo "APP_VERSION=${{ steps.get_version.outputs.version-without-v }}" >> "$GITHUB_ENV"
       # expo-dev-client (and its own transitive expo-dev-launcher/expo-dev-menu/
       # expo-dev-menu-interface deps) is a regular dependency because `expo run:android` needs it
       # for local dev-client builds, but it has no purpose in a signed release APK. Autolinking
@@ -372,10 +375,13 @@ jobs:
       - name: Get release version number
         id: get_version
         run: echo "version-without-v=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      # app.config.ts reads APP_VERSION (falling back to a hardcoded default for local/dev builds)
+      # rather than this jq-patching a version field into app.json directly - app.json was
+      # replaced by app.config.ts (a .ts file, not jq-editable) when Apple TV support added a
+      # config plugin that needs to be conditional on an env var. Exported via $GITHUB_ENV so every
+      # later step in this job (prebuild and the native build itself) sees it, not just this one.
       - name: Set app version from tag
-        run: |
-          jq --arg v "${{ steps.get_version.outputs.version-without-v }}" '.expo.version = $v' app.json > app.json.tmp
-          mv app.json.tmp app.json
+        run: echo "APP_VERSION=${{ steps.get_version.outputs.version-without-v }}" >> "$GITHUB_ENV"
       # expo-dev-client (and its expo-dev-launcher/expo-dev-menu/expo-dev-menu-interface deps) is a
       # regular dependency because `expo run:ios` needs it for local dev-client builds, but it has
       # no purpose in a build meant to be signed and run standalone - same reasoning as the Android
