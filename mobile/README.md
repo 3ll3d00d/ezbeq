@@ -235,10 +235,14 @@ keystore file itself means every future release has to switch signing keys, whic
 updates for anyone who installed a build signed with the old one (they'd need to uninstall and
 reinstall rather than update).
 
-No iOS equivalent yet - a real sideloadable (device-installable, not just Simulator-only) iOS build
-needs an Apple Developer Program membership plus Apple-issued signing credentials, neither of which
-this repo has. Once available, `eas build --platform ios` (using the same `eas.json` profiles
-above) is the natural path, authenticated via an `EXPO_TOKEN` secret and `eas credentials`.
+## Installing on iOS/iPadOS
+
+Unlike Android, a device-installable iOS build can't be handed out as a single signed file from
+CI alone - Apple requires every install to be signed by an Apple ID on the installing machine, even
+on the free tier. See [`docs/ios-sideloading.md`](docs/ios-sideloading.md) for the full, no-Apple-
+fee-required workflow (Mac + Xcode, Windows + Sideloadly, or an EU-only on-device path), and
+[`docs/ios-ci-automation-plan.md`](docs/ios-ci-automation-plan.md) for the plan to add the CI job
+(`buildmobileios`) that produces the unsigned build artifacts those paths sign locally.
 
 ## Apple TV
 

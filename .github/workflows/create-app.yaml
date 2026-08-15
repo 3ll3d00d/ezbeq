@@ -326,3 +326,132 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload ${{ github.ref_name }} app-release.apk#ezbeq-mobile-android.apk --repo ${{ github.repository }}
+
+  buildmobileios:
+    name: Build iOS app
+    # Deliberately no `needs: create_release`, same reasoning as buildmobileandroid - nothing in
+    # this job depends on the release existing.
+    #
+    # No Apple account or credentials anywhere in this job/its secrets - it archives with code
+    # signing disabled entirely (CODE_SIGNING_ALLOWED=NO below), which iOS permits since signing is
+    # only enforced at install/launch time, not at build time. The resulting artifacts are
+    # unsigned; end users sign them locally with their own free Apple ID - see
+    # mobile/docs/ios-sideloading.md for that half of the workflow and
+    # mobile/docs/ios-ci-automation-plan.md for why this job is built this way.
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: ./mobile
+    steps:
+      - uses: actions/checkout@v7
+      - name: Use node.js lts
+        uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Get release version number
+        id: get_version
+        run: echo "version-without-v=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - name: Set app version from tag
+        run: |
+          jq --arg v "${{ steps.get_version.outputs.version-without-v }}" '.expo.version = $v' app.json > app.json.tmp
+          mv app.json.tmp app.json
+      # expo-dev-client (and its expo-dev-launcher/expo-dev-menu/expo-dev-menu-interface deps) is a
+      # regular dependency because `expo run:ios` needs it for local dev-client builds, but it has
+      # no purpose in a build meant to be signed and run standalone - same reasoning as the Android
+      # job's equivalent step. expo-modules-autolinking's iOS platform is internally named "apple"
+      # (node_modules/expo-modules-autolinking/scripts/ios/autolinking_manager.rb always passes
+      # `--platform apple`), which falls back to reading an "ios" key from package.json when no
+      # "apple" key is present (parsePackageJsonOptions in node_modules/expo-modules-autolinking/
+      # src/commands/autolinkingOptions.ts) - so "ios" here (mirroring the Android job's "android"
+      # key) does take effect, just via that fallback rather than being the primary key.
+      - name: Exclude dev-client-only modules from the release build
+        run: |
+          jq '.expo.autolinking.ios.exclude = ["expo-dev-client", "expo-dev-launcher", "expo-dev-menu", "expo-dev-menu-interface"]' package.json > package.json.tmp
+          mv package.json.tmp package.json
+      - name: Prebuild native iOS project
+        env:
+          CI: 1
+        run: npx expo prebuild --platform ios --clean
+      # expo-notifications' config plugin unconditionally writes an aps-environment entitlement
+      # (node_modules/expo-notifications/plugin/build/withNotificationsIOS.js) even though this app
+      # only ever uses local notifications (see the Expo Go warning in mobile/README.md's "Running
+      # locally" section) - free-tier Personal Team signing doesn't support the Push Notifications
+      # capability, so leaving this entitlement in would risk local re-signing (Sideloadly/AltStore/
+      # Xcode) failing or silently dropping it. Confirmed by running `expo prebuild` locally: this
+      # is the only entitlements file Expo generates for this app.
+      - name: Strip the unused push-notifications entitlement
+        run: /usr/libexec/PlistBuddy -c "Delete :aps-environment" "$(find ios -name '*.entitlements')"
+      - name: Discover the generated Xcode workspace and scheme
+        id: xcode_project
+        working-directory: ./mobile/ios
+        run: |
+          workspace=$(ls *.xcworkspace)
+          scheme=$(xcodebuild -workspace "$workspace" -list -json | jq -r '.workspace.schemes | map(select(test("^Pods") | not)) | .[0]')
+          echo "workspace=$workspace" >> "$GITHUB_OUTPUT"
+          echo "scheme=$scheme" >> "$GITHUB_OUTPUT"
+      # -sdk iphoneos targets real devices (not the Simulator) - see the job-level comment above for
+      # why signing is disabled entirely rather than attempted in any form here.
+      - name: Archive unsigned Release build
+        working-directory: ./mobile/ios
+        run: |
+          xcodebuild -workspace "${{ steps.xcode_project.outputs.workspace }}" \
+            -scheme "${{ steps.xcode_project.outputs.scheme }}" \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath "$RUNNER_TEMP/ezbeq-mobile.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            archive
+      # Sideloadly/AltStore expect a plain unsigned .ipa (a zipped Payload/ directory containing the
+      # .app bundle), not a full .xcarchive - see mobile/docs/ios-sideloading.md Paths B/C.
+      - name: Package unsigned .ipa
+        run: |
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -r "$RUNNER_TEMP/ezbeq-mobile.xcarchive/Products/Applications/"*.app "$RUNNER_TEMP/Payload/"
+          (cd "$RUNNER_TEMP" && zip -qr ezbeq-mobile-ios-unsigned.ipa Payload)
+      # Published separately so a Mac can open it directly in Xcode's Organizer and sign/export/
+      # install with its own Apple ID - see mobile/docs/ios-sideloading.md Path A.
+      - name: Package .xcarchive
+        run: (cd "$RUNNER_TEMP" && zip -qr ezbeq-mobile-ios.xcarchive.zip ezbeq-mobile.xcarchive)
+      - name: Upload unsigned .ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ezbeq-mobile-ios-unsigned.ipa
+          path: ${{ runner.temp }}/ezbeq-mobile-ios-unsigned.ipa
+          retention-days: 1
+      - name: Upload .xcarchive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ezbeq-mobile-ios.xcarchive.zip
+          path: ${{ runner.temp }}/ezbeq-mobile-ios.xcarchive.zip
+          retention-days: 1
+
+  publishmobileios:
+    name: Publish iOS build
+    needs: [create_release, buildmobileios]
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download unsigned .ipa artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ezbeq-mobile-ios-unsigned.ipa
+      - name: Download .xcarchive artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ezbeq-mobile-ios.xcarchive.zip
+      # --repo is required here (unlike the other Upload asset steps in this workflow) because this
+      # job has no actions/checkout step - gh normally resolves the target repo from the local git
+      # remote, which doesn't exist without one.
+      - name: Upload assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.ref_name }} \
+            ezbeq-mobile-ios-unsigned.ipa#ezbeq-mobile-ios-unsigned.ipa \
+            ezbeq-mobile-ios.xcarchive.zip#ezbeq-mobile-ios.xcarchive.zip \
+            --repo ${{ github.repository }}
