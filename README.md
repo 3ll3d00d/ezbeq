@@ -941,3 +941,5 @@ The measured output level should be increased with the filter in place.
 * With C selected, open the EQ window, select your minidsp device as the dsp type and manually input the individual
   filters in the loaded BEQ
 * The predicted response should now be a flat line (i.e. the beq filter has "corrected" this back to flat)
+
+<!-- test: verifying Claude Code Review + @claude workflows, will be removed -->
