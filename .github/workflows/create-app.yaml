@@ -317,7 +317,7 @@ jobs:
             -PMOBILE_RELEASE_KEY_ALIAS="${{ secrets.MOBILE_RELEASE_KEY_ALIAS }}" \
             -PMOBILE_RELEASE_KEY_PASSWORD="${{ secrets.MOBILE_RELEASE_KEY_PASSWORD }}"
       - name: Upload APK build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ezbeq-mobile-android.apk
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
@@ -433,13 +433,13 @@ jobs:
       - name: Package .xcarchive
         run: (cd "$RUNNER_TEMP" && zip -qr ezbeq-mobile-ios.xcarchive.zip ezbeq-mobile.xcarchive)
       - name: Upload unsigned .ipa artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ezbeq-mobile-ios-unsigned.ipa
           path: ${{ runner.temp }}/ezbeq-mobile-ios-unsigned.ipa
           retention-days: 1
       - name: Upload .xcarchive artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ezbeq-mobile-ios.xcarchive.zip
           path: ${{ runner.temp }}/ezbeq-mobile-ios.xcarchive.zip
