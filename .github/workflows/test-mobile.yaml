@@ -3,14 +3,9 @@ on:
   push:
     branches:
       - '**'
-    paths:
-      - 'mobile/**'
-      - '.github/workflows/test-mobile.yaml'
   pull_request:
     branches:
       - '*'
-    paths:
-      - 'mobile/**'
   workflow_dispatch:
     branches:
       - '**'
@@ -20,6 +15,7 @@ defaults:
     working-directory: ./mobile
 jobs:
   test:
+    name: Mobile tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -34,4 +30,11 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
       - name: Unit tests
-        run: npm test -- --ci
+        run: npm test -- --ci --coverage
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          files: ./mobile/coverage/lcov.info
+          flags: mobile
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true

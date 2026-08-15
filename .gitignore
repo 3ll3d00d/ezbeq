@@ -136,6 +136,8 @@ dmypy.json
 
 # testing
 /coverage
+/ui/coverage
+/mobile/coverage
 
 # production
 /build

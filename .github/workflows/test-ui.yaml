@@ -3,14 +3,9 @@ on:
   push:
     branches:
       - '**'
-    paths:
-      - 'ui/**'
-      - '.github/workflows/test-ui.yaml'
   pull_request:
     branches:
       - '*'
-    paths:
-      - 'ui/**'
   workflow_dispatch:
     branches:
       - '**'
@@ -20,6 +15,7 @@ defaults:
     working-directory: ./ui
 jobs:
   test:
+    name: UI tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -30,6 +26,13 @@ jobs:
       - name: Setup node_modules
         run: yarn install --immutable
       - name: Unit tests
-        run: yarn test:unit --run
+        run: yarn test:unit --run --coverage
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          files: ./ui/coverage/lcov.info
+          flags: ui
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
       - name: Build
         run: yarn build

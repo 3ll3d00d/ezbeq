@@ -1,0 +1,42 @@
+coverage:
+  status:
+    project:
+      python:
+        flags:
+          - python
+        target: auto
+        threshold: 0%
+        if_ci_failed: error
+      ui:
+        flags:
+          - ui
+        target: auto
+        threshold: 0%
+        if_ci_failed: error
+      mobile:
+        flags:
+          - mobile
+        target: auto
+        threshold: 0%
+        if_ci_failed: error
+    patch: off
+  precision: 2
+  round: down
+
+flags:
+  python:
+    paths:
+      - ezbeq/
+    carryforward: true
+  ui:
+    paths:
+      - ui/src/
+    carryforward: true
+  mobile:
+    paths:
+      - mobile/src/
+    carryforward: true
+
+comment:
+  layout: 'flags, diff'
+  require_changes: false

@@ -62,6 +62,14 @@
     "preset": "jest-expo",
     "setupFiles": [
       "./jest.setup.js"
+    ],
+    "coverageReporters": [
+      "text",
+      "lcov"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.{ts,tsx}",
+      "!src/**/*.test.{ts,tsx}"
     ]
   }
 }
