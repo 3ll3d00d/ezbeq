@@ -28,6 +28,7 @@ ui/              # React source code
 tests/           # Pytest test suite
 docs/            # MkDocs documentation
 examples/        # Device configuration YAML examples
+docker/          # Dockerfile, compose files, helper scripts for containerised deployment
 ```
 
 **Server architecture:** Flask (REST API at `/api`) + Twisted (static frontend + WebSocket) hybrid. The built React app (`ezbeq/ui/`) is served by a raw `twisted.web.static.File`-based resource tree (`ReactApp`/`PrecompressedFile` in `main.py`), **not** through Flask — `flask_compress` only ever applies to `/api` responses, never to the JS/CSS bundle. Static assets are pre-compressed to `.gz`/`.br` at build time (see `compression` plugin in `ui/vite.config.js`) and served with long-lived immutable caching; `index.html` is always revalidated since it references the current content-hashed asset filenames.
@@ -73,7 +74,8 @@ GitHub Actions workflows:
 - `test.yaml` ("run tests") — Pytest, path-filtered to `ezbeq/**`, `tests/**`, `pyproject.toml`, `uv.lock`
 - `test-ui.yaml` ("run ui tests") — Vitest, path-filtered to `ui/**`
 - `test-mobile.yaml` ("run mobile tests") — Jest + typecheck, path-filtered to `mobile/**`
-- `create-app.yaml` — Builds and publishes the application
+- `create-app.yaml` — Builds and publishes the application (PyPI, PyInstaller, mobile). Also dispatches to the separate `3ll3d00d/ezbeq-docker` repo on every PyPI release, which publishes `ghcr.io/3ll3d00d/ezbeq-docker`.
+- `docker.yaml` — Builds `docker/Dockerfile` from local source (no PyPI dependency) and publishes `ghcr.io/3ll3d00d/ezbeq` on push to `main`/`dev` and on version tags. Independent of `create-app.yaml` and of the legacy `ezbeq-docker` repo/image — both keep publishing in parallel.
 - `claude.yml` — AI assistant integration (triggered by `@claude` comments)
 - `claude-code-review.yml` — Automated code review on PRs
 

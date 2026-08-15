@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Pull and run a PUBLISHED ezbeq image from GHCR. Use to verify that an image
+# pushed by CI or scripts/publish-image actually works: prod's behavior
+# without needing prod hardware.
+#
+# No build happens; the image is pulled fresh on every invocation
+# (docker compose up --pull always --force-recreate).
+#
+# Container name is `ezbeq` (the base compose default), so it won't collide
+# with `ezbeq-local` from scripts/run-local. It WILL collide on port 8080 if
+# run-local is up; stop it first with `scripts/run-local --stop`.
+#
+# Usage:
+#   scripts/run-published               # prompt for tag (default: dev)
+#   scripts/run-published dev          # pull + run ghcr.io/<owner>/ezbeq:dev
+#   scripts/run-published v1.2.3        # pull + run a specific version tag
+#   scripts/run-published dev --detach # same, detached (no log tail)
+#   scripts/run-published --stop        # stop and remove the container
+#   scripts/run-published --help
+set -euo pipefail
+# shellcheck source=_lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
+cd "$DOCKER_DIR"
+
+COMPOSE=(docker compose -f docker-compose.yaml)
+
+case "${1:-}" in
+    -h|--help) ezbeq::print_help; exit 0 ;;
+    --stop) "${COMPOSE[@]}" down; exit 0 ;;
+esac
+
+ezbeq::load_env
+ezbeq::resolve_config
+
+TAG=""
+FOLLOW_LOGS=1
+for arg in "$@"; do
+    case "$arg" in
+        -d|--detach) FOLLOW_LOGS=0 ;;
+        -*) echo "Error: unknown option '$arg'. Run with --help." >&2; exit 2 ;;
+        *)
+            [[ -z "$TAG" ]] || { echo "Error: only one tag may be given (got '$TAG' and '$arg')." >&2; exit 2; }
+            TAG="$arg"
+            ;;
+    esac
+done
+
+if [[ -z "$TAG" ]]; then
+    [[ -t 0 ]] || { echo "Error: no tag given and stdin is not a TTY. Pass a tag: scripts/run-published dev" >&2; exit 2; }
+    read -r -p "Image tag [dev]: " TAG
+    TAG="${TAG:-dev}"
+fi
+ezbeq::validate_tag "$TAG"
+
+ezbeq::resolve_owner
+export EZBEQ_TAG="$TAG" EZBEQ_OWNER="$OWNER"
+
+echo "Image  : ghcr.io/${OWNER}/ezbeq:${EZBEQ_TAG}"
+echo "Config : $EZBEQ_CONFIG"
+echo "Port   : $EZBEQ_PORT"
+echo
+
+"${COMPOSE[@]}" up -d --pull always --force-recreate
+
+echo
+echo "Running at http://localhost:$EZBEQ_PORT"
+if (( FOLLOW_LOGS )); then
+    echo "(Ctrl+C detaches from logs; the container keeps running)"
+    echo
+    "${COMPOSE[@]}" logs -f
+else
+    echo "Logs: scripts/run-published   |   Stop: scripts/run-published --stop"
+fi

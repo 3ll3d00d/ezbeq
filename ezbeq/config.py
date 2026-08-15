@@ -211,7 +211,7 @@ class Config:
                 f"  (or set exe: stub in your ezbeq.yml)\n"
                 f"\n"
                 f"Or run via Docker (no local deps required):\n"
-                f"  https://github.com/3ll3d00d/ezbeq-docker"
+                f"  https://github.com/3ll3d00d/ezbeq/tree/main/docker"
             )
         return cmd[options.split(' ')] if options else cmd
 
