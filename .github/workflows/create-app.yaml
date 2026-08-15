@@ -239,10 +239,15 @@ jobs:
       #   point of warm-mobile-android-cache.yaml, and the job-id-matching comment there, is that
       #   fallback tier. Switching providers would silently make that workflow a no-op. Enhanced
       #   Caching is free for public repos (this one), so there's no cost tradeoff either way here.
-      # - `cache-read-only` is kept explicit rather than relying on v6's new smarter default
-      #   (false on the default branch, true elsewhere) - that default would make *this* job
-      #   read-only, since a release tag is never the default branch ref, which is the opposite of
-      #   what we want (tag builds are allowed to write, same as before the upgrade).
+      # - `cache-read-only: true`, kept explicit rather than relying on v6's smarter default (also
+      #   true off the default branch, so this is a no-op today - explicit anyway so a future
+      #   default change can't silently flip it back). A release tag's own ref is never reused
+      #   (tags aren't re-pushed), so anything this job would *write* is only ever restorable by a
+      #   manual re-run of that exact failed run (same SHA, so setup-gradle's SHA-keyed cache would
+      #   hit) - real, but narrow enough not to be worth every release build unconditionally
+      #   uploading a cache entry that otherwise just expires unread. All the real benefit - a warm
+      #   cache instead of a cold one - comes entirely from *restoring* warm-mobile-android-cache.yaml's
+      #   save on `main`, which read-only doesn't affect.
       # - Don't set the experimental `gradle-home-cache-strict-match` - it disables exactly the
       #   cross-job restore-key fallback warm-mobile-android-cache.yaml depends on.
       # - v6.3 bumped the cache protocol to v2, invalidating every existing cache entry - the first
@@ -251,7 +256,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
-          cache-read-only: false
+          cache-read-only: true
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
       - name: Get release version number
