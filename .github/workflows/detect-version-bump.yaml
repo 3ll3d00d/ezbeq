@@ -9,7 +9,6 @@ jobs:
   check:
     name: Check for pure version bump
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
     outputs:
       skip: ${{ steps.check.outputs.skip }}
     steps:
@@ -19,31 +18,41 @@ jobs:
       - id: check
         # Only skip CI when ALL of the following hold, so a "bump version" commit
         # message can never be used to smuggle in unrelated changes:
+        #  - the triggering event is a push (not a PR, dispatch, etc.)
         #  - the push is exactly one commit
         #  - that commit's message is exactly "bump version"
         #  - the commit touches only pyproject.toml and/or uv.lock
         #  - every changed line in those files is a `version = "X.Y.Z"` line
+        #
+        # Deliberately no job-level `if:` gating this on event_name == 'push' -
+        # GitHub Actions skips downstream `needs:` jobs whenever an upstream job's
+        # own conclusion is "skipped", regardless of the downstream job's `if:`
+        # expression. That would skip build/test on every pull_request run, not
+        # just version-bump pushes. This job must always complete successfully;
+        # the push-only logic lives entirely inside this step instead.
         run: |
           skip=false
-          commit_count=$(echo '${{ toJson(github.event.commits) }}' | jq 'length')
-          msg=$(git log -1 --format=%B HEAD | sed -e 's/[[:space:]]*$//')
-          if [[ "$commit_count" == "1" ]] && [[ "$msg" =~ ^[Bb]ump[[:space:]]version$ ]] && git rev-parse HEAD~1 >/dev/null 2>&1; then
-            files=$(git diff --name-only HEAD~1 HEAD)
-            is_pure=true
-            while IFS= read -r f; do
-              [[ -z "$f" ]] && continue
-              if [[ "$f" != "pyproject.toml" && "$f" != "uv.lock" ]]; then
-                is_pure=false
-              fi
-            done <<< "$files"
-            if [[ "$is_pure" == "true" && -n "$files" ]]; then
-              bad=$(git diff -U0 HEAD~1 HEAD -- pyproject.toml uv.lock \
-                | grep -E '^[+-]' \
-                | grep -vE '^(\+\+\+|---)' \
-                | grep -vE '^[+-]version = "[0-9]+\.[0-9]+\.[0-9]+"$' \
-                || true)
-              if [[ -z "$bad" ]]; then
-                skip=true
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            commit_count=$(echo '${{ toJson(github.event.commits) }}' | jq 'if type=="array" then length else 0 end')
+            msg=$(git log -1 --format=%B HEAD | sed -e 's/[[:space:]]*$//')
+            if [[ "$commit_count" == "1" ]] && [[ "$msg" =~ ^[Bb]ump[[:space:]]version$ ]] && git rev-parse HEAD~1 >/dev/null 2>&1; then
+              files=$(git diff --name-only HEAD~1 HEAD)
+              is_pure=true
+              while IFS= read -r f; do
+                [[ -z "$f" ]] && continue
+                if [[ "$f" != "pyproject.toml" && "$f" != "uv.lock" ]]; then
+                  is_pure=false
+                fi
+              done <<< "$files"
+              if [[ "$is_pure" == "true" && -n "$files" ]]; then
+                bad=$(git diff -U0 HEAD~1 HEAD -- pyproject.toml uv.lock \
+                  | grep -E '^[+-]' \
+                  | grep -vE '^(\+\+\+|---)' \
+                  | grep -vE '^[+-]version = "[0-9]+\.[0-9]+\.[0-9]+"$' \
+                  || true)
+                if [[ -z "$bad" ]]; then
+                  skip=true
+                fi
               fi
             fi
           fi
