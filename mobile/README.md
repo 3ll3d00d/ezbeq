@@ -252,3 +252,8 @@ Not implemented yet. The app is architected (plain React Navigation, no gesture-
 `Adaptive*` wrapper components for the few `Platform.OS` branch points) so that adding
 `react-native-tvos` later should only require `app.config.ts` plugin config
 (`@react-native-tvos/config-tv`) and a tvOS entry point — no changes to the phone/tablet code itself.
+See [`docs/appletv-implementation-plan.md`](docs/appletv-implementation-plan.md) for the full
+phased implementation plan (toolchain, focus/remote input model, per-screen adaptation, CI/
+distribution), which turned out to be more involved than that paragraph implies — a couple of
+screens (camera-based QR pairing, the gain sliders) have no direct tvOS equivalent and need real
+UX decisions, not just a config flag.

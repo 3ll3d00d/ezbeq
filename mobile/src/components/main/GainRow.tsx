@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { IconButton, TextInput, useTheme } from 'react-native-paper';
 
@@ -54,6 +54,73 @@ export default function GainRow({
     onValueCommit(Math.min(maxGain, Math.max(minGain, parsed)));
   };
 
+  const muteButton = (
+    <IconButton
+      icon={muted ? 'volume-off' : 'volume-high'}
+      size={18}
+      accessibilityLabel={muted ? 'Unmute' : 'Mute'}
+      onPress={() => onMuteToggle(!muted)}
+    />
+  );
+
+  // The numeric field is still the exact-entry fallback on both branches (tvOS brings up its own
+  // on-screen keyboard for a focused TextInput, same as ConnectScreen's host/port fields).
+  const exactEntryField = (
+    <TextInput
+      mode="outlined"
+      dense
+      style={styles.input}
+      keyboardType="numeric"
+      value={text}
+      onChangeText={setText}
+      onBlur={commitText}
+      accessibilityLabel={`${label} gain, decibels`}
+    />
+  );
+
+  if (Platform.isTV) {
+    // @react-native-community/slider's interaction model is a touch-drag with no remote
+    // equivalent - even if it renders without crashing under tvOS (unconfirmed, see
+    // docs/appletv-implementation-plan.md's Phase 0 spike list), dragging a thumb with a D-pad
+    // isn't a workable interaction. A focus-based +/- stepper instead: each press is a complete,
+    // discrete action, so it commits immediately (mirroring the slider's onSlidingComplete, not
+    // its continuous onValueChange - there's no in-progress "drag" state to report mid-press).
+    const clamp = (v: number) => Math.min(maxGain, Math.max(minGain, v));
+    const stepBy = (delta: number) => onValueCommit(Number(clamp(value + delta).toFixed(decimals)));
+
+    return (
+      <View style={styles.row}>
+        <Text numberOfLines={1} style={[styles.label, { color: theme.colors.onSurfaceVariant }]}>
+          {label}
+        </Text>
+        <View style={styles.tvStepper} testID={`gain-stepper-${label}`}>
+          <IconButton
+            icon="minus"
+            size={20}
+            disabled={muted || value <= minGain}
+            accessibilityLabel={`Decrease ${label} gain`}
+            onPress={() => stepBy(-step)}
+          />
+          <Text
+            style={[styles.tvValue, { color: isDirty ? theme.colors.secondary : theme.colors.onSurface }]}
+            accessibilityLabel={`${label} gain, ${value.toFixed(decimals)} decibels`}
+          >
+            {value.toFixed(decimals)} dB
+          </Text>
+          <IconButton
+            icon="plus"
+            size={20}
+            disabled={muted || value >= maxGain}
+            accessibilityLabel={`Increase ${label} gain`}
+            onPress={() => stepBy(step)}
+          />
+        </View>
+        {exactEntryField}
+        {muteButton}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.row}>
       <Text numberOfLines={1} style={[styles.label, { color: theme.colors.onSurfaceVariant }]}>
@@ -73,22 +140,8 @@ export default function GainRow({
         accessibilityLabel={`${label} gain`}
         accessibilityValue={{ min: minGain, max: maxGain, now: value }}
       />
-      <TextInput
-        mode="outlined"
-        dense
-        style={styles.input}
-        keyboardType="numeric"
-        value={text}
-        onChangeText={setText}
-        onBlur={commitText}
-        accessibilityLabel={`${label} gain, decibels`}
-      />
-      <IconButton
-        icon={muted ? 'volume-off' : 'volume-high'}
-        size={18}
-        accessibilityLabel={muted ? 'Unmute' : 'Mute'}
-        onPress={() => onMuteToggle(!muted)}
-      />
+      {exactEntryField}
+      {muteButton}
     </View>
   );
 }
@@ -105,6 +158,16 @@ const styles = StyleSheet.create({
   },
   slider: {
     flex: 1,
+  },
+  tvStepper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tvValue: {
+    minWidth: 64,
+    textAlign: 'center',
   },
   input: {
     width: 68,

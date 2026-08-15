@@ -1,7 +1,10 @@
 # Implementation plan: automated iOS build (`buildmobileios`)
 
-**Status: implemented**, not yet exercised by a real tag push - see the "Validation before
-merging" section at the bottom for what's still unverified until the first tag after this lands.
+**Status: implemented and validated against a real tag push** (`2.11.7`, 2026-08-15 - both
+`buildmobileios` and `publishmobileios` completed successfully, run
+[31883975963](https://github.com/3ll3d00d/ezbeq/actions/runs/31883975963)). Kept below as the
+design record for why the job is built the way it is; the "Validation before merging" section at
+the bottom is now fully resolved rather than a list of what's still unverified.
 
 Goal: add a CI job that produces the two unsigned artifacts [`ios-sideloading.md`](ios-sideloading.md)
 already documents and links to (`ezbeq-mobile-ios-unsigned.ipa`, `ezbeq-mobile-ios.xcarchive.zip`),
@@ -106,10 +109,10 @@ artifacts, `gh release upload` both onto the tag's release
   tier and, more importantly, doesn't remove the Apple-account requirement for anything beyond a
   simulator build - the unsigned-`xcodebuild` approach here is what actually avoids needing an
   account anywhere in the pipeline.
-- **Caching** (the `warm-mobile-android-cache.yaml` equivalent for iOS) - worth revisiting once
-  this job's actual build time is known; Xcode/CocoaPods caching on `macos-latest` runners has
-  different tradeoffs than Gradle's (notably much larger/slower-to-restore caches), not worth
-  designing blind.
+- **Caching** (the `warm-mobile-android-cache.yaml` equivalent for iOS) - the actual build time is
+  now known (~7m20s, see "Validation before merging" below) and doesn't justify it; Xcode/CocoaPods
+  caching on `macos-latest` runners has different tradeoffs than Gradle's anyway (notably much
+  larger/slower-to-restore caches), so this stays out of scope rather than being added speculatively.
 - **Updating `ios-sideloading.md`** - already written and already references the exact artifact
   filenames this plan produces; no changes needed there once this job exists, beyond removing its
   "no CI artifact" caveat under Path A.
@@ -122,5 +125,7 @@ artifacts, `gh release upload` both onto the tag's release
    confirmed it installs and launches. Some network-level flakiness was observed connecting to a
    `bin/run-server-stub` backend, of unclear origin (server-side vs. device-side) - not a signing or
    build issue, so not a blocker for this job.
-3. Time the job once it's green - decide whether a caching pass (see "out of scope" above) is worth
-   adding based on the actual number, not a guess. Still open.
+3. ✅ Timed against a real tag push (`2.11.7`, 2026-08-15): `buildmobileios` took ~7m20s end to end
+   (`actions/checkout` through artifact upload). Not slow enough to justify the caching pass
+   mentioned under "out of scope" above - revisit only if a future SDK bump or dependency growth
+   pushes this meaningfully higher, not preemptively.

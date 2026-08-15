@@ -1,5 +1,6 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 import ConnectScreen from './ConnectScreen';
 import { EzbeqApi } from '../../services/ezbeqApi';
@@ -93,4 +94,15 @@ test('the "Scan QR code instead" link navigates to ScanQr', async () => {
   await user.press(screen.getByRole('button', { name: 'Scan QR code instead' }));
 
   expect(navigation.navigate).toHaveBeenCalledWith('ScanQr');
+});
+
+test('hides the "Scan QR code instead" link on tvOS, which has no camera', async () => {
+  jest.spyOn(Platform, 'isTV', 'get').mockReturnValue(true);
+  try {
+    await renderScreen();
+
+    expect(screen.queryByRole('button', { name: 'Scan QR code instead' })).toBeNull();
+  } finally {
+    jest.restoreAllMocks();
+  }
 });

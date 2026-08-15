@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, Platform, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { ActivityIndicator, Badge, IconButton, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +24,7 @@ import { useAsyncStorageState } from '../../hooks/useAsyncStorageState';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useFilterLoadedNotification } from '../../hooks/useFilterLoadedNotification';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
+import { useTVBackHandler } from '../../hooks/useTVBackHandler';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { isFilterNotificationSupported } from '../../services/filterNotification';
 import { useGainSync } from '../../services/gains';
@@ -310,8 +311,24 @@ export default function MainScreen({ navigation }: Props) {
   const filterSheetMaxHeight = Math.min(480, Math.max(180, height * 0.4));
   // A tablet held in portrait is narrower than the landscape useWide threshold but still has
   // plenty of room for the two-pane list|detail split - only a phone-width portrait screen needs
-  // the single-column, navigate-into-detail layout.
-  const showSplitView = useWide || isTablet;
+  // the single-column, navigate-into-detail layout. tvOS is always forced into split view rather
+  // than derived from useResponsiveLayout()'s window-dimension math (tuned for phone/tablet
+  // breakpoints that don't mean the same thing on a TV, always-landscape, always-wide screen) -
+  // see docs/appletv-implementation-plan.md's Phase 3. This also means the single-column branch
+  // below (with its touch-only back-swipe gesture) never renders on tvOS.
+  const showSplitView = Platform.isTV || useWide || isTablet;
+
+  // Paper's Modal/Portal-based sheets (Settings/What's New/filters) have no built-in tvOS
+  // Menu-button dismissal the way a real React Navigation stack screen gets for free (see
+  // useTVBackHandler's own comment on NavigationContainer's back-button wiring) - closing every
+  // open one is simpler and safer than guessing which is visually "on top" without a real device to
+  // check Paper's Portal stacking against (see mobile/AGENTS.md's note that Portal entries render
+  // in reverse mount order).
+  useTVBackHandler(showFilters || settingsOpen || whatsNewOpen, () => {
+    setShowFilters(false);
+    setSettingsOpen(false);
+    setWhatsNewOpen(false);
+  });
 
   const devicesPane = !device ? (
     <View style={styles.center}>
@@ -389,6 +406,17 @@ export default function MainScreen({ navigation }: Props) {
             onToggleFilters={() => setShowFilters((prev) => !prev)}
           />
         </View>
+        {Platform.isTV ? (
+          // CatalogueList's pull-to-refresh (RefreshControl) has no drag gesture on tvOS - an
+          // explicit button reaching the same handleRefreshCatalogue is the remote-friendly
+          // equivalent (see docs/appletv-implementation-plan.md's "MainScreen.tsx" section).
+          <IconButton
+            icon="refresh"
+            accessibilityLabel="Refresh catalogue"
+            loading={catalogueRefreshing}
+            onPress={handleRefreshCatalogue}
+          />
+        ) : null}
         <IconButton icon="cog-outline" accessibilityLabel="Settings" onPress={() => setSettingsOpen(true)} />
         <View>
           <IconButton icon="bell-outline" accessibilityLabel="What's New" onPress={openWhatsNew} />

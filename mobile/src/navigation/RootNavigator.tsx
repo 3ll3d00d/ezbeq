@@ -1,4 +1,4 @@
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { useServerContext } from '../context/ServerContext';
@@ -33,7 +33,13 @@ export default function RootNavigator() {
   return (
     <Stack.Navigator initialRouteName={connection ? 'Main' : 'Connect'}>
       <Stack.Screen name="Connect" component={ConnectScreen} options={{ title: 'Connect' }} />
-      <Stack.Screen name="ScanQr" component={ScanQrScreen} options={{ title: 'Scan QR Code' }} />
+      {/* No camera on Apple TV at all - ScanQrScreen (expo-camera-based) has no tvOS equivalent,
+          so the route itself isn't registered there (ConnectScreen also hides the button that
+          would navigate to it, see its own Platform.isTV check). Registered normally on
+          phone/tablet - see docs/appletv-implementation-plan.md's "Connect flow" section. */}
+      {Platform.isTV ? null : (
+        <Stack.Screen name="ScanQr" component={ScanQrScreen} options={{ title: 'Scan QR Code' }} />
+      )}
       {/* No header - it only ever showed the literal text "ezbeq", which is redundant on the
           app's one and only main screen. MainScreen takes over covering the top safe-area inset
           itself now that there's no header row to do it (see its own insets usage). */}

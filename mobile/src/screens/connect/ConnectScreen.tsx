@@ -113,9 +113,13 @@ export default function ConnectScreen({ navigation }: Props) {
             {connecting ? <ActivityIndicator size="small" /> : 'Test & Connect'}
           </Button>
 
-          <Button mode="text" onPress={() => navigation.navigate('ScanQr')}>
-            Scan QR code instead
-          </Button>
+          {/* No camera on Apple TV - the ScanQr route isn't even registered there (see
+              RootNavigator), so this has to stay hidden rather than navigate to a dead route. */}
+          {Platform.isTV ? null : (
+            <Button mode="text" onPress={() => navigation.navigate('ScanQr')}>
+              Scan QR code instead
+            </Button>
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

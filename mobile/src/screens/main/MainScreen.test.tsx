@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, userEvent, waitFor } from '@testing-library/react-native';
-import { Alert, useWindowDimensions } from 'react-native';
+import { Alert, BackHandler, Platform, useWindowDimensions } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -679,6 +679,62 @@ describe('MainScreen', () => {
       expect(screen.getByText('Interstellar (2014)')).toBeTruthy();
       expect(screen.getByText('Select a catalogue entry to see its details.')).toBeTruthy();
       expect(screen.queryByLabelText('Back to results')).toBeNull();
+    });
+  });
+
+  describe('on tvOS', () => {
+    beforeEach(() => {
+      jest.spyOn(Platform, 'isTV', 'get').mockReturnValue(true);
+      // Narrow, phone-portrait-sized window - split view must come from Platform.isTV alone, not
+      // from useResponsiveLayout()'s breakpoints (see MainScreen.tsx's own comment on why).
+      (useWindowDimensions as jest.Mock).mockReturnValue({ width: 390, height: 844, scale: 2, fontScale: 1 });
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+      (useWindowDimensions as jest.Mock).mockReturnValue({ width: 390, height: 844, scale: 2, fontScale: 1 });
+    });
+
+    it('forces the split list/detail layout even at a narrow phone-portrait size', async () => {
+      mockUseDeviceState.mockReturnValue(
+        baseState({ entries: { 1: entry({ id: 1, formattedTitle: 'Interstellar (2014)' }) } })
+      );
+
+      await renderScreen();
+
+      expect(screen.getByText('Interstellar (2014)')).toBeTruthy();
+      expect(screen.getByText('Select a catalogue entry to see its details.')).toBeTruthy();
+      expect(screen.queryByLabelText('Back to results')).toBeNull();
+    });
+
+    it('shows a refresh button that calls refreshCatalogue, since pull-to-refresh has no remote equivalent', async () => {
+      const refreshCatalogue = jest.fn();
+      mockUseDeviceState.mockReturnValue(baseState({ refreshCatalogue }));
+      const user = userEvent.setup();
+
+      await renderScreen();
+      await user.press(screen.getByLabelText('Refresh catalogue'));
+
+      expect(refreshCatalogue).toHaveBeenCalled();
+    });
+
+    // Paper's Modal keeps its content mounted through its exit animation (same reason
+    // mobile/AGENTS.md's Snackbar note advises asserting a dismiss handler's *effect* rather than
+    // waiting for its content to disappear from the tree under Jest's timers) - so this only
+    // checks that MainScreen wires useTVBackHandler's `enabled` flag to "a sheet is open", which is
+    // MainScreen's own responsibility. What the hook itself does with `enabled`/`onBack` (register
+    // only when enabled, invoke onBack, remove on cleanup) is covered by useTVBackHandler.test.ts.
+    it('registers a Menu-button handler only while a sheet is open', async () => {
+      const addEventListenerSpy = jest.spyOn(BackHandler, 'addEventListener');
+      mockUseDeviceState.mockReturnValue(baseState());
+      const user = userEvent.setup();
+
+      await renderScreen();
+      expect(addEventListenerSpy).not.toHaveBeenCalledWith('hardwareBackPress', expect.any(Function));
+
+      await user.press(screen.getByLabelText('Settings'));
+
+      expect(addEventListenerSpy).toHaveBeenCalledWith('hardwareBackPress', expect.any(Function));
     });
   });
 });

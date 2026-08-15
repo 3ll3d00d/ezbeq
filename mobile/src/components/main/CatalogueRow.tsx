@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View, type PressableProps } from 'react-native';
 import { Avatar, Chip, Text, useTheme } from 'react-native-paper';
 
 import { initialFor, stringToColor } from '../../utils/avatarColor';
@@ -16,7 +16,16 @@ export default function CatalogueRow({ entry, selected, onPress }: Props) {
   return (
     <Pressable
       onPress={() => onPress(entry.id)}
-      style={[styles.row, selected ? { backgroundColor: theme.colors.secondaryContainer } : null]}
+      // Unconditional, not Platform.isTV-gated - `focused` only ever becomes true from a real
+      // tvOS focus-engine event (see SlotCard.tsx's own comment on the type-only gap that makes
+      // the cast below necessary), so this branch is simply always inert on phone/tablet.
+      style={
+        (({ focused }: { pressed: boolean; focused: boolean }) => [
+          styles.row,
+          selected ? { backgroundColor: theme.colors.secondaryContainer } : null,
+          focused ? { backgroundColor: theme.colors.primaryContainer } : null,
+        ]) as PressableProps['style']
+      }
       accessibilityRole="button"
       accessibilityLabel={`${entry.formattedTitle}, by ${entry.author}`}
       accessibilityState={{ selected }}

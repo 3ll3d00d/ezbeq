@@ -50,7 +50,7 @@ export default function SlotsGrid({ slots, selectedSlotId, pendingSlotIds, onAct
     <View style={styles.grid} onLayout={onLayout} testID="slots-grid">
       {rows.map((row, i) => (
         <View key={row[0].id} style={styles.row} testID={`slots-grid-row-${i}`}>
-          {row.map((slot) => (
+          {row.map((slot, j) => (
             <View key={slot.id} style={styles.cell}>
               <SlotCard
                 slot={slot}
@@ -58,6 +58,12 @@ export default function SlotsGrid({ slots, selectedSlotId, pendingSlotIds, onAct
                 pending={pendingSlotIds.has(slot.id)}
                 onSelect={() => onActivate(slot.id)}
                 onClear={() => onClear(slot.id)}
+                // tvOS only (SlotCard ignores this off tvOS) - lands the focus engine somewhere
+                // sane on first render instead of nowhere. The very first slot, not e.g. the
+                // active one, since "active" can be null (no slot loaded yet) and this only needs
+                // *a* starting point, not the "right" one - see
+                // docs/appletv-implementation-plan.md's Phase 2.
+                hasTVPreferredFocus={i === 0 && j === 0}
               />
             </View>
           ))}
