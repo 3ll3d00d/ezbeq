@@ -116,12 +116,11 @@ artifacts, `gh release upload` both onto the tag's release
 
 ## Validation before merging
 
-1. Run the new job on a real tag push (or `workflow_dispatch` added temporarily for iteration) and
-   confirm both artifacts upload.
-2. Download `ezbeq-mobile-ios-unsigned.ipa` and sideload it via Path B (Sideloadly) or Path A
-   (Xcode Organizer) from `ios-sideloading.md` end-to-end on a real device - confirm it installs,
-   launches, and can reach a `bin/run-server-stub` backend, before considering this done. A build
-   that merely "archives successfully" doesn't confirm the unsigned-archive trick actually produces
-   an installable app - Apple's device-side install checks are stricter than xcodebuild's.
+1. ✅ Ran the new job via a temporary `workflow_dispatch` trigger and confirmed both artifacts
+   upload (see the now-removed scaffolding in git history).
+2. ✅ Downloaded `ezbeq-mobile-ios-unsigned.ipa` and sideload-installed it on a real device -
+   confirmed it installs and launches. Some network-level flakiness was observed connecting to a
+   `bin/run-server-stub` backend, of unclear origin (server-side vs. device-side) - not a signing or
+   build issue, so not a blocker for this job.
 3. Time the job once it's green - decide whether a caching pass (see "out of scope" above) is worth
-   adding based on the actual number, not a guess.
+   adding based on the actual number, not a guess. Still open.

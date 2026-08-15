@@ -3,22 +3,12 @@ on:
   push:
     tags:
       - '*'
-  # TEMPORARY - lets buildmobileios be run on demand while it's still being verified, without
-  # triggering a real release (every other job below is gated to `push` only, so a manual run
-  # touches nothing but the iOS build). Remove this trigger, and the `if: github.event_name ==
-  # 'push'` guards on create_release/buildmobileandroid below, once a manual run has confirmed the
-  # iOS job works end-to-end - see mobile/docs/ios-ci-automation-plan.md's "Validation before
-  # merging" section.
-  workflow_dispatch:
 defaults:
   run:
     shell: bash
 jobs:
   create_release:
     name: Create Release
-    # TEMPORARY - see the workflow_dispatch comment above. Without this, a manual test run of
-    # buildmobileios would also cut a real (pre)release and publish to PyPI.
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -206,12 +196,6 @@ jobs:
     # existing (only the final upload does, see publishmobileandroid below), and create_release's
     # pytest/UI-test/changelog steps take ~2.5 minutes that were previously serialized in front of
     # this ~15+ minute build for no reason.
-    #
-    # TEMPORARY - see the workflow_dispatch comment at the top of the file. Without this guard, a
-    # manual test run of buildmobileios would also rebuild the Android APK for no reason (harmless,
-    # just wasted runner time - buildmobileandroid has no `needs`, so it isn't skipped by
-    # create_release skipping the way publishmobileandroid downstream of it is).
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     defaults:
       run:
