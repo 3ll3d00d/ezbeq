@@ -14,8 +14,12 @@ defaults:
     shell: bash
     working-directory: ./mobile
 jobs:
+  detect-version-bump:
+    uses: ./.github/workflows/detect-version-bump.yaml
   test:
     name: Mobile tests
+    needs: detect-version-bump
+    if: needs.detect-version-bump.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
