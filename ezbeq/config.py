@@ -220,18 +220,48 @@ class Config:
         return CamillaDspClient(ip, port, listener)
 
     @property
-    def version(self):
+    def version(self) -> str:
+        """Resolve the running ezbeq version, trying three sources in order.
+
+        1. **VERSION file** at the package root (or ``sys._MEIPASS`` when running as
+           a PyInstaller bundle). Written by CI on tag builds and on branch/docker
+           builds (where it carries a PEP 440 local-version snapshot like
+           ``2.11.9+dev.5341b1d``). Authoritative when present.
+        2. **pyproject.toml** ``project.version``. Used in source-tree builds where
+           no VERSION file has been written.
+        3. **importlib.metadata** for the installed ``ezbeq`` package. Last resort
+           for a pip-installed package with no source tree and no VERSION file.
+
+        Returns the literal string ``'UNKNOWN'`` only if all three sources fail. A
+        malformed pyproject.toml logs a warning and falls through to step 3 rather
+        than raising.
+        """
         if getattr(sys, 'frozen', False):
-            # pyinstaller lets you copy files to arbitrary locations under the _MEIPASS root dir
-            root = os.path.join(sys._MEIPASS)
+            # PyInstaller copies bundled files to a temp dir at _MEIPASS.
+            root = sys._MEIPASS
         else:
             root = os.path.dirname(__file__)
         v_name = os.path.join(root, 'VERSION')
-        v = 'UNKNOWN'
         if os.path.exists(v_name):
-            with open(v_name) as f:
-                v = f.read()
-        return v
+            with open(v_name, encoding='utf-8-sig') as f:
+                return f.read().strip()
+        import tomllib
+        pyproject = os.path.join(os.path.dirname(root), 'pyproject.toml')
+        if os.path.exists(pyproject):
+            try:
+                with open(pyproject, 'rb') as f:
+                    data = tomllib.load(f)
+                v = data.get('project', {}).get('version')
+                if v:
+                    return v
+            except (OSError, tomllib.TOMLDecodeError) as e:
+                self.logger.warning('Failed to read pyproject.toml for version: %s', e)
+        from importlib.metadata import PackageNotFoundError
+        from importlib.metadata import version as _pkg_version
+        try:
+            return _pkg_version('ezbeq')
+        except PackageNotFoundError:
+            return 'UNKNOWN'
 
     @property
     def git_info(self) -> dict:
