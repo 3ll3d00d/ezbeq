@@ -44,8 +44,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      # cache-provider left at its 'enhanced' default (not 'basic') and cache-read-only kept
+      # explicit rather than relying on v6's new smart default - see create-app.yaml's "Set up
+      # Gradle" step for why both matter for this workflow's restore-key fallback design.
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: false
       - name: Set up Android SDK

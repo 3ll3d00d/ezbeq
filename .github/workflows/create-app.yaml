@@ -247,8 +247,25 @@ jobs:
       # https://github.com/actions/setup-java/issues/588), and this one manages cache entries more
       # precisely (per-dependency, with cleanup of stale/unused entries) than the coarser one built
       # into setup-java.
+      #
+      # v4 -> v6 notes (github.com/gradle/actions/releases):
+      # - Deliberately *not* setting `cache-provider: basic` (the open-source alternative added in
+      #   v6.1, avoiding the proprietary `gradle-actions-caching` component's terms). Basic has no
+      #   restore-key fallback ("cached content is fixed unless build files change") - the whole
+      #   point of warm-mobile-android-cache.yaml, and the job-id-matching comment there, is that
+      #   fallback tier. Switching providers would silently make that workflow a no-op. Enhanced
+      #   Caching is free for public repos (this one), so there's no cost tradeoff either way here.
+      # - `cache-read-only` is kept explicit rather than relying on v6's new smarter default
+      #   (false on the default branch, true elsewhere) - that default would make *this* job
+      #   read-only, since a release tag is never the default branch ref, which is the opposite of
+      #   what we want (tag builds are allowed to write, same as before the upgrade).
+      # - Don't set the experimental `gradle-home-cache-strict-match` - it disables exactly the
+      #   cross-job restore-key fallback warm-mobile-android-cache.yaml depends on.
+      # - v6.3 bumped the cache protocol to v2, invalidating every existing cache entry - the first
+      #   build after this upgrade lands (whichever runs first, this job or the warm-cache one) is a
+      #   one-time cold cache-populate, not a regression.
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: false
       - name: Set up Android SDK
