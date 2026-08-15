@@ -239,10 +239,12 @@ reinstall rather than update).
 
 Unlike Android, a device-installable iOS build can't be handed out as a single signed file from
 CI alone - Apple requires every install to be signed by an Apple ID on the installing machine, even
-on the free tier. See [`docs/ios-sideloading.md`](docs/ios-sideloading.md) for the full, no-Apple-
-fee-required workflow (Mac + Xcode, Windows + Sideloadly, or an EU-only on-device path), and
-[`docs/ios-ci-automation-plan.md`](docs/ios-ci-automation-plan.md) for the plan to add the CI job
-(`buildmobileios`) that produces the unsigned build artifacts those paths sign locally.
+on the free tier. See **[Installing the Mobile App on iOS/iPadOS](https://ezbeq.readthedocs.io/en/latest/mobile-ios-sideloading/)**
+(published docs; [`docs/ios-sideloading.md`](docs/ios-sideloading.md) is a stub pointing at the
+same page) for the full, no-Apple-fee-required workflow (Mac + Xcode, Windows + Sideloadly, or an
+EU-only on-device path), and [`docs/ios-ci-automation-plan.md`](docs/ios-ci-automation-plan.md) for
+the design record of the CI job (`buildmobileios`) that produces the unsigned build artifacts those
+paths sign locally.
 
 ## Apple TV
 

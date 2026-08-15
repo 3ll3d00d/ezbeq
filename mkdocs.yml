@@ -1,7 +1,9 @@
 site_name: ezbeq
 site_url: 'https://ezbeq.readthedocs.io'
 theme:
-  name: 'material'
+  # mkdocs-material was archived by its maintainer; mkdocs-materialx is the actively maintained
+  # community fork/successor (same feature set, drop-in - only the package and theme name change).
+  name: 'materialx'
   logo: 'img/icon.png'
   favicon: 'img/icon.ico'
 markdown_extensions:
@@ -15,5 +17,7 @@ nav:
   - Raspberry Pi Installation: rpi.md
   - Windows Installation: win.md
   - REAPER Integration: reaper.md
+  - Mobile App: mobile.md
+  - Installing the Mobile App on iOS/iPadOS: mobile-ios-sideloading.md
 extra_javascript:
   - 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-MML-AM_CHTML'

@@ -4,6 +4,12 @@ A simple web browser for [beqcatalogue](https://beqcatalogue.readthedocs.io/en/l
 with [minidsp-rs](https://github.com/mrene/minidsp-rs)
 for local remote control of a minidsp, HTP-1, StormAudio processor or other supported DSP.
 
+A companion [mobile app](#mobile-app) (iOS/iPadOS + Android) is also available, covering the main
+BEQ workflow against an existing ezbeq server.
+
+Full documentation, including this README, is also published at
+**[ezbeq.readthedocs.io](https://ezbeq.readthedocs.io)**.
+
 ## Table of Contents
 
 - [Setup](#setup)
@@ -16,6 +22,7 @@ for local remote control of a minidsp, HTP-1, StormAudio processor or other supp
     - [Using with a Minidsp](#using-with-a-minidsp)
     - [Using with a Monolith HTP-1](#using-with-a-monolith-htp-1)
   - [Upgrade](#upgrade)
+- [Mobile App](#mobile-app)
 - [Scripts (bin/)](#scripts-bin)
 - [How the app is structured](#how-the-app-is-structured)
 - [Running the app](#running-the-app)
@@ -117,6 +124,22 @@ See the configuration section below
     $ uv sync
 
 then restart the app
+
+## Mobile App
+
+A companion iOS/iPadOS + Android app is available covering the main BEQ workflow: browse/search
+the catalogue, inspect an entry, upload a filter to a device slot, activate/clear slots, and adjust
+gain — kept live over the same WebSocket the web UI uses. It's a companion, not a replacement: it
+talks to an existing ezbeq server over your LAN and requires one to be running first (see
+[Setup](#setup) above).
+
+- **Full install instructions** (Android APK, iOS/iPadOS sideloading without an Apple developer
+  account): [ezbeq.readthedocs.io — Mobile App](https://ezbeq.readthedocs.io/en/latest/mobile/)
+- **Downloads**: every tagged [GitHub Release](https://github.com/3ll3d00d/ezbeq/releases)
+  publishes `ezbeq-mobile-android.apk` (directly installable) and the unsigned iOS build artifacts
+  (`ezbeq-mobile-ios-unsigned.ipa` / `ezbeq-mobile-ios.xcarchive.zip`, see the iOS install guide
+  above for the required one-time signing step)
+- **Building from source / development**: [mobile/README.md](mobile/README.md)
 
 ## Scripts (bin/)
 

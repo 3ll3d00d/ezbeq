@@ -2,7 +2,8 @@
 
 ezbeq is a web interface which allows for simplistic selection of a movie / TV show BEQ filter to load into a MiniDSP 2x4HD, an HTP-1, a StormAudio processor, or JRiver Media Center solution. It was originally developed for use with MiniDSP 2x4HD hardware (in conjunction with a tool called minidsp-rs) without having to use the proprietary minidsp plugin, but has expanded to include several other solutions, as well as an API layer for futher extensibility.
 
-The web interface is usable from phones, tablets, laptops or desktops.
+The web interface is usable from phones, tablets, laptops or desktops. A dedicated
+[Mobile App](mobile.md) (iOS/iPadOS + Android) is also available covering the main BEQ workflow.
 
 ## Pre-Requirements
 
