@@ -404,8 +404,17 @@ jobs:
       - name: Discover the generated Xcode workspace and scheme
         id: xcode_project
         working-directory: ./mobile/ios
+        # set -o pipefail: without it, a failing `xcodebuild -list` on the left of the `| jq` pipe
+        # doesn't fail this step under `bash -e` - it silently produced an empty `scheme` the first
+        # time this ran (root cause was the `ls` bug below, but this masked it as a confusing
+        # "-scheme ''" failure two steps later instead of failing here with the real error).
         run: |
-          workspace=$(ls *.xcworkspace)
+          set -o pipefail
+          # `ls -d`, not `ls`: *.xcworkspace is a directory (bundle), and plain `ls` on a directory
+          # lists its *contents* rather than printing the directory's own name - confirmed by this
+          # exact bug shipping once already (workspace ended up as "contents.xcworkspacedata", a
+          # file inside the bundle, instead of "ezbeq.xcworkspace").
+          workspace=$(ls -d *.xcworkspace)
           scheme=$(xcodebuild -workspace "$workspace" -list -json | jq -r '.workspace.schemes | map(select(test("^Pods") | not)) | .[0]')
           echo "workspace=$workspace" >> "$GITHUB_OUTPUT"
           echo "scheme=$scheme" >> "$GITHUB_OUTPUT"
