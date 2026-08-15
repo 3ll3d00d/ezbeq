@@ -107,7 +107,19 @@ const MainView = ({
         pushData(setRecentEntries, () => ezbeq.getWhatsNew(), setErr);
     }, [meta]);
 
-    const newCount = computeNewCount(recentEntries, lastChecked);
+    const filters = useMemo(() => ({
+        selectedAuthors, selectedYears, selectedAudioTypes, selectedContentTypes,
+        selectedFreshness, selectedLanguages, debouncedTxtFilter
+    }), [selectedAuthors, selectedYears, selectedAudioTypes, selectedContentTypes, selectedFreshness, selectedLanguages, debouncedTxtFilter]);
+
+    // What's New should only surface entries that also pass the catalogue filters, so the two
+    // views never disagree about what's currently in scope
+    const filteredRecentEntries = useMemo(
+        () => recentEntries.filter(e => isMatch(e, filters)),
+        [recentEntries, filters]
+    );
+
+    const newCount = computeNewCount(filteredRecentEntries, lastChecked);
 
     // outdated version / unsupported python notices
     const [versionInfo, setVersionInfo] = useState({});
@@ -153,12 +165,8 @@ const MainView = ({
     }, [availableDevices, selectedDeviceName, setSelectedDeviceName]);
 
     useEffect(() => {
-        const filters = {
-            selectedAuthors, selectedYears, selectedAudioTypes, selectedContentTypes,
-            selectedFreshness, selectedLanguages, debouncedTxtFilter
-        };
         pushData(setFilteredEntries, () => entries.filter(e => isMatch(e, filters)), setErr);
-    }, [entries, selectedAudioTypes, selectedYears, selectedAuthors, selectedContentTypes, selectedFreshness, selectedLanguages, debouncedTxtFilter, setErr]);
+    }, [entries, filters, setErr]);
 
     useEffect(() => {
         const next = deriveTxtFilterFromActiveSlot(availableDevices[selectedDeviceName], userDriven, selectedSlotId);
@@ -213,7 +221,7 @@ const MainView = ({
                         showFilters={showFilters}
                         toggleShowFilters={toggleShowFilters}/>
             </Header>
-            {whatsNewOpen && <WhatsNew onClose={() => setWhatsNewOpen(false)} entries={recentEntries}
+            {whatsNewOpen && <WhatsNew onClose={() => setWhatsNewOpen(false)} entries={filteredRecentEntries}
                       lastChecked={lastChecked}
                       initialMode={newCount > 0 ? 'new' : 'recent'}
                       onSelect={id => setSelectedEntryId(id)}

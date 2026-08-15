@@ -677,7 +677,7 @@ class Catalogues:
         catalogue = self.latest
         if not catalogue:
             return []
-        fields = [ID, FORMATTED_TITLE, YEAR, AUTHOR, CONTENT_TYPE, AUDIO_TYPES, CREATED_AT, UPDATED_AT]
+        fields = [ID, FORMATTED_TITLE, YEAR, AUTHOR, CONTENT_TYPE, AUDIO_TYPES, LANGUAGE, CREATED_AT, UPDATED_AT]
         fields_str = ', '.join(fields)
         sql = (
             f"SELECT {fields_str} FROM catalogue_entry "

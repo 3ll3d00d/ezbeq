@@ -135,10 +135,22 @@ export default function MainScreen({ navigation }: Props) {
   // SELECT happens to return, which groups by author rather than title - see compareByTitle.
   const entryList = useMemo(() => Object.values(entries).sort(compareByTitle), [entries]);
 
-  const filteredEntries = useMemo(() => {
-    const filters: EntryFilters = { ...filterSelection, debouncedTxtFilter };
-    return entryList.filter((e) => isMatch(e, filters));
-  }, [entryList, filterSelection, debouncedTxtFilter]);
+  const filters = useMemo<EntryFilters>(
+    () => ({ ...filterSelection, debouncedTxtFilter }),
+    [filterSelection, debouncedTxtFilter]
+  );
+
+  const filteredEntries = useMemo(
+    () => entryList.filter((e) => isMatch(e, filters)),
+    [entryList, filters]
+  );
+
+  // What's New should only surface entries that also pass the catalogue filters, so the two
+  // views never disagree about what's currently in scope
+  const filteredRecentEntries = useMemo(
+    () => recentEntries.filter((e) => isMatch(e, filters)),
+    [recentEntries, filters]
+  );
 
   const selectedEntry = useMemo(
     () => (selectedEntryId !== null ? (entries[String(selectedEntryId)] ?? null) : null),
@@ -163,7 +175,7 @@ export default function MainScreen({ navigation }: Props) {
     api?.getVersion().then(setVersionInfo).catch((e) => setError(e));
   }, [api, setError]);
 
-  const newCount = computeNewCount(recentEntries, lastChecked);
+  const newCount = computeNewCount(filteredRecentEntries, lastChecked);
   const updateAvailable = Boolean(
     versionInfo.updateAvailable && versionInfo.latestVersion && versionInfo.latestVersion !== dismissedUpdateVersion
   );
@@ -409,7 +421,7 @@ export default function MainScreen({ navigation }: Props) {
       <WhatsNewSheet
         visible={whatsNewOpen}
         onClose={() => setWhatsNewOpen(false)}
-        entries={recentEntries}
+        entries={filteredRecentEntries}
         lastChecked={lastChecked}
         initialMode={newCount > 0 ? 'new' : 'recent'}
         onSelect={(id) => {
