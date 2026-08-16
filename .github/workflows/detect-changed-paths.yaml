@@ -24,20 +24,26 @@ jobs:
     name: Detect changed paths
     runs-on: ubuntu-latest
     outputs:
-      python: ${{ steps.filter.outputs.python }}
-      ui: ${{ steps.filter.outputs.ui }}
-      mobile: ${{ steps.filter.outputs.mobile }}
+      # workflow_dispatch is a manual "run it for real" request - the whole point would be defeated
+      # by silently skipping everything if paths-filter's fallback diff (no natural before/after ref
+      # for this event type, unlike push/pull_request) happened to yield zero changes. Forced true
+      # unconditionally rather than relying on paths-filter's undocumented workflow_dispatch
+      # behavior - the filter step below doesn't even run for this event, see its `if:`.
+      python: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.python }}
+      ui: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.ui }}
+      mobile: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.mobile }}
     steps:
-      # pull_request events diff via the GitHub API with no checkout needed; push events need
-      # local git history to diff against github.event.before - fetch-depth: 0 (full history)
-      # rather than a shallow depth since a push can carry an arbitrary number of commits (e.g.
-      # this very PR pushed several at once).
-      - if: github.event_name != 'pull_request'
+      # Only push events need local git history to diff against - pull_request diffs via the
+      # GitHub API with no checkout, and workflow_dispatch skips the filter step entirely (see
+      # above). fetch-depth: 0 (full history) rather than a shallow depth since a push can carry an
+      # arbitrary number of commits (e.g. this very PR pushed several at once).
+      - if: github.event_name == 'push'
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: dorny/paths-filter@v3
+      - if: github.event_name != 'workflow_dispatch'
         id: filter
+        uses: dorny/paths-filter@v3
         with:
           filters: |
             python:
@@ -46,6 +52,7 @@ jobs:
               - 'bin/smoke-test'
               - 'pyproject.toml'
               - 'uv.lock'
+              - '.coveragerc'
               - 'codecov.yml'
               - '.github/workflows/test.yaml'
               - '.github/workflows/detect-version-bump.yaml'

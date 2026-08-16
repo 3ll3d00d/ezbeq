@@ -10,7 +10,6 @@ on:
       - README.md
       - docs/**
       - docker/README.md
-      - mobile/**
   workflow_dispatch:
 defaults:
   run:
@@ -19,8 +18,30 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 jobs:
+  # paths-ignore above applies to the whole `push` trigger, tags included - a `mobile/**` entry
+  # there would silently skip publishing for a mobile-only release tag too (create-app.yaml builds
+  # the Android app on the same tag scheme). This job-level check instead only skips branch pushes
+  # that touch nothing outside mobile/ - tag pushes and workflow_dispatch always proceed regardless.
+  check:
+    name: Check for image-relevant changes
+    runs-on: ubuntu-latest
+    outputs:
+      relevant: ${{ steps.filter.outputs.relevant }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            relevant:
+              - '**'
+              - '!mobile/**'
   build-and-push:
     name: Build and push Docker image
+    needs: check
+    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/') || needs.check.outputs.relevant == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
