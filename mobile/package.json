@@ -33,6 +33,7 @@
   "devDependencies": {
     "@expo/config-plugins": "~57.0.0",
     "@react-native-tvos/config-tv": "^0.1.6",
+    "@react-native/jest-preset": "0.86.2",
     "@testing-library/react-native": "^14.0.1",
     "@types/jest": "29.5.14",
     "@types/lodash": "^4.17.25",
@@ -43,6 +44,7 @@
     "jest-websocket-mock": "^2.5.0",
     "mock-socket": "^9.3.1",
     "react-test-renderer": "^19.2.3",
+    "test-renderer": "^1.0.0",
     "typescript": "~6.0.3"
   },
   "scripts": {
