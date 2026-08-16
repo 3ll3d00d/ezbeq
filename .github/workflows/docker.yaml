@@ -41,8 +41,12 @@ jobs:
     # legitimately skipped, output empty either way) runs the build rather than silently not
     # publishing a possibly-real release - this isn't a required branch-protection check, so there's
     # no equivalent "skip reports as a passing check" concern to fail closed against.
+    # !cancelled() is not covered by that same fail-open reasoning: needs.<job>.result == 'cancelled'
+    # also satisfies `!= 'success'`, so without this, someone manually cancelling an in-flight run
+    # (e.g. right after pushing a bad commit to main) wouldn't actually stop the image from
+    # publishing - always() would still start this job despite the cancellation.
     if: >-
-      always() &&
+      (always() && !cancelled()) &&
       (github.event_name != 'push' ||
        startsWith(github.ref, 'refs/tags/') ||
        needs.detect-changed-paths.result != 'success' ||
