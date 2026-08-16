@@ -77,9 +77,12 @@ GitHub Actions workflows:
 - `test.yaml` ("run tests") — Pytest across the Python matrix; job `build` runs the suite, uploads
   coverage (flag `python`) to Codecov, and a downstream `Required checks` job collapses the matrix
   into a single required status.
-- `test-ui.yaml` ("run ui tests") — Vitest (job `UI tests`), uploads coverage (flag `ui`) to Codecov.
-- `test-mobile.yaml` ("run mobile tests") — Jest + typecheck (job `Mobile tests`), uploads coverage
-  (flag `mobile`) to Codecov.
+- `test-ui.yaml` ("run ui tests") — Vitest, uploads coverage (flag `ui`) to Codecov. Job `test-run`
+  does the actual work; the required job `UI tests` is a thin wrapper (same reasoning as `test.yaml`'s
+  `Required checks`) that also fails loudly rather than silently reporting "skipped as passing" if
+  `detect-version-bump`/`detect-changed-paths` itself crashed.
+- `test-mobile.yaml` ("run mobile tests") — Jest + typecheck, uploads coverage (flag `mobile`) to
+  Codecov. Same `test-run` / `Mobile tests` wrapper split as `test-ui.yaml`.
 - `create-app.yaml` — Builds and publishes the application (PyPI, PyInstaller, mobile). Also dispatches to the separate `3ll3d00d/ezbeq-docker` repo on every PyPI release, which publishes `ghcr.io/3ll3d00d/ezbeq-docker`.
 - `docker.yaml` — Builds `docker/Dockerfile` from local source (no PyPI dependency) and publishes `ghcr.io/3ll3d00d/ezbeq` on push to `main`/`dev` and on version tags. Independent of `create-app.yaml` and of the legacy `ezbeq-docker` repo/image — both keep publishing in parallel.
 - `claude.yml` — AI assistant integration (triggered by `@claude` comments)

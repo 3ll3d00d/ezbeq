@@ -28,11 +28,12 @@ jobs:
       ui: ${{ steps.filter.outputs.ui }}
       mobile: ${{ steps.filter.outputs.mobile }}
     steps:
-      # pull_request events can diff via the GitHub API with no checkout, but push events need
+      # pull_request events diff via the GitHub API with no checkout needed; push events need
       # local git history to diff against github.event.before - fetch-depth: 0 (full history)
       # rather than a shallow depth since a push can carry an arbitrary number of commits (e.g.
       # this very PR pushed several at once).
-      - uses: actions/checkout@v7
+      - if: github.event_name != 'pull_request'
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: dorny/paths-filter@v3
@@ -41,19 +42,23 @@ jobs:
           filters: |
             python:
               - 'ezbeq/**'
+              - 'tests/**'
               - 'bin/smoke-test'
               - 'pyproject.toml'
               - 'uv.lock'
               - 'codecov.yml'
               - '.github/workflows/test.yaml'
+              - '.github/workflows/detect-version-bump.yaml'
               - '.github/workflows/detect-changed-paths.yaml'
             ui:
               - 'ui/**'
               - 'codecov.yml'
               - '.github/workflows/test-ui.yaml'
+              - '.github/workflows/detect-version-bump.yaml'
               - '.github/workflows/detect-changed-paths.yaml'
             mobile:
               - 'mobile/**'
               - 'codecov.yml'
               - '.github/workflows/test-mobile.yaml'
+              - '.github/workflows/detect-version-bump.yaml'
               - '.github/workflows/detect-changed-paths.yaml'

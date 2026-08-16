@@ -18,8 +18,8 @@ jobs:
     uses: ./.github/workflows/detect-version-bump.yaml
   detect-changed-paths:
     uses: ./.github/workflows/detect-changed-paths.yaml
-  test:
-    name: Mobile tests
+  test-run:
+    name: Mobile test run
     needs: [detect-version-bump, detect-changed-paths]
     if: needs.detect-version-bump.outputs.skip != 'true' && needs.detect-changed-paths.outputs.mobile == 'true'
     runs-on: ubuntu-latest
@@ -44,3 +44,36 @@ jobs:
           flags: mobile
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true
+  # This job, not test-run, is the one named "Mobile tests" and required by branch protection -
+  # see test.yaml's "Required checks" job for why. If test-run's `if:` were the only gate, a
+  # crashed detect-version-bump/detect-changed-paths (empty outputs, not just false ones) would
+  # make GitHub auto-skip test-run via its default "needs jobs must succeed" behavior, and a
+  # skipped required check reports as passing - silently masking a real CI infra failure as green.
+  test:
+    name: Mobile tests
+    runs-on: ubuntu-latest
+    needs: [detect-version-bump, detect-changed-paths, test-run]
+    if: always()
+    steps:
+      - name: Check test result
+        run: |
+          if [[ "${{ needs.detect-version-bump.result }}" != "success" ]]; then
+            echo "detect-version-bump job did not succeed: ${{ needs.detect-version-bump.result }}"
+            exit 1
+          fi
+          if [[ "${{ needs.detect-changed-paths.result }}" != "success" ]]; then
+            echo "detect-changed-paths job did not succeed: ${{ needs.detect-changed-paths.result }}"
+            exit 1
+          fi
+          if [[ "${{ needs.detect-version-bump.outputs.skip }}" == "true" ]]; then
+            echo "Skipping: version-only bump commit"
+            exit 0
+          fi
+          if [[ "${{ needs.detect-changed-paths.outputs.mobile }}" != "true" ]]; then
+            echo "Skipping: no mobile-relevant changes"
+            exit 0
+          fi
+          if [[ "${{ needs.test-run.result }}" != "success" ]]; then
+            echo "test-run job did not succeed: ${{ needs.test-run.result }}"
+            exit 1
+          fi

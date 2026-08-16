@@ -69,7 +69,18 @@ jobs:
     if: always()
     steps:
       - name: Check build result
+        # Check the gating jobs' own result before trusting their outputs - if either crashed
+        # outright (e.g. a dorny/paths-filter hiccup), its output is empty, which "!= 'true'"
+        # would otherwise misreport as a legitimate skip instead of the CI infra failure it is.
         run: |
+          if [[ "${{ needs.detect-version-bump.result }}" != "success" ]]; then
+            echo "detect-version-bump job did not succeed: ${{ needs.detect-version-bump.result }}"
+            exit 1
+          fi
+          if [[ "${{ needs.detect-changed-paths.result }}" != "success" ]]; then
+            echo "detect-changed-paths job did not succeed: ${{ needs.detect-changed-paths.result }}"
+            exit 1
+          fi
           if [[ "${{ needs.detect-version-bump.outputs.skip }}" == "true" ]]; then
             echo "Skipping: version-only bump commit"
             exit 0
