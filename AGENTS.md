@@ -138,3 +138,13 @@ before pushing is what keeps that loop fast.
 5. **After opening/updating a PR, confirm its checks actually went green** — `gh pr checks
    <number>` (or `gh run list --branch <branch> --limit 5`). Don't rely on the merge button being
    blocked as your only signal; check what actually failed if something's red.
+6. **A green `claude-review` check means the review *ran* — it says nothing about what it found.**
+   `claude-code-review.yml` posts its findings as inline comments on the diff
+   (`mcp__github_inline_comment__create_inline_comment`), which land under the PR's *review
+   comments* endpoint — `gh api repos/<owner>/<repo>/pulls/<number>/comments` — not
+   `gh pr view --json comments` (issue-level comments only) and not `gh api
+   repos/<owner>/<repo>/pulls/<number>/reviews` (empty here — this action comments directly rather
+   than submitting a formal approve/request-changes review). No required-review count is configured
+   (see above), so GitHub's merge button won't block on these either. Concretely: after `claude-review`
+   finishes, run the `pulls/<number>/comments` query and read every finding before telling the user
+   the PR is ready — checks-green and comment-free are two different, both-necessary conditions.
