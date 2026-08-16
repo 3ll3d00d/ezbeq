@@ -55,6 +55,7 @@
     "typecheck": "tsc --noEmit"
   },
   "private": true,
+  "//overrides": "The @react-native/virtualized-lists entry below hardcodes the react-native-tvos version instead of referencing the react-native override above it - npm's $ref substitution only supports a bare '$react-native' value, not embedding it inside a larger alias string like 'npm:pkg@$react-native'. Bump both together when updating react-native-tvos.",
   "overrides": {
     "react-native": "npm:react-native-tvos@0.86.2-0",
     "@react-native-tvos/virtualized-lists": {
