@@ -10,6 +10,7 @@ on:
       - README.md
       - docs/**
       - docker/README.md
+      - mobile/**
   workflow_dispatch:
 defaults:
   run:
@@ -66,7 +67,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=edge,enable={{is_default_branch}}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
             type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
       - name: Build and push Docker image
