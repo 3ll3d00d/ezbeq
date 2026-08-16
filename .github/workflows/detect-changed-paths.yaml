@@ -28,9 +28,13 @@ jobs:
       ui: ${{ steps.filter.outputs.ui }}
       mobile: ${{ steps.filter.outputs.mobile }}
     steps:
-      # dorny/paths-filter diffs against github.event.pull_request.base.sha on pull_request events
-      # and github.event.before on push events - no checkout needed, it reads the diff via the API/
-      # git fetch itself.
+      # pull_request events can diff via the GitHub API with no checkout, but push events need
+      # local git history to diff against github.event.before - fetch-depth: 0 (full history)
+      # rather than a shallow depth since a push can carry an arbitrary number of commits (e.g.
+      # this very PR pushed several at once).
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: dorny/paths-filter@v3
         id: filter
         with:
