@@ -19,10 +19,21 @@ on:
       mobile:
         description: "'true' if this push/PR touches paths that affect the mobile test suite"
         value: ${{ jobs.check.outputs.mobile }}
+      docker:
+        description: "'true' if this push touches paths that affect the docker image (anything outside mobile/, which the image never contains)"
+        value: ${{ jobs.check.outputs.docker }}
 jobs:
   check:
     name: Detect changed paths
     runs-on: ubuntu-latest
+    # Least-privilege, explicit rather than relying on repo/org default token permissions (this
+    # repo's default is currently the broad "read and write" setting, which grants far more than
+    # this job needs). contents: read is all the checkout step above uses; pull-requests: read is
+    # what dorny/paths-filter needs for its no-checkout, GitHub-API-based diff on pull_request
+    # events. A caller can only narrow this further, never widen it.
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       # workflow_dispatch is a manual "run it for real" request - the whole point would be defeated
       # by silently skipping everything if paths-filter's fallback diff (no natural before/after ref
@@ -32,6 +43,7 @@ jobs:
       python: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.python }}
       ui: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.ui }}
       mobile: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.mobile }}
+      docker: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.docker }}
     steps:
       # Only push events need local git history to diff against - pull_request diffs via the
       # GitHub API with no checkout, and workflow_dispatch skips the filter step entirely (see
@@ -69,3 +81,12 @@ jobs:
               - '.github/workflows/test-mobile.yaml'
               - '.github/workflows/detect-version-bump.yaml'
               - '.github/workflows/detect-changed-paths.yaml'
+            # '**' minus '!mobile/**' (gitignore-style: later negation wins) rather than an
+            # explicit allow-list - the docker image build (docker/Dockerfile's production target)
+            # only ever excludes mobile/, so "anything outside mobile/" is the actual condition
+            # that matters, already covers docker.yaml/this file with no extra self-reference
+            # entries needed, and doesn't need updating every time an unrelated new top-level path
+            # is added to the repo.
+            docker:
+              - '**'
+              - '!mobile/**'

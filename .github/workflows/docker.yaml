@@ -22,26 +22,31 @@ jobs:
   # there would silently skip publishing for a mobile-only release tag too (create-app.yaml builds
   # the Android app on the same tag scheme). This job-level check instead only skips branch pushes
   # that touch nothing outside mobile/ - tag pushes and workflow_dispatch always proceed regardless.
-  check:
-    name: Check for image-relevant changes
-    runs-on: ubuntu-latest
-    outputs:
-      relevant: ${{ steps.filter.outputs.relevant }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            relevant:
-              - '**'
-              - '!mobile/**'
+  # Reuses test.yaml/test-ui.yaml/test-mobile.yaml's shared detect-changed-paths.yaml (its `docker`
+  # output) rather than a second, independent dorny/paths-filter config to keep in sync. Only runs
+  # for the one case its output is actually consumed (a branch push) - a full-history checkout plus
+  # paths-filter for every tag push/workflow_dispatch, whose result build-and-push ignores anyway,
+  # would be pure waste and an extra unnecessary point of failure on the release path.
+  detect-changed-paths:
+    if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+    uses: ./.github/workflows/detect-changed-paths.yaml
   build-and-push:
     name: Build and push Docker image
-    needs: check
-    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/') || needs.check.outputs.relevant == 'true'
+    needs: detect-changed-paths
+    # always() because this `if:` would otherwise implicitly AND with success() against `needs:` -
+    # without it, a failed *or* deliberately-skipped detect-changed-paths (the latter is normal for
+    # every tag push/workflow_dispatch, see its own `if:` above) would silently skip this job even
+    # for a tag push, contradicting "tag pushes always proceed" below. `result != 'success'` (not
+    # `== 'true'`) is deliberately fail-open: an inconclusive detect-changed-paths (crashed OR
+    # legitimately skipped, output empty either way) runs the build rather than silently not
+    # publishing a possibly-real release - this isn't a required branch-protection check, so there's
+    # no equivalent "skip reports as a passing check" concern to fail closed against.
+    if: >-
+      always() &&
+      (github.event_name != 'push' ||
+       startsWith(github.ref, 'refs/tags/') ||
+       needs.detect-changed-paths.result != 'success' ||
+       needs.detect-changed-paths.outputs.docker == 'true')
     runs-on: ubuntu-latest
     permissions:
       contents: read
