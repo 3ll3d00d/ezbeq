@@ -123,6 +123,22 @@ would deadlock every merge); the PR requirement exists to guarantee checks have 
 the merge commit, not to gate on a second pair of eyes. See "Before pushing" below — passing CI is
 still the real target even though it's now enforced mechanically.
 
+**There is a second, independent merge gate that doesn't show up in `gh pr checks` at all:**
+`required_conversation_resolution` is also enabled on `main`'s branch protection (check with
+`gh api repos/<owner>/<repo>/branches/main/protection -q '.required_conversation_resolution'`) —
+every PR review-comment thread (inline diff comments, e.g. from `claude-code-review.yml`) must be
+marked resolved before merge, completely independent of whether checks are green. `gh pr view
+<number> --json mergeable,mergeStateStatus` is the actual source of truth for "can this merge right
+now" — `mergeStateStatus: "BLOCKED"` with `mergeable: "MERGEABLE"` and all checks green means this,
+not a review or a conflict. List and resolve threads via the GraphQL API (REST has no "resolve"
+mutation): query `pullRequest(number: N) { reviewThreads(first: 50) { nodes { id isResolved path
+line comments(first: 1) { nodes { body } } } } }`, then for each unresolved one,
+`addPullRequestReviewThreadReply` (reply with what changed, or why you're declining) followed by
+`resolveReviewThread`, both keyed on the thread's `id`. Expect multiple rounds: `claude-review`
+re-runs on every push, including a push that only resolves earlier findings, and often posts new
+findings on the new diff — recheck `mergeStateStatus` after each round rather than assuming one pass
+covers it.
+
 ## Before pushing
 
 `main` now rejects a PR whose checks haven't gone green (see above), but a failing local run still
@@ -151,17 +167,27 @@ before pushing is what keeps that loop fast.
    Codecov's coverage-regression checks run, and merge once they're green.
 5. **After opening/updating a PR, confirm its checks actually went green** — `gh pr checks
    <number>` (or `gh run list --branch <branch> --limit 5`). Don't rely on the merge button being
-   blocked as your only signal; check what actually failed if something's red.
+   blocked as your only signal; check what actually failed if something's red. But green checks
+   alone don't mean the PR is mergeable — see the `required_conversation_resolution` note above and
+   item 7 below; confirm with `gh pr view <number> --json mergeable,mergeStateStatus` too.
 6. **A green `claude-review` check means the review *ran* — it says nothing about what it found.**
    `claude-code-review.yml` posts its findings as inline comments on the diff
    (`mcp__github_inline_comment__create_inline_comment`), which land under the PR's *review
    comments* endpoint — `gh api repos/<owner>/<repo>/pulls/<number>/comments` — not
    `gh pr view --json comments` (issue-level comments only) and not `gh api
    repos/<owner>/<repo>/pulls/<number>/reviews` (empty here — this action comments directly rather
-   than submitting a formal approve/request-changes review). No required-review count is configured
-   (see above), so GitHub's merge button won't block on these either — nothing mechanical forces you
-   to look. Concretely: after `claude-review` finishes (it shows up as one of the checks in step 5
-   above), run the `pulls/<number>/comments` query and, for every finding, either fix it and push
-   an update or decide it's a non-issue and say so — before telling the user the PR is ready. Checks
-   being green and every review comment having been read-and-triaged are two separate, both-required
-   conditions; the second one has no green checkmark of its own, so it's on you to verify it.
+   than submitting a formal approve/request-changes review). No required-review *count* is
+   configured (see above), but that's not the same as "nothing blocks on these" — see item 7.
+   Concretely: after `claude-review` finishes (it shows up as one of the checks in step 5 above),
+   run the `pulls/<number>/comments` query and, for every finding, either fix it and push an update
+   or decide it's a non-issue and say so — before telling the user the PR is ready.
+7. **Every review-comment thread must be resolved before the PR can merge, mechanically — this is
+   `required_conversation_resolution` on `main`'s branch protection (see above), and it is easy to
+   miss because it never shows up in `gh pr checks`.** A PR can have every check green and still sit
+   at `mergeStateStatus: "BLOCKED"` for this reason alone. Resolving is a GraphQL-only operation
+   (see above for the exact query/mutations) — reply to each thread explaining what changed (or why
+   you're declining the suggestion) and then resolve it; don't resolve silently, since the reply is
+   what makes a "declined" thread distinguishable from one nobody looked at. `claude-review` re-runs
+   on every push and commonly posts new findings on top of ones you just fixed, including on a push
+   whose only content was resolving/replying to the previous round — budget for more than one round
+   before a PR that keeps changing actually goes green-and-resolved together.
