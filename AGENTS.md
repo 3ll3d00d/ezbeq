@@ -128,7 +128,9 @@ above it, so the wrapper still resolves immediately.
 `enforce_admins` on): a pull request is required to merge into `main` — direct pushes are rejected,
 full stop, no bypass — and it can't merge until `Required checks` (Python), `UI tests`, and `Mobile
 tests` are all green — each of which now embeds its own subtree's coverage-regression gate (see
-above), so no separate Codecov contexts need to be required. No required approving review
+above), so no separate Codecov contexts need to be required **once branch protection's required
+status checks list is updated to drop the three raw `codecov/project/*` entries — a manual repo-
+admin step, not yet done as of this change**. No required approving review
 count is set (solo-maintainer repo — GitHub won't let you approve your own PR, so requiring a review
 would deadlock every merge); the PR requirement exists to guarantee checks have actually run against
 the merge commit, not to gate on a second pair of eyes. See "Before pushing" below — passing CI is
