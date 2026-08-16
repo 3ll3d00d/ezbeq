@@ -53,7 +53,11 @@ jobs:
     needs: [detect-version-bump, detect-changed-paths, test-run]
     if: always()
     steps:
+      # Overrides the workflow-level `defaults.run.working-directory: ./ui` - this job never checks
+      # out the repo (it only inspects other jobs' needs context), so that directory doesn't exist
+      # on the runner and bash fails to even start without this override.
       - name: Check test result
+        working-directory: .
         run: |
           if [[ "${{ needs.detect-version-bump.result }}" != "success" ]]; then
             echo "detect-version-bump job did not succeed: ${{ needs.detect-version-bump.result }}"
