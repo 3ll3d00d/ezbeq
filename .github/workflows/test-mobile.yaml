@@ -16,10 +16,12 @@ defaults:
 jobs:
   detect-version-bump:
     uses: ./.github/workflows/detect-version-bump.yaml
+  detect-changed-paths:
+    uses: ./.github/workflows/detect-changed-paths.yaml
   test:
     name: Mobile tests
-    needs: detect-version-bump
-    if: needs.detect-version-bump.outputs.skip != 'true'
+    needs: [detect-version-bump, detect-changed-paths]
+    if: needs.detect-version-bump.outputs.skip != 'true' && needs.detect-changed-paths.outputs.mobile == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

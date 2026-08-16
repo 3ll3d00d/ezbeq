@@ -1,0 +1,55 @@
+name: Detect changed paths
+# Companion to detect-version-bump.yaml: test.yaml/test-ui.yaml/test-mobile.yaml lost their own
+# path filters in PR #113 specifically because a path-filtered *required* status check can get
+# stuck permanently pending on a PR that never touches that path (GitHub has no way to distinguish
+# "legitimately skipped" from "never ran"). This workflow keeps the same fix - the workflow trigger
+# itself always fires - but reintroduces the actual point of path filtering (skipping unrelated
+# work) at the *job* level instead, via each caller's own `if:`. A job whose `if:` evaluates false
+# reports as "skipped", which GitHub branch protection treats as a passing required check - the
+# same mechanism the version-bump skip already relies on.
+on:
+  workflow_call:
+    outputs:
+      python:
+        description: "'true' if this push/PR touches paths that affect the Python test suite"
+        value: ${{ jobs.check.outputs.python }}
+      ui:
+        description: "'true' if this push/PR touches paths that affect the UI test suite"
+        value: ${{ jobs.check.outputs.ui }}
+      mobile:
+        description: "'true' if this push/PR touches paths that affect the mobile test suite"
+        value: ${{ jobs.check.outputs.mobile }}
+jobs:
+  check:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+      ui: ${{ steps.filter.outputs.ui }}
+      mobile: ${{ steps.filter.outputs.mobile }}
+    steps:
+      # dorny/paths-filter diffs against github.event.pull_request.base.sha on pull_request events
+      # and github.event.before on push events - no checkout needed, it reads the diff via the API/
+      # git fetch itself.
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            python:
+              - 'ezbeq/**'
+              - 'bin/smoke-test'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'codecov.yml'
+              - '.github/workflows/test.yaml'
+              - '.github/workflows/detect-changed-paths.yaml'
+            ui:
+              - 'ui/**'
+              - 'codecov.yml'
+              - '.github/workflows/test-ui.yaml'
+              - '.github/workflows/detect-changed-paths.yaml'
+            mobile:
+              - 'mobile/**'
+              - 'codecov.yml'
+              - '.github/workflows/test-mobile.yaml'
+              - '.github/workflows/detect-changed-paths.yaml'
