@@ -169,19 +169,47 @@ before pushing is what keeps that loop fast.
    <number>` (or `gh run list --branch <branch> --limit 5`). Don't rely on the merge button being
    blocked as your only signal; check what actually failed if something's red. But green checks
    alone don't mean the PR is mergeable — see the `required_conversation_resolution` note above and
-   item 7 below; confirm with `gh pr view <number> --json mergeable,mergeStateStatus` too.
-6. **A green `claude-review` check means the review *ran* — it says nothing about what it found.**
+   item 8 below; confirm with `gh pr view <number> --json mergeable,mergeStateStatus` too.
+6. **Wait for checks with a coarse heartbeat poll, bounded by a timeout — not a per-check
+   streaming watch, and not an unbounded blocking one either.** This repo's full check suite
+   (Python build matrix + UI tests + Mobile tests + Required checks + Codecov) historically
+   resolves in ~3 minutes (build matrix jobs run 1–2.5 min, UI/Mobile ~1 min each, everything else
+   is seconds). Use that as the estimate and poll at an interval coarse enough that a normal run
+   produces only a handful of updates, with a hard timeout so a hung run doesn't wait silently
+   forever:
+   ```bash
+   deadline=$((SECONDS + 900))  # ~3x the historical estimate
+   while (( SECONDS < deadline )); do
+     s=$(gh pr checks <number> --json bucket,name 2>/dev/null) || { sleep 60; continue; }
+     pending=$(jq -r '[.[] | select(.bucket=="pending")] | length' <<<"$s")
+     echo "t+${SECONDS}s: ${pending} check(s) still pending"
+     [[ "$pending" == 0 ]] && break
+     sleep 60
+   done
+   gh pr checks <number>
+   ```
+   Two ways to run this, depending on whether you want progress updates along the way:
+   - **`Bash` with `run_in_background: true`** — one notification when the loop exits (green,
+     red, or timed out). Cheapest option; use this by default.
+   - **`Monitor`** — one notification per `echo` line, i.e. roughly one every 60s until it
+     resolves. Use this only when the user is actively waiting on progress, and keep the poll
+     interval coarse (as above) so it doesn't turn a 3-minute wait into a dozen-plus notifications
+     the way polling every 15s and diffing individual check-line transitions did previously.
+   Either way, the timeout matters: an open-ended `until ...; do sleep N; done` with no deadline
+   can leave you (and the user) with zero signal if a check hangs or never reports — the loop above
+   always terminates and tells you which case it hit.
+7. **A green `claude-review` check means the review *ran* — it says nothing about what it found.**
    `claude-code-review.yml` posts its findings as inline comments on the diff
    (`mcp__github_inline_comment__create_inline_comment`), which land under the PR's *review
    comments* endpoint — `gh api repos/<owner>/<repo>/pulls/<number>/comments` — not
    `gh pr view --json comments` (issue-level comments only) and not `gh api
    repos/<owner>/<repo>/pulls/<number>/reviews` (empty here — this action comments directly rather
    than submitting a formal approve/request-changes review). No required-review *count* is
-   configured (see above), but that's not the same as "nothing blocks on these" — see item 7.
+   configured (see above), but that's not the same as "nothing blocks on these" — see item 8.
    Concretely: after `claude-review` finishes (it shows up as one of the checks in step 5 above),
    run the `pulls/<number>/comments` query and, for every finding, either fix it and push an update
    or decide it's a non-issue and say so — before telling the user the PR is ready.
-7. **Every review-comment thread must be resolved before the PR can merge, mechanically — this is
+8. **Every review-comment thread must be resolved before the PR can merge, mechanically — this is
    `required_conversation_resolution` on `main`'s branch protection (see above), and it is easy to
    miss because it never shows up in `gh pr checks`.** A PR can have every check green and still sit
    at `mergeStateStatus: "BLOCKED"` for this reason alone. Resolving is a GraphQL-only operation
