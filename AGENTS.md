@@ -110,14 +110,27 @@ gating job would turn a CI infrastructure failure into a false green rather than
 Coverage regressions are gated by `codecov.yml`: each sub-project uploads under its own flag
 (`python`, `ui`, `mobile`) and Codecov's per-flag `project` status fails a commit/PR if that flag's
 overall coverage drops versus its merge base (`target: auto`, `threshold: 0%` — zero tolerance,
-`patch` coverage is intentionally not gated). `carryforward: true` on each flag means a commit that
-genuinely doesn't touch a subtree reuses that flag's last known coverage rather than showing as
-missing.
+`patch` coverage is intentionally not gated). `carryforward: true` on each flag exists so Codecov's
+own coverage *trend* for that flag doesn't show a gap on a commit that didn't touch its subtree —
+but it is **not** a substitute for a CI trigger: Codecov never posts a `codecov/project/<flag>`
+status for a commit at all unless something uploads to it (or a Checks-API webhook it's watching
+fires), which never happens for a commit that legitimately skipped that flag's `build`/`test-run`
+job. The three `codecov/project/*` contexts are therefore **not** required directly in branch
+protection (a PR touching none of `ezbeq/`, `ui/src/`, `mobile/src/` would otherwise sit
+`mergeStateStatus: BLOCKED` forever, no status ever arriving to satisfy them — this happened for
+real on PR #118). Instead, `Required checks`/`UI tests`/`Mobile tests` poll the matching Codecov
+status themselves, but only when `detect-changed-paths` says the relevant subtree changed —
+coarse heartbeat poll bounded by a 900s timeout, same shape as the "waiting for PR checks" guidance
+below. When the subtree didn't change, that step is skipped just like the `build`/`test-run` check
+above it, so the wrapper still resolves immediately.
 
 **`main` is a real gate, enforced for everyone including repo admins** (branch protection has
 `enforce_admins` on): a pull request is required to merge into `main` — direct pushes are rejected,
-full stop, no bypass — and it can't merge until `Required checks` (Python), `UI tests`, `Mobile
-tests`, and the three Codecov project-coverage checks are all green. No required approving review
+full stop, no bypass — and it can't merge until `Required checks` (Python), `UI tests`, and `Mobile
+tests` are all green — each of which now embeds its own subtree's coverage-regression gate (see
+above), so no separate Codecov contexts need to be required **once branch protection's required
+status checks list is updated to drop the three raw `codecov/project/*` entries — a manual repo-
+admin step, not yet done as of this change**. No required approving review
 count is set (solo-maintainer repo — GitHub won't let you approve your own PR, so requiring a review
 would deadlock every merge); the PR requirement exists to guarantee checks have actually run against
 the merge commit, not to gate on a second pair of eyes. See "Before pushing" below — passing CI is

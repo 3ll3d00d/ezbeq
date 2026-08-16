@@ -54,6 +54,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [detect-version-bump, detect-changed-paths, test-run]
     if: always()
+    # statuses:read lets the coverage-gate step below poll Codecov's commit status via the API.
+    permissions:
+      statuses: read
     steps:
       # Overrides the workflow-level `defaults.run.working-directory: ./mobile` - this job never
       # checks out the repo (it only inspects other jobs' needs context), so that directory doesn't
@@ -79,5 +82,31 @@ jobs:
           fi
           if [[ "${{ needs.test-run.result }}" != "success" ]]; then
             echo "test-run job did not succeed: ${{ needs.test-run.result }}"
+            exit 1
+          fi
+      - name: Wait for Codecov coverage-regression result
+        # See test.yaml's "Required checks" job for why this lives here instead of requiring the
+        # raw `codecov/project/mobile` status context directly in branch protection.
+        if: needs.detect-version-bump.outputs.skip != 'true' && needs.detect-changed-paths.outputs.mobile == 'true'
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha="${{ github.event.pull_request.head.sha || github.sha }}"
+          context="codecov/project/mobile"
+          deadline=$((SECONDS + 900))
+          state=""
+          while (( SECONDS < deadline )); do
+            state=$(gh api "repos/${{ github.repository }}/commits/${sha}/status" \
+              --jq ".statuses[] | select(.context==\"${context}\") | .state" 2>/dev/null | head -1)
+            echo "t+${SECONDS}s: ${context} = ${state:-<not posted yet>}"
+            case "$state" in
+              success) break ;;
+              error|failure) echo "Codecov reported '${state}' for ${context}"; exit 1 ;;
+            esac
+            sleep 30
+          done
+          if [[ "$state" != "success" ]]; then
+            echo "Timed out after 900s waiting for ${context} - Codecov never reported a result"
             exit 1
           fi
