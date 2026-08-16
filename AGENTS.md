@@ -89,14 +89,23 @@ GitHub Actions workflows:
 - `claude-code-review.yml` — Automated code review on PRs
 
 All three test workflows *trigger* on every push/PR regardless of which subtree changed (no path
-filters on the `on:` block) — this is deliberate: a required GitHub status check that's
-path-filtered at the trigger level can end up permanently "pending" on a PR that never touches that
-path, which would block merging forever. Instead, each workflow calls a shared
+filters on the `on:` block) — this is deliberate, per PR #113: a required GitHub status check
+that's path-filtered at the trigger level can end up permanently "pending" on a PR that never
+touches that path, which would block merging forever. Instead, each workflow calls a shared
 `detect-changed-paths.yaml` (parallel to `detect-version-bump.yaml`'s existing skip mechanism) and
-gates its actual build/test job's `if:` on the relevant output (`python`/`ui`/`mobile`). A job whose
-`if:` evaluates false reports as "skipped", which GitHub branch protection treats as a passing
-required check — so a PR touching only `mobile/` still gets fast, real "pending → skipped" green
-checks for `Required checks` and `UI tests` instead of running their full suites for no reason.
+gates the job that does the actual work (`build` in `test.yaml`, `test-run` in `test-ui.yaml`/
+`test-mobile.yaml`) on the relevant output (`python`/`ui`/`mobile`) — that job reports "skipped"
+and does none of the real work when irrelevant.
+
+The job branch protection actually watches (`Required checks`, `UI tests`, `Mobile tests`) is a
+separate thin wrapper, not the work job itself. It always runs (`if: always()`) and explicitly
+re-derives the skip/pass/fail decision in a shell step rather than being conditionally skipped like
+the work job is. This two-tier split exists specifically so a real infrastructure failure in
+`detect-version-bump`/`detect-changed-paths` (the gating job itself crashing, not just legitimately
+reporting "nothing relevant changed") fails the required check loudly instead of silently passing:
+GitHub skips a job whose `needs:` didn't succeed regardless of that job's own `if:`, and a skipped
+required check is treated by branch protection as passing — so without the wrapper, a crashed
+gating job would turn a CI infrastructure failure into a false green rather than a red check.
 
 Coverage regressions are gated by `codecov.yml`: each sub-project uploads under its own flag
 (`python`, `ui`, `mobile`) and Codecov's per-flag `project` status fails a commit/PR if that flag's
@@ -126,9 +135,11 @@ before pushing is what keeps that loop fast.
    your change silently caused elsewhere in the same suite) goes unnoticed. Include the typecheck
    step too where one exists (`npm run typecheck` in `mobile/`).
 2. **If the change touches logic that's deliberately mirrored across sub-projects** — `mobile/`
-   is a port of `ui/src/components/main/` (see `mobile/AGENTS.md`) — run both suites, even if the
-   diff only touches one side. All three CI workflows now run unconditionally, but a local check
-   still catches it before you've even pushed.
+   is a port of `ui/src/components/main/` (see `mobile/AGENTS.md`) — run both suites locally, even
+   if the diff only touches one side. CI can't do this for you: each test suite only exercises its
+   own sub-project's code in isolation, so it has no way to notice the mirrored side went stale, and
+   (per the CI/CD section above) a diff that only touches `ui/` won't even trigger the mobile suite
+   in CI at all — path-based skipping means it's not run, not just uninformative.
 3. **Never push knowing a test is red**, including one you've diagnosed as "pre-existing and
    unrelated to my change." Either fix it in the same push or stop and tell the user before
    pushing — don't rely on them to notice the Actions tab later. A failure that's pre-existing today
@@ -148,6 +159,9 @@ before pushing is what keeps that loop fast.
    `gh pr view --json comments` (issue-level comments only) and not `gh api
    repos/<owner>/<repo>/pulls/<number>/reviews` (empty here — this action comments directly rather
    than submitting a formal approve/request-changes review). No required-review count is configured
-   (see above), so GitHub's merge button won't block on these either. Concretely: after `claude-review`
-   finishes, run the `pulls/<number>/comments` query and read every finding before telling the user
-   the PR is ready — checks-green and comment-free are two different, both-necessary conditions.
+   (see above), so GitHub's merge button won't block on these either — nothing mechanical forces you
+   to look. Concretely: after `claude-review` finishes (it shows up as one of the checks in step 5
+   above), run the `pulls/<number>/comments` query and, for every finding, either fix it and push
+   an update or decide it's a non-issue and say so — before telling the user the PR is ready. Checks
+   being green and every review comment having been read-and-triaged are two separate, both-required
+   conditions; the second one has no green checkmark of its own, so it's on you to verify it.
