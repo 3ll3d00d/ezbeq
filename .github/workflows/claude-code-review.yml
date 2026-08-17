@@ -1,14 +1,11 @@
 name: Claude Code Review
 
+# On-demand only — this used to auto-trigger on every PR event, which made remote
+# review a mandatory, blocking step in the merge cycle. Run it manually instead:
+#   gh workflow run claude-code-review.yml -f pr_number=<N>
+# Local review before commit/push (see AGENTS.md "Before pushing") is the default;
+# this remote review is an opt-in extra pair of eyes, not a gate.
 on:
-  pull_request:
-    types: [opened, synchronize, ready_for_review, reopened]
-    # Optional: Only run on specific file changes
-    # paths:
-    #   - "src/**/*.ts"
-    #   - "src/**/*.tsx"
-    #   - "src/**/*.js"
-    #   - "src/**/*.jsx"
   workflow_dispatch:
     inputs:
       pr_number:
@@ -18,8 +15,6 @@ on:
 
 jobs:
   claude-review:
-    # Only run on PRs from the same repo (not forks) — forks cannot access secrets
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -42,7 +37,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
             REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.inputs.pr_number || github.event.pull_request.number }}
+            PR NUMBER: ${{ github.event.inputs.pr_number }}
 
             Perform a code review with the following focus areas:
 

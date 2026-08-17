@@ -118,78 +118,64 @@ fires), which never happens for a commit that legitimately skipped that flag's `
 job. The three `codecov/project/*` contexts are therefore **not** required directly in branch
 protection (a PR touching none of `ezbeq/`, `ui/src/`, `mobile/src/` would otherwise sit
 `mergeStateStatus: BLOCKED` forever, no status ever arriving to satisfy them — this happened for
-real on PR #118). Instead, `Required checks`/`UI tests`/`Mobile tests` poll the matching Codecov
-status themselves, but only when `detect-changed-paths` says the relevant subtree changed —
-coarse heartbeat poll bounded by a 900s timeout, same shape as the "waiting for PR checks" guidance
-below. When the subtree didn't change, that step is skipped just like the `build`/`test-run` check
-above it, so the wrapper still resolves immediately.
+real on PR #118, and was true of the required-checks list itself too until it was cleaned up).
+Instead, `Required checks`/`UI tests`/`Mobile tests` poll the matching Codecov status themselves,
+but only when `detect-changed-paths` says the relevant subtree changed — coarse heartbeat poll
+bounded by a 900s timeout, same shape as the "waiting for PR checks" guidance below. When the
+subtree didn't change, that step is skipped just like the `build`/`test-run` check above it, so the
+wrapper still resolves immediately. None of this blocks a merge anymore either way (see below) —
+it's still worth keeping accurate as a CI health signal.
 
-**`main` is a real gate, enforced for everyone including repo admins** (branch protection has
-`enforce_admins` on): a pull request is required to merge into `main` — direct pushes are rejected,
-full stop, no bypass — and it can't merge until `Required checks` (Python), `UI tests`, and `Mobile
-tests` are all green — each of which now embeds its own subtree's coverage-regression gate (see
-above), so no separate Codecov contexts need to be required **once branch protection's required
-status checks list is updated to drop the three raw `codecov/project/*` entries — a manual repo-
-admin step, not yet done as of this change**. No required approving review
-count is set (solo-maintainer repo — GitHub won't let you approve your own PR, so requiring a review
-would deadlock every merge); the PR requirement exists to guarantee checks have actually run against
-the merge commit, not to gate on a second pair of eyes. See "Before pushing" below — passing CI is
-still the real target even though it's now enforced mechanically.
+**Checks and review are informational, not a merge gate.** `main` previously had `enforce_admins`,
+required status checks, and `required_conversation_resolution` all enabled — meaning every PR,
+including the maintainer's own, had to wait out the full test matrix and get every review thread
+resolved before the merge button worked. That was too slow and too expensive for a solo-maintainer
+repo and has been unwound: `enforce_admins` is off and `required_conversation_resolution` is off. A
+pull request is still required to merge into `main` (no direct pushes), and `Required checks`/`UI
+tests`/`Mobile tests` still run and still report as PR checks — they're useful signal — but nothing
+about their result, or an unresolved review thread, blocks the merge button anymore. The repo owner
+merges when they want to; a red check or an open comment thread is information to weigh, not a lock.
 
-**There is a second, independent merge gate that doesn't show up in `gh pr checks` at all:**
-`required_conversation_resolution` is also enabled on `main`'s branch protection (check with
-`gh api repos/<owner>/<repo>/branches/main/protection -q '.required_conversation_resolution'`) —
-every PR review-comment thread (inline diff comments, e.g. from `claude-code-review.yml`) must be
-marked resolved before merge, completely independent of whether checks are green. `gh pr view
-<number> --json mergeable,mergeStateStatus` is the actual source of truth for "can this merge right
-now" — `mergeStateStatus: "BLOCKED"` with `mergeable: "MERGEABLE"` and all checks green means this,
-not a review or a conflict. List and resolve threads via the GraphQL API (REST has no "resolve"
-mutation): query `pullRequest(number: N) { reviewThreads(first: 50) { nodes { id isResolved path
-line comments(first: 1) { nodes { body } } } } }`, then for each unresolved one,
-`addPullRequestReviewThreadReply` (reply with what changed, or why you're declining) followed by
-`resolveReviewThread`, both keyed on the thread's `id`. Expect multiple rounds: `claude-review`
-re-runs on every push, including a push that only resolves earlier findings, and often posts new
-findings on the new diff — recheck `mergeStateStatus` after each round rather than assuming one pass
-covers it.
+**Remote code review (`claude-code-review.yml`) is on-demand only** — it no longer auto-triggers on
+PR events. Run it explicitly when a second (cloud) pass is wanted:
+`gh workflow run claude-code-review.yml -f pr_number=<N>`. The default review step is local (see
+"Before pushing" below), not this workflow.
 
 ## Before pushing
 
-`main` now rejects a PR whose checks haven't gone green (see above), but a failing local run still
-costs you a full CI round-trip (and a red check on a real PR) if you push it — the local test run
-before pushing is what keeps that loop fast.
+Nothing downstream blocks the merge anymore (see above), so the local review is the review that
+actually happens most of the time — treat it as the real gate, not a formality.
 
-1. **Run the full test suite for every sub-project you touched — not just the files you edited.**
+1. **Review your own diff with the local agent before committing/pushing** — use the `code-review`
+   or `simplify` skill (or equivalent local review) against the working diff. This is the primary
+   review step now; remote review is opt-in and won't run unless invoked (see above), so skipping
+   the local pass means the change may go out unreviewed entirely.
+2. **Run the full test suite for every sub-project you touched — not just the files you edited.**
    `pytest` / `yarn test:unit` / `npm test` each run their whole suite in seconds to low minutes;
    narrowing to "the tests near my change" is exactly how an unrelated pre-existing failure (or one
    your change silently caused elsewhere in the same suite) goes unnoticed. Include the typecheck
    step too where one exists (`npm run typecheck` in `mobile/`).
-2. **If the change touches logic that's deliberately mirrored across sub-projects** — `mobile/`
+3. **If the change touches logic that's deliberately mirrored across sub-projects** — `mobile/`
    is a port of `ui/src/components/main/` (see `mobile/AGENTS.md`) — run both suites locally, even
    if the diff only touches one side. CI can't do this for you: each test suite only exercises its
    own sub-project's code in isolation, so it has no way to notice the mirrored side went stale, and
    (per the CI/CD section above) a diff that only touches `ui/` won't even trigger the mobile suite
    in CI at all — path-based skipping means it's not run, not just uninformative.
-3. **Never push knowing a test is red**, including one you've diagnosed as "pre-existing and
-   unrelated to my change." Either fix it in the same push or stop and tell the user before
-   pushing — don't rely on them to notice the Actions tab later. A failure that's pre-existing today
-   is exactly the kind that silently sits on `main` for days otherwise (see git history around
-   commit `f8c49c4` for a real example: it shipped a mobile CI failure that went unnoticed for two
-   days).
-4. **Work happens on a branch + PR, not direct commits to `main`** — branch protection rejects
-   direct pushes to `main` now. Open a PR, let `Required checks` / `UI tests` / `Mobile tests` /
-   Codecov's coverage-regression checks run, and merge once they're green.
-5. **After opening/updating a PR, confirm its checks actually went green** — `gh pr checks
-   <number>` (or `gh run list --branch <branch> --limit 5`). Don't rely on the merge button being
-   blocked as your only signal; check what actually failed if something's red. But green checks
-   alone don't mean the PR is mergeable — see the `required_conversation_resolution` note above and
-   item 8 below; confirm with `gh pr view <number> --json mergeable,mergeStateStatus` too.
-6. **Wait for checks with a coarse heartbeat poll, bounded by a timeout — not a per-check
-   streaming watch, and not an unbounded blocking one either.** This repo's full check suite
-   (Python build matrix + UI tests + Mobile tests + Required checks + Codecov) historically
-   resolves in ~3 minutes (build matrix jobs run 1–2.5 min, UI/Mobile ~1 min each, everything else
-   is seconds). Use that as the estimate and poll at an interval coarse enough that a normal run
-   produces only a handful of updates, with a hard timeout so a hung run doesn't wait silently
-   forever:
+4. **Don't push knowing a test is red**, including one you've diagnosed as "pre-existing and
+   unrelated to my change." Either fix it in the same push or flag it explicitly before pushing —
+   nothing will stop the push or the merge, so a silent red test is now purely on you to notice and
+   call out (see git history around commit `f8c49c4` for a real example of this going unnoticed for
+   two days back when it *was* enforced).
+5. **Work happens on a branch + PR, not direct commits to `main`** — branch protection still rejects
+   direct pushes to `main`. Open a PR; merge whenever you decide it's ready, checks and review
+   threads permitting or not.
+6. **If you want to confirm CI status before merging (optional, not required to merge), poll with a
+   coarse heartbeat bounded by a timeout — not a per-check streaming watch, and not an unbounded
+   blocking one either.** This repo's full check suite (Python build matrix + UI tests + Mobile
+   tests + Required checks + Codecov) historically resolves in ~3 minutes (build matrix jobs run
+   1–2.5 min, UI/Mobile ~1 min each, everything else is seconds). Use that as the estimate and poll
+   at an interval coarse enough that a normal run produces only a handful of updates, with a hard
+   timeout so a hung run doesn't wait silently forever:
    ```bash
    deadline=$((SECONDS + 900))  # ~3x the historical estimate
    while (( SECONDS < deadline )); do
@@ -211,24 +197,14 @@ before pushing is what keeps that loop fast.
    Either way, the timeout matters: an open-ended `until ...; do sleep N; done` with no deadline
    can leave you (and the user) with zero signal if a check hangs or never reports — the loop above
    always terminates and tells you which case it hit.
-7. **A green `claude-review` check means the review *ran* — it says nothing about what it found.**
-   `claude-code-review.yml` posts its findings as inline comments on the diff
-   (`mcp__github_inline_comment__create_inline_comment`), which land under the PR's *review
-   comments* endpoint — `gh api repos/<owner>/<repo>/pulls/<number>/comments` — not
-   `gh pr view --json comments` (issue-level comments only) and not `gh api
-   repos/<owner>/<repo>/pulls/<number>/reviews` (empty here — this action comments directly rather
-   than submitting a formal approve/request-changes review). No required-review *count* is
-   configured (see above), but that's not the same as "nothing blocks on these" — see item 8.
-   Concretely: after `claude-review` finishes (it shows up as one of the checks in step 5 above),
-   run the `pulls/<number>/comments` query and, for every finding, either fix it and push an update
-   or decide it's a non-issue and say so — before telling the user the PR is ready.
-8. **Every review-comment thread must be resolved before the PR can merge, mechanically — this is
-   `required_conversation_resolution` on `main`'s branch protection (see above), and it is easy to
-   miss because it never shows up in `gh pr checks`.** A PR can have every check green and still sit
-   at `mergeStateStatus: "BLOCKED"` for this reason alone. Resolving is a GraphQL-only operation
-   (see above for the exact query/mutations) — reply to each thread explaining what changed (or why
-   you're declining the suggestion) and then resolve it; don't resolve silently, since the reply is
-   what makes a "declined" thread distinguishable from one nobody looked at. `claude-review` re-runs
-   on every push and commonly posts new findings on top of ones you just fixed, including on a push
-   whose only content was resolving/replying to the previous round — budget for more than one round
-   before a PR that keeps changing actually goes green-and-resolved together.
+7. **If remote review was explicitly triggered** (`gh workflow run claude-code-review.yml -f
+   pr_number=<N>` — it no longer runs automatically), a green `claude-review` check means the review
+   *ran*, not that it found nothing. Findings land as inline comments on the diff
+   (`mcp__github_inline_comment__create_inline_comment`), under the PR's *review comments* endpoint
+   — `gh api repos/<owner>/<repo>/pulls/<number>/comments` — not `gh pr view --json comments`
+   (issue-level comments only) and not `gh api repos/<owner>/<repo>/pulls/<number>/reviews` (empty
+   here — this action comments directly rather than submitting a formal approve/request-changes
+   review). Nothing mechanically requires resolving these anymore (`required_conversation_resolution`
+   is off — see above), but a finding you triggered the review to get is worth actually reading:
+   after `claude-review` finishes, check `pulls/<number>/comments` and, for every finding, either fix
+   it and push an update or note why you're not going to.
