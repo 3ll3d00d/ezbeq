@@ -216,7 +216,7 @@ jobs:
       # - React Native's own docs recommend JDK 17. See mobile/README.md's "Dev client build"
       # section for the same requirement/fix on a local machine.
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
