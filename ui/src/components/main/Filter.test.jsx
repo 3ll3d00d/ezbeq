@@ -92,6 +92,19 @@ describe('Filter rendering', () => {
         expect(setSelectedFilterAuthors).toHaveBeenCalledWith(['Author A']);
     });
 
+    it('calls setSelectedFilterAuthors with an empty array when the filter-author selection is cleared', async () => {
+        const setSelectedFilterAuthors = vi.fn();
+        const {container} = render(
+            <Filter {...baseProps} selectedFilterAuthors={['Author A']} setSelectedFilterAuthors={setSelectedFilterAuthors}/>
+        );
+
+        await waitFor(() => expect(ezbeq.getFilterAuthors).toHaveBeenCalled());
+        const field = screen.getByText('Filter Author').closest('.MuiFormControl-root');
+        fireEvent.click(field.querySelector('button[aria-label="Clear"]'));
+
+        expect(setSelectedFilterAuthors).toHaveBeenCalledWith([]);
+    });
+
     it('calls setSelectedContentTypes with the new selection when a content type is picked', async () => {
         const setSelectedContentTypes = vi.fn();
         render(<Filter {...baseProps} setSelectedContentTypes={setSelectedContentTypes}/>);
