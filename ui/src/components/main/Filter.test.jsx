@@ -7,6 +7,7 @@ import ezbeq from '../../services/ezbeq';
 vi.mock('../../services/ezbeq', () => ({
     default: {
         getAuthors: vi.fn(),
+        getFilterAuthors: vi.fn(),
         getLanguages: vi.fn(),
         getYears: vi.fn(),
         getAudioTypes: vi.fn(),
@@ -23,6 +24,7 @@ const baseProps = {
     selectedYears: [], setSelectedYears: noop,
     selectedLanguages: [], setSelectedLanguages: noop,
     selectedAuthors: [], setSelectedAuthors: noop,
+    selectedFilterAuthors: [], setSelectedFilterAuthors: noop,
     selectedContentTypes: [], setSelectedContentTypes: noop,
     filteredEntries: [],
     setError: noop
@@ -30,6 +32,7 @@ const baseProps = {
 
 beforeEach(() => {
     ezbeq.getAuthors.mockResolvedValue(['Author A', 'Author B']);
+    ezbeq.getFilterAuthors.mockResolvedValue(['Author A', 'Author C']);
     ezbeq.getLanguages.mockResolvedValue(['English']);
     ezbeq.getYears.mockResolvedValue([2020, 2021]);
     ezbeq.getAudioTypes.mockResolvedValue(['Atmos']);
@@ -46,6 +49,7 @@ describe('Filter rendering', () => {
         render(<Filter {...baseProps}/>);
         expect(screen.getByText('Content Types')).toBeInTheDocument();
         expect(screen.getByText('Author')).toBeInTheDocument();
+        expect(screen.getByText('Filter Author')).toBeInTheDocument();
         expect(screen.getByText('Year')).toBeInTheDocument();
         expect(screen.getByText('Audio Types')).toBeInTheDocument();
         expect(screen.getByText('Fresh')).toBeInTheDocument();
@@ -62,6 +66,43 @@ describe('Filter rendering', () => {
 
         expect(await screen.findByRole('option', {name: 'Author A'})).toBeInTheDocument();
         expect(screen.getByRole('option', {name: 'Author B'})).toBeInTheDocument();
+    });
+
+    it('populates the filter-author options from the fetched filterAuthor list', async () => {
+        render(<Filter {...baseProps}/>);
+
+        await waitFor(() => expect(ezbeq.getFilterAuthors).toHaveBeenCalled());
+
+        const filterAuthorInput = screen.getByText('Filter Author').closest('.MuiFormControl-root').querySelector('input');
+        fireEvent.mouseDown(filterAuthorInput);
+
+        expect(await screen.findByRole('option', {name: 'Author A'})).toBeInTheDocument();
+        expect(screen.getByRole('option', {name: 'Author C'})).toBeInTheDocument();
+    });
+
+    it('calls setSelectedFilterAuthors with the new selection when a filter author is picked', async () => {
+        const setSelectedFilterAuthors = vi.fn();
+        render(<Filter {...baseProps} setSelectedFilterAuthors={setSelectedFilterAuthors}/>);
+
+        await waitFor(() => expect(ezbeq.getFilterAuthors).toHaveBeenCalled());
+        const input = screen.getByText('Filter Author').closest('.MuiFormControl-root').querySelector('input');
+        fireEvent.mouseDown(input);
+        fireEvent.click(await screen.findByRole('option', {name: 'Author A'}));
+
+        expect(setSelectedFilterAuthors).toHaveBeenCalledWith(['Author A']);
+    });
+
+    it('calls setSelectedFilterAuthors with an empty array when the filter-author selection is cleared', async () => {
+        const setSelectedFilterAuthors = vi.fn();
+        const {container} = render(
+            <Filter {...baseProps} selectedFilterAuthors={['Author A']} setSelectedFilterAuthors={setSelectedFilterAuthors}/>
+        );
+
+        await waitFor(() => expect(ezbeq.getFilterAuthors).toHaveBeenCalled());
+        const field = screen.getByText('Filter Author').closest('.MuiFormControl-root');
+        fireEvent.click(field.querySelector('button[aria-label="Clear"]'));
+
+        expect(setSelectedFilterAuthors).toHaveBeenCalledWith([]);
     });
 
     it('calls setSelectedContentTypes with the new selection when a content type is picked', async () => {

@@ -29,6 +29,8 @@ type Props = {
   api: EzbeqApi;
   selection: FilterSelection;
   onChange: (next: FilterSelection) => void;
+  selectedFilterAuthors: string[];
+  onSelectedFilterAuthorsChange: (next: string[]) => void;
   filteredEntries: CatalogueEntry[];
   onError: (e: Error) => void;
 };
@@ -41,8 +43,17 @@ const isInView =
 // Presentation (bottom sheet on phone, persistent panel on tablet) is decided in a later step
 // (ui/src/components/main/Filter.jsx's `visible` toggle becomes MainScreen's job too) - this
 // just owns the six filter dimensions and their option-fetching/derived-in-view logic.
-export default function FilterSheet({ api, selection, onChange, filteredEntries, onError }: Props) {
+export default function FilterSheet({
+  api,
+  selection,
+  onChange,
+  selectedFilterAuthors,
+  onSelectedFilterAuthorsChange,
+  filteredEntries,
+  onError,
+}: Props) {
   const [authors, setAuthors] = useState<string[]>([]);
+  const [filterAuthors, setFilterAuthors] = useState<string[]>([]);
   const [languages, setLanguages] = useState<string[]>([]);
   const [years, setYears] = useState<string[]>([]);
   const [audioTypes, setAudioTypes] = useState<string[]>([]);
@@ -50,6 +61,7 @@ export default function FilterSheet({ api, selection, onChange, filteredEntries,
 
   useEffect(() => {
     api.getAuthors().then(setAuthors).catch(onError);
+    api.getFilterAuthors().then(setFilterAuthors).catch(onError);
     api.getLanguages().then(setLanguages).catch(onError);
     api.getYears().then((ys) => setYears(ys.map(String))).catch(onError);
     api.getAudioTypes().then(setAudioTypes).catch(onError);
@@ -90,6 +102,12 @@ export default function FilterSheet({ api, selection, onChange, filteredEntries,
         items={authors}
         selectedValues={selection.authors}
         onChange={(v) => onChange({ ...selection, authors: v })}
+      />
+      <MultiSelectField
+        label="Filter Author"
+        items={filterAuthors}
+        selectedValues={selectedFilterAuthors}
+        onChange={onSelectedFilterAuthorsChange}
       />
       <MultiSelectField
         label="Year"

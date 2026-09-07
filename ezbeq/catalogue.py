@@ -25,6 +25,7 @@ YEAR = 'year'
 AUDIO_TYPES = 'audioTypes'
 CONTENT_TYPE = 'content_type'
 AUTHOR = 'author'
+FILTER_AUTHOR = 'filterAuthor'
 CATALOGUE_URL = 'catalogue_url'
 FILTERS = 'filters'
 IMAGES = 'images'
@@ -63,6 +64,7 @@ FIELDS = [
     AUDIO_TYPES,
     CONTENT_TYPE,
     AUTHOR,
+    FILTER_AUTHOR,
     CATALOGUE_URL,
     FILTERS,
     IMAGES,
@@ -110,6 +112,7 @@ UI_FIELDS = [x for x in FIELDS if x not in IGNORE_FIELDS]
 META_FIELDS = [
     AUDIO_TYPES,
     AUTHOR,
+    FILTER_AUTHOR,
     CONTENT_TYPE,
     LANGUAGE,
     YEAR
@@ -139,6 +142,7 @@ class CatalogueEntry:
         self.audio_channel_counts = split_list(vals.get(AUDIO_CHANNEL_COUNTS, []))
         self.content_type = vals.get(CONTENT_TYPE, 'film')
         self.author = vals.get(AUTHOR, '')
+        self.filter_author = vals.get(FILTER_AUTHOR, '')
         self.catalogue_url = vals.get(CATALOGUE_URL, '')
         f = vals.get(FILTERS, [])
         self.filters = json.loads(f) if isinstance(f, str) else f
@@ -241,6 +245,7 @@ class CatalogueEntry:
             format_list(self.audio_types),
             self.content_type,  # 5
             self.author,
+            self.filter_author,
             self.catalogue_url,
             json.dumps(self.filters),  # json
             format_list(self.images),
@@ -425,6 +430,7 @@ class Catalogues:
                         ");")
             add_column(AUDIO_CODECS)
             add_column(AUDIO_CHANNEL_COUNTS)
+            add_column(FILTER_AUTHOR)
             cur.execute(f"CREATE INDEX IF NOT EXISTS entry_digest ON catalogue_entry ({DIGEST});")
             cur.execute("CREATE INDEX IF NOT EXISTS entry_version ON catalogue_entry (version);")
             cur.execute("CREATE TABLE IF NOT EXISTS catalogue_meta("
@@ -475,6 +481,7 @@ class Catalogues:
         now = int(datetime.now(UTC).timestamp() * 1000)
         audio_types = set()
         authors = set()
+        filter_authors = set()
         contenttypes = set()
         languages = set()
         years = set()
@@ -500,6 +507,8 @@ class Catalogues:
                     audio_types.add(v)
                 if entry.author:
                     authors.add(entry.author)
+                if entry.filter_author:
+                    filter_authors.add(entry.filter_author)
                 if entry.content_type:
                     contenttypes.add(entry.content_type)
                 if entry.language:
@@ -534,11 +543,13 @@ class Catalogues:
 
             insert_if(AUDIO_TYPES, audio_types)
             insert_if(AUTHOR, authors)
+            insert_if(FILTER_AUTHOR, filter_authors)
             insert_if(CONTENT_TYPE, contenttypes)
             insert_if(LANGUAGE, languages)
             insert_if(YEAR, years)
 
-            return Catalogue(count, version, {AUDIO_TYPES: audio_types, AUTHOR: authors, CONTENT_TYPE: contenttypes,
+            return Catalogue(count, version, {AUDIO_TYPES: audio_types, AUTHOR: authors,
+                                              FILTER_AUTHOR: filter_authors, CONTENT_TYPE: contenttypes,
                                               LANGUAGE: languages, YEAR: years},
                              datetime.fromtimestamp(now / 1000, tz=UTC)) if count else None
 
@@ -809,6 +820,10 @@ class CatalogueProvider:
     @property
     def authors(self) -> list[str]:
         return self.__load_meta_if_present(AUTHOR)
+
+    @property
+    def filter_authors(self) -> list[str]:
+        return self.__load_meta_if_present(FILTER_AUTHOR)
 
     @property
     def audio_types(self) -> list[str]:

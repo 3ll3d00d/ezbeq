@@ -10,6 +10,7 @@ vi.mock('../../services/ezbeq', () => ({
         getWhatsNew: vi.fn(() => Promise.resolve([])),
         getVersion: vi.fn(() => Promise.resolve({})),
         getAuthors: vi.fn(() => Promise.resolve([])),
+        getFilterAuthors: vi.fn(() => Promise.resolve([])),
         getLanguages: vi.fn(() => Promise.resolve([])),
         getYears: vi.fn(() => Promise.resolve([])),
         getAudioTypes: vi.fn(() => Promise.resolve([])),
@@ -57,10 +58,10 @@ describe('txtMatch', () => {
 describe('isMatch', () => {
     const noFilters = {
         selectedAuthors: [], selectedYears: [], selectedAudioTypes: [], selectedContentTypes: [],
-        selectedFreshness: [], selectedLanguages: [], debouncedTxtFilter: ''
+        selectedFreshness: [], selectedLanguages: [], selectedFilterAuthors: [], debouncedTxtFilter: ''
     };
     const entry = {
-        formattedTitle: 'Some Movie', author: 'author1', year: 2020,
+        formattedTitle: 'Some Movie', author: 'author1', filterAuthor: 'author1', year: 2020,
         audioTypes: ['Atmos'], contentType: 'film', freshness: 'new', language: 'English'
     };
 
@@ -71,6 +72,11 @@ describe('isMatch', () => {
     it('excludes an entry whose author is not in the selected authors', () => {
         expect(isMatch(entry, {...noFilters, selectedAuthors: ['someone-else']})).toBe(false);
         expect(isMatch(entry, {...noFilters, selectedAuthors: ['author1']})).toBe(true);
+    });
+
+    it('excludes an entry whose filterAuthor is not in the selected filter authors', () => {
+        expect(isMatch(entry, {...noFilters, selectedFilterAuthors: ['someone-else']})).toBe(false);
+        expect(isMatch(entry, {...noFilters, selectedFilterAuthors: ['author1']})).toBe(true);
     });
 
     it('excludes an entry whose year is not in the selected years', () => {

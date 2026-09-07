@@ -30,6 +30,8 @@ const Filter = ({
                     setSelectedLanguages,
                     selectedAuthors,
                     setSelectedAuthors,
+                    selectedFilterAuthors,
+                    setSelectedFilterAuthors,
                     selectedContentTypes,
                     setSelectedContentTypes,
                     filteredEntries,
@@ -38,6 +40,7 @@ const Filter = ({
 
     const freshness = ['Fresh', 'Updated', 'Stale'];
     const [authors, setAuthors] = useState([]);
+    const [filterAuthors, setFilterAuthors] = useState([]);
     const [languages, setLanguages] = useState([]);
     const [years, setYears] = useState([]);
     const [audioTypes, setAudioTypes] = useState([]);
@@ -49,6 +52,10 @@ const Filter = ({
 
     useEffect(() => {
         pushData(setAuthors, ezbeq.getAuthors, setError);
+    }, [setError]);
+
+    useEffect(() => {
+        pushData(setFilterAuthors, ezbeq.getFilterAuthors, setError);
     }, [setError]);
 
     useEffect(() => {
@@ -95,6 +102,11 @@ const Filter = ({
                              label="Author"
                              onToggleOption={selected => setSelectedAuthors(selected)}
                              onClearOptions={() => setSelectedAuthors([])}/>
+                <MultiSelect items={filterAuthors}
+                             selectedValues={selectedFilterAuthors}
+                             label="Filter Author"
+                             onToggleOption={selected => setSelectedFilterAuthors(selected)}
+                             onClearOptions={() => setSelectedFilterAuthors([])}/>
                 <MultiSelect items={years}
                              selectedValues={selectedYears}
                              label="Year"

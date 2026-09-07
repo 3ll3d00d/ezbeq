@@ -36,6 +36,7 @@ export type CatalogueEntry = {
   altTitle?: string;
   collection?: string;
   author: string;
+  filterAuthor?: string;
   year: number;
   audioTypes: string[];
   contentType: string;

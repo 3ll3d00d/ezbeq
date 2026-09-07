@@ -54,12 +54,23 @@ const BACK_SWIPE_MIN_TRANSLATION_X = 60;
 export const shouldTriggerBackSwipe = (translationX: number, velocityX: number): boolean =>
   translationX > BACK_SWIPE_MIN_TRANSLATION_X && velocityX > 0;
 
-export type EntryFilters = FilterSelection & { debouncedTxtFilter: string };
+export type EntryFilters = FilterSelection & { debouncedTxtFilter: string; selectedFilterAuthors: string[] };
 
 // entry passes only if it satisfies every selected filter dimension
 export const isMatch = (entry: CatalogueEntry, filters: EntryFilters): boolean => {
-  const { authors, years, audioTypes, contentTypes, freshness, languages, debouncedTxtFilter } = filters;
+  const {
+    authors,
+    years,
+    audioTypes,
+    contentTypes,
+    freshness,
+    languages,
+    selectedFilterAuthors,
+    debouncedTxtFilter,
+  } = filters;
   if (authors.length && !authors.includes(entry.author)) return false;
+  if (selectedFilterAuthors.length && (!entry.filterAuthor || !selectedFilterAuthors.includes(entry.filterAuthor)))
+    return false;
   if (years.length && !years.includes(String(entry.year))) return false;
   if (audioTypes.length && !entry.audioTypes.some((at) => audioTypes.includes(at))) return false;
   if (contentTypes.length && !contentTypes.includes(entry.contentType)) return false;
@@ -128,6 +139,10 @@ export default function MainScreen({ navigation }: Props) {
     'filterNotificationEnabled',
     false
   );
+  const [selectedFilterAuthors, setSelectedFilterAuthors] = useAsyncStorageState<string[]>(
+    'selectedFilterAuthors',
+    []
+  );
   // Static for the life of the process (Platform.OS/Expo Go don't change at runtime) - computed
   // once rather than memoized.
   const filterNotificationSupported = isFilterNotificationSupported();
@@ -137,8 +152,8 @@ export default function MainScreen({ navigation }: Props) {
   const entryList = useMemo(() => Object.values(entries).sort(compareByTitle), [entries]);
 
   const filters = useMemo<EntryFilters>(
-    () => ({ ...filterSelection, debouncedTxtFilter }),
-    [filterSelection, debouncedTxtFilter]
+    () => ({ ...filterSelection, debouncedTxtFilter, selectedFilterAuthors }),
+    [filterSelection, debouncedTxtFilter, selectedFilterAuthors]
   );
 
   const filteredEntries = useMemo(
@@ -471,6 +486,8 @@ export default function MainScreen({ navigation }: Props) {
             api={api}
             selection={filterSelection}
             onChange={setFilterSelection}
+            selectedFilterAuthors={selectedFilterAuthors}
+            onSelectedFilterAuthorsChange={setSelectedFilterAuthors}
             filteredEntries={filteredEntries}
             onError={setError}
           />
