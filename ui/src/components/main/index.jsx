@@ -46,9 +46,10 @@ export const txtMatch = (entry, txtFilter) => {
 export const isMatch = (entry, filters) => {
     const {
         selectedAuthors, selectedYears, selectedAudioTypes, selectedContentTypes,
-        selectedFreshness, selectedLanguages, debouncedTxtFilter
+        selectedFreshness, selectedLanguages, selectedFilterAuthors, debouncedTxtFilter
     } = filters;
     if (selectedAuthors.length && selectedAuthors.indexOf(entry.author) === -1) return false;
+    if (selectedFilterAuthors.length && selectedFilterAuthors.indexOf(entry.filterAuthor) === -1) return false;
     if (selectedYears.length && selectedYears.indexOf(entry.year) === -1) return false;
     if (selectedAudioTypes.length && !entry.audioTypes.some(at => selectedAudioTypes.indexOf(at) > -1)) return false;
     if (selectedContentTypes.length && selectedContentTypes.indexOf(entry.contentType) === -1) return false;
@@ -85,6 +86,7 @@ const MainView = ({
                       meta
                   }) => {
     const [selectedAuthors, setSelectedAuthors] = useLocalStorage('selectedAuthors', []);
+    const [selectedFilterAuthors, setSelectedFilterAuthors] = useLocalStorage('selectedFilterAuthors', []);
     const [selectedLanguages, setSelectedLanguages] = useState([]);
     const [selectedYears, setSelectedYears] = useState([]);
     const [selectedAudioTypes, setSelectedAudioTypes] = useState([]);
@@ -109,8 +111,8 @@ const MainView = ({
 
     const filters = useMemo(() => ({
         selectedAuthors, selectedYears, selectedAudioTypes, selectedContentTypes,
-        selectedFreshness, selectedLanguages, debouncedTxtFilter
-    }), [selectedAuthors, selectedYears, selectedAudioTypes, selectedContentTypes, selectedFreshness, selectedLanguages, debouncedTxtFilter]);
+        selectedFreshness, selectedLanguages, selectedFilterAuthors, debouncedTxtFilter
+    }), [selectedAuthors, selectedYears, selectedAudioTypes, selectedContentTypes, selectedFreshness, selectedLanguages, selectedFilterAuthors, debouncedTxtFilter]);
 
     // What's New should only surface entries that also pass the catalogue filters, so the two
     // views never disagree about what's currently in scope
@@ -247,6 +249,8 @@ const MainView = ({
                     setSelectedLanguages={setSelectedLanguages}
                     selectedAuthors={selectedAuthors}
                     setSelectedAuthors={setSelectedAuthors}
+                    selectedFilterAuthors={selectedFilterAuthors}
+                    setSelectedFilterAuthors={setSelectedFilterAuthors}
                     selectedContentTypes={selectedContentTypes}
                     setSelectedContentTypes={setSelectedContentTypes}
                     filteredEntries={filteredEntries}

@@ -44,6 +44,7 @@ afterEach(() => AsyncStorage.clear());
 
 const api = {
   getAuthors: jest.fn().mockResolvedValue([]),
+  getFilterAuthors: jest.fn().mockResolvedValue([]),
   getLanguages: jest.fn().mockResolvedValue([]),
   getYears: jest.fn().mockResolvedValue([]),
   getAudioTypes: jest.fn().mockResolvedValue([]),
@@ -112,6 +113,7 @@ describe('isMatch', () => {
     freshness: [],
     languages: [],
     debouncedTxtFilter: '',
+    selectedFilterAuthors: [],
     ...overrides,
   });
 
@@ -121,6 +123,24 @@ describe('isMatch', () => {
 
   it('filters out an entry from a non-selected author', () => {
     expect(isMatch(entry({ author: 'other' }), filters({ authors: ['mkane'] }))).toBe(false);
+  });
+
+  it('filters out an entry whose filterAuthor is not selected', () => {
+    expect(isMatch(entry({ filterAuthor: 'group-a' }), filters({ selectedFilterAuthors: ['group-b'] }))).toBe(
+      false
+    );
+  });
+
+  it('matches an entry whose filterAuthor is selected', () => {
+    expect(isMatch(entry({ filterAuthor: 'group-a' }), filters({ selectedFilterAuthors: ['group-a'] }))).toBe(
+      true
+    );
+  });
+
+  it('filters out an entry with no filterAuthor when a filter author is selected', () => {
+    expect(isMatch(entry({ filterAuthor: undefined }), filters({ selectedFilterAuthors: ['group-a'] }))).toBe(
+      false
+    );
   });
 
   it('matches years as strings against the numeric entry.year', () => {

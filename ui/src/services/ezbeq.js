@@ -9,6 +9,10 @@ class EzBeqService {
         return this.doGet('authors');
     };
 
+    getFilterAuthors = () => {
+        return this.doGet('filterauthors');
+    };
+
     getLanguages = () => {
         return this.doGet('languages');
     };

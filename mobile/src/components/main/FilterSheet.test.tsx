@@ -10,6 +10,7 @@ const renderSheet = (element: ReactElement) => render(<PaperProvider>{element}</
 
 const api = {
   getAuthors: jest.fn().mockResolvedValue(['mkane', 'other']),
+  getFilterAuthors: jest.fn().mockResolvedValue(['badactor', 'other']),
   getLanguages: jest.fn().mockResolvedValue(['English', 'French']),
   getYears: jest.fn().mockResolvedValue([2019, 2020]),
   getAudioTypes: jest.fn().mockResolvedValue(['Atmos', 'DTS-X']),
@@ -28,12 +29,21 @@ const entry = (overrides: Partial<CatalogueEntry> = {}): CatalogueEntry => ({
   ...overrides,
 });
 
-test('fetches all five option lists on mount and renders a field per dimension', async () => {
+test('fetches all six option lists on mount and renders a field per dimension', async () => {
   await renderSheet(
-    <FilterSheet api={api} selection={emptyFilterSelection} onChange={jest.fn()} filteredEntries={[]} onError={jest.fn()} />
+    <FilterSheet
+      api={api}
+      selection={emptyFilterSelection}
+      onChange={jest.fn()}
+      selectedFilterAuthors={[]}
+      onSelectedFilterAuthorsChange={jest.fn()}
+      filteredEntries={[]}
+      onError={jest.fn()}
+    />
   );
 
   await waitFor(() => expect(api.getAuthors).toHaveBeenCalled());
+  expect(api.getFilterAuthors).toHaveBeenCalled();
   expect(api.getLanguages).toHaveBeenCalled();
   expect(api.getYears).toHaveBeenCalled();
   expect(api.getAudioTypes).toHaveBeenCalled();
@@ -41,17 +51,48 @@ test('fetches all five option lists on mount and renders a field per dimension',
 
   expect(screen.getByText('Content Types')).toBeTruthy();
   expect(screen.getByText('Author')).toBeTruthy();
+  expect(screen.getByText('Filter Author')).toBeTruthy();
   expect(screen.getByText('Year')).toBeTruthy();
   expect(screen.getByText('Audio Types')).toBeTruthy();
   expect(screen.getByText('Fresh')).toBeTruthy();
   expect(screen.getByText('Language')).toBeTruthy();
 });
 
+test('selecting a filter author calls onSelectedFilterAuthorsChange with the new selection', async () => {
+  const onSelectedFilterAuthorsChange = jest.fn();
+  const user = userEvent.setup();
+  await renderSheet(
+    <FilterSheet
+      api={api}
+      selection={emptyFilterSelection}
+      onChange={jest.fn()}
+      selectedFilterAuthors={[]}
+      onSelectedFilterAuthorsChange={onSelectedFilterAuthorsChange}
+      filteredEntries={[]}
+      onError={jest.fn()}
+    />
+  );
+  await waitFor(() => expect(api.getFilterAuthors).toHaveBeenCalled());
+
+  await user.press(screen.getByText('Filter Author'));
+  await user.press(await screen.findByTestId('option-badactor'));
+
+  expect(onSelectedFilterAuthorsChange).toHaveBeenCalledWith(['badactor']);
+});
+
 test('selecting an author calls onChange with just that dimension updated', async () => {
   const onChange = jest.fn();
   const user = userEvent.setup();
   await renderSheet(
-    <FilterSheet api={api} selection={emptyFilterSelection} onChange={onChange} filteredEntries={[]} onError={jest.fn()} />
+    <FilterSheet
+      api={api}
+      selection={emptyFilterSelection}
+      onChange={onChange}
+      selectedFilterAuthors={[]}
+      onSelectedFilterAuthorsChange={jest.fn()}
+      filteredEntries={[]}
+      onError={jest.fn()}
+    />
   );
   await waitFor(() => expect(api.getAuthors).toHaveBeenCalled());
 
@@ -64,7 +105,15 @@ test('selecting an author calls onChange with just that dimension updated', asyn
 test('years fetched as numbers are exposed to the field as strings', async () => {
   const user = userEvent.setup();
   await renderSheet(
-    <FilterSheet api={api} selection={emptyFilterSelection} onChange={jest.fn()} filteredEntries={[]} onError={jest.fn()} />
+    <FilterSheet
+      api={api}
+      selection={emptyFilterSelection}
+      onChange={jest.fn()}
+      selectedFilterAuthors={[]}
+      onSelectedFilterAuthorsChange={jest.fn()}
+      filteredEntries={[]}
+      onError={jest.fn()}
+    />
   );
   await waitFor(() => expect(api.getYears).toHaveBeenCalled());
 
@@ -80,6 +129,8 @@ test('an option present in the currently-filtered entries is not struck through'
       api={api}
       selection={emptyFilterSelection}
       onChange={jest.fn()}
+      selectedFilterAuthors={[]}
+      onSelectedFilterAuthorsChange={jest.fn()}
       filteredEntries={[entry({ author: 'mkane' })]}
       onError={jest.fn()}
     />
@@ -103,7 +154,15 @@ test('reports fetch failures via onError', async () => {
   const onError = jest.fn();
 
   await renderSheet(
-    <FilterSheet api={failingApi} selection={emptyFilterSelection} onChange={jest.fn()} filteredEntries={[]} onError={onError} />
+    <FilterSheet
+      api={failingApi}
+      selection={emptyFilterSelection}
+      onChange={jest.fn()}
+      selectedFilterAuthors={[]}
+      onSelectedFilterAuthorsChange={jest.fn()}
+      filteredEntries={[]}
+      onError={onError}
+    />
   );
 
   await waitFor(() => expect(onError).toHaveBeenCalledWith(new Error('boom')));

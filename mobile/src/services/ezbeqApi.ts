@@ -32,6 +32,8 @@ export class EzbeqApi {
 
   getAuthors = (): Promise<string[]> => this.doGet('authors');
 
+  getFilterAuthors = (): Promise<string[]> => this.doGet('filterauthors');
+
   getLanguages = (): Promise<string[]> => this.doGet('languages');
 
   getYears = (): Promise<string[]> => this.doGet('years');
