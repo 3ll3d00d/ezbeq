@@ -140,6 +140,7 @@ const clearDeviceSlot = (slotId) => {
 
     const rows = chunk(selectedDevice && selectedDevice.hasOwnProperty('slots') ? selectedDevice.slots : [], 2);
     const optimisation = <OptimisationControl selectedDevice={selectedDevice}
+                                              selectedSlotId={selectedSlotId}
                                               setDevice={setDevice}
                                               setError={setError}/>;
     const hasMaster = Boolean(selectedDevice && selectedDevice.hasOwnProperty('masterVolume'));

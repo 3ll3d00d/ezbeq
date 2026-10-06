@@ -6,6 +6,7 @@ import {
     isOptimisable,
     OptimisationControl,
     SlotCoefficientsChip,
+    slotOptimises,
     useEntryOptimisation,
     useOptimisedEntryIds
 } from './Optimisation';
@@ -13,7 +14,7 @@ import ezbeq from '../../services/ezbeq';
 
 vi.mock('../../services/ezbeq', () => ({
     default: {
-        setOptimisationEnabled: vi.fn(),
+        setOptimise: vi.fn(),
         getEntryOptimisation: vi.fn(),
         getOptimisedEntries: vi.fn()
     }
@@ -22,7 +23,6 @@ vi.mock('../../services/ezbeq', () => ({
 const optimisation = (overrides = {}) => ({
     profile: 'float32-96k',
     label: 'float32 @ 96 kHz',
-    enabled: true,
     available: true,
     reason: null,
     ...overrides
@@ -30,13 +30,16 @@ const optimisation = (overrides = {}) => ({
 
 const device = (opt) => ({name: 'd1', slots: [], ...(opt === undefined ? {} : {optimisation: opt})});
 
+// slot 1 optimises, slot 2 does not
+const slotted = (opt) => ({...device(opt), slots: [{id: '1', optimise: true}, {id: '2', optimise: false}]});
+
 describe('describeReason', () => {
     it('is null when optimised filters are in use', () => {
         expect(describeReason(null)).toBeNull();
         expect(describeReason(optimisation())).toBeNull();
     });
 
-    it.each(['disabled', 'no_profile', 'profile_unavailable', 'rate_mismatch', 'precision_mismatch'])(
+    it.each(['no_profile', 'profile_unavailable', 'rate_mismatch', 'precision_mismatch'])(
         'describes %s', (reason) => {
             expect(describeReason(optimisation({reason}))).toMatch(/authored coefficients are loaded/);
         });
@@ -67,44 +70,71 @@ describe('OptimisationControl', () => {
         expect(container).toBeEmptyDOMElement();
     });
 
-    it('shows just an enabled switch when optimised filters are in use', () => {
-        render(<OptimisationControl selectedDevice={device(optimisation())} setDevice={vi.fn()} setError={vi.fn()}/>);
-        expect(screen.getByRole('switch', {name: 'Use optimised filters (float32 @ 96 kHz)'})).toBeChecked();
-        expect(screen.queryByText(/ptimised$/)).toBeNull();
+    it('shows a labelled switch for the selected slot', () => {
+        render(<OptimisationControl selectedDevice={slotted(optimisation())} selectedSlotId="1" setDevice={vi.fn()}
+                                    setError={vi.fn()}/>);
+        expect(screen.getByText('Optimise')).toBeInTheDocument();
+        expect(screen.getByRole('switch', {name: 'Load filters optimised for float32 @ 96 kHz into slot 1'})).toBeChecked();
+        expect(screen.getByRole('switch')).toBeEnabled();
     });
 
-    it('shows an unchecked switch when switched off', () => {
-        render(<OptimisationControl selectedDevice={device(optimisation({enabled: false, reason: 'disabled'}))}
-                                    setDevice={vi.fn()} setError={vi.fn()}/>);
+    it('reflects the setting of the selected slot', () => {
+        const {rerender} = render(<OptimisationControl selectedDevice={slotted(optimisation())} selectedSlotId="2"
+                                                       setDevice={vi.fn()} setError={vi.fn()}/>);
         expect(screen.getByRole('switch')).not.toBeChecked();
-        expect(screen.getByRole('switch')).toBeEnabled();
+        rerender(<OptimisationControl selectedDevice={slotted(optimisation())} selectedSlotId="1"
+                                      setDevice={vi.fn()} setError={vi.fn()}/>);
+        expect(screen.getByRole('switch')).toBeChecked();
+    });
+
+    it('treats a slot which does not report the setting as optimising', () => {
+        render(<OptimisationControl selectedDevice={{...device(optimisation()), slots: [{id: '1'}]}} selectedSlotId="1"
+                                    setDevice={vi.fn()} setError={vi.fn()}/>);
+        expect(screen.getByRole('switch')).toBeChecked();
+    });
+
+    it('is disabled when no slot is selected', () => {
+        render(<OptimisationControl selectedDevice={slotted(optimisation())} selectedSlotId={null}
+                                    setDevice={vi.fn()} setError={vi.fn()}/>);
+        expect(screen.getByRole('switch')).toBeDisabled();
     });
 
     it('shows a disabled switch when the device cannot be optimised', () => {
         render(<OptimisationControl
-            selectedDevice={device(optimisation({profile: null, label: null, available: false, reason: 'no_profile'}))}
-            setDevice={vi.fn()} setError={vi.fn()}/>);
+            selectedDevice={slotted(optimisation({profile: null, label: null, available: false, reason: 'no_profile'}))}
+            selectedSlotId="1" setDevice={vi.fn()} setError={vi.fn()}/>);
         expect(screen.getByRole('switch')).not.toBeChecked();
         expect(screen.getByRole('switch')).toBeDisabled();
     });
 
-    it('toggles optimisation and updates the device', async () => {
-        const updated = device(optimisation({enabled: false, reason: 'disabled'}));
-        ezbeq.setOptimisationEnabled.mockResolvedValue(updated);
+    it('toggles optimisation for the selected slot and updates the device', async () => {
+        const updated = slotted(optimisation());
+        ezbeq.setOptimise.mockResolvedValue(updated);
         const setDevice = vi.fn();
-        render(<OptimisationControl selectedDevice={device(optimisation())} setDevice={setDevice} setError={vi.fn()}/>);
+        render(<OptimisationControl selectedDevice={slotted(optimisation())} selectedSlotId="1" setDevice={setDevice}
+                                    setError={vi.fn()}/>);
         fireEvent.click(screen.getByRole('switch'));
         await waitFor(() => expect(setDevice).toHaveBeenCalledWith(updated));
-        expect(ezbeq.setOptimisationEnabled).toHaveBeenCalledWith('d1', false);
+        expect(ezbeq.setOptimise).toHaveBeenCalledWith('d1', '1', false);
     });
 
     it('reports a failed toggle', async () => {
         const err = new Error('boom');
-        ezbeq.setOptimisationEnabled.mockRejectedValue(err);
+        ezbeq.setOptimise.mockRejectedValue(err);
         const setError = vi.fn();
-        render(<OptimisationControl selectedDevice={device(optimisation())} setDevice={vi.fn()} setError={setError}/>);
+        render(<OptimisationControl selectedDevice={slotted(optimisation())} selectedSlotId="1" setDevice={vi.fn()}
+                                    setError={setError}/>);
         fireEvent.click(screen.getByRole('switch'));
         await waitFor(() => expect(setError).toHaveBeenCalledWith(err));
+    });
+});
+
+describe('slotOptimises', () => {
+    it('is false only for a missing slot or one which has optimisation off', () => {
+        expect(slotOptimises(null)).toBe(false);
+        expect(slotOptimises({id: '1', optimise: false})).toBe(false);
+        expect(slotOptimises({id: '1', optimise: true})).toBe(true);
+        expect(slotOptimises({id: '1'})).toBe(true);
     });
 });
 
@@ -113,7 +143,6 @@ describe('isOptimisable', () => {
         expect(isOptimisable(null)).toBe(false);
         expect(isOptimisable(device())).toBe(false);
         expect(isOptimisable(device(optimisation()))).toBe(true);
-        expect(isOptimisable(device(optimisation({enabled: false, reason: 'disabled'})))).toBe(true);
         expect(isOptimisable(device(optimisation({available: false, reason: 'profile_unavailable'})))).toBe(false);
     });
 });
@@ -172,16 +201,16 @@ describe('SlotCoefficientsChip', () => {
 
 describe('EntryOptimisationChip', () => {
     it('shows entries optimised for this device', () => {
-        render(<EntryOptimisationChip entryOptimisation={{optimised: true, inUse: true, profile: 'float32-96k'}}/>);
+        render(<EntryOptimisationChip entryOptimisation={{optimised: true, profile: 'float32-96k'}}/>);
         expect(screen.getByText('Optimised for this device')).toBeInTheDocument();
     });
 
-    it('warns when optimised coefficients will not be used', () => {
-        render(<EntryOptimisationChip entryOptimisation={{optimised: true, inUse: false, profile: 'float32-96k'}}/>);
+    it('warns when the target slot will not use the optimised coefficients', () => {
+        render(<EntryOptimisationChip entryOptimisation={{optimised: true, profile: 'float32-96k'}} optimise={false}/>);
         expect(screen.getByText('Unoptimised')).toBeInTheDocument();
     });
 
-    it.each([null, {optimised: false, inUse: false}])('shows nothing for %o', (entryOptimisation) => {
+    it.each([null, {optimised: false}])('shows nothing for %o', (entryOptimisation) => {
         const {container} = render(<EntryOptimisationChip entryOptimisation={entryOptimisation}/>);
         expect(container).toBeEmptyDOMElement();
     });
@@ -198,7 +227,7 @@ describe('useEntryOptimisation', () => {
     });
 
     it('looks up the entry for an optimisable device', async () => {
-        ezbeq.getEntryOptimisation.mockResolvedValue({optimised: true, inUse: true});
+        ezbeq.getEntryOptimisation.mockResolvedValue({optimised: true});
         render(<HookProbe selectedDevice={device(optimisation())} selectedEntry={{id: 'e1'}}/>);
         await waitFor(() => expect(screen.getByTestId('result')).toHaveTextContent('"optimised":true'));
         expect(ezbeq.getEntryOptimisation).toHaveBeenCalledWith('d1', 'e1');
@@ -218,11 +247,11 @@ describe('useEntryOptimisation', () => {
     });
 
     it('does not refetch when unrelated device state changes', async () => {
-        ezbeq.getEntryOptimisation.mockResolvedValue({optimised: true, inUse: true});
+        ezbeq.getEntryOptimisation.mockResolvedValue({optimised: true});
         const {rerender} = render(<HookProbe selectedDevice={device(optimisation())} selectedEntry={{id: 'e1'}}/>);
         await waitFor(() => expect(ezbeq.getEntryOptimisation).toHaveBeenCalledTimes(1));
         rerender(<HookProbe selectedDevice={{...device(optimisation()), masterVolume: -10}} selectedEntry={{id: 'e1'}}/>);
-        rerender(<HookProbe selectedDevice={device(optimisation({enabled: false, reason: 'disabled'}))}
+        rerender(<HookProbe selectedDevice={device(optimisation({profile: 'float32-48k'}))}
                             selectedEntry={{id: 'e1'}}/>);
         await waitFor(() => expect(ezbeq.getEntryOptimisation).toHaveBeenCalledTimes(2));
     });

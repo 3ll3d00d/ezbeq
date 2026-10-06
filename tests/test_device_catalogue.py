@@ -276,7 +276,7 @@ def get_optimisation(client) -> dict:
 def test_24hd_loads_optimised_coefficients(httpserver, tmp_path):
     serve(httpserver, standard_profiles())
     client, cfg = make_client(httpserver, tmp_path)
-    assert get_optimisation(client) == {'profile': 'float32-96k', 'label': 'float32 @ 96 kHz', 'enabled': True,
+    assert get_optimisation(client) == {'profile': 'float32-96k', 'label': 'float32 @ 96 kHz',
                                         'available': True, 'reason': None}
     slot = load_slot_1(client)
     assert slot['coefficients'] == 'optimised'
@@ -306,7 +306,7 @@ def test_entry_without_optimisation_is_standard(httpserver, tmp_path):
 
 def test_unavailable_profile_is_unoptimised(httpserver, tmp_path):
     client, _cfg = make_client(httpserver, tmp_path)
-    assert get_optimisation(client) == {'profile': 'float32-96k', 'label': None, 'enabled': True,
+    assert get_optimisation(client) == {'profile': 'float32-96k', 'label': None,
                                         'available': False, 'reason': 'profile_unavailable'}
     slot = load_slot_1(client)
     assert slot['coefficients'] == 'unoptimised'
@@ -317,7 +317,7 @@ def test_unavailable_profile_is_unoptimised(httpserver, tmp_path):
 def test_devices_without_a_profile(httpserver, tmp_path, device_type):
     serve(httpserver, standard_profiles())
     client, _cfg = make_client(httpserver, tmp_path, device_type=device_type)
-    assert get_optimisation(client) == {'profile': None, 'label': None, 'enabled': True, 'available': False,
+    assert get_optimisation(client) == {'profile': None, 'label': None, 'available': False,
                                         'reason': 'no_profile'}
     assert downloads(httpserver, '/devices/index.json') == 0
     assert load_slot_1(client)['coefficients'] == 'unoptimised'
@@ -436,8 +436,8 @@ def composite_state(members: dict[str, dict]) -> dict:
                                 {n: FixedState(v) for n, v in members.items()}).serialise()
 
 
-OK = {'profile': 'float32-96k', 'label': 'x', 'enabled': True, 'available': True, 'reason': None}
-NOT_OK = {'profile': None, 'label': None, 'enabled': True, 'available': False, 'reason': 'no_profile'}
+OK = {'profile': 'float32-96k', 'label': 'x', 'available': True, 'reason': None}
+NOT_OK = {'profile': None, 'label': None, 'available': False, 'reason': 'no_profile'}
 
 
 def test_composite_reports_least_optimised_member():
@@ -460,48 +460,91 @@ def test_composite_ignores_parametric_members():
     assert s['optimisation'] == OK
 
 
-def patch_optimisation(client, enabled: bool, device: str = 'master'):
-    r = client.patch(f'/api/3/devices/{device}', data=json.dumps({'optimisation': {'enabled': enabled}}),
+def patch_optimise(client, enabled: bool, device: str = 'master', slot: str = '1'):
+    r = client.patch(f'/api/3/devices/{device}', data=json.dumps({'slots': [{'id': slot, 'optimise': enabled}]}),
                      content_type='application/json')
     assert r.status_code == 200
     return r.json
 
 
-def test_disabling_optimisation_loads_authored_coefficients(httpserver, tmp_path):
+def slot_of(state: dict, slot: str = '1') -> dict:
+    return next(s for s in state['slots'] if s['id'] == slot)
+
+
+def test_slots_optimise_by_default(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _ = make_client(httpserver, tmp_path)
+    r = client.get('/api/2/devices')
+    assert all(s['optimise'] is True for s in r.json['master']['slots'])
+
+
+def test_disabling_optimisation_for_a_slot_loads_authored_coefficients(httpserver, tmp_path):
     serve(httpserver, standard_profiles())
     client, cfg = make_client(httpserver, tmp_path)
-    state = patch_optimisation(client, False)
-    assert state['optimisation'] == {'profile': 'float32-96k', 'label': 'float32 @ 96 kHz', 'enabled': False,
-                                     'available': True, 'reason': 'disabled'}
+    state = patch_optimise(client, False)
+    assert slot_of(state)['optimise'] is False
+    assert slot_of(state, '2')['optimise'] is True
+    # the device can still be optimised, it's just this slot which isn't
+    assert state['optimisation']['available'] is True
+    assert state['optimisation']['reason'] is None
     slot = load_slot_1(client)
     assert slot['coefficients'] == 'unoptimised'
     assert slot['profile'] == 'float32-96k'
     assert not any(OPT_CMD in c for c in cfg.spy.take_commands())
-    patch_optimisation(client, True)
+    patch_optimise(client, True)
     assert load_slot_1(client)['coefficients'] == 'optimised'
 
 
-def test_disabled_device_loading_entry_without_optimisation_is_standard(httpserver, tmp_path):
+def test_optimise_is_per_slot(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _cfg = make_client(httpserver, tmp_path)
+    patch_optimise(client, False, slot='2')
+    assert load_slot_1(client)['coefficients'] == 'optimised'
+    r = client.put('/api/1/devices/master/filter/2', data=json.dumps({'entryId': '123456_0'}),
+                   content_type='application/json')
+    assert slot_of(r.json, '2')['coefficients'] == 'unoptimised'
+
+
+def test_optimise_and_load_in_one_patch(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _cfg = make_client(httpserver, tmp_path)
+    r = client.patch('/api/3/devices/master', data=json.dumps({'slots': [{'id': '1', 'optimise': False,
+                                                                         'entry': '123456_0'}]}),
+                     content_type='application/json')
+    assert r.status_code == 200
+    assert slot_of(r.json)['coefficients'] == 'unoptimised'
+
+
+def test_optimise_survives_clearing_the_slot(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _ = make_client(httpserver, tmp_path)
+    patch_optimise(client, False)
+    load_slot_1(client)
+    r = client.delete('/api/1/devices/master/filter/1')
+    assert slot_of(r.json)['optimise'] is False
+
+
+def test_slot_with_optimisation_off_loading_entry_without_optimisation_is_standard(httpserver, tmp_path):
     serve(httpserver, standard_profiles(digest='other'))
     client, _ = make_client(httpserver, tmp_path)
-    patch_optimisation(client, False)
+    patch_optimise(client, False)
     assert load_slot_1(client)['coefficients'] == 'standard'
 
 
-def test_optimisation_toggle_is_persisted(httpserver, tmp_path):
+def test_optimise_is_persisted(httpserver, tmp_path):
     serve(httpserver, standard_profiles())
     client, _ = make_client(httpserver, tmp_path)
-    patch_optimisation(client, False)
+    patch_optimise(client, False)
     with open(tmp_path / 'master.json') as f:
-        assert json.load(f)['optimisation']['enabled'] is False
+        assert slot_of(json.load(f))['optimise'] is False
     client, _ = make_client(httpserver, tmp_path)
-    assert get_optimisation(client)['enabled'] is False
+    assert slot_of(client.get('/api/2/devices').json['master'])['optimise'] is False
     assert load_slot_1(client)['coefficients'] == 'unoptimised'
 
 
-def test_optimisation_patch_requires_enabled(httpserver, tmp_path):
+def test_optimise_rejects_non_boolean(httpserver, tmp_path):
     client, _ = make_client(httpserver, tmp_path)
-    r = client.patch('/api/3/devices/master', data=json.dumps({'optimisation': {}}),
+    r = client.patch('/api/3/devices/master', data=json.dumps({'slots': [{'id': '1', 'optimise': 'no'}]}),
                      content_type='application/json')
     assert r.status_code == 400
 
@@ -515,25 +558,23 @@ def test_entry_optimisation(httpserver, tmp_path):
     client, _ = make_client(httpserver, tmp_path)
     r = get_entry_optimisation(client)
     assert r.status_code == 200
-    assert r.json == {'applicable': True, 'profile': 'float32-96k', 'optimised': True, 'inUse': True}
+    assert r.json == {'applicable': True, 'profile': 'float32-96k', 'optimised': True}
     assert get_entry_optimisation(client, entry=DIGEST).json['optimised'] is True
-    patch_optimisation(client, False)
-    assert get_entry_optimisation(client).json == {'applicable': True, 'profile': 'float32-96k', 'optimised': True,
-                                                   'inUse': False}
+    # whether it is used depends on the slot it's loaded into, not the entry
+    patch_optimise(client, False)
+    assert get_entry_optimisation(client).json['optimised'] is True
 
 
 def test_entry_optimisation_not_needed(httpserver, tmp_path):
     serve(httpserver, standard_profiles(digest='other'))
     client, _ = make_client(httpserver, tmp_path)
-    assert get_entry_optimisation(client).json == {'applicable': True, 'profile': 'float32-96k', 'optimised': False,
-                                                   'inUse': False}
+    assert get_entry_optimisation(client).json == {'applicable': True, 'profile': 'float32-96k', 'optimised': False}
 
 
 def test_entry_optimisation_with_mismatched_profile(httpserver, tmp_path):
     serve(httpserver, standard_profiles())
     client, _ = make_client(httpserver, tmp_path, device_type='4x10', extra={'optimisationProfile': 'float32-96k'})
-    assert get_entry_optimisation(client).json == {'applicable': True, 'profile': 'float32-96k', 'optimised': False,
-                                                   'inUse': False}
+    assert get_entry_optimisation(client).json == {'applicable': True, 'profile': 'float32-96k', 'optimised': False}
 
 
 def test_entry_optimisation_unknown_entry_or_device(httpserver, tmp_path):
@@ -547,21 +588,20 @@ def test_entry_optimisation_unknown_entry_or_device(httpserver, tmp_path):
 def test_entry_optimisation_for_parametric_device(reaper_client):
     r = get_entry_optimisation(reaper_client, device='reaper1')
     assert r.status_code == 200
-    assert r.json == {'applicable': False, 'profile': None, 'optimised': False, 'inUse': False}
+    assert r.json == {'applicable': False, 'profile': None, 'optimised': False}
 
 
-def test_composite_optimisation_toggle_fans_out(httpserver, tmp_path):
+def test_composite_optimise_fans_out_to_members(httpserver, tmp_path):
     from conftest import CompositeMirrorSpyConfig
     serve(httpserver, standard_profiles())
     app, _ = main.create_app(CompositeMirrorSpyConfig(httpserver.host, httpserver.port, tmp_path))
     client = app.test_client()
-    r = get_entry_optimisation(client, device='bass_array')
-    assert r.json == {'applicable': True, 'profile': 'float32-96k', 'optimised': True, 'inUse': True}
-    state = patch_optimisation(client, False, device='bass_array')
-    assert state['optimisation']['reason'] == 'disabled'
+    assert get_entry_optimisation(client, device='bass_array').json['optimised'] is True
+    state = patch_optimise(client, False, device='bass_array')
+    assert slot_of(state)['optimise'] is False
     for member in state['members'].values():
-        assert member['optimisation']['enabled'] is False
-    assert get_entry_optimisation(client, device='bass_array').json['inUse'] is False
+        assert slot_of(member)['optimise'] is False
+        assert slot_of(member, '2')['optimise'] is True
 
 
 def test_composite_mapped_with_parametric_member(httpserver, tmp_path):
@@ -569,10 +609,10 @@ def test_composite_mapped_with_parametric_member(httpserver, tmp_path):
     serve(httpserver, standard_profiles())
     app, _ = main.create_app(CompositeMappedSpyConfig(httpserver.host, httpserver.port, tmp_path))
     client = app.test_client()
-    assert get_entry_optimisation(client, device='home_theatre').json['inUse'] is True
-    state = patch_optimisation(client, False, device='home_theatre')
-    assert state['optimisation']['enabled'] is False
-    assert state['optimisation']['member'] == 'sub1'
+    assert get_entry_optimisation(client, device='home_theatre').json['optimised'] is True
+    state = patch_optimise(client, False, device='home_theatre')
+    assert slot_of(state)['optimise'] is False
+    assert slot_of(state['members']['sub1'])['optimise'] is False
 
 
 def get_optimised(client, device: str = 'master'):
@@ -585,8 +625,8 @@ def test_optimised_ids(httpserver, tmp_path):
     r = get_optimised(client)
     assert r.status_code == 200
     assert r.json == {'profiles': ['float32-96k'], 'ids': ['123456_0']}
-    # still optimisable when the device is not currently using optimised coefficients
-    patch_optimisation(client, False)
+    # still optimisable when a slot is not using optimised coefficients
+    patch_optimise(client, False)
     assert get_optimised(client).json['ids'] == ['123456_0']
 
 

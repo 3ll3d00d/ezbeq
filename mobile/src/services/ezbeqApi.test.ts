@@ -38,12 +38,12 @@ describe('buildTargetedPayload', () => {
   });
 });
 
-describe('buildOptimisationPayload', () => {
+describe('buildOptimisePayload', () => {
   const api = new EzbeqApi(BASE_URL);
 
-  it('builds the optimisation toggle payload', () => {
-    expect(api.buildOptimisationPayload(false)).toEqual({ optimisation: { enabled: false } });
-    expect(api.buildOptimisationPayload(true)).toEqual({ optimisation: { enabled: true } });
+  it('builds the per slot optimise payload', () => {
+    expect(api.buildOptimisePayload('2', false)).toEqual({ slots: [{ id: '2', optimise: false }] });
+    expect(api.buildOptimisePayload('1', true)).toEqual({ slots: [{ id: '1', optimise: true }] });
   });
 });
 
@@ -114,14 +114,14 @@ describe('network calls', () => {
     jest.restoreAllMocks();
   });
 
-  it('setOptimisationEnabled PATCHes the device with the optimisation payload', async () => {
+  it('setOptimise PATCHes the slot with the optimise payload', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({ ok: true, json: () => Promise.resolve({ name: 'd1' }) });
 
-    await api.setOptimisationEnabled('d1', false);
+    await api.setOptimise('d1', '2', false);
 
     expect(global.fetch).toHaveBeenCalledWith(
       `${BASE_URL}/api/3/devices/d1`,
-      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ optimisation: { enabled: false } }) })
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ slots: [{ id: '2', optimise: false }] }) })
     );
   });
 

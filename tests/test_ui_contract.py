@@ -111,9 +111,10 @@ def test_master_only_payload_omits_slots_key(minidsp_client, minidsp_app):
     assert config.spy.take_commands() == ['gain -- -10.00']
 
 
-def test_optimisation_payload(minidsp_client, minidsp_app):
-    """buildOptimisationPayload(false) -> {optimisation: {enabled: false}}"""
-    payload = {'optimisation': {'enabled': False}}
+def test_optimise_payload(minidsp_client, minidsp_app):
+    """buildOptimisePayload('2', false) -> {slots: [{id: '2', optimise: false}]}"""
+    payload = {'slots': [{'id': '2', 'optimise': False}]}
     r = minidsp_client.patch('/api/3/devices/master', data=json.dumps(payload), content_type='application/json')
     assert r.status_code == 200
-    assert r.json['optimisation']['enabled'] is False
+    slot = next(s for s in r.json['slots'] if s['id'] == '2')
+    assert slot['optimise'] is False

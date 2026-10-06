@@ -234,10 +234,12 @@ export class EzbeqApi {
   getEntryOptimisation = async (device: string, entryId: string): Promise<EntryOptimisation> =>
     this.doGet(`devices/${device}/optimisation/${entryId}`);
 
-  setOptimisationEnabled = async (device: string, enabled: boolean): Promise<DeviceState> =>
-    this.doPatch(device, this.buildOptimisationPayload(enabled));
+  setOptimise = async (device: string, slotId: string, enabled: boolean): Promise<DeviceState> =>
+    this.doPatch(device, this.buildOptimisePayload(slotId, enabled));
 
-  buildOptimisationPayload = (enabled: boolean) => ({ optimisation: { enabled: Boolean(enabled) } });
+  buildOptimisePayload = (slotId: string, enabled: boolean) => ({
+    slots: [{ id: String(slotId), optimise: Boolean(enabled) }],
+  });
 }
 
 export const createEzbeqApi = (baseUrl: string): EzbeqApi => new EzbeqApi(baseUrl);

@@ -8,6 +8,7 @@ import {
   OptimisationControl,
   type OptimisationSearch,
   SlotCoefficientsChip,
+  slotOptimises,
   useEntryOptimisation,
   useOptimisedEntryIds,
 } from './Optimisation';
@@ -17,7 +18,6 @@ import type { CatalogueEntry, DeviceOptimisation, DeviceState } from '../../type
 const optimisation = (overrides: Partial<DeviceOptimisation> = {}): DeviceOptimisation => ({
   profile: 'float32-96k',
   label: 'float32 @ 96 kHz',
-  enabled: true,
   available: true,
   reason: null,
   ...overrides,
@@ -31,11 +31,20 @@ const device = (opt?: DeviceOptimisation): DeviceState => ({
   ...(opt ? { optimisation: opt } : {}),
 });
 
+// slot 1 optimises, slot 2 does not
+const slotted = (opt?: DeviceOptimisation): DeviceState => ({
+  ...device(opt),
+  slots: [
+    { id: '1', active: true, optimise: true },
+    { id: '2', active: false, optimise: false },
+  ],
+});
+
 const entry = { id: 7, formattedTitle: 'Some Movie' } as unknown as CatalogueEntry;
 
 const makeApi = (overrides: Partial<EzbeqApi> = {}) =>
   ({
-    setOptimisationEnabled: jest.fn(),
+    setOptimise: jest.fn(),
     getEntryOptimisation: jest.fn(),
     getOptimisedEntries: jest.fn(),
     ...overrides,
@@ -47,7 +56,7 @@ describe('describeReason', () => {
     expect(describeReason(optimisation())).toBeNull();
   });
 
-  it.each(['disabled', 'no_profile', 'profile_unavailable', 'rate_mismatch', 'precision_mismatch'])(
+  it.each(['no_profile', 'profile_unavailable', 'rate_mismatch', 'precision_mismatch'])(
     'describes %s',
     (reason) => {
       expect(describeReason(optimisation({ reason }))).toMatch(/authored coefficients are loaded/);
@@ -64,76 +73,85 @@ describe('describeReason', () => {
 });
 
 describe('OptimisationControl', () => {
-  it('renders nothing for devices which are sent filter parameters', async () => {
-    await render(<OptimisationControl api={makeApi()} device={device()} onDeviceUpdate={jest.fn()} onError={jest.fn()} />);
-    expect(screen.queryByTestId('optimisation-control')).toBeNull();
-  });
-
-  it('shows just an enabled switch when optimised filters are in use', async () => {
-    await render(
-      <OptimisationControl api={makeApi()} device={device(optimisation())} onDeviceUpdate={jest.fn()} onError={jest.fn()} />
-    );
-    const toggle = screen.getByTestId('optimisation-switch');
-    expect(toggle.props.value).toBe(true);
-    expect(screen.getByLabelText('Use optimised filters (float32 @ 96 kHz)')).toBeTruthy();
-    expect(screen.queryByText(/ptimised/)).toBeNull();
-  });
-
-  it('shows an unchecked switch when switched off', async () => {
-    await render(
+  const renderControl = (dev: DeviceState, selectedSlotId: string | null, api = makeApi(), onDeviceUpdate = jest.fn(), onError = jest.fn()) =>
+    render(
       <OptimisationControl
-        api={makeApi()}
-        device={device(optimisation({ enabled: false, reason: 'disabled' }))}
-        onDeviceUpdate={jest.fn()}
-        onError={jest.fn()}
+        api={api}
+        device={dev}
+        selectedSlotId={selectedSlotId}
+        onDeviceUpdate={onDeviceUpdate}
+        onError={onError}
       />
     );
+
+  it('renders nothing for devices which are sent filter parameters', async () => {
+    await renderControl(device(), '1');
+    expect(screen.queryByTestId('optimisation-switch')).toBeNull();
+  });
+
+  it('shows a labelled switch for the selected slot', async () => {
+    await renderControl(slotted(optimisation()), '1');
+    expect(screen.getByText('Optimise')).toBeTruthy();
+    expect(screen.getByTestId('optimisation-switch').props.value).toBe(true);
+    expect(screen.getByLabelText('Load filters optimised for float32 @ 96 kHz into slot 1')).toBeTruthy();
+  });
+
+  it('reflects the setting of the selected slot', async () => {
+    await renderControl(slotted(optimisation()), '2');
     expect(screen.getByTestId('optimisation-switch').props.value).toBe(false);
-    expect(screen.getByLabelText(/switched off/)).toBeTruthy();
+  });
+
+  it('treats a slot which does not report the setting as optimising', async () => {
+    await renderControl({ ...device(optimisation()), slots: [{ id: '1', active: true }] }, '1');
+    expect(screen.getByTestId('optimisation-switch').props.value).toBe(true);
+  });
+
+  it('is disabled when no slot is selected', async () => {
+    await renderControl(slotted(optimisation()), null);
+    expect(screen.getByTestId('optimisation-switch').props.disabled).toBe(true);
   });
 
   it('shows a disabled switch explaining why when the device cannot be optimised', async () => {
-    await render(
-      <OptimisationControl
-        api={makeApi()}
-        device={device(optimisation({ profile: null, label: null, available: false, reason: 'no_profile' }))}
-        onDeviceUpdate={jest.fn()}
-        onError={jest.fn()}
-      />
-    );
+    await renderControl(slotted(optimisation({ profile: null, label: null, available: false, reason: 'no_profile' })), '1');
     const toggle = screen.getByTestId('optimisation-switch');
     expect(toggle.props.value).toBe(false);
+    expect(toggle.props.disabled).toBe(true);
     expect(screen.getByLabelText(/No optimised filters are published/)).toBeTruthy();
   });
 
-  it('toggles optimisation and updates the device', async () => {
-    const updated = device(optimisation({ enabled: false, reason: 'disabled' }));
-    const api = makeApi({ setOptimisationEnabled: jest.fn().mockResolvedValue(updated) });
+  it('toggles optimisation for the selected slot and updates the device', async () => {
+    const updated = slotted(optimisation());
+    const api = makeApi({ setOptimise: jest.fn().mockResolvedValue(updated) });
     const onDeviceUpdate = jest.fn();
-    await render(
-      <OptimisationControl api={api} device={device(optimisation())} onDeviceUpdate={onDeviceUpdate} onError={jest.fn()} />
-    );
+    await renderControl(slotted(optimisation()), '1', api, onDeviceUpdate);
     // a Switch is driven by valueChange, it has no press handler
     await act(async () => {
       fireEvent(screen.getByTestId('optimisation-switch'), 'valueChange', false);
     });
     await waitFor(() => expect(onDeviceUpdate).toHaveBeenCalledWith(updated));
-    expect(api.setOptimisationEnabled).toHaveBeenCalledWith('d1', false);
+    expect(api.setOptimise).toHaveBeenCalledWith('d1', '1', false);
     await waitFor(() => expect(screen.getByTestId('optimisation-switch').props.disabled).toBeFalsy());
   });
 
   it('reports a failed toggle', async () => {
     const err = new Error('boom');
-    const api = makeApi({ setOptimisationEnabled: jest.fn().mockRejectedValue(err) });
+    const api = makeApi({ setOptimise: jest.fn().mockRejectedValue(err) });
     const onError = jest.fn();
-    await render(
-      <OptimisationControl api={api} device={device(optimisation())} onDeviceUpdate={jest.fn()} onError={onError} />
-    );
+    await renderControl(slotted(optimisation()), '1', api, jest.fn(), onError);
     await act(async () => {
       fireEvent(screen.getByTestId('optimisation-switch'), 'valueChange', false);
     });
     await waitFor(() => expect(onError).toHaveBeenCalledWith(err));
     await waitFor(() => expect(screen.getByTestId('optimisation-switch').props.disabled).toBeFalsy());
+  });
+});
+
+describe('slotOptimises', () => {
+  it('is false only for a missing slot or one which has optimisation off', () => {
+    expect(slotOptimises(null)).toBe(false);
+    expect(slotOptimises({ id: '1', active: false, optimise: false })).toBe(false);
+    expect(slotOptimises({ id: '1', active: false, optimise: true })).toBe(true);
+    expect(slotOptimises({ id: '1', active: false })).toBe(true);
   });
 });
 
@@ -157,21 +175,21 @@ describe('SlotCoefficientsChip', () => {
 describe('EntryOptimisationChip', () => {
   it('shows entries optimised for this device', async () => {
     await render(
-      <EntryOptimisationChip entryOptimisation={{ applicable: true, optimised: true, inUse: true, profile: 'p' }} />
+      <EntryOptimisationChip entryOptimisation={{ applicable: true, optimised: true, profile: 'p' }} />
     );
     expect(screen.getByText('Optimised for this device')).toBeTruthy();
   });
 
-  it('warns when optimised coefficients will not be used', async () => {
+  it('warns when the target slot will not use the optimised coefficients', async () => {
     await render(
-      <EntryOptimisationChip entryOptimisation={{ applicable: true, optimised: true, inUse: false, profile: 'p' }} />
+      <EntryOptimisationChip entryOptimisation={{ applicable: true, optimised: true, profile: 'p' }} optimise={false} />
     );
     expect(screen.getByText('Unoptimised')).toBeTruthy();
   });
 
   it('shows nothing when the entry has no optimised coefficients', async () => {
     await render(
-      <EntryOptimisationChip entryOptimisation={{ applicable: true, optimised: false, inUse: false, profile: 'p' }} />
+      <EntryOptimisationChip entryOptimisation={{ applicable: true, optimised: false, profile: 'p' }} />
     );
     expect(screen.queryByText(/ptimised/)).toBeNull();
   });
@@ -184,7 +202,7 @@ function HookProbe({ api, dev }: { api: EzbeqApi; dev: DeviceState }) {
 
 describe('useEntryOptimisation', () => {
   it('looks up the entry for an optimisable device', async () => {
-    const api = makeApi({ getEntryOptimisation: jest.fn().mockResolvedValue({ optimised: true, inUse: true }) });
+    const api = makeApi({ getEntryOptimisation: jest.fn().mockResolvedValue({ optimised: true }) });
     await render(<HookProbe api={api} dev={device(optimisation())} />);
     await waitFor(() => expect(screen.getByTestId('result')).toHaveTextContent('"optimised":true', { exact: false }));
     expect(api.getEntryOptimisation).toHaveBeenCalledWith('d1', '7');
@@ -204,11 +222,11 @@ describe('useEntryOptimisation', () => {
   });
 
   it('does not refetch when unrelated device state changes', async () => {
-    const api = makeApi({ getEntryOptimisation: jest.fn().mockResolvedValue({ optimised: true, inUse: true }) });
+    const api = makeApi({ getEntryOptimisation: jest.fn().mockResolvedValue({ optimised: true }) });
     await render(<HookProbe api={api} dev={device(optimisation())} />);
     await waitFor(() => expect(api.getEntryOptimisation).toHaveBeenCalledTimes(1));
     await screen.rerender(<HookProbe api={api} dev={{ ...device(optimisation()), masterVolume: -10 }} />);
-    await screen.rerender(<HookProbe api={api} dev={device(optimisation({ enabled: false, reason: 'disabled' }))} />);
+    await screen.rerender(<HookProbe api={api} dev={device(optimisation({ profile: 'float32-48k' }))} />);
     await waitFor(() => expect(api.getEntryOptimisation).toHaveBeenCalledTimes(2));
   });
 });
@@ -218,7 +236,6 @@ describe('isOptimisable', () => {
     expect(isOptimisable(null)).toBe(false);
     expect(isOptimisable(device())).toBe(false);
     expect(isOptimisable(device(optimisation()))).toBe(true);
-    expect(isOptimisable(device(optimisation({ enabled: false, reason: 'disabled' })))).toBe(true);
     expect(isOptimisable(device(optimisation({ available: false, reason: 'profile_unavailable' })))).toBe(false);
   });
 });

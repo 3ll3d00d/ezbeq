@@ -369,7 +369,13 @@ export default function MainScreen({ navigation }: Props) {
 
   const optimisationControl =
     api && device ? (
-      <OptimisationControl api={api} device={device} onDeviceUpdate={replaceDevice} onError={setError} />
+      <OptimisationControl
+        api={api}
+        device={device}
+        selectedSlotId={selectedSlotId}
+        onDeviceUpdate={replaceDevice}
+        onError={setError}
+      />
     ) : null;
 
   const devicesPane = !device ? (

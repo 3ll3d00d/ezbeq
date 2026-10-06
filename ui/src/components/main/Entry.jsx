@@ -14,7 +14,7 @@ import Typography from "@mui/material/Typography";
 import PublishIcon from "@mui/icons-material/Publish";
 import React, {useEffect, useMemo, useState} from "react";
 import ezbeq from "../../services/ezbeq";
-import {EntryOptimisationChip, useEntryOptimisation} from "./Optimisation";
+import {EntryOptimisationChip, slotOptimises, useEntryOptimisation} from "./Optimisation";
 
 const formatExtraMeta = entry => {
     const extras = []
@@ -204,6 +204,10 @@ const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotI
         }
     };
     if (selectedEntry) {
+        // whether the badge says optimised depends on the slot it will be uploaded to
+        const uploadSlot = selectedDevice && selectedDevice.slots
+            ? selectedDevice.slots.find(s => s.id === uploadSlotId)
+            : null;
         const images = selectedEntry.images
             ?
             selectedEntry.images.map((i, idx) =>
@@ -243,7 +247,8 @@ const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotI
                 {
                     formatExtraMeta(selectedEntry)
                 }
-                <EntryOptimisationChip entryOptimisation={entryOptimisation}/>
+                <EntryOptimisationChip entryOptimisation={entryOptimisation}
+                                       optimise={!uploadSlot || slotOptimises(uploadSlot)}/>
                 <br/>
                 <Typography variant="body2" color="textSecondary" component="p">
                     {formatTV(selectedEntry)}

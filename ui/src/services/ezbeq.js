@@ -236,12 +236,12 @@ class EzBeqService {
         return this.doGet(`devices/${device}/optimisation/${entryId}`);
     }
 
-    setOptimisationEnabled = async (device, enabled) => {
-        return await this.doPatch(device, this.buildOptimisationPayload(enabled));
+    setOptimise = async (device, slotId, enabled) => {
+        return await this.doPatch(device, this.buildOptimisePayload(slotId, enabled));
     }
 
-    buildOptimisationPayload = (enabled) => {
-        return {optimisation: {enabled: Boolean(enabled)}};
+    buildOptimisePayload = (slotId, enabled) => {
+        return {slots: [{id: String(slotId), optimise: Boolean(enabled)}]};
     }
 }
 
