@@ -1,6 +1,7 @@
 import { Platform, Pressable, StyleSheet, View, type PressableProps } from 'react-native';
 import { ActivityIndicator, IconButton, Text, useTheme } from 'react-native-paper';
 
+import { SlotCoefficientsChip } from './Optimisation';
 import type { SlotState } from '../../types/ezbeq';
 
 type Props = {
@@ -22,10 +23,13 @@ export default function SlotCard({ slot, selected, pending, onSelect, onClear, h
   const lastAuthor = slot.author ? ` (${slot.author})` : '';
   const label = `Slot ${slot.name ?? slot.id}: ${slot.last ?? 'Empty'}${lastAuthor}${selected ? ', active' : ''}`;
   const cardText = (
-    <Text variant="bodyMedium" style={styles.label} numberOfLines={Platform.isTV ? 1 : undefined}>
-      {slot.name ? slot.name : slot.id}: {slot.last ?? 'Empty'}
-      {lastAuthor}
-    </Text>
+    <View style={styles.label}>
+      <Text variant="bodyMedium" numberOfLines={Platform.isTV ? 1 : undefined}>
+        {slot.name ? slot.name : slot.id}: {slot.last ?? 'Empty'}
+        {lastAuthor}
+      </Text>
+      <SlotCoefficientsChip slot={slot} />
+    </View>
   );
 
   if (Platform.isTV) {

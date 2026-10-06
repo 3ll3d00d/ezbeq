@@ -38,6 +38,15 @@ describe('buildTargetedPayload', () => {
   });
 });
 
+describe('buildOptimisationPayload', () => {
+  const api = new EzbeqApi(BASE_URL);
+
+  it('builds the optimisation toggle payload', () => {
+    expect(api.buildOptimisationPayload(false)).toEqual({ optimisation: { enabled: false } });
+    expect(api.buildOptimisationPayload(true)).toEqual({ optimisation: { enabled: true } });
+  });
+});
+
 describe('createPatchPayload', () => {
   const api = new EzbeqApi(BASE_URL);
 
@@ -103,6 +112,25 @@ describe('network calls', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  it('setOptimisationEnabled PATCHes the device with the optimisation payload', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: true, json: () => Promise.resolve({ name: 'd1' }) });
+
+    await api.setOptimisationEnabled('d1', false);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      `${BASE_URL}/api/3/devices/d1`,
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ optimisation: { enabled: false } }) })
+    );
+  });
+
+  it('getEntryOptimisation GETs the device entry optimisation', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: true, json: () => Promise.resolve({ optimised: true }) });
+
+    await expect(api.getEntryOptimisation('d1', 'entry-1')).resolves.toEqual({ optimised: true });
+
+    expect(global.fetch).toHaveBeenCalledWith(`${BASE_URL}/api/1/devices/d1/optimisation/entry-1`, expect.anything());
   });
 
   it('sendFilter without gains PUTs the entry id to the slot', async () => {

@@ -129,3 +129,31 @@ describe('on tvOS', () => {
     expect(screen.queryByLabelText('Clear slot 1')).toBeNull();
   });
 });
+
+test('flags slots loaded with optimised coefficients', async () => {
+  await render(
+    <SlotCard
+      slot={slot({ last: 'Interstellar (2014)', coefficients: 'optimised', profile: 'float32-96k' })}
+      selected={false}
+      pending={false}
+      onSelect={jest.fn()}
+      onClear={jest.fn()}
+    />
+  );
+
+  expect(screen.getByText('Optimised')).toBeTruthy();
+});
+
+test('warns on slots loaded with unoptimised coefficients', async () => {
+  await render(
+    <SlotCard
+      slot={slot({ last: 'Interstellar (2014)', coefficients: 'unoptimised' })}
+      selected={false}
+      pending={false}
+      onSelect={jest.fn()}
+      onClear={jest.fn()}
+    />
+  );
+
+  expect(screen.getByText('Unoptimised')).toBeTruthy();
+});

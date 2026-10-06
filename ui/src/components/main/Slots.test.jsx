@@ -164,3 +164,20 @@ describe('Slots slot management', () => {
         expect(clearButtonFor('1: Filter One')).not.toBeDisabled();
     });
 });
+
+describe('Slots optimisation', () => {
+    it('shows the optimisation control and the coefficients loaded in each slot', () => {
+        renderSlots({
+            ...baseDevice(0),
+            optimisation: {profile: 'float32-96k', label: 'float32 @ 96 kHz', enabled: false, available: true, reason: 'disabled'},
+            slots: [
+                {...baseDevice(0).slots[0], coefficients: 'optimised', profile: 'float32-96k'},
+                {...baseDevice(0).slots[0], id: '2', coefficients: 'unoptimised', profile: 'float32-96k'}
+            ]
+        });
+        expect(screen.getByRole('switch')).not.toBeChecked();
+        expect(screen.getByText('Optimised')).toBeInTheDocument();
+        // one for the device, one for slot 2
+        expect(screen.getAllByText('Unoptimised')).toHaveLength(2);
+    });
+});
