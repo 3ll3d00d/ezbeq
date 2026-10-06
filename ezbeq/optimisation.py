@@ -111,6 +111,22 @@ class DeviceOptimisation:
             'reason': reason,
         }
 
+    def describe(self, entry: CatalogueEntry) -> dict:
+        """
+        :param entry: the entry.
+        :return: whether optimised coefficients are published for this entry in a profile this device can use and
+        whether they would be loaded.
+        """
+        profile, reason = self.__status()
+        optimised = profile is not None and reason is None and self.__catalogues is not None \
+            and self.__catalogues.optimised_biquads(profile.id, entry.digest, len(entry.filters)) is not None
+        return {
+            'applicable': True,
+            'profile': profile.id if profile else None,
+            'optimised': optimised,
+            'inUse': optimised and self.enabled,
+        }
+
     def resolve(self, entry: CatalogueEntry) -> LoadableCoefficients:
         """
         :param entry: the entry to load.

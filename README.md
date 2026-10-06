@@ -552,6 +552,17 @@ A custom layout can either name its device catalogue via `optimisationProfile` o
 `descriptor`, in which case the device catalogue whose precision and sample rate match the descriptor is used. A custom
 layout with neither does not use optimised coefficients.
 
+Optimised coefficients can also be switched off, and back on, for a device from the UI without changing the config.
+This setting is remembered across restarts. Via the API, this is
+
+```
+PATCH /api/3/devices/<device name>
+{"optimisation": {"enabled": false}}
+```
+
+and `GET /api/1/devices/<device name>/optimisation/<catalogue entry id>` reports whether a title has optimised
+coefficients for that device and whether they would be used.
+
 ezbeq refuses to use a device catalogue whose sample rate or precision does not match the device, as those coefficients
 would realise a different filter. A device that cannot use optimised coefficients is flagged as unoptimised in the UI.
 

@@ -410,3 +410,117 @@ def test_composite_of_parametric_devices_has_no_optimisation():
 def test_composite_ignores_parametric_members():
     s = composite_state({'a': {'slots': []}, 'b': {'optimisation': OK}})
     assert s['optimisation'] == OK
+
+
+def patch_optimisation(client, enabled: bool, device: str = 'master'):
+    r = client.patch(f'/api/3/devices/{device}', data=json.dumps({'optimisation': {'enabled': enabled}}),
+                     content_type='application/json')
+    assert r.status_code == 200
+    return r.json
+
+
+def test_disabling_optimisation_loads_authored_coefficients(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, cfg = make_client(httpserver, tmp_path)
+    state = patch_optimisation(client, False)
+    assert state['optimisation'] == {'profile': 'float32-96k', 'label': 'float32 @ 96 kHz', 'enabled': False,
+                                     'available': True, 'reason': 'disabled'}
+    slot = load_slot_1(client)
+    assert slot['coefficients'] == 'unoptimised'
+    assert slot['profile'] == 'float32-96k'
+    assert not any(OPT_CMD in c for c in cfg.spy.take_commands())
+    patch_optimisation(client, True)
+    assert load_slot_1(client)['coefficients'] == 'optimised'
+
+
+def test_disabled_device_loading_entry_without_optimisation_is_standard(httpserver, tmp_path):
+    serve(httpserver, standard_profiles(digest='other'))
+    client, _ = make_client(httpserver, tmp_path)
+    patch_optimisation(client, False)
+    assert load_slot_1(client)['coefficients'] == 'standard'
+
+
+def test_optimisation_toggle_is_persisted(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _ = make_client(httpserver, tmp_path)
+    patch_optimisation(client, False)
+    with open(tmp_path / 'master.json') as f:
+        assert json.load(f)['optimisation']['enabled'] is False
+    client, _ = make_client(httpserver, tmp_path)
+    assert get_optimisation(client)['enabled'] is False
+    assert load_slot_1(client)['coefficients'] == 'unoptimised'
+
+
+def test_optimisation_patch_requires_enabled(httpserver, tmp_path):
+    client, _ = make_client(httpserver, tmp_path)
+    r = client.patch('/api/3/devices/master', data=json.dumps({'optimisation': {}}),
+                     content_type='application/json')
+    assert r.status_code == 400
+
+
+def get_entry_optimisation(client, device: str = 'master', entry: str = '123456_0'):
+    return client.get(f'/api/1/devices/{device}/optimisation/{entry}')
+
+
+def test_entry_optimisation(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _ = make_client(httpserver, tmp_path)
+    r = get_entry_optimisation(client)
+    assert r.status_code == 200
+    assert r.json == {'applicable': True, 'profile': 'float32-96k', 'optimised': True, 'inUse': True}
+    assert get_entry_optimisation(client, entry=DIGEST).json['optimised'] is True
+    patch_optimisation(client, False)
+    assert get_entry_optimisation(client).json == {'applicable': True, 'profile': 'float32-96k', 'optimised': True,
+                                                   'inUse': False}
+
+
+def test_entry_optimisation_not_needed(httpserver, tmp_path):
+    serve(httpserver, standard_profiles(digest='other'))
+    client, _ = make_client(httpserver, tmp_path)
+    assert get_entry_optimisation(client).json == {'applicable': True, 'profile': 'float32-96k', 'optimised': False,
+                                                   'inUse': False}
+
+
+def test_entry_optimisation_with_mismatched_profile(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _ = make_client(httpserver, tmp_path, device_type='4x10', extra={'optimisationProfile': 'float32-96k'})
+    assert get_entry_optimisation(client).json == {'applicable': True, 'profile': 'float32-96k', 'optimised': False,
+                                                   'inUse': False}
+
+
+def test_entry_optimisation_unknown_entry_or_device(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _ = make_client(httpserver, tmp_path)
+    assert get_entry_optimisation(client, entry='nope').status_code == 404
+    assert get_entry_optimisation(client, device='nope').status_code == 404
+
+
+def test_entry_optimisation_for_parametric_device(reaper_client):
+    r = get_entry_optimisation(reaper_client, device='reaper1')
+    assert r.status_code == 200
+    assert r.json == {'applicable': False, 'profile': None, 'optimised': False, 'inUse': False}
+
+
+def test_composite_optimisation_toggle_fans_out(httpserver, tmp_path):
+    from conftest import CompositeMirrorSpyConfig
+    serve(httpserver, standard_profiles())
+    app, _ = main.create_app(CompositeMirrorSpyConfig(httpserver.host, httpserver.port, tmp_path))
+    client = app.test_client()
+    r = get_entry_optimisation(client, device='bass_array')
+    assert r.json == {'applicable': True, 'profile': 'float32-96k', 'optimised': True, 'inUse': True}
+    state = patch_optimisation(client, False, device='bass_array')
+    assert state['optimisation']['reason'] == 'disabled'
+    for member in state['members'].values():
+        assert member['optimisation']['enabled'] is False
+    assert get_entry_optimisation(client, device='bass_array').json['inUse'] is False
+
+
+def test_composite_mapped_with_parametric_member(httpserver, tmp_path):
+    from conftest import CompositeMappedSpyConfig
+    serve(httpserver, standard_profiles())
+    app, _ = main.create_app(CompositeMappedSpyConfig(httpserver.host, httpserver.port, tmp_path))
+    client = app.test_client()
+    assert get_entry_optimisation(client, device='home_theatre').json['inUse'] is True
+    state = patch_optimisation(client, False, device='home_theatre')
+    assert state['optimisation']['enabled'] is False
+    assert state['optimisation']['member'] == 'sub1'
