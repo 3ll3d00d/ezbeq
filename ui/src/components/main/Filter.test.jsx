@@ -121,7 +121,7 @@ describe('Filter rendering', () => {
 describe('Filter device optimisation', () => {
     it('is hidden when the selected device cannot be optimised', () => {
         render(<Filter {...baseProps}/>);
-        expect(screen.queryByText('Optimised for this device')).toBeNull();
+        expect(screen.queryByText('Device optimisation')).toBeNull();
     });
 
     it('selects optimised, not optimised or any', () => {
@@ -129,9 +129,9 @@ describe('Filter device optimisation', () => {
         const {rerender} = render(<Filter {...baseProps} optimisable={true} selectedOptimisation={null}
                                           setSelectedOptimisation={setSelectedOptimisation}/>);
         expect(screen.getByRole('button', {name: 'Any'})).toHaveAttribute('aria-pressed', 'true');
-        fireEvent.click(screen.getByRole('button', {name: 'Yes'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Optimised'}));
         expect(setSelectedOptimisation).toHaveBeenLastCalledWith('optimised');
-        fireEvent.click(screen.getByRole('button', {name: 'No'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Not needed'}));
         expect(setSelectedOptimisation).toHaveBeenLastCalledWith('unoptimised');
         rerender(<Filter {...baseProps} optimisable={true} selectedOptimisation="unoptimised"
                          setSelectedOptimisation={setSelectedOptimisation}/>);

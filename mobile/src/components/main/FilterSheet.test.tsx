@@ -180,7 +180,7 @@ test('offers the device optimisation search only when the device can be optimise
     onError: jest.fn(),
   };
   await renderSheet(<FilterSheet {...props} />);
-  expect(screen.queryByText('Optimised for this device')).toBeNull();
+  expect(screen.queryByText('Device optimisation')).toBeNull();
 
   await screen.rerender(
     <PaperProvider>
@@ -193,10 +193,10 @@ test('offers the device optimisation search only when the device can be optimise
     </PaperProvider>
   );
   const user = userEvent.setup();
-  await user.press(screen.getByLabelText('Optimised for this device: yes'));
+  await user.press(screen.getByLabelText('Device optimisation: optimised'));
   expect(onSelectedOptimisationChange).toHaveBeenLastCalledWith('optimised');
-  await user.press(screen.getByLabelText('Optimised for this device: no'));
+  await user.press(screen.getByLabelText('Device optimisation: not needed'));
   expect(onSelectedOptimisationChange).toHaveBeenLastCalledWith('unoptimised');
-  await user.press(screen.getByLabelText('Optimised for this device: any'));
+  await user.press(screen.getByLabelText('Device optimisation: any'));
   expect(onSelectedOptimisationChange).toHaveBeenLastCalledWith(null);
 });

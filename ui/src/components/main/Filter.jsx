@@ -144,17 +144,18 @@ const Filter = ({
                 {
                     optimisable
                         ? <Box sx={{display: 'flex', alignItems: 'center', gap: 1, mt: 1}}>
-                            <Typography variant="body2" color="textSecondary">Optimised for this device</Typography>
+                            <Typography variant="body2" color="textSecondary">Device optimisation</Typography>
                             <ToggleButtonGroup size="small"
                                                exclusive
                                                value={selectedOptimisation ?? 'any'}
-                                               aria-label="Optimised for this device"
+                                               aria-label="Device optimisation"
                                                onChange={(e, v) => {
                                                    if (v !== null) setSelectedOptimisation(v === 'any' ? null : v);
                                                }}>
                                 <ToggleButton value="any">Any</ToggleButton>
-                                <ToggleButton value={OPTIMISED}>Yes</ToggleButton>
-                                <ToggleButton value={NOT_OPTIMISED}>No</ToggleButton>
+                                <ToggleButton value={OPTIMISED}>Optimised</ToggleButton>
+                                {/* titles not in the device catalogue were already realised well enough on this device */}
+                                <ToggleButton value={NOT_OPTIMISED}>Not needed</ToggleButton>
                             </ToggleButtonGroup>
                         </Box>
                         : null

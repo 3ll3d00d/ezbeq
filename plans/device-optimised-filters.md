@@ -94,7 +94,7 @@ a device is running unoptimised coefficients.
 - Slot: "Optimised (<label>)" chip; warning "Unoptimised" chip; nothing for `standard`.
 - Entry: "Optimised for this device" badge, or "Unoptimised" when the slot it will be uploaded to has
   `optimise` off.
-- Advanced search: "Optimised for this device" (Any / Yes / No), via `GET /api/1/devices/<name>/optimised`.
+- Advanced search: "Device optimisation" (Any / Optimised / Not needed), via `GET /api/1/devices/<name>/optimised`.
 - Nothing shown for parametric devices.
 
 ## 6. Tests and docs
