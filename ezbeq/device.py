@@ -21,6 +21,9 @@ class SlotState(Generic[S]):
         self.last = 'Empty'
         self.last_author = None
         self.active = False
+        # what kind of coefficients were loaded, see ezbeq.optimisation, None if not known or not applicable
+        self.coefficients: str | None = None
+        self.profile: str | None = None
 
     @property
     def slot_id(self) -> str:
@@ -35,9 +38,19 @@ class SlotState(Generic[S]):
             self.active = False
         if 'author' in state:
             self.last_author = state['author']
+        self.coefficients = state.get('coefficients', None)
+        self.profile = state.get('profile', None)
 
     def as_dict(self) -> dict:
-        return {'id': self.slot_id, 'last': self.last, 'active': self.active, 'author': self.last_author}
+        vals = {'id': self.slot_id, 'last': self.last, 'active': self.active, 'author': self.last_author}
+        if self.coefficients:
+            vals['coefficients'] = self.coefficients
+            vals['profile'] = self.profile
+        return vals
+
+    def clear_coefficients(self):
+        self.coefficients = None
+        self.profile = None
 
     def __repr__(self):
         return f"{'*' if self.active else ''} {self.slot_id} - {self.last}"
@@ -45,6 +58,7 @@ class SlotState(Generic[S]):
     def clear(self):
         self.last = 'Empty'
         self.last_author = None
+        self.clear_coefficients()
 
 
 class DeviceState(ABC):
