@@ -1,11 +1,12 @@
 import hashlib
 import json
+import sqlite3
 
 import pytest
-from conftest import MinidspSpyConfig
+from conftest import CapturingWsServer, MinidspSpy, MinidspSpyConfig
 from pytest_httpserver import HTTPServer
 
-from ezbeq import main
+from ezbeq import catalogue, main
 from ezbeq.catalogue import DeviceCatalogues, ProfileRequirement, to_coefficients
 from ezbeq.composite import CompositeDeviceState, MemberSpec
 from ezbeq.device import DeviceState, SlotState
@@ -16,10 +17,11 @@ OPT_CMD = '1.1 -1.2 0.3 1.4 -0.5'
 
 
 def make_profile(profile_id: str, rate: int, entries: dict, schema_version: int = 1,
-                 loading_model: str = 'additive-feedback-decimal17-v1', header_rate: int | None = None) -> bytes:
+                 loading_model: str | None = 'additive-feedback-decimal17-v1', header_rate: int | None = None,
+                 header_profile: str | None = None) -> bytes:
     return json.dumps({
         'schema_version': schema_version,
-        'profile': profile_id,
+        'profile': header_profile if header_profile else profile_id,
         'revision': 1,
         'rate': header_rate if header_rate is not None else rate,
         'storage': 'float32',
@@ -75,6 +77,10 @@ def make_dc(httpserver: HTTPServer, tmp_path) -> DeviceCatalogues:
 REQ_96K = ProfileRequirement('float32-96k', 96000, 'float32')
 
 
+def boom(*_args, **_kwargs):
+    raise ValueError('boom')
+
+
 class TestDeviceCatalogues:
 
     def test_loads_only_required_profiles(self, httpserver, tmp_path):
@@ -106,7 +112,9 @@ class TestDeviceCatalogues:
         {'schema_version': 2},
         {'loading_model': 'something-else'},
         {'header_rate': 48000},
-    ], ids=['schema', 'loading_model', 'rate'])
+        {'header_profile': 'float32-48k'},
+        {'loading_model': None},
+    ], ids=['schema', 'loading_model', 'rate', 'profile', 'missing_loading_model'])
     def test_invalid_header_is_rejected(self, httpserver, tmp_path, kwargs):
         content = make_profile('float32-96k', 96000, {DIGEST: [OPT_BQ] * 5}, **kwargs)
         serve(httpserver, {'float32-96k': (96000, content)})
@@ -116,6 +124,21 @@ class TestDeviceCatalogues:
 
     def test_unsupported_index_schema_is_ignored(self, httpserver, tmp_path):
         httpserver.expect_request('/devices/index.json').respond_with_json({'schema_version': 2, 'profiles': []})
+        dc = make_dc(httpserver, tmp_path)
+        dc.require(REQ_96K)
+        assert dc.loaded == []
+
+    def test_unreadable_index_is_ignored(self, httpserver, tmp_path):
+        httpserver.expect_request('/devices/index.json').respond_with_data('not json')
+        dc = make_dc(httpserver, tmp_path)
+        dc.require(REQ_96K)
+        assert dc.loaded == []
+
+    def test_failed_profile_download_is_rejected(self, httpserver, tmp_path):
+        content = make_profile('float32-96k', 96000, {DIGEST: [OPT_BQ] * 5})
+        httpserver.expect_request('/devices/index.json').respond_with_json(
+            {'schema_version': 1, 'profiles': [index_entry('float32-96k', 96000, content)]})
+        httpserver.expect_request('/devices/float32-96k.json').respond_with_data('', status=404)
         dc = make_dc(httpserver, tmp_path)
         dc.require(REQ_96K)
         assert dc.loaded == []
@@ -196,10 +219,6 @@ class TestDeviceCatalogues:
     def test_failing_listener_does_not_break_refresh(self, httpserver, tmp_path):
         serve(httpserver, standard_profiles())
         dc = make_dc(httpserver, tmp_path)
-
-        def boom():
-            raise ValueError('boom')
-
         dc.add_listener(boom)
         dc.require(REQ_96K)
         assert [p.id for p in dc.loaded] == ['float32-96k']
@@ -222,6 +241,29 @@ class TestDeviceCatalogues:
         dc.require(REQ_96K)
         assert [p.id for p in dc.loaded] == ['float32-96k']
         assert dc.optimised_biquads('float32-96k', DIGEST, 5)
+
+    def test_unreadable_profile_in_db_is_ignored(self, httpserver, tmp_path):
+        serve(httpserver, standard_profiles())
+        make_dc(httpserver, tmp_path).require(REQ_96K)
+        with sqlite3.connect(tmp_path / 'ezbeq.db') as conn:
+            conn.execute("UPDATE device_profile SET meta = 'not json'")
+        assert make_dc(httpserver, tmp_path).loaded == []
+
+    def test_async_require_refreshes_in_a_thread(self, httpserver, tmp_path, monkeypatch):
+        from twisted.internet import reactor
+        monkeypatch.setattr(reactor, 'callInThread', lambda f, *args: f(*args))
+        serve(httpserver, standard_profiles())
+        dc = DeviceCatalogues(str(tmp_path / 'ezbeq.db'), f'http://{httpserver.host}:{httpserver.port}/', False)
+        dc.require(REQ_96K)
+        assert [p.id for p in dc.loaded] == ['float32-96k']
+
+    def test_async_refresh_failure_is_contained(self, httpserver, tmp_path, monkeypatch):
+        from twisted.internet import reactor
+        monkeypatch.setattr(reactor, 'callInThread', lambda f, *args: f(*args))
+        monkeypatch.setattr(DeviceCatalogues, 'refresh', boom)
+        dc = DeviceCatalogues(str(tmp_path / 'ezbeq.db'), f'http://{httpserver.host}:{httpserver.port}/', False)
+        dc.require(REQ_96K)
+        assert dc.loaded == []
 
     def test_requirement_by_format(self, httpserver, tmp_path):
         serve(httpserver, standard_profiles())
@@ -383,6 +425,81 @@ def test_custom_descriptor_rejects_unknown_precision(httpserver, tmp_path):
         make_client(httpserver, tmp_path, extra=custom_descriptor(precision='float64'))
 
 
+class FailingSendSpy(MinidspSpy):
+    """
+    Fails sending the next command file while still answering status reads, so the failure lands on the load itself.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.fail_next_send = False
+
+    def __call__(self, *args, **kwargs):
+        if self.fail_next_send and self.pending and self.pending[-1][0] == '-f':
+            self.fail_next_send = False
+            self.pending = []
+            raise RuntimeError('simulated send failure')
+        return super().__call__(*args, **kwargs)
+
+
+def test_failed_load_resets_slot_coefficients(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    cfg = OptimisedMinidspConfig(httpserver.host, httpserver.port, tmp_path)
+    cfg.spy = FailingSendSpy()
+    app, _ = main.create_app(cfg)
+    client = app.test_client()
+    load_slot_1(client)
+    cfg.spy.fail_next_send = True
+    r = client.put('/api/1/devices/master/filter/1', data=json.dumps({'entryId': '123456_0'}),
+                   content_type='application/json')
+    assert r.status_code == 500
+    slot = slot_of(client.get('/api/2/devices').json['master'])
+    assert slot['last'] == 'ERROR'
+    assert 'coefficients' not in slot
+
+
+def test_catalogue_download_listener_failure_does_not_break_startup(httpserver, tmp_path, monkeypatch):
+    serve(httpserver, standard_profiles())
+    refresh = DeviceCatalogues.refresh
+    calls = []
+
+    def fail_first(self):
+        calls.append(1)
+        if len(calls) == 1:
+            raise ValueError('boom')
+        refresh(self)
+
+    monkeypatch.setattr(DeviceCatalogues, 'refresh', fail_first)
+    client, _ = make_client(httpserver, tmp_path)
+    assert get_optimisation(client)['available'] is True
+
+
+def test_device_profiles_refresh_when_main_catalogue_version_is_unchanged(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    dc = make_dc(httpserver, tmp_path)
+    dc.require(REQ_96K)
+    catalogues = catalogue.Catalogues(
+        str(tmp_path), f'http://{httpserver.host}:{httpserver.port}/', CapturingWsServer(),
+        3600, 100, 100, True, on_download=dc.refresh)
+    try:
+        original_version = catalogues.latest.version
+        httpserver.clear_all_handlers()
+        httpserver.expect_request('/version.txt').respond_with_data(original_version, content_type='text/plain')
+        serve(httpserver, standard_profiles(digest='replacement'))
+        catalogues._Catalogues__do_reload()
+        assert catalogues.latest.version == original_version
+        assert dc.optimised_biquads('float32-96k', DIGEST, 5) is None
+        assert dc.optimised_biquads('float32-96k', 'replacement', 5) is not None
+    finally:
+        catalogues.stop()
+
+
+def test_descriptor_str_includes_precision_when_known():
+    from ezbeq.minidsp import Minidsp24HD, MinidspDescriptor
+    assert 'precision: float32' in str(Minidsp24HD())
+    assert 'precision' not in str(MinidspDescriptor('custom', '96000'))
+
+
 def test_clear_resets_slot_coefficients(httpserver, tmp_path):
     serve(httpserver, standard_profiles())
     client, _cfg = make_client(httpserver, tmp_path)
@@ -495,6 +612,14 @@ def test_disabling_optimisation_for_a_slot_loads_authored_coefficients(httpserve
     assert load_slot_1(client)['coefficients'] == 'optimised'
 
 
+def test_optimise_unchanged_is_a_nop(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, cfg = make_client(httpserver, tmp_path)
+    cfg.spy.take_commands()
+    assert slot_of(patch_optimise(client, True))['optimise'] is True
+    assert cfg.spy.take_commands() == []
+
+
 def test_optimise_is_per_slot(httpserver, tmp_path):
     serve(httpserver, standard_profiles())
     client, _cfg = make_client(httpserver, tmp_path)
@@ -583,6 +708,40 @@ def test_entry_optimisation_unknown_entry_or_device(httpserver, tmp_path):
     assert get_entry_optimisation(client, entry='nope').status_code == 404
     assert get_entry_optimisation(client, entry="' OR '1'='1").status_code == 404
     assert get_entry_optimisation(client, device='nope').status_code == 404
+
+
+def test_composite_entry_optimisation_when_no_member_is_applicable(httpserver, tmp_path, monkeypatch):
+    from conftest import CompositeMappedSpyConfig
+
+    from ezbeq.minidsp import Minidsp
+    serve(httpserver, standard_profiles())
+    monkeypatch.setattr(Minidsp, 'entry_optimisation', lambda self, entry: None)
+    app, _ = main.create_app(CompositeMappedSpyConfig(httpserver.host, httpserver.port, tmp_path))
+    r = get_entry_optimisation(app.test_client(), device='home_theatre')
+    assert r.status_code == 200
+    assert r.json == {'applicable': False, 'profile': None, 'optimised': False}
+
+
+def test_device_state_is_broadcast_when_device_catalogues_change(httpserver, tmp_path, monkeypatch):
+    from conftest import CompositeMirrorSpyConfig
+    created: list[DeviceCatalogues] = []
+
+    class RecordingDeviceCatalogues(DeviceCatalogues):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created.append(self)
+
+    monkeypatch.setattr(catalogue, 'DeviceCatalogues', RecordingDeviceCatalogues)
+    serve(httpserver, standard_profiles())
+    ws = CapturingWsServer()
+    app, _ = main.create_app(CompositeMirrorSpyConfig(httpserver.host, httpserver.port, tmp_path), ws)
+    app.test_client().get('/api/2/devices')
+    ws.take_messages()
+    httpserver.clear_all_handlers()
+    serve(httpserver, standard_profiles(digest='other'))
+    created[0].refresh()
+    names = {json.loads(m)['data']['name'] for m in ws.take_messages()}
+    assert names == {'sub1', 'sub2', 'bass_array'}
 
 
 def test_entry_optimisation_for_parametric_device(reaper_client):

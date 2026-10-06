@@ -93,6 +93,19 @@ describe('OptimisationControl', () => {
         expect(screen.getByRole('switch')).toBeChecked();
     });
 
+    it('names the slot, and the device when the profile has no label', () => {
+        render(<OptimisationControl
+            selectedDevice={{...device(optimisation({label: null})), slots: [{id: '1', name: 'Movies'}]}}
+            selectedSlotId="1" setDevice={vi.fn()} setError={vi.fn()}/>);
+        expect(screen.getByRole('switch', {name: 'Load filters optimised for this device into slot Movies'})).toBeChecked();
+    });
+
+    it('is disabled for a device which does not report its slots', () => {
+        render(<OptimisationControl selectedDevice={{name: 'd1', optimisation: optimisation()}} selectedSlotId="1"
+                                    setDevice={vi.fn()} setError={vi.fn()}/>);
+        expect(screen.getByRole('switch', {name: /into the selected slot$/})).toBeDisabled();
+    });
+
     it('is disabled when no slot is selected', () => {
         render(<OptimisationControl selectedDevice={slotted(optimisation())} selectedSlotId={null}
                                     setDevice={vi.fn()} setError={vi.fn()}/>);
@@ -172,6 +185,33 @@ describe('useOptimisedEntryIds', () => {
         expect(ezbeq.getOptimisedEntries).not.toHaveBeenCalled();
     });
 
+    it('ignores a load which completes after the search has changed', async () => {
+        let resolve;
+        ezbeq.getOptimisedEntries.mockReturnValueOnce(new Promise(r => {
+            resolve = r;
+        }));
+        const {rerender} = render(<IdsProbe selectedDevice={device(optimisation())} selectedOptimisation="optimised"/>);
+        rerender(<IdsProbe selectedDevice={device(optimisation())} selectedOptimisation={null}/>);
+        resolve({profiles: ['float32-96k'], ids: ['e1']});
+        await Promise.resolve();
+        expect(screen.getByTestId('ids')).toHaveTextContent('none');
+    });
+
+    it('ignores a failure which completes after the search has changed', async () => {
+        let reject;
+        ezbeq.getOptimisedEntries.mockReturnValueOnce(new Promise((_, r) => {
+            reject = r;
+        }));
+        const setError = vi.fn();
+        const {rerender} = render(<IdsProbe selectedDevice={device(optimisation())} selectedOptimisation="optimised"
+                                            setError={setError}/>);
+        rerender(<IdsProbe selectedDevice={device(optimisation())} selectedOptimisation={null} setError={setError}/>);
+        reject(new Error('boom'));
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(setError).not.toHaveBeenCalled();
+    });
+
     it('reports a failed load', async () => {
         const err = new Error('boom');
         ezbeq.getOptimisedEntries.mockRejectedValue(err);
@@ -243,6 +283,31 @@ describe('useEntryOptimisation', () => {
         ezbeq.getEntryOptimisation.mockRejectedValue(new Error('boom'));
         render(<HookProbe selectedDevice={device(optimisation())} selectedEntry={{id: 'e1'}}/>);
         await waitFor(() => expect(ezbeq.getEntryOptimisation).toHaveBeenCalled());
+        expect(screen.getByTestId('result')).toHaveTextContent('null');
+    });
+
+    it('ignores a lookup which completes after the entry has changed', async () => {
+        let resolve;
+        ezbeq.getEntryOptimisation.mockReturnValueOnce(new Promise(r => {
+            resolve = r;
+        }));
+        const {rerender} = render(<HookProbe selectedDevice={device(optimisation())} selectedEntry={{id: 'e1'}}/>);
+        rerender(<HookProbe selectedDevice={device(optimisation())} selectedEntry={null}/>);
+        resolve({optimised: true});
+        await Promise.resolve();
+        expect(screen.getByTestId('result')).toHaveTextContent('null');
+    });
+
+    it('ignores a failure which completes after the entry has changed', async () => {
+        let reject;
+        ezbeq.getEntryOptimisation.mockReturnValueOnce(new Promise((_, r) => {
+            reject = r;
+        }));
+        const {rerender} = render(<HookProbe selectedDevice={device(optimisation())} selectedEntry={{id: 'e1'}}/>);
+        rerender(<HookProbe selectedDevice={device(optimisation())} selectedEntry={null}/>);
+        reject(new Error('boom'));
+        await Promise.resolve();
+        await Promise.resolve();
         expect(screen.getByTestId('result')).toHaveTextContent('null');
     });
 

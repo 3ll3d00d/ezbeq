@@ -59,7 +59,7 @@ export default function FilterSheet({
   onError,
   optimisable = false,
   selectedOptimisation = null,
-  onSelectedOptimisationChange = () => {},
+  onSelectedOptimisationChange,
 }: Props) {
   const [authors, setAuthors] = useState<string[]>([]);
   const [filterAuthors, setFilterAuthors] = useState<string[]>([]);
@@ -151,7 +151,7 @@ export default function FilterSheet({
           <Text variant="bodyMedium">Device optimisation</Text>
           <SegmentedButtons
             value={selectedOptimisation ?? 'any'}
-            onValueChange={(v) => onSelectedOptimisationChange(v === 'any' ? null : (v as OptimisationSearch))}
+            onValueChange={(v) => onSelectedOptimisationChange?.(v === 'any' ? null : (v as OptimisationSearch))}
             buttons={[
               { value: 'any', label: 'Any', accessibilityLabel: 'Device optimisation: any' },
               { value: OPTIMISED, label: 'Optimised', accessibilityLabel: 'Device optimisation: optimised' },

@@ -74,7 +74,7 @@ class DeviceOptimisation:
     """
 
     def __init__(self, device_name: str, fmt: CoefficientFormat, cfg: dict, catalogues: DeviceCatalogues | None,
-                 on_change: Callable[[], None] | None = None):
+                 on_change: Callable[[], None]):
         """
         :param on_change: called when the device catalogues change, as that may change this device's status.
         """
@@ -83,8 +83,7 @@ class DeviceOptimisation:
         self.__catalogues = catalogues
         self.__requirement = make_requirement(device_name, fmt, cfg)
         if self.__requirement and catalogues:
-            if on_change:
-                catalogues.add_listener(on_change)
+            catalogues.add_listener(on_change)
             catalogues.require(self.__requirement)
 
     def __status(self) -> tuple[DeviceProfile | None, str | None]:
@@ -106,11 +105,6 @@ class DeviceOptimisation:
         """
         profile, reason = self.__status()
         return profile.id if profile and reason is None else None
-
-    @property
-    def usable_profile(self) -> DeviceProfile | None:
-        profile, reason = self.__status()
-        return profile if reason is None else None
 
     def as_dict(self) -> dict:
         """
