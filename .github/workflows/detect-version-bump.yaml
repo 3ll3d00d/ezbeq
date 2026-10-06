@@ -3,7 +3,7 @@ on:
   workflow_call:
     outputs:
       skip:
-        description: "'true' if this push is a single commit that only bumps the version in pyproject.toml/uv.lock"
+        description: "'true' if this push or PR is a single commit that only bumps the version in pyproject.toml/uv.lock"
         value: ${{ jobs.check.outputs.skip }}
 jobs:
   check:
@@ -14,32 +14,39 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 2
+          # PR detection needs the merge base to inspect the complete PR diff.
+          fetch-depth: 0
       - id: check
-        # Only skip CI when ALL of the following hold, so a "bump version" commit
-        # message can never be used to smuggle in unrelated changes:
-        #  - the triggering event is a push (not a PR, dispatch, etc.)
-        #  - the push is exactly one commit
-        #  - that commit's message is exactly "bump version"
-        #  - the commit touches only pyproject.toml and/or uv.lock
-        #  - every changed line in those files is a `version = "X.Y.Z"` line
-        #
-        # Deliberately no job-level `if:` gating this on event_name == 'push' -
-        # GitHub Actions skips downstream `needs:` jobs whenever an upstream job's
-        # own conclusion is "skipped", regardless of the downstream job's `if:`
-        # expression. That would skip build/test on every pull_request run, not
-        # just version-bump pushes. This job must always complete successfully;
-        # the push-only logic lives entirely inside this step instead.
+        # Only skip single-commit pushes/PRs with the exact message "bump version"
+        # and version-line-only changes in pyproject.toml/uv.lock. For PRs, inspect
+        # the complete diff from the merge base, never just the latest commit.
+        # Always run this job successfully, including on other event types, so
+        # downstream jobs can distinguish a legitimate skip from detector failure.
         env:
           EVENT_NAME: ${{ github.event_name }}
           COMMITS_JSON: ${{ toJson(github.event.commits) }}
+          PR_COMMITS: ${{ github.event.pull_request.commits }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           skip=false
+          base=""
+          head=HEAD
+          commit_count=0
           if [[ "$EVENT_NAME" == "push" ]]; then
             commit_count=$(echo "$COMMITS_JSON" | jq 'if type=="array" then length else 0 end')
-            msg=$(git log -1 --format=%B HEAD | sed -e 's/[[:space:]]*$//')
-            if [[ "$commit_count" == "1" ]] && [[ "$msg" =~ ^[Bb]ump[[:space:]]version$ ]] && git rev-parse HEAD~1 >/dev/null 2>&1; then
-              files=$(git diff --name-only HEAD~1 HEAD)
+            if git rev-parse HEAD~1 >/dev/null 2>&1; then
+              base=HEAD~1
+            fi
+          elif [[ "$EVENT_NAME" == "pull_request" ]]; then
+            commit_count="$PR_COMMITS"
+            head="$PR_HEAD"
+            base=$(git merge-base "$PR_BASE" "$PR_HEAD")
+          fi
+          if [[ "$commit_count" == "1" && -n "$base" ]]; then
+            msg=$(git log -1 --format=%B "$head" | sed -e 's/[[:space:]]*$//')
+            if [[ "$msg" =~ ^[Bb]ump[[:space:]]version$ ]]; then
+              files=$(git diff --name-only "$base" "$head")
               is_pure=true
               while IFS= read -r f; do
                 [[ -z "$f" ]] && continue
@@ -48,7 +55,7 @@ jobs:
                 fi
               done <<< "$files"
               if [[ "$is_pure" == "true" && -n "$files" ]]; then
-                bad=$(git diff -U0 HEAD~1 HEAD -- pyproject.toml uv.lock \
+                bad=$(git diff -U0 "$base" "$head" -- pyproject.toml uv.lock \
                   | grep -E '^[+-]' \
                   | grep -vE '^(\+\+\+|---)' \
                   | grep -vE '^[+-]version = "[0-9]+\.[0-9]+\.[0-9]+"$' \
