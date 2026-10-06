@@ -567,8 +567,8 @@ PATCH /api/3/devices/<device name>
 
 and `GET /api/1/devices/<device name>/optimisation/<catalogue entry id>` reports whether a title has optimised
 coefficients for that device and whether they would be used. `GET /api/1/devices/<device name>/optimised` lists the ids
-of every catalogue entry with optimised coefficients for that device, which backs the "Optimised for this device" option
-in the UI's advanced search.
+of every catalogue entry with optimised coefficients for that device, which backs the "Device optimisation" option
+(Any / Optimised / Not needed) in the UI's advanced search.
 
 ezbeq refuses to use a device catalogue whose sample rate or precision does not match the device, as those coefficients
 would realise a different filter. A device that cannot use optimised coefficients is flagged as unoptimised in the UI.

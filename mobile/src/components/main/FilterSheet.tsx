@@ -148,14 +148,15 @@ export default function FilterSheet({
       />
       {optimisable ? (
         <View style={styles.optimisation}>
-          <Text variant="bodyMedium">Optimised for this device</Text>
+          <Text variant="bodyMedium">Device optimisation</Text>
           <SegmentedButtons
             value={selectedOptimisation ?? 'any'}
             onValueChange={(v) => onSelectedOptimisationChange(v === 'any' ? null : (v as OptimisationSearch))}
             buttons={[
-              { value: 'any', label: 'Any', accessibilityLabel: 'Optimised for this device: any' },
-              { value: OPTIMISED, label: 'Yes', accessibilityLabel: 'Optimised for this device: yes' },
-              { value: NOT_OPTIMISED, label: 'No', accessibilityLabel: 'Optimised for this device: no' },
+              { value: 'any', label: 'Any', accessibilityLabel: 'Device optimisation: any' },
+              { value: OPTIMISED, label: 'Optimised', accessibilityLabel: 'Device optimisation: optimised' },
+              // titles not in the device catalogue were already realised well enough on this device
+              { value: NOT_OPTIMISED, label: 'Not needed', accessibilityLabel: 'Device optimisation: not needed' },
             ]}
           />
         </View>
