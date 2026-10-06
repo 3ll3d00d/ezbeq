@@ -121,6 +121,18 @@ describe('isMatch', () => {
     expect(isMatch(entry(), filters())).toBe(true);
   });
 
+  it('filters on device optimisation once the optimised ids are loaded', () => {
+    const optimised = entry({ id: 'e1' as unknown as number });
+    const other = entry({ id: 'e2' as unknown as number });
+    const optimisedIds = new Set(['e1']);
+    expect(isMatch(optimised, filters({ selectedOptimisation: 'optimised', optimisedIds }))).toBe(true);
+    expect(isMatch(other, filters({ selectedOptimisation: 'optimised', optimisedIds }))).toBe(false);
+    expect(isMatch(optimised, filters({ selectedOptimisation: 'unoptimised', optimisedIds }))).toBe(false);
+    expect(isMatch(other, filters({ selectedOptimisation: 'unoptimised', optimisedIds }))).toBe(true);
+    // not filtered until the ids are loaded
+    expect(isMatch(other, filters({ selectedOptimisation: 'optimised', optimisedIds: null }))).toBe(true);
+  });
+
   it('filters out an entry from a non-selected author', () => {
     expect(isMatch(entry({ author: 'other' }), filters({ authors: ['mkane'] }))).toBe(false);
   });

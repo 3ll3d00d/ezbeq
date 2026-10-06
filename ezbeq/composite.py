@@ -346,6 +346,9 @@ class CompositeDevice(PersistentDevice[CompositeDeviceState]):
             'inUse': len(optimised) > 0 and all(r['inUse'] for r in optimised),
         }
 
+    def optimisable_profiles(self) -> list[str]:
+        return sorted({p for dev in self.__members.values() for p in dev.optimisable_profiles()})
+
     def update(self, params: dict) -> bool:
         def __do_it() -> bool:
             any_update = False

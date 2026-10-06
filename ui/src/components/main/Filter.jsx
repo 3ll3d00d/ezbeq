@@ -3,6 +3,8 @@ import React, {useEffect, useState} from "react";
 import {pushData} from "../../services/util";
 import ezbeq from "../../services/ezbeq";
 import Box from "@mui/material/Box";
+import {ToggleButton, ToggleButtonGroup, Typography} from "@mui/material";
+import {NOT_OPTIMISED, OPTIMISED} from "./Optimisation";
 
 // exported for direct testing of the fuzzy free-text-create matching, independent of the
 // rest of Filter's rendering (which fetches from 5 endpoints on mount)
@@ -35,7 +37,10 @@ const Filter = ({
                     selectedContentTypes,
                     setSelectedContentTypes,
                     filteredEntries,
-                    setError
+                    setError,
+                    optimisable = false,
+                    selectedOptimisation = null,
+                    setSelectedOptimisation = () => {}
                 }) => {
 
     const freshness = ['Fresh', 'Updated', 'Stale'];
@@ -136,6 +141,24 @@ const Filter = ({
                              onCreateOption={value => addSelectedLanguages(value)}
                              onClearOptions={() => setSelectedLanguages([])}
                              isInView={v => filteredLanguages.length === 0 || filteredLanguages.indexOf(v) > -1}/>
+                {
+                    optimisable
+                        ? <Box sx={{display: 'flex', alignItems: 'center', gap: 1, mt: 1}}>
+                            <Typography variant="body2" color="textSecondary">Optimised for this device</Typography>
+                            <ToggleButtonGroup size="small"
+                                               exclusive
+                                               value={selectedOptimisation ?? 'any'}
+                                               aria-label="Optimised for this device"
+                                               onChange={(e, v) => {
+                                                   if (v !== null) setSelectedOptimisation(v === 'any' ? null : v);
+                                               }}>
+                                <ToggleButton value="any">Any</ToggleButton>
+                                <ToggleButton value={OPTIMISED}>Yes</ToggleButton>
+                                <ToggleButton value={NOT_OPTIMISED}>No</ToggleButton>
+                            </ToggleButtonGroup>
+                        </Box>
+                        : null
+                }
             </Box>
         )
     } else {

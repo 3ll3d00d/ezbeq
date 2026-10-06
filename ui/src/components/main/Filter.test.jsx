@@ -118,6 +118,28 @@ describe('Filter rendering', () => {
     });
 });
 
+describe('Filter device optimisation', () => {
+    it('is hidden when the selected device cannot be optimised', () => {
+        render(<Filter {...baseProps}/>);
+        expect(screen.queryByText('Optimised for this device')).toBeNull();
+    });
+
+    it('selects optimised, not optimised or any', () => {
+        const setSelectedOptimisation = vi.fn();
+        const {rerender} = render(<Filter {...baseProps} optimisable={true} selectedOptimisation={null}
+                                          setSelectedOptimisation={setSelectedOptimisation}/>);
+        expect(screen.getByRole('button', {name: 'Any'})).toHaveAttribute('aria-pressed', 'true');
+        fireEvent.click(screen.getByRole('button', {name: 'Yes'}));
+        expect(setSelectedOptimisation).toHaveBeenLastCalledWith('optimised');
+        fireEvent.click(screen.getByRole('button', {name: 'No'}));
+        expect(setSelectedOptimisation).toHaveBeenLastCalledWith('unoptimised');
+        rerender(<Filter {...baseProps} optimisable={true} selectedOptimisation="unoptimised"
+                         setSelectedOptimisation={setSelectedOptimisation}/>);
+        fireEvent.click(screen.getByRole('button', {name: 'Any'}));
+        expect(setSelectedOptimisation).toHaveBeenLastCalledWith(null);
+    });
+});
+
 describe('fuzzy free-text-create matching', () => {
     it('matchAudioTypes matches case-insensitively and by substring', () => {
         expect(matchAudioTypes(['Atmos', 'DTS:X'], ['atmos'])).toEqual(['Atmos']);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { Chip, Switch, Text, useTheme } from 'react-native-paper';
+import { StyleSheet } from 'react-native';
+import { Chip, Switch, useTheme } from 'react-native-paper';
 
 import type { EzbeqApi } from '../../services/ezbeqApi';
 import type { CatalogueEntry, DeviceOptimisation, DeviceState, EntryOptimisation, SlotState } from '../../types/ezbeq';
@@ -47,8 +47,10 @@ type ControlProps = {
   onError: (e: Error) => void;
 };
 
-// Device level control over the use of device optimised coefficients, only shown for devices which
-// load coefficients (i.e. those which report an optimisation status).
+// Compact device level control over the use of device optimised coefficients, sits in the master
+// volume row. Only shown for devices which load coefficients (i.e. those which report an
+// optimisation status); a device which cannot use optimised filters shows a disabled switch whose
+// accessibility label explains why.
 export function OptimisationControl({ api, device, onDeviceUpdate, onError }: ControlProps) {
   const [pending, setPending] = useState(false);
   const optimisation = device.optimisation;
@@ -68,30 +70,13 @@ export function OptimisationControl({ api, device, onDeviceUpdate, onError }: Co
   const reason = describeReason(optimisation);
   const label = optimisation.label ? `Use optimised filters (${optimisation.label})` : 'Use optimised filters';
   return (
-    <View style={styles.control} testID="optimisation-control">
-      {optimisation.available ? (
-        <View style={styles.row}>
-          <Switch
-            value={optimisation.enabled}
-            disabled={pending}
-            onValueChange={toggle}
-            accessibilityLabel={label}
-            testID="optimisation-switch"
-          />
-          <Text variant="bodyMedium" style={styles.label}>
-            {label}
-          </Text>
-        </View>
-      ) : null}
-      {reason ? (
-        <View style={styles.row}>
-          <UnoptimisedChip accessibilityLabel={reason} />
-          <Text variant="bodySmall" style={styles.label}>
-            {reason}
-          </Text>
-        </View>
-      ) : null}
-    </View>
+    <Switch
+      value={optimisation.available && optimisation.enabled}
+      disabled={pending || !optimisation.available}
+      onValueChange={toggle}
+      accessibilityLabel={reason ?? label}
+      testID="optimisation-switch"
+    />
   );
 }
 
@@ -149,6 +134,52 @@ export const useEntryOptimisation = (
   return result;
 };
 
+export const OPTIMISED = 'optimised';
+export const NOT_OPTIMISED = 'unoptimised';
+export type OptimisationSearch = typeof OPTIMISED | typeof NOT_OPTIMISED | null;
+
+// true if the device can load optimised coefficients, i.e. whether searching by optimisation means
+// anything for this device.
+export const isOptimisable = (device: DeviceState | null): boolean =>
+  Boolean(device?.optimisation?.profile && device.optimisation.available);
+
+// Loads the ids of the catalogue entries with optimised coefficients for the device, only while a
+// search on optimisation is active. Returns null if not searching or not loaded.
+export const useOptimisedEntryIds = (
+  api: EzbeqApi | null,
+  device: DeviceState | null,
+  selectedOptimisation: OptimisationSearch,
+  meta: unknown,
+  onError: (e: Error) => void
+): ReadonlySet<string> | null => {
+  const [ids, setIds] = useState<ReadonlySet<string> | null>(null);
+  const optimisable = isOptimisable(device);
+  const deviceName = device?.name ?? null;
+  const profile = optimisable ? (device?.optimisation?.profile ?? null) : null;
+  const active = Boolean(selectedOptimisation) && optimisable;
+  useEffect(() => {
+    let cancelled = false;
+    setIds(null);
+    if (api && active && deviceName) {
+      api
+        .getOptimisedEntries(deviceName)
+        .then((r) => {
+          if (!cancelled) setIds(new Set(r.ids));
+        })
+        .catch((e) => {
+          if (!cancelled) onError(e as Error);
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
+    // meta changes when the catalogue is reloaded, which changes the entry ids; onError is
+    // deliberately not a dependency (it would refetch whenever a parent re-creates it)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api, active, deviceName, profile, meta]);
+  return ids;
+};
+
 // Flags an entry with optimised coefficients for the selected device, and whether they will be used.
 export function EntryOptimisationChip({ entryOptimisation }: { entryOptimisation: EntryOptimisation | null }) {
   if (!entryOptimisation || !entryOptimisation.optimised) return null;
@@ -171,19 +202,6 @@ export function EntryOptimisationChip({ entryOptimisation }: { entryOptimisation
 }
 
 const styles = StyleSheet.create({
-  control: {
-    paddingHorizontal: 8,
-    paddingTop: 4,
-    gap: 4,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  label: {
-    flex: 1,
-  },
   chip: {
     alignSelf: 'flex-start',
   },

@@ -142,6 +142,16 @@ describe('network calls', () => {
         }));
     });
 
+    it('getOptimisedEntries GETs the ids optimised for the device', async () => {
+        global.fetch.mockResolvedValue({ok: true, json: () => Promise.resolve({profiles: ['p'], ids: ['e1']})});
+
+        await expect(ezbeq.getOptimisedEntries('d1')).resolves.toEqual({profiles: ['p'], ids: ['e1']});
+
+        expect(global.fetch).toHaveBeenCalledWith('/api/1/devices/d1/optimised', expect.objectContaining({
+            method: 'GET'
+        }));
+    });
+
     it('getEntryOptimisation GETs the device entry optimisation', async () => {
         global.fetch.mockResolvedValue({ok: true, json: () => Promise.resolve({optimised: true})});
 

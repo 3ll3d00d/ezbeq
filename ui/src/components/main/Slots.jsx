@@ -139,10 +139,10 @@ const clearDeviceSlot = (slotId) => {
     };
 
     const rows = chunk(selectedDevice && selectedDevice.hasOwnProperty('slots') ? selectedDevice.slots : [], 2);
-    const optimisation = <OptimisationControl key="optimisation"
-                                              selectedDevice={selectedDevice}
+    const optimisation = <OptimisationControl selectedDevice={selectedDevice}
                                               setDevice={setDevice}
                                               setError={setError}/>;
+    const hasMaster = Boolean(selectedDevice && selectedDevice.hasOwnProperty('masterVolume'));
     const slotRows = rows.map((r, i1) =>
         <Grid container key={i1} className={classes.root}>
             {r.map((d, i2) =>
@@ -156,15 +156,19 @@ const clearDeviceSlot = (slotId) => {
             )}
         </Grid>
     );
-    const devices = [optimisation, ...slotRows];
+    // the optimisation control sits in the master volume row, only a device without one shows it above the slots
+    const devices = hasMaster || !selectedDevice?.optimisation
+        ? slotRows
+        : [<Box key="optimisation" sx={{px: 1}}>{optimisation}</Box>, ...slotRows];
 
     // Show gain panel whenever device supports it (not gated on slot selection)
-    if (selectedDevice && selectedDevice.hasOwnProperty('masterVolume')) {
+    if (hasMaster) {
         const gain = <Gain selectedSlotId={selectedSlotId}
                            deviceGains={deviceGains}
                            gains={currentGains}
                            updateGain={updateGain}
-                           commitGain={commitGain}/>;
+                           commitGain={commitGain}
+                           masterExtra={optimisation}/>;
         if (useWide) {
             return (
                 <Box sx={{flexGrow: 1}}>

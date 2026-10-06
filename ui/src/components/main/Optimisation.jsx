@@ -1,5 +1,5 @@
 import React from "react";
-import {Box, Chip, FormControlLabel, Switch, Tooltip} from "@mui/material";
+import {Chip, Switch, Tooltip} from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import TuneIcon from "@mui/icons-material/Tune";
 import ezbeq from "../../services/ezbeq";
@@ -27,8 +27,8 @@ const UnoptimisedChip = ({title}) => (
 );
 
 /**
- * Device level control over the use of device optimised coefficients, only shown for devices which load
- * coefficients (i.e. those which report an optimisation status).
+ * Compact device level control over the use of device optimised coefficients, sits in the master volume row. Only
+ * shown for devices which load coefficients (i.e. those which report an optimisation status).
  */
 export const OptimisationControl = ({selectedDevice, setDevice, setError}) => {
     const [pending, setPending] = React.useState(false);
@@ -47,19 +47,18 @@ export const OptimisationControl = ({selectedDevice, setDevice, setError}) => {
         }
     };
     const reason = describeReason(optimisation);
+    const label = optimisation.label ? `Use optimised filters (${optimisation.label})` : 'Use optimised filters';
+    // a device which cannot use optimised filters shows a disabled toggle, the tooltip explains why
     return (
-        <Box sx={{display: 'flex', alignItems: 'center', gap: 1, px: 1, flexWrap: 'wrap'}}>
-            {
-                optimisation.available
-                    ? <FormControlLabel control={<Switch checked={optimisation.enabled}
-                                                         disabled={pending}
-                                                         size="small"
-                                                         onChange={e => toggle(e.target.checked)}/>}
-                                        label={optimisation.label ? `Use optimised filters (${optimisation.label})` : 'Use optimised filters'}/>
-                    : null
-            }
-            {reason ? <UnoptimisedChip title={reason}/> : null}
-        </Box>
+        <Tooltip title={reason ? reason : label}>
+            <span>
+                <Switch checked={optimisation.available && optimisation.enabled}
+                        disabled={pending || !optimisation.available}
+                        size="small"
+                        onChange={e => toggle(e.target.checked)}
+                        slotProps={{input: {'aria-label': label}}}/>
+            </span>
+        </Tooltip>
     );
 };
 
@@ -113,6 +112,49 @@ export const useEntryOptimisation = (selectedDevice, selectedEntry) => {
     return result;
 };
 
+export const OPTIMISED = 'optimised';
+export const NOT_OPTIMISED = 'unoptimised';
+
+/**
+ * @return true if the selected device can load optimised coefficients, i.e. whether searching by optimisation means
+ * anything for this device.
+ */
+export const isOptimisable = (selectedDevice) => {
+    const optimisation = selectedDevice ? selectedDevice.optimisation : null;
+    return Boolean(optimisation && optimisation.profile && optimisation.available);
+};
+
+/**
+ * Loads the ids of the catalogue entries with optimised coefficients for the selected device, only while a search
+ * on optimisation is active.
+ * @return a Set of entry ids, or null if not searching or not loaded.
+ */
+export const useOptimisedEntryIds = (selectedDevice, selectedOptimisation, meta, setError) => {
+    const [ids, setIds] = React.useState(null);
+    const optimisable = isOptimisable(selectedDevice);
+    const deviceName = selectedDevice ? selectedDevice.name : null;
+    const profile = optimisable ? selectedDevice.optimisation.profile : null;
+    const active = Boolean(selectedOptimisation) && optimisable;
+    React.useEffect(() => {
+        let cancelled = false;
+        setIds(null);
+        if (active && deviceName) {
+            ezbeq.getOptimisedEntries(deviceName)
+                .then(r => {
+                    if (!cancelled) setIds(new Set(r.ids));
+                })
+                .catch(e => {
+                    if (!cancelled && setError) setError(e);
+                });
+        }
+        return () => {
+            cancelled = true;
+        };
+        // meta changes when the catalogue is reloaded, which changes the entry ids
+    }, [active, deviceName, profile, meta, setError]);
+    return ids;
+};
+
 /**
  * Flags an entry with optimised coefficients for the selected device, and whether they will be used.
  */
@@ -121,12 +163,7 @@ export const EntryOptimisationChip = ({entryOptimisation}) => {
         return null;
     }
     if (entryOptimisation.inUse) {
-        return (
-            <Tooltip title={`Coefficients optimised for ${entryOptimisation.profile} will be loaded`}>
-                <Chip size="small" color="success" variant="outlined" icon={<TuneIcon/>}
-                      label="Optimised for this device"/>
-            </Tooltip>
-        );
+        return <Chip size="small" color="success" variant="outlined" icon={<TuneIcon/>} label="Optimised for this device"/>;
     }
-    return <UnoptimisedChip title="Coefficients optimised for this device are available but optimised filters are switched off"/>;
+    return <Chip size="small" color="warning" variant="outlined" icon={<WarningAmberIcon/>} label="Unoptimised"/>;
 };
