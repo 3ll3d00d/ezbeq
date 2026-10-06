@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { IconButton, TextInput, useTheme } from 'react-native-paper';
@@ -15,6 +15,8 @@ type Props = {
   onValueChange: (v: number) => void;
   onValueCommit: (v: number) => void;
   onMuteToggle: (v: boolean) => void;
+  // rendered at the end of the row, e.g. the optimised filters switch on the master row
+  extra?: ReactNode;
 };
 
 const decimalsFor = (step: number): number => (step < 0.1 ? 2 : step < 1 ? 1 : 0);
@@ -35,6 +37,7 @@ export default function GainRow({
   onValueChange,
   onValueCommit,
   onMuteToggle,
+  extra = null,
 }: Props) {
   const theme = useTheme();
   const isDirty = value !== savedValue || muted !== savedMuted;
@@ -117,6 +120,7 @@ export default function GainRow({
         </View>
         {exactEntryField}
         {muteButton}
+        {extra}
       </View>
     );
   }
@@ -142,6 +146,7 @@ export default function GainRow({
       />
       {exactEntryField}
       {muteButton}
+      {extra}
     </View>
   );
 }

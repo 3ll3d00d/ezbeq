@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { SegmentedButtons, Text } from 'react-native-paper';
 
 import MultiSelectField from './MultiSelectField';
+import { NOT_OPTIMISED, OPTIMISED, type OptimisationSearch } from './Optimisation';
 import type { EzbeqApi } from '../../services/ezbeqApi';
 import type { CatalogueEntry } from '../../types/ezbeq';
 
@@ -33,6 +35,10 @@ type Props = {
   onSelectedFilterAuthorsChange: (next: string[]) => void;
   filteredEntries: CatalogueEntry[];
   onError: (e: Error) => void;
+  // only offered when the selected device can load optimised coefficients
+  optimisable?: boolean;
+  selectedOptimisation?: OptimisationSearch;
+  onSelectedOptimisationChange?: (next: OptimisationSearch) => void;
 };
 
 const isInView =
@@ -51,6 +57,9 @@ export default function FilterSheet({
   onSelectedFilterAuthorsChange,
   filteredEntries,
   onError,
+  optimisable = false,
+  selectedOptimisation = null,
+  onSelectedOptimisationChange,
 }: Props) {
   const [authors, setAuthors] = useState<string[]>([]);
   const [filterAuthors, setFilterAuthors] = useState<string[]>([]);
@@ -137,11 +146,30 @@ export default function FilterSheet({
         onChange={(v) => onChange({ ...selection, languages: v })}
         isInView={isInView(filteredLanguages)}
       />
+      {optimisable ? (
+        <View style={styles.optimisation}>
+          <Text variant="bodyMedium">Device optimisation</Text>
+          <SegmentedButtons
+            value={selectedOptimisation ?? 'any'}
+            onValueChange={(v) => onSelectedOptimisationChange?.(v === 'any' ? null : (v as OptimisationSearch))}
+            buttons={[
+              { value: 'any', label: 'Any', accessibilityLabel: 'Device optimisation: any' },
+              { value: OPTIMISED, label: 'Optimised', accessibilityLabel: 'Device optimisation: optimised' },
+              // titles not in the device catalogue were already realised well enough on this device
+              { value: NOT_OPTIMISED, label: 'Not needed', accessibilityLabel: 'Device optimisation: not needed' },
+            ]}
+          />
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  optimisation: {
+    gap: 4,
+    paddingVertical: 8,
+  },
   container: {
     padding: 8,
   },

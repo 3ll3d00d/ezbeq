@@ -34,6 +34,13 @@ describe('Gain', () => {
         expect(master).toHaveAttribute('aria-valuenow', '-10');
     });
 
+    it('renders masterExtra in the master row', () => {
+        const g = gains({gains: [], mutes: []});
+        render(<Gain selectedSlotId={null} deviceGains={g} gains={g} updateGain={vi.fn()} commitGain={vi.fn()}
+                     masterExtra={<span>extra</span>}/>);
+        expect(screen.getByText('extra').parentElement).toHaveTextContent('Master');
+    });
+
     it('does not show the Channels toggle when no slot is selected, even if channel gains are present', () => {
         render(<Gain selectedSlotId={null} deviceGains={gains()} gains={gains()} updateGain={vi.fn()} commitGain={vi.fn()}/>);
         expect(screen.queryByText(/Channels/)).not.toBeInTheDocument();

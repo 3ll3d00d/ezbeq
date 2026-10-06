@@ -34,6 +34,7 @@ Full documentation, including this README, is also published at
   - [Using a custom catalogue](#using-a-custom-catalogue)
   - [Configuring Devices](#configuring-devices)
     - [Minidsp](#minidsp)
+      - [Device-optimised filters](#device-optimised-filters)
     - [Monolith HTP1](#monolith-htp1)
     - [StormAudio](#stormaudio)
     - [JRiver Media Center](#jriver-media-center)
@@ -114,6 +115,7 @@ See [examples](examples)
 | Minidsp DDRC-88             | [ezbeq_ddrc88.yml](examples/ezbeq_ddrc88.yml)                                                                                                                               |
 | Minidsp HTx                 | [ezbeq_htx.yml](examples/ezbeq_htx.yml)                                                                                                                                     |
 | Minidsp SHD                 | [ezbeq_shd.yml](examples/ezbeq_shd.yml)                                                                                                                                     |
+| Device-optimised filters    | [ezbeq_optimised.yml](examples/ezbeq_optimised.yml)                                                                                                                         |
 | Monolith HTP-1              | [ezbeq_htp1.yml](examples/ezbeq_htp1.yml)                                                                                                                                   |
 | Q-Sys                       | [ezbeq_qsys.yml](examples/ezbeq_qsys.yml)                                                                                                                                   |
 | StormAudio                  | [ezbeq_stormaudio.yml](examples/ezbeq_stormaudio.yml)                                                                                                                       |
@@ -441,6 +443,7 @@ The main characteristics of the custom layout are defined in the `descriptor` se
 
 * name: a name for the device, this is only used for display purposes in the UI
 * fs: the sample rate at which the device is configured to operate, this is dictated the minidsp plugin.
+* precision: optional, `float32` or `fixed`, how the device stores biquad coefficients. See [Device-optimised filters](#device-optimised-filters).
 * routes: must contain 3 entries (input, crossover, output)
 * each entry in routes must contain the following keys:
   * name: must be input, crossover or output
@@ -514,6 +517,64 @@ devices:
         slots: [0, 1, 2, 3, 4, 5]
 port: 8080
 ```
+
+##### Device-optimised filters
+
+A device stores biquad coefficients with finite precision so the filter it realises is not exactly the filter that was
+authored. [beqcatalogue](https://beqcatalogue.readthedocs.io/) publishes device catalogues containing optimised
+coefficients, for each supported numerical format, which better realise the authored filter on that format. These are
+only published for titles that benefit from optimisation. ezbeq downloads the device catalogue required by each
+configured device and uses the optimised coefficients when they are available.
+
+The format used by each minidsp variant is
+
+| device_type              | precision | fs     | device catalogue                     |
+|--------------------------|-----------|--------|--------------------------------------|
+| 24HD                     | float32   | 96000  | float32-96k                          |
+| DDRC24, SHD, DDRC88, HTx | float32   | 48000  | float32-48k                          |
+| 4x10                     | fixed     | 96000  | none, fixed point is not supported   |
+| 10x10                    | fixed     | 48000  | none, fixed point is not supported   |
+| 8x12CDSP                 | float32   | 192000 | none, no catalogue at this rate      |
+
+The device catalogue can be changed, or optimisation turned off, via the `optimisationProfile` option. Use the id of a
+profile listed in [the device catalogue index](https://github.com/3ll3d00d/beqcatalogue/blob/master/docs/devices/index.json),
+or `none` to disable optimisation for that device.
+
+```
+devices:
+  dsp1:
+    type: minidsp
+    exe: minidsp
+    device_type: 24HD
+    optimisationProfile: none
+```
+
+See [ezbeq_optimised.yml](examples/ezbeq_optimised.yml) for a fuller example.
+
+A custom layout can either name its device catalogue via `optimisationProfile` or declare its `precision` in the
+`descriptor`, in which case the device catalogue whose precision and sample rate match the descriptor is used. A custom
+layout with neither does not use optimised coefficients.
+
+Optimised coefficients can also be switched off, and back on, for each slot via the "Optimise" switch next to the master
+volume, which applies to the selected slot. This makes it easy to compare the two, e.g. by loading the same title into
+one slot with optimised coefficients and another without. The setting applies to filters loaded into the slot from
+then on, survives clearing the slot and is remembered across restarts. Via the API, this is
+
+```
+PATCH /api/3/devices/<device name>
+{"slots": [{"id": "1", "optimise": false}]}
+```
+
+and `GET /api/1/devices/<device name>/optimisation/<catalogue entry id>` reports whether a title has optimised
+coefficients for that device and whether they would be used. `GET /api/1/devices/<device name>/optimised` lists the ids
+of every catalogue entry with optimised coefficients for that device, which backs the "Device optimisation" option
+(Any / Optimised / Not needed) in the UI's advanced search.
+
+ezbeq refuses to use a device catalogue whose sample rate or precision does not match the device, as those coefficients
+would realise a different filter. A device that cannot use optimised coefficients is flagged as unoptimised in the UI.
+
+Devices which are sent filter parameters (frequency, Q, gain) rather than coefficients, i.e. every device other than a
+minidsp, calculate their own coefficients and so are unaffected.
 
 #### Monolith HTP1
 

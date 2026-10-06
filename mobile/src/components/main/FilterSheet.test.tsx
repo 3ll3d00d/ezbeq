@@ -167,3 +167,36 @@ test('reports fetch failures via onError', async () => {
 
   await waitFor(() => expect(onError).toHaveBeenCalledWith(new Error('boom')));
 });
+
+test('offers the device optimisation search only when the device can be optimised', async () => {
+  const onSelectedOptimisationChange = jest.fn();
+  const props = {
+    api,
+    selection: emptyFilterSelection,
+    onChange: jest.fn(),
+    selectedFilterAuthors: [],
+    onSelectedFilterAuthorsChange: jest.fn(),
+    filteredEntries: [],
+    onError: jest.fn(),
+  };
+  await renderSheet(<FilterSheet {...props} />);
+  expect(screen.queryByText('Device optimisation')).toBeNull();
+
+  await screen.rerender(
+    <PaperProvider>
+      <FilterSheet
+        {...props}
+        optimisable={true}
+        selectedOptimisation={null}
+        onSelectedOptimisationChange={onSelectedOptimisationChange}
+      />
+    </PaperProvider>
+  );
+  const user = userEvent.setup();
+  await user.press(screen.getByLabelText('Device optimisation: optimised'));
+  expect(onSelectedOptimisationChange).toHaveBeenLastCalledWith('optimised');
+  await user.press(screen.getByLabelText('Device optimisation: not needed'));
+  expect(onSelectedOptimisationChange).toHaveBeenLastCalledWith('unoptimised');
+  await user.press(screen.getByLabelText('Device optimisation: any'));
+  expect(onSelectedOptimisationChange).toHaveBeenLastCalledWith(null);
+});

@@ -24,6 +24,13 @@ from ezbeq.device import (
     SlotState,
     UnableToPatchDeviceError,
 )
+from ezbeq.optimisation import (
+    FIXED,
+    FLOAT32,
+    PRECISIONS,
+    CoefficientFormat,
+    DeviceOptimisation,
+)
 
 INPUT_NAME = 'input'
 OUTPUT_NAME = 'output'
@@ -99,8 +106,10 @@ class MinidspStubRunner:
 
 class MinidspState(DeviceState):
 
-    def __init__(self, name: str, descriptor: 'MinidspDescriptor', **kwargs):
+    def __init__(self, name: str, descriptor: 'MinidspDescriptor', optimisation: DeviceOptimisation | None = None,
+                 **kwargs):
         self.__name = name
+        self.__optimisation = optimisation
         self.master_volume: float = kwargs.get('mv', 0.0)
         self.__mute: bool = kwargs.get('mute', False)
         self.__active_slot: str = kwargs.get('active_slot', '')
@@ -134,10 +143,13 @@ class MinidspState(DeviceState):
     def mute(self) -> bool:
         return self.__mute
 
-    def load(self, slot_id: str, title: str, author: str | None = None) -> None:
+    def load(self, slot_id: str, title: str, author: str | None = None, coefficients: str | None = None,
+             profile: str | None = None) -> None:
         slot = self.get_slot(slot_id)
         slot.last = title
         slot.last_author = author
+        slot.coefficients = coefficients
+        slot.profile = profile
         self.activate(slot_id)
 
     def get_slot(self, slot_id: str) -> 'MinidspSlotState | None':
@@ -147,12 +159,14 @@ class MinidspState(DeviceState):
         slot = self.get_slot(slot_id)
         slot.unmute(None)
         slot.set_gain(None, 0.0)
+        slot.clear_coefficients()
         slot.last = 'Empty'
         slot.last_author = None
         self.activate(slot_id)
 
     def error(self, slot_id: str) -> None:
         slot = self.get_slot(slot_id)
+        slot.clear_coefficients()
         slot.last = 'ERROR'
         slot.last_author = None
         self.activate(slot_id)
@@ -185,6 +199,7 @@ class MinidspState(DeviceState):
 
     def serialise(self) -> dict:
         serials = {'serials': self.__serials} if self.__serials else {}
+        optimisation = {'optimisation': self.__optimisation.as_dict()} if self.__optimisation else {}
         return {
             'type': 'minidsp',
             'name': self.__name,
@@ -192,7 +207,7 @@ class MinidspState(DeviceState):
             'mute': self.__mute,
             'connected': self.connected,
             'slots': [s.as_dict() for s in self.__slots],
-        } | serials
+        } | serials | optimisation
 
     def merge_with(self, cached: dict) -> None:
         saved_slots_by_id = {v['id']: v for v in cached.get('slots', [])}
@@ -214,6 +229,8 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
         self.output_mutes = self.__make_output_vals(False)
         self.active = active
         self.slot_name = slot_name
+        # whether filters loaded into this slot use device optimised coefficients, deliberately survives clear
+        self.optimise = True
 
     def clear(self):
         super().clear()
@@ -272,6 +289,7 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
 
     def merge_with(self, state: dict) -> None:
         super().merge_with(state)
+        self.optimise = bool(state.get('optimise', True))
         if 'gains' in state and len(state['gains']) == self.__input_channels:
             self.gains = []
             for i, g in enumerate(state['gains']):
@@ -310,6 +328,7 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
             'gains': self.gains,
             'mutes': self.mutes,
             'canActivate': True,
+            'optimise': self.optimise,
             'inputs': self.__input_channels,
             'outputs': self.__output_channels,
         }
@@ -388,9 +407,15 @@ class BeqFilterAllocator:
 class MinidspDescriptor:
 
     def __init__(self, name: str, fs: str, i: PeqRoutes | None = None, xo: PeqRoutes | None = None,
-                 o: PeqRoutes | None = None, extra: list[PeqRoutes] | None = None, slot_names: dict[str, str] | None = None):
+                 o: PeqRoutes | None = None, extra: list[PeqRoutes] | None = None, slot_names: dict[str, str] | None = None,
+                 precision: str | None = None, default_profile: str | None = None, match_by_format: bool = False):
         self.name = name
         self.fs = str(int(fs))
+        if precision is not None and precision not in PRECISIONS:
+            raise ValueError(f"Unknown precision {precision}, must be one of {sorted(PRECISIONS)}")
+        self.precision = precision
+        self.default_profile = default_profile
+        self.match_by_format = match_by_format
         self.input = i
         self.crossover = xo
         self.output = o
@@ -405,6 +430,10 @@ class MinidspDescriptor:
     def to_allocator(self) -> BeqFilterAllocator:
         return BeqFilterAllocator(self.peq_routes)
 
+    @property
+    def coefficient_format(self) -> CoefficientFormat:
+        return CoefficientFormat(int(self.fs), self.precision, self.default_profile, self.match_by_format)
+
     def __repr__(self) -> str:
         s = f"{self.name}, fs:{self.fs}"
         if self.input:
@@ -415,6 +444,8 @@ class MinidspDescriptor:
             s = f"{s}, outputs: {self.output}"
         if self.slot_names:
             s = f"{s}, slot_names: {self.slot_names}"
+        if self.precision:
+            s = f"{s}, precision: {self.precision}"
         return s
 
 
@@ -430,7 +461,9 @@ class Minidsp24HD(MinidspDescriptor):
                          i=PeqRoutes(INPUT_NAME, 10, zero_til(2), zero_til(10)),
                          xo=PeqRoutes(CROSSOVER_NAME, 4, zero_til(4), [], groups=zero_til(2)),
                          o=PeqRoutes(OUTPUT_NAME, 10, zero_til(4), []),
-                         slot_names=slot_names)
+                         slot_names=slot_names,
+                         precision=FLOAT32,
+                         default_profile='float32-96k')
 
 
 class Minidsp812CDSP(MinidspDescriptor):
@@ -441,7 +474,8 @@ class Minidsp812CDSP(MinidspDescriptor):
                          i=PeqRoutes(INPUT_NAME, 10, zero_til(6), zero_til(10)),
                          xo=PeqRoutes(CROSSOVER_NAME, 4, zero_til(12), [], groups=zero_til(2)),
                          o=PeqRoutes(OUTPUT_NAME, 10, zero_til(12), []),
-                         slot_names=slot_names)
+                         slot_names=slot_names,
+                         precision=FLOAT32)
 
 
 class MinidspDDRC24(MinidspDescriptor):
@@ -451,7 +485,9 @@ class MinidspDDRC24(MinidspDescriptor):
                          '48000',
                          xo=PeqRoutes(CROSSOVER_NAME, 4, zero_til(4), [], zero_til(2)),
                          o=PeqRoutes(OUTPUT_NAME, 10, zero_til(4), zero_til(10)),
-                         slot_names=slot_names)
+                         slot_names=slot_names,
+                         precision=FLOAT32,
+                         default_profile='float32-48k')
 
 
 class MinidspHTX(MinidspDescriptor):
@@ -467,14 +503,18 @@ class MinidspHTX(MinidspDescriptor):
                              i=PeqRoutes(INPUT_NAME, 10, c, zero_til(10)),
                              xo=PeqRoutes(CROSSOVER_NAME, 8, zero_til(8), [], zero_til(2)),
                              o=PeqRoutes(OUTPUT_NAME, 10, [], zero_til(10)),
-                             slot_names=slot_names)
+                             slot_names=slot_names,
+                             precision=FLOAT32,
+                             default_profile='float32-48k')
         else:
             super().__init__('HTX',
                              '48000',
                              xo=PeqRoutes(CROSSOVER_NAME, 8, zero_til(8), [], zero_til(2)),
                              o=PeqRoutes(OUTPUT_NAME, 10, c, zero_til(10)),
                              extra=[PeqRoutes(OUTPUT_NAME, 10, non_sw, []) if non_sw else None],
-                             slot_names=slot_names)
+                             slot_names=slot_names,
+                             precision=FLOAT32,
+                             default_profile='float32-48k')
 
 
 class MinidspDDRC88(MinidspDescriptor):
@@ -489,7 +529,9 @@ class MinidspDDRC88(MinidspDescriptor):
                          xo=PeqRoutes(CROSSOVER_NAME, 8, zero_til(8), [], zero_til(2)),
                          o=PeqRoutes(OUTPUT_NAME, 10, c, zero_til(10)),
                          extra=[PeqRoutes(OUTPUT_NAME, 10, non_sw, []) if non_sw else None],
-                         slot_names=slot_names)
+                         slot_names=slot_names,
+                         precision=FLOAT32,
+                         default_profile='float32-48k')
 
 
 class Minidsp410(MinidspDescriptor):
@@ -499,7 +541,8 @@ class Minidsp410(MinidspDescriptor):
                          '96000',
                          i=PeqRoutes(INPUT_NAME, 5, zero_til(2), zero_til(5)),
                          o=PeqRoutes(OUTPUT_NAME, 5, zero_til(8), zero_til(5)),
-                         slot_names=slot_names)
+                         slot_names=slot_names,
+                         precision=FIXED)
 
 
 class Minidsp1010(MinidspDescriptor):
@@ -521,6 +564,7 @@ class Minidsp1010(MinidspDescriptor):
                          '48000',
                          i=PeqRoutes(INPUT_NAME, 6, zero_til(8), zero_til(6)),
                          slot_names=slot_names,
+                         precision=FIXED,
                          **secondary)
 
 
@@ -569,7 +613,7 @@ def make_peq_layout(cfg: dict, cmd_runner) -> MinidspDescriptor:
             return PeqRoutes(r['name'], int(r['biquads']), to_ints(r['channels']), to_ints(r['slots']),
                              to_ints(r.get('groups', None)))
 
-        routes_by_name = {}
+        routes_by_name: dict[str, Any] = {}
         extra = []
         for r in routes:
             route = make_route(r)
@@ -592,7 +636,9 @@ def make_peq_layout(cfg: dict, cmd_runner) -> MinidspDescriptor:
                 extra.append(route)
         if extra:
             routes_by_name['extra'] = extra
-        return MinidspDescriptor(desc['name'], str(desc['fs']), **routes_by_name, slot_names=slot_names)
+        precision = desc.get('precision', None)
+        return MinidspDescriptor(desc['name'], str(desc['fs']), **routes_by_name, slot_names=slot_names,
+                                 precision=precision, match_by_format=precision is not None)
     return Minidsp24HD(slot_names=slot_names)
 
 
@@ -614,6 +660,9 @@ class Minidsp(PersistentDevice[MinidspState]):
         else:
             self.__ws_client = None
         self.__descriptor: MinidspDescriptor = make_peq_layout(cfg, self.__runner)
+        self.__optimisation = DeviceOptimisation(name, self.__descriptor.coefficient_format, cfg,
+                                                 catalogue.device_catalogues if catalogue else None,
+                                                 on_change=self._broadcast_if_hydrated)
         logger.info(f"[{name}] Minidsp descriptor is loaded.... exe is {self.__runner}")
         logger.debug(yaml.dump(self.__descriptor, indent=2, default_flow_style=False, sort_keys=False))
         ws_server.factory.set_levels_provider(name, self.start_broadcast_levels)
@@ -624,7 +673,7 @@ class Minidsp(PersistentDevice[MinidspState]):
 
     def __load_state(self) -> MinidspState:
         result = self.__executor.submit(self.__read_state_from_device).result(timeout=self.__cmd_timeout)
-        return result if result else MinidspState(self.name, self.__descriptor, connected=False)
+        return result if result else MinidspState(self.name, self.__descriptor, self.__optimisation, connected=False)
 
     def __read_state_from_device(self) -> MinidspState | None:
         output = None
@@ -658,7 +707,7 @@ class Minidsp(PersistentDevice[MinidspState]):
                         values['serials'] = serials
                 except Exception:
                     logger.warning(f'[{self.name}] Unable to probe')
-                return MinidspState(self.name, self.__descriptor, **values)
+                return MinidspState(self.name, self.__descriptor, self.__optimisation, **values)
             else:
                 msg = f"[{self.name}] No output returned from device"
                 logger.error(msg)
@@ -730,11 +779,14 @@ class Minidsp(PersistentDevice[MinidspState]):
         def __do_it():
             target_slot_idx = self.__as_idx(slot)
             self.__validate_slot_idx(target_slot_idx)
-            cmds = MinidspBeqCommandGenerator.filt(entry, self.__descriptor)
-            logger.info(f"[{self.name}] Loading '{entry.formatted_title}' to slot {slot} ({len(cmds)} commands)")
+            to_load = self.__optimisation.resolve(entry, self._current_state.get_slot(slot).optimise)
+            cmds = MinidspBeqCommandGenerator.filt(entry, self.__descriptor, biquads=to_load.biquads)
+            logger.info(f"[{self.name}] Loading '{entry.formatted_title}' to slot {slot} ({len(cmds)} commands, "
+                        f"{to_load.coefficients} coefficients)")
             try:
                 self.__send_cmds(target_slot_idx, cmds)
-                self._current_state.load(slot, entry.formatted_title, entry.author)
+                self._current_state.load(slot, entry.formatted_title, entry.author, coefficients=to_load.coefficients,
+                                         profile=to_load.profile)
             except Exception:
                 self._current_state.error(slot)
                 raise
@@ -875,6 +927,25 @@ class Minidsp(PersistentDevice[MinidspState]):
         loaded.merge_with(cached)
         return loaded
 
+    def set_optimise(self, slot: str, enabled: bool) -> bool:
+        def __do_it() -> bool:
+            self.__validate_slot_idx(self.__as_idx(slot))
+            slot_state = self._current_state.get_slot(slot)
+            if slot_state.optimise == enabled:
+                return False
+            logger.info(f"[{self.name}] Optimised coefficients {'enabled' if enabled else 'disabled'} for slot {slot}")
+            slot_state.optimise = enabled
+            return True
+
+        return self._hydrate_cache_broadcast(__do_it)
+
+    def entry_optimisation(self, entry: CatalogueEntry) -> dict | None:
+        return self.__optimisation.describe(entry)
+
+    def optimisable_profiles(self) -> list[str]:
+        profile = self.__optimisation.optimisable_profile
+        return [profile] if profile else []
+
     def update(self, params: dict) -> bool:
         def __do_it() -> bool:
             any_update = False
@@ -904,6 +975,9 @@ class Minidsp(PersistentDevice[MinidspState]):
             match = self.__catalogue.find(slot['entry'])
             if not match:
                 raise UnableToPatchDeviceError(f'Unknown catalogue entry {slot["entry"]}', True)
+        # before any entry is loaded so a single PATCH can change the setting and load with it
+        if 'optimise' in slot:
+            any_update |= self.set_optimise(current_slot.slot_id, bool(slot['optimise']))
         if 'gains' in slot:
             for gain in slot['gains']:
                 self.set_gain(current_slot.slot_id, int(gain['id']), gain['value'])
@@ -1054,12 +1128,15 @@ class MinidspBeqCommandGenerator:
         return bq
 
     @staticmethod
-    def filt(entry: CatalogueEntry | None, descriptor: MinidspDescriptor):
+    def filt(entry: CatalogueEntry | None, descriptor: MinidspDescriptor, biquads: list[list[str]] | None = None):
         # [in|out]put <channel> peq <index> set -- <b0> <b1> <b2> <a1> <a2>
         # [in|out]put <channel> peq <index> bypass [on|off]
         cmds = []
         # write filts to the inputs first then the output if it's a split device
-        filters = [MinidspBeqCommandGenerator.as_bq(f, descriptor.fs) for f in entry.filters] if entry else []
+        if biquads is not None:
+            filters = biquads
+        else:
+            filters = [MinidspBeqCommandGenerator.as_bq(f, descriptor.fs) for f in entry.filters] if entry else []
         beq_slots = descriptor.to_allocator()
 
         def push(chs: list[int], i: int, s: str, group: int | None):

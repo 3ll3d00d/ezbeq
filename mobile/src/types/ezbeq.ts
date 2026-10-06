@@ -15,6 +15,27 @@ export type SlotState = {
   mutes?: MuteValue[];
   outputGains?: GainValue[];
   outputMutes?: MuteValue[];
+  // which coefficients were loaded into the slot (see ezbeq/optimisation.py), absent when unknown
+  coefficients?: 'optimised' | 'standard' | 'unoptimised';
+  profile?: string | null;
+  // whether filters loaded into the slot use device optimised coefficients (minidsp only)
+  optimise?: boolean;
+};
+
+// Present only for devices which load raw coefficients (minidsp), see ezbeq/optimisation.py.
+export type DeviceOptimisation = {
+  profile: string | null;
+  label: string | null;
+  available: boolean;
+  reason: string | null;
+  // set on a composite device to the member the status describes
+  member?: string;
+};
+
+export type EntryOptimisation = {
+  applicable: boolean;
+  profile: string | null;
+  optimised: boolean;
 };
 
 export type DeviceState = {
@@ -24,6 +45,7 @@ export type DeviceState = {
   masterVolume?: number;
   mute?: boolean;
   slots?: SlotState[];
+  optimisation?: DeviceOptimisation | null;
 };
 
 export type DeviceCollection = Record<string, DeviceState>;

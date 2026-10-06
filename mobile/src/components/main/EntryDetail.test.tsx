@@ -264,3 +264,33 @@ test('reports an upload failure via onError', async () => {
 
   await waitFor(() => expect(onError).toHaveBeenCalledWith(new Error('device offline')));
 });
+
+describe('optimisation badge', () => {
+  const optimisation = { profile: 'float32-96k', label: 'float32 @ 96 kHz', available: true, reason: null };
+  const api = {
+    getEntryOptimisation: jest.fn().mockResolvedValue({ applicable: true, profile: 'float32-96k', optimised: true }),
+  } as unknown as EzbeqApi;
+
+  const renderDetail = (optimise: boolean) =>
+    render(
+      <EntryDetail
+        api={api}
+        selectedEntry={entry()}
+        selectedDevice={device({ optimisation, slots: [{ id: '1', active: true, optimise }] })}
+        selectedSlotId="1"
+        onDeviceUpdate={noop}
+        onError={noop}
+        onSuccess={noop}
+      />
+    );
+
+  test('flags an entry optimised for the device', async () => {
+    await renderDetail(true);
+    expect(await screen.findByText('Optimised for this device')).toBeTruthy();
+  });
+
+  test('warns when the slot it will be uploaded to does not use optimised filters', async () => {
+    await renderDetail(false);
+    expect(await screen.findByText('Unoptimised')).toBeTruthy();
+  });
+});

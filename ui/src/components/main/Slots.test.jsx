@@ -164,3 +164,30 @@ describe('Slots slot management', () => {
         expect(clearButtonFor('1: Filter One')).not.toBeDisabled();
     });
 });
+
+describe('Slots optimisation', () => {
+    it('shows the optimisation control and the coefficients loaded in each slot', () => {
+        renderSlots({
+            ...baseDevice(0),
+            optimisation: {profile: 'float32-96k', label: 'float32 @ 96 kHz', available: true, reason: null},
+            slots: [
+                {...baseDevice(0).slots[0], coefficients: 'optimised', profile: 'float32-96k', optimise: false},
+                {...baseDevice(0).slots[0], id: '2', coefficients: 'unoptimised', profile: 'float32-96k'}
+            ]
+        });
+        // the toggle shows the selected slot's (slot 1) setting, in the master volume row
+        expect(screen.getByText('Optimise')).toBeInTheDocument();
+        expect(screen.getByRole('switch', {name: /into slot 1$/})).not.toBeChecked();
+        expect(screen.getByText('Optimised')).toBeInTheDocument();
+        expect(screen.getAllByText('Unoptimised')).toHaveLength(1);
+    });
+
+    it('shows the optimisation control above the slots for a device without a master volume', () => {
+        const {masterVolume: _masterVolume, ...device} = baseDevice(0);
+        renderSlots({
+            ...device,
+            optimisation: {profile: 'float32-96k', label: 'float32 @ 96 kHz', available: true, reason: null}
+        });
+        expect(screen.getByRole('switch', {name: /into slot 1$/})).toBeChecked();
+    });
+});

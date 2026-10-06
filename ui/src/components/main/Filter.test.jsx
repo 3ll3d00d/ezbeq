@@ -118,6 +118,44 @@ describe('Filter rendering', () => {
     });
 });
 
+describe('Filter device optimisation', () => {
+    it('is hidden when the selected device cannot be optimised', () => {
+        render(<Filter {...baseProps}/>);
+        expect(screen.queryByText('Device optimisation')).toBeNull();
+    });
+
+    it('selects optimised, not optimised or any', () => {
+        const setSelectedOptimisation = vi.fn();
+        const {rerender} = render(<Filter {...baseProps} optimisable={true} selectedOptimisation={null}
+                                          setSelectedOptimisation={setSelectedOptimisation}/>);
+        expect(screen.getByRole('button', {name: 'Any'})).toHaveAttribute('aria-pressed', 'true');
+        fireEvent.click(screen.getByRole('button', {name: 'Optimised'}));
+        expect(setSelectedOptimisation).toHaveBeenLastCalledWith('optimised');
+        fireEvent.click(screen.getByRole('button', {name: 'Not needed'}));
+        expect(setSelectedOptimisation).toHaveBeenLastCalledWith('unoptimised');
+        rerender(<Filter {...baseProps} optimisable={true} selectedOptimisation="unoptimised"
+                         setSelectedOptimisation={setSelectedOptimisation}/>);
+        fireEvent.click(screen.getByRole('button', {name: 'Any'}));
+        expect(setSelectedOptimisation).toHaveBeenLastCalledWith(null);
+    });
+});
+
+describe('Filter device optimisation reselection', () => {
+    it('allows the optional selection callback to be omitted', () => {
+        render(<Filter {...baseProps} optimisable={true}/>);
+        fireEvent.click(screen.getByRole('button', {name: 'Optimised'}));
+        expect(screen.getByRole('button', {name: 'Any'})).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('ignores a click on the already selected option', () => {
+        const setSelectedOptimisation = vi.fn();
+        render(<Filter {...baseProps} optimisable={true} selectedOptimisation={null}
+                       setSelectedOptimisation={setSelectedOptimisation}/>);
+        fireEvent.click(screen.getByRole('button', {name: 'Any'}));
+        expect(setSelectedOptimisation).not.toHaveBeenCalled();
+    });
+});
+
 describe('fuzzy free-text-create matching', () => {
     it('matchAudioTypes matches case-insensitively and by substring', () => {
         expect(matchAudioTypes(['Atmos', 'DTS:X'], ['atmos'])).toEqual(['Atmos']);

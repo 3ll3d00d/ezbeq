@@ -1,0 +1,820 @@
+import hashlib
+import json
+import sqlite3
+
+import pytest
+from conftest import CapturingWsServer, MinidspSpy, MinidspSpyConfig
+from pytest_httpserver import HTTPServer
+
+from ezbeq import catalogue, main
+from ezbeq.catalogue import DeviceCatalogues, ProfileRequirement, to_coefficients
+from ezbeq.composite import CompositeDeviceState, MemberSpec
+from ezbeq.device import DeviceState, SlotState
+
+DIGEST = 'abcdefghijklm'
+OPT_BQ = {'b': ['1.1', '-1.2', '0.3'], 'a': ['1.4', '-0.5']}
+OPT_CMD = '1.1 -1.2 0.3 1.4 -0.5'
+
+
+def make_profile(profile_id: str, rate: int, entries: dict, schema_version: int = 1,
+                 loading_model: str | None = 'additive-feedback-decimal17-v1', header_rate: int | None = None,
+                 header_profile: str | None = None) -> bytes:
+    return json.dumps({
+        'schema_version': schema_version,
+        'profile': header_profile if header_profile else profile_id,
+        'revision': 1,
+        'rate': header_rate if header_rate is not None else rate,
+        'storage': 'float32',
+        'transport': 'float32',
+        'loading_model': loading_model,
+        'entries': entries
+    }, sort_keys=True).encode('utf-8')
+
+
+def index_entry(profile_id: str, rate: int, content: bytes, storage: str = 'float32', sha256: str | None = None) -> dict:
+    return {
+        'id': profile_id,
+        'label': f'{storage} @ {rate // 1000} kHz',
+        'file': f'{profile_id}.json',
+        'rate': rate,
+        'storage': storage,
+        'transport': storage,
+        'revision': 1,
+        'entries': 1,
+        'sha256': sha256 if sha256 else hashlib.sha256(content).hexdigest()
+    }
+
+
+def serve(httpserver: HTTPServer, profiles: dict[str, tuple[int, bytes]], **index_overrides):
+    """
+    :param profiles: profile id -> (rate, file content).
+    """
+    index = {
+        'schema_version': 1,
+        'profiles': [index_entry(p, rate, content, **index_overrides.get(p, {})) for p, (rate, content) in
+                     profiles.items()]
+    }
+    httpserver.expect_request('/devices/index.json').respond_with_json(index)
+    for p, (_, content) in profiles.items():
+        httpserver.expect_request(f'/devices/{p}.json').respond_with_data(content, content_type='application/json')
+
+
+def standard_profiles(digest: str = DIGEST, count: int = 5) -> dict[str, tuple[int, bytes]]:
+    return {
+        'float32-96k': (96000, make_profile('float32-96k', 96000, {digest: [OPT_BQ] * count})),
+        'float32-48k': (48000, make_profile('float32-48k', 48000, {digest: [OPT_BQ] * count})),
+    }
+
+
+def downloads(httpserver: HTTPServer, path: str) -> int:
+    return sum(1 for req, _ in httpserver.log if req.path == path)
+
+
+def make_dc(httpserver: HTTPServer, tmp_path) -> DeviceCatalogues:
+    return DeviceCatalogues(str(tmp_path / 'ezbeq.db'), f'http://{httpserver.host}:{httpserver.port}/', True)
+
+
+REQ_96K = ProfileRequirement('float32-96k', 96000, 'float32')
+
+
+def boom(*_args, **_kwargs):
+    raise ValueError('boom')
+
+
+class TestDeviceCatalogues:
+
+    def test_loads_only_required_profiles(self, httpserver, tmp_path):
+        serve(httpserver, standard_profiles())
+        dc = make_dc(httpserver, tmp_path)
+        dc.require(REQ_96K)
+        assert [p.id for p in dc.loaded] == ['float32-96k']
+        assert downloads(httpserver, '/devices/float32-96k.json') == 1
+        assert downloads(httpserver, '/devices/float32-48k.json') == 0
+        assert dc.optimised_biquads('float32-96k', DIGEST, 5) == [['1.1', '-1.2', '0.3', '1.4', '-0.5']] * 5
+
+    def test_miss_and_count_mismatch_return_none(self, httpserver, tmp_path):
+        serve(httpserver, standard_profiles())
+        dc = make_dc(httpserver, tmp_path)
+        dc.require(REQ_96K)
+        assert dc.optimised_biquads('float32-96k', 'unknown', 5) is None
+        assert dc.optimised_biquads('float32-96k', DIGEST, 4) is None
+        assert dc.optimised_biquads('float32-48k', DIGEST, 5) is None
+        assert dc.optimised_biquads('float32-96k', '', 5) is None
+
+    def test_sha_mismatch_is_rejected(self, httpserver, tmp_path):
+        serve(httpserver, standard_profiles(), **{'float32-96k': {'sha256': 'deadbeef'}})
+        dc = make_dc(httpserver, tmp_path)
+        dc.require(REQ_96K)
+        assert dc.loaded == []
+        assert dc.resolve(REQ_96K) is None
+
+    @pytest.mark.parametrize('kwargs', [
+        {'schema_version': 2},
+        {'loading_model': 'something-else'},
+        {'header_rate': 48000},
+        {'header_profile': 'float32-48k'},
+        {'loading_model': None},
+    ], ids=['schema', 'loading_model', 'rate', 'profile', 'missing_loading_model'])
+    def test_invalid_header_is_rejected(self, httpserver, tmp_path, kwargs):
+        content = make_profile('float32-96k', 96000, {DIGEST: [OPT_BQ] * 5}, **kwargs)
+        serve(httpserver, {'float32-96k': (96000, content)})
+        dc = make_dc(httpserver, tmp_path)
+        dc.require(REQ_96K)
+        assert dc.loaded == []
+
+    def test_unsupported_index_schema_is_ignored(self, httpserver, tmp_path):
+        httpserver.expect_request('/devices/index.json').respond_with_json({'schema_version': 2, 'profiles': []})
+        dc = make_dc(httpserver, tmp_path)
+        dc.require(REQ_96K)
+        assert dc.loaded == []
+
+    def test_unreadable_index_is_ignored(self, httpserver, tmp_path):
+        httpserver.expect_request('/devices/index.json').respond_with_data('not json')
+        dc = make_dc(httpserver, tmp_path)
+        dc.require(REQ_96K)
+        assert dc.loaded == []
+
+    def test_failed_profile_download_is_rejected(self, httpserver, tmp_path):
+        content = make_profile('float32-96k', 96000, {DIGEST: [OPT_BQ] * 5})
+        httpserver.expect_request('/devices/index.json').respond_with_json(
+            {'schema_version': 1, 'profiles': [index_entry('float32-96k', 96000, content)]})
+        httpserver.expect_request('/devices/float32-96k.json').respond_with_data('', status=404)
+        dc = make_dc(httpserver, tmp_path)
+        dc.require(REQ_96K)
+        assert dc.loaded == []
+
+    def test_malformed_entries_are_skipped(self, httpserver, tmp_path):
+        content = make_profile('float32-96k', 96000, {DIGEST: [OPT_BQ] * 5, 'bad': [{'b': ['1'], 'a': []}]})
+        serve(httpserver, {'float32-96k': (96000, content)})
+        dc = make_dc(httpserver, tmp_path)
+        dc.require(REQ_96K)
+        assert dc.optimised_biquads('float32-96k', DIGEST, 5)
+        assert dc.optimised_biquads('float32-96k', 'bad', 1) is None
+
+    def test_unchanged_sha_is_not_downloaded_again(self, httpserver, tmp_path):
+        serve(httpserver, standard_profiles())
+        dc = make_dc(httpserver, tmp_path)
+        dc.require(REQ_96K)
+        dc.refresh()
+        assert downloads(httpserver, '/devices/index.json') == 2
+        assert downloads(httpserver, '/devices/float32-96k.json') == 1
+
+    def test_changed_sha_replaces_entries(self, httpserver, tmp_path):
+        serve(httpserver, standard_profiles())
+        dc = make_dc(httpserver, tmp_path)
+        dc.require(REQ_96K)
+        httpserver.clear_all_handlers()
+        serve(httpserver, standard_profiles(digest='other', count=2))
+        dc.refresh()
+        assert dc.optimised_biquads('float32-96k', DIGEST, 5) is None
+        assert dc.optimised_biquads('float32-96k', 'other', 2)
+
+    def test_failed_download_keeps_loaded_data(self, httpserver, tmp_path):
+        serve(httpserver, standard_profiles())
+        dc = make_dc(httpserver, tmp_path)
+        dc.require(REQ_96K)
+        httpserver.clear_all_handlers()
+        content = make_profile('float32-96k', 96000, {'other': [OPT_BQ]})
+        serve(httpserver, {'float32-96k': (96000, content)}, **{'float32-96k': {'sha256': 'deadbeef'}})
+        dc.refresh()
+        assert dc.optimised_biquads('float32-96k', DIGEST, 5)
+
+    def test_withdrawn_profile_is_removed(self, httpserver, tmp_path):
+        serve(httpserver, standard_profiles())
+        dc = make_dc(httpserver, tmp_path)
+        dc.require(REQ_96K)
+        httpserver.clear_all_handlers()
+        httpserver.expect_request('/devices/index.json').respond_with_json(
+            {'schema_version': 1, 'profiles': [index_entry('other', 96000, b'x')]})
+        dc.refresh()
+        assert dc.loaded == []
+        assert dc.optimised_biquads('float32-96k', DIGEST, 5) is None
+
+    @pytest.mark.parametrize('profiles', [[], [{'id': 'broken'}]], ids=['empty', 'invalid'])
+    def test_incomplete_index_does_not_remove_loaded_profiles(self, httpserver, tmp_path, profiles):
+        serve(httpserver, standard_profiles())
+        dc = make_dc(httpserver, tmp_path)
+        dc.require(REQ_96K)
+        httpserver.clear_all_handlers()
+        httpserver.expect_request('/devices/index.json').respond_with_json({'schema_version': 1, 'profiles': profiles})
+        dc.refresh()
+        assert [p.id for p in dc.loaded] == ['float32-96k']
+        assert dc.optimised_biquads('float32-96k', DIGEST, 5)
+
+    def test_listeners_are_notified_when_loaded_profiles_change(self, httpserver, tmp_path):
+        serve(httpserver, standard_profiles())
+        dc = make_dc(httpserver, tmp_path)
+        calls = []
+        dc.add_listener(lambda: calls.append(len(dc.loaded)))
+        dc.require(REQ_96K)
+        assert calls == [1]
+        dc.refresh()
+        assert calls == [1]
+        httpserver.clear_all_handlers()
+        httpserver.expect_request('/devices/index.json').respond_with_json(
+            {'schema_version': 1, 'profiles': [index_entry('other', 96000, b'x')]})
+        dc.refresh()
+        assert calls == [1, 0]
+
+    def test_failing_listener_does_not_break_refresh(self, httpserver, tmp_path):
+        serve(httpserver, standard_profiles())
+        dc = make_dc(httpserver, tmp_path)
+        dc.add_listener(boom)
+        dc.require(REQ_96K)
+        assert [p.id for p in dc.loaded] == ['float32-96k']
+
+    def test_format_match_only_downloads_the_profile_it_uses(self, httpserver, tmp_path):
+        profiles = standard_profiles()
+        profiles['float32-96k-v2'] = (96000, make_profile('float32-96k-v2', 96000, {DIGEST: [OPT_BQ] * 5}))
+        serve(httpserver, profiles)
+        dc = make_dc(httpserver, tmp_path)
+        req = ProfileRequirement(None, 96000, 'float32')
+        dc.require(req)
+        assert dc.resolve(req).id == 'float32-96k'
+        assert downloads(httpserver, '/devices/float32-96k-v2.json') == 0
+
+    def test_loaded_profiles_survive_restart_without_network(self, httpserver, tmp_path):
+        serve(httpserver, standard_profiles())
+        make_dc(httpserver, tmp_path).require(REQ_96K)
+        httpserver.clear_all_handlers()
+        dc = make_dc(httpserver, tmp_path)
+        dc.require(REQ_96K)
+        assert [p.id for p in dc.loaded] == ['float32-96k']
+        assert dc.optimised_biquads('float32-96k', DIGEST, 5)
+
+    def test_unreadable_profile_in_db_is_ignored(self, httpserver, tmp_path):
+        serve(httpserver, standard_profiles())
+        make_dc(httpserver, tmp_path).require(REQ_96K)
+        with sqlite3.connect(tmp_path / 'ezbeq.db') as conn:
+            conn.execute("UPDATE device_profile SET meta = 'not json'")
+        assert make_dc(httpserver, tmp_path).loaded == []
+
+    def test_async_require_refreshes_in_a_thread(self, httpserver, tmp_path, monkeypatch):
+        from twisted.internet import reactor
+        monkeypatch.setattr(reactor, 'callInThread', lambda f, *args: f(*args))
+        serve(httpserver, standard_profiles())
+        dc = DeviceCatalogues(str(tmp_path / 'ezbeq.db'), f'http://{httpserver.host}:{httpserver.port}/', False)
+        dc.require(REQ_96K)
+        assert [p.id for p in dc.loaded] == ['float32-96k']
+
+    def test_async_refresh_failure_is_contained(self, httpserver, tmp_path, monkeypatch):
+        from twisted.internet import reactor
+        monkeypatch.setattr(reactor, 'callInThread', lambda f, *args: f(*args))
+        monkeypatch.setattr(DeviceCatalogues, 'refresh', boom)
+        dc = DeviceCatalogues(str(tmp_path / 'ezbeq.db'), f'http://{httpserver.host}:{httpserver.port}/', False)
+        dc.require(REQ_96K)
+        assert dc.loaded == []
+
+    def test_requirement_by_format(self, httpserver, tmp_path):
+        serve(httpserver, standard_profiles())
+        dc = make_dc(httpserver, tmp_path)
+        req = ProfileRequirement(None, 48000, 'float32')
+        dc.require(req)
+        assert dc.resolve(req).id == 'float32-48k'
+        assert dc.resolve(ProfileRequirement(None, 48000, 'fixed')) is None
+        assert dc.resolve(ProfileRequirement(None, 48000, None)) is None
+
+
+def test_to_coefficients():
+    assert to_coefficients([OPT_BQ]) == [['1.1', '-1.2', '0.3', '1.4', '-0.5']]
+    assert to_coefficients([]) is None
+    assert to_coefficients([{'b': ['1', '2'], 'a': ['1', '2']}]) is None
+    assert to_coefficients([{'b': ['1', '2', '3']}]) is None
+    assert to_coefficients(None) is None
+
+
+class OptimisedMinidspConfig(MinidspSpyConfig):
+
+    def __init__(self, host: str, port: int, tmp_path, device_type: str | None = None, extra: dict | None = None):
+        # load_config is called from the base constructor so this has to be set first
+        self.__extra = extra or {}
+        super().__init__(host, port, tmp_path, device_type=device_type)
+
+    def load_config(self):
+        vals = super().load_config()
+        vals['devices']['master'].update(self.__extra)
+        return vals
+
+
+def make_client(httpserver: HTTPServer, tmp_path, device_type: str | None = None, extra: dict | None = None):
+    cfg = OptimisedMinidspConfig(httpserver.host, httpserver.port, tmp_path, device_type=device_type, extra=extra)
+    app, _ = main.create_app(cfg)
+    return app.test_client(), cfg
+
+
+def load_slot_1(client) -> dict:
+    r = client.put('/api/1/devices/master/filter/1', data=json.dumps({'entryId': '123456_0'}),
+                   content_type='application/json')
+    assert r.status_code == 200
+    return next(s for s in r.json['slots'] if s['id'] == '1')
+
+
+def get_optimisation(client) -> dict:
+    r = client.get('/api/2/devices')
+    assert r.status_code == 200
+    return r.json['master']['optimisation']
+
+
+def test_24hd_loads_optimised_coefficients(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, cfg = make_client(httpserver, tmp_path)
+    assert get_optimisation(client) == {'profile': 'float32-96k', 'label': 'float32 @ 96 kHz',
+                                        'available': True, 'reason': None}
+    slot = load_slot_1(client)
+    assert slot['coefficients'] == 'optimised'
+    assert slot['profile'] == 'float32-96k'
+    cmds = cfg.spy.take_commands()
+    peq_cmds = [c for c in cmds if ' set -- ' in c]
+    assert len(peq_cmds) == 10
+    assert all(c.endswith(f'set -- {OPT_CMD}') for c in peq_cmds)
+
+
+def test_ddrc24_uses_48k_profile(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _cfg = make_client(httpserver, tmp_path, device_type='DDRC24')
+    assert get_optimisation(client)['profile'] == 'float32-48k'
+    assert load_slot_1(client)['coefficients'] == 'optimised'
+    assert downloads(httpserver, '/devices/float32-96k.json') == 0
+
+
+def test_entry_without_optimisation_is_standard(httpserver, tmp_path):
+    serve(httpserver, standard_profiles(digest='other'))
+    client, cfg = make_client(httpserver, tmp_path)
+    slot = load_slot_1(client)
+    assert slot['coefficients'] == 'standard'
+    assert slot['profile'] == 'float32-96k'
+    assert not any(OPT_CMD in c for c in cfg.spy.take_commands())
+
+
+def test_unavailable_profile_is_unoptimised(httpserver, tmp_path):
+    client, _cfg = make_client(httpserver, tmp_path)
+    assert get_optimisation(client) == {'profile': 'float32-96k', 'label': None,
+                                        'available': False, 'reason': 'profile_unavailable'}
+    slot = load_slot_1(client)
+    assert slot['coefficients'] == 'unoptimised'
+    assert slot['profile'] is None
+
+
+@pytest.mark.parametrize('device_type', ['4x10', '10x10', '8x12CDSP'])
+def test_devices_without_a_profile(httpserver, tmp_path, device_type):
+    serve(httpserver, standard_profiles())
+    client, _cfg = make_client(httpserver, tmp_path, device_type=device_type)
+    assert get_optimisation(client) == {'profile': None, 'label': None, 'available': False,
+                                        'reason': 'no_profile'}
+    assert downloads(httpserver, '/devices/index.json') == 0
+    assert load_slot_1(client)['coefficients'] == 'unoptimised'
+
+
+def test_fixed_point_override_is_refused(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, cfg = make_client(httpserver, tmp_path, device_type='4x10', extra={'optimisationProfile': 'float32-96k'})
+    opt = get_optimisation(client)
+    assert opt['reason'] == 'precision_mismatch'
+    assert opt['available'] is False
+    slot = load_slot_1(client)
+    assert slot['coefficients'] == 'unoptimised'
+    assert not any(OPT_CMD in c for c in cfg.spy.take_commands())
+
+
+def test_rate_mismatch_override_is_refused(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _cfg = make_client(httpserver, tmp_path, device_type='DDRC24', extra={'optimisationProfile': 'float32-96k'})
+    assert get_optimisation(client)['reason'] == 'rate_mismatch'
+    assert load_slot_1(client)['coefficients'] == 'unoptimised'
+
+
+@pytest.mark.parametrize('value', ['none', None, False])
+def test_override_to_none(httpserver, tmp_path, value):
+    serve(httpserver, standard_profiles())
+    client, _cfg = make_client(httpserver, tmp_path, extra={'optimisationProfile': value})
+    assert get_optimisation(client)['reason'] == 'no_profile'
+
+
+def custom_descriptor(**kwargs) -> dict:
+    return {'descriptor': {
+        'name': 'custom',
+        'fs': 48000,
+        'routes': [{'name': 'input', 'biquads': 10, 'channels': [0, 1], 'slots': list(range(10))}],
+        **kwargs
+    }}
+
+
+def test_custom_descriptor_with_precision_matches_by_format(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _cfg = make_client(httpserver, tmp_path, extra=custom_descriptor(precision='float32'))
+    assert get_optimisation(client)['profile'] == 'float32-48k'
+    assert load_slot_1(client)['coefficients'] == 'optimised'
+
+
+def test_custom_descriptor_with_explicit_profile(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _cfg = make_client(httpserver, tmp_path,
+                              extra={**custom_descriptor(), 'optimisationProfile': 'float32-48k'})
+    assert get_optimisation(client)['reason'] is None
+    assert load_slot_1(client)['coefficients'] == 'optimised'
+
+
+def test_custom_descriptor_without_precision_has_no_profile(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _cfg = make_client(httpserver, tmp_path, extra=custom_descriptor())
+    assert get_optimisation(client)['reason'] == 'no_profile'
+
+
+def test_custom_descriptor_rejects_unknown_precision(httpserver, tmp_path):
+    with pytest.raises(ValueError):
+        make_client(httpserver, tmp_path, extra=custom_descriptor(precision='float64'))
+
+
+class FailingSendSpy(MinidspSpy):
+    """
+    Fails sending the next command file while still answering status reads, so the failure lands on the load itself.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.fail_next_send = False
+
+    def __call__(self, *args, **kwargs):
+        if self.fail_next_send and self.pending and self.pending[-1][0] == '-f':
+            self.fail_next_send = False
+            self.pending = []
+            raise RuntimeError('simulated send failure')
+        return super().__call__(*args, **kwargs)
+
+
+def test_failed_load_resets_slot_coefficients(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    cfg = OptimisedMinidspConfig(httpserver.host, httpserver.port, tmp_path)
+    cfg.spy = FailingSendSpy()
+    app, _ = main.create_app(cfg)
+    client = app.test_client()
+    load_slot_1(client)
+    cfg.spy.fail_next_send = True
+    r = client.put('/api/1/devices/master/filter/1', data=json.dumps({'entryId': '123456_0'}),
+                   content_type='application/json')
+    assert r.status_code == 500
+    slot = slot_of(client.get('/api/2/devices').json['master'])
+    assert slot['last'] == 'ERROR'
+    assert 'coefficients' not in slot
+
+
+def test_catalogue_download_listener_failure_does_not_break_startup(httpserver, tmp_path, monkeypatch):
+    serve(httpserver, standard_profiles())
+    refresh = DeviceCatalogues.refresh
+    calls = []
+
+    def fail_first(self):
+        calls.append(1)
+        if len(calls) == 1:
+            raise ValueError('boom')
+        refresh(self)
+
+    monkeypatch.setattr(DeviceCatalogues, 'refresh', fail_first)
+    client, _ = make_client(httpserver, tmp_path)
+    assert get_optimisation(client)['available'] is True
+
+
+def test_device_profiles_refresh_when_main_catalogue_version_is_unchanged(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    dc = make_dc(httpserver, tmp_path)
+    dc.require(REQ_96K)
+    catalogues = catalogue.Catalogues(
+        str(tmp_path), f'http://{httpserver.host}:{httpserver.port}/', CapturingWsServer(),
+        3600, 100, 100, True, on_download=dc.refresh)
+    try:
+        original_version = catalogues.latest.version
+        httpserver.clear_all_handlers()
+        httpserver.expect_request('/version.txt').respond_with_data(original_version, content_type='text/plain')
+        serve(httpserver, standard_profiles(digest='replacement'))
+        catalogues._Catalogues__do_reload()
+        assert catalogues.latest.version == original_version
+        assert dc.optimised_biquads('float32-96k', DIGEST, 5) is None
+        assert dc.optimised_biquads('float32-96k', 'replacement', 5) is not None
+    finally:
+        catalogues.stop()
+
+
+def test_descriptor_str_includes_precision_when_known():
+    from ezbeq.minidsp import Minidsp24HD, MinidspDescriptor
+    assert 'precision: float32' in str(Minidsp24HD())
+    assert 'precision' not in str(MinidspDescriptor('custom', '96000'))
+
+
+def test_clear_resets_slot_coefficients(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _cfg = make_client(httpserver, tmp_path)
+    load_slot_1(client)
+    r = client.delete('/api/1/devices/master/filter/1')
+    assert r.status_code == 200
+    slot = next(s for s in r.json['slots'] if s['id'] == '1')
+    assert 'coefficients' not in slot
+
+
+def test_slot_coefficients_are_persisted(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _cfg = make_client(httpserver, tmp_path)
+    load_slot_1(client)
+    with open(tmp_path / 'master.json') as f:
+        cached = json.load(f)
+    slot = next(s for s in cached['slots'] if s['id'] == '1')
+    assert slot['coefficients'] == 'optimised'
+    assert slot['profile'] == 'float32-96k'
+
+
+def test_meta_lists_loaded_profiles(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _cfg = make_client(httpserver, tmp_path)
+    r = client.get('/api/1/meta')
+    assert r.status_code == 200
+    assert [p['id'] for p in r.json['deviceProfiles']] == ['float32-96k']
+
+
+def test_slot_state_merges_old_cache_without_coefficients():
+    s = SlotState('1')
+    s.merge_with({'last': 'Something', 'active': True})
+    assert s.coefficients is None
+    assert 'coefficients' not in s.as_dict()
+    s.merge_with({'last': 'Something', 'coefficients': 'optimised', 'profile': 'float32-96k'})
+    assert s.as_dict()['coefficients'] == 'optimised'
+    assert s.as_dict()['profile'] == 'float32-96k'
+
+
+class FixedState(DeviceState):
+
+    def __init__(self, vals: dict):
+        self.vals = vals
+
+    def serialise(self) -> dict:
+        return self.vals
+
+
+def composite_state(members: dict[str, dict]) -> dict:
+    return CompositeDeviceState('c', 'a', {n: MemberSpec() for n in members},
+                                {n: FixedState(v) for n, v in members.items()}).serialise()
+
+
+OK = {'profile': 'float32-96k', 'label': 'x', 'available': True, 'reason': None}
+NOT_OK = {'profile': None, 'label': None, 'available': False, 'reason': 'no_profile'}
+
+
+def test_composite_reports_least_optimised_member():
+    s = composite_state({'a': {'optimisation': OK}, 'b': {'optimisation': NOT_OK}})
+    assert s['optimisation'] == {**NOT_OK, 'member': 'b'}
+
+
+def test_composite_reports_primary_when_all_optimised():
+    s = composite_state({'a': {'optimisation': OK}, 'b': {'optimisation': {**OK, 'profile': 'float32-48k'}}})
+    assert s['optimisation'] == OK
+
+
+def test_composite_of_parametric_devices_has_no_optimisation():
+    s = composite_state({'a': {'slots': []}, 'b': {'slots': []}})
+    assert 'optimisation' not in s
+
+
+def test_composite_ignores_parametric_members():
+    s = composite_state({'a': {'slots': []}, 'b': {'optimisation': OK}})
+    assert s['optimisation'] == OK
+
+
+def patch_optimise(client, enabled: bool, device: str = 'master', slot: str = '1'):
+    r = client.patch(f'/api/3/devices/{device}', data=json.dumps({'slots': [{'id': slot, 'optimise': enabled}]}),
+                     content_type='application/json')
+    assert r.status_code == 200
+    return r.json
+
+
+def slot_of(state: dict, slot: str = '1') -> dict:
+    return next(s for s in state['slots'] if s['id'] == slot)
+
+
+def test_slots_optimise_by_default(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _ = make_client(httpserver, tmp_path)
+    r = client.get('/api/2/devices')
+    assert all(s['optimise'] is True for s in r.json['master']['slots'])
+
+
+def test_disabling_optimisation_for_a_slot_loads_authored_coefficients(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, cfg = make_client(httpserver, tmp_path)
+    state = patch_optimise(client, False)
+    assert slot_of(state)['optimise'] is False
+    assert slot_of(state, '2')['optimise'] is True
+    # the device can still be optimised, it's just this slot which isn't
+    assert state['optimisation']['available'] is True
+    assert state['optimisation']['reason'] is None
+    slot = load_slot_1(client)
+    assert slot['coefficients'] == 'unoptimised'
+    assert slot['profile'] == 'float32-96k'
+    assert not any(OPT_CMD in c for c in cfg.spy.take_commands())
+    patch_optimise(client, True)
+    assert load_slot_1(client)['coefficients'] == 'optimised'
+
+
+def test_optimise_unchanged_is_a_nop(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, cfg = make_client(httpserver, tmp_path)
+    cfg.spy.take_commands()
+    assert slot_of(patch_optimise(client, True))['optimise'] is True
+    assert cfg.spy.take_commands() == []
+
+
+def test_optimise_is_per_slot(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _cfg = make_client(httpserver, tmp_path)
+    patch_optimise(client, False, slot='2')
+    assert load_slot_1(client)['coefficients'] == 'optimised'
+    r = client.put('/api/1/devices/master/filter/2', data=json.dumps({'entryId': '123456_0'}),
+                   content_type='application/json')
+    assert slot_of(r.json, '2')['coefficients'] == 'unoptimised'
+
+
+def test_optimise_and_load_in_one_patch(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _cfg = make_client(httpserver, tmp_path)
+    r = client.patch('/api/3/devices/master', data=json.dumps({'slots': [{'id': '1', 'optimise': False,
+                                                                         'entry': '123456_0'}]}),
+                     content_type='application/json')
+    assert r.status_code == 200
+    assert slot_of(r.json)['coefficients'] == 'unoptimised'
+
+
+def test_optimise_survives_clearing_the_slot(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _ = make_client(httpserver, tmp_path)
+    patch_optimise(client, False)
+    load_slot_1(client)
+    r = client.delete('/api/1/devices/master/filter/1')
+    assert slot_of(r.json)['optimise'] is False
+
+
+def test_slot_with_optimisation_off_loading_entry_without_optimisation_is_standard(httpserver, tmp_path):
+    serve(httpserver, standard_profiles(digest='other'))
+    client, _ = make_client(httpserver, tmp_path)
+    patch_optimise(client, False)
+    assert load_slot_1(client)['coefficients'] == 'standard'
+
+
+def test_optimise_is_persisted(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _ = make_client(httpserver, tmp_path)
+    patch_optimise(client, False)
+    with open(tmp_path / 'master.json') as f:
+        assert slot_of(json.load(f))['optimise'] is False
+    client, _ = make_client(httpserver, tmp_path)
+    assert slot_of(client.get('/api/2/devices').json['master'])['optimise'] is False
+    assert load_slot_1(client)['coefficients'] == 'unoptimised'
+
+
+def test_optimise_rejects_non_boolean(httpserver, tmp_path):
+    client, _ = make_client(httpserver, tmp_path)
+    r = client.patch('/api/3/devices/master', data=json.dumps({'slots': [{'id': '1', 'optimise': 'no'}]}),
+                     content_type='application/json')
+    assert r.status_code == 400
+
+
+def get_entry_optimisation(client, device: str = 'master', entry: str = '123456_0'):
+    return client.get(f'/api/1/devices/{device}/optimisation/{entry}')
+
+
+def test_entry_optimisation(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _ = make_client(httpserver, tmp_path)
+    r = get_entry_optimisation(client)
+    assert r.status_code == 200
+    assert r.json == {'applicable': True, 'profile': 'float32-96k', 'optimised': True}
+    assert get_entry_optimisation(client, entry=DIGEST).json['optimised'] is True
+    # whether it is used depends on the slot it's loaded into, not the entry
+    patch_optimise(client, False)
+    assert get_entry_optimisation(client).json['optimised'] is True
+
+
+def test_entry_optimisation_not_needed(httpserver, tmp_path):
+    serve(httpserver, standard_profiles(digest='other'))
+    client, _ = make_client(httpserver, tmp_path)
+    assert get_entry_optimisation(client).json == {'applicable': True, 'profile': 'float32-96k', 'optimised': False}
+
+
+def test_entry_optimisation_with_mismatched_profile(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _ = make_client(httpserver, tmp_path, device_type='4x10', extra={'optimisationProfile': 'float32-96k'})
+    assert get_entry_optimisation(client).json == {'applicable': True, 'profile': 'float32-96k', 'optimised': False}
+
+
+def test_entry_optimisation_unknown_entry_or_device(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _ = make_client(httpserver, tmp_path)
+    assert get_entry_optimisation(client, entry='nope').status_code == 404
+    assert get_entry_optimisation(client, entry="' OR '1'='1").status_code == 404
+    assert get_entry_optimisation(client, device='nope').status_code == 404
+
+
+def test_composite_entry_optimisation_when_no_member_is_applicable(httpserver, tmp_path, monkeypatch):
+    from conftest import CompositeMappedSpyConfig
+
+    from ezbeq.minidsp import Minidsp
+    serve(httpserver, standard_profiles())
+    monkeypatch.setattr(Minidsp, 'entry_optimisation', lambda self, entry: None)
+    app, _ = main.create_app(CompositeMappedSpyConfig(httpserver.host, httpserver.port, tmp_path))
+    r = get_entry_optimisation(app.test_client(), device='home_theatre')
+    assert r.status_code == 200
+    assert r.json == {'applicable': False, 'profile': None, 'optimised': False}
+
+
+def test_device_state_is_broadcast_when_device_catalogues_change(httpserver, tmp_path, monkeypatch):
+    from conftest import CompositeMirrorSpyConfig
+    created: list[DeviceCatalogues] = []
+
+    class RecordingDeviceCatalogues(DeviceCatalogues):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created.append(self)
+
+    monkeypatch.setattr(catalogue, 'DeviceCatalogues', RecordingDeviceCatalogues)
+    serve(httpserver, standard_profiles())
+    ws = CapturingWsServer()
+    app, _ = main.create_app(CompositeMirrorSpyConfig(httpserver.host, httpserver.port, tmp_path), ws)
+    app.test_client().get('/api/2/devices')
+    ws.take_messages()
+    httpserver.clear_all_handlers()
+    serve(httpserver, standard_profiles(digest='other'))
+    created[0].refresh()
+    names = {json.loads(m)['data']['name'] for m in ws.take_messages()}
+    assert names == {'sub1', 'sub2', 'bass_array'}
+
+
+def test_entry_optimisation_for_parametric_device(reaper_client):
+    r = get_entry_optimisation(reaper_client, device='reaper1')
+    assert r.status_code == 200
+    assert r.json == {'applicable': False, 'profile': None, 'optimised': False}
+
+
+def test_composite_optimise_fans_out_to_members(httpserver, tmp_path):
+    from conftest import CompositeMirrorSpyConfig
+    serve(httpserver, standard_profiles())
+    app, _ = main.create_app(CompositeMirrorSpyConfig(httpserver.host, httpserver.port, tmp_path))
+    client = app.test_client()
+    assert get_entry_optimisation(client, device='bass_array').json['optimised'] is True
+    state = patch_optimise(client, False, device='bass_array')
+    assert slot_of(state)['optimise'] is False
+    for member in state['members'].values():
+        assert slot_of(member)['optimise'] is False
+        assert slot_of(member, '2')['optimise'] is True
+
+
+def test_composite_mapped_with_parametric_member(httpserver, tmp_path):
+    from conftest import CompositeMappedSpyConfig
+    serve(httpserver, standard_profiles())
+    app, _ = main.create_app(CompositeMappedSpyConfig(httpserver.host, httpserver.port, tmp_path))
+    client = app.test_client()
+    assert get_entry_optimisation(client, device='home_theatre').json['optimised'] is True
+    state = patch_optimise(client, False, device='home_theatre')
+    assert slot_of(state)['optimise'] is False
+    assert slot_of(state['members']['sub1'])['optimise'] is False
+
+
+def get_optimised(client, device: str = 'master'):
+    return client.get(f'/api/1/devices/{device}/optimised')
+
+
+def test_optimised_ids(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _ = make_client(httpserver, tmp_path)
+    r = get_optimised(client)
+    assert r.status_code == 200
+    assert r.json == {'profiles': ['float32-96k'], 'ids': ['123456_0']}
+    # still optimisable when a slot is not using optimised coefficients
+    patch_optimise(client, False)
+    assert get_optimised(client).json['ids'] == ['123456_0']
+
+
+def test_optimised_ids_excludes_entries_without_optimisation_or_with_mismatched_counts(httpserver, tmp_path):
+    serve(httpserver, standard_profiles(count=4))
+    client, _ = make_client(httpserver, tmp_path)
+    assert get_optimised(client).json == {'profiles': ['float32-96k'], 'ids': []}
+
+
+@pytest.mark.parametrize('device_type,extra', [('4x10', {}), ('4x10', {'optimisationProfile': 'float32-96k'})],
+                         ids=['no_profile', 'precision_mismatch'])
+def test_optimised_ids_for_device_which_cannot_be_optimised(httpserver, tmp_path, device_type, extra):
+    serve(httpserver, standard_profiles())
+    client, _ = make_client(httpserver, tmp_path, device_type=device_type, extra=extra)
+    assert get_optimised(client).json == {'profiles': [], 'ids': []}
+
+
+def test_optimised_ids_unknown_device(httpserver, tmp_path):
+    client, _ = make_client(httpserver, tmp_path)
+    assert get_optimised(client, device='nope').status_code == 404
+
+
+def test_optimised_ids_for_parametric_device(reaper_client):
+    assert get_optimised(reaper_client, device='reaper1').json == {'profiles': [], 'ids': []}
+
+
+def test_optimised_ids_for_composite(httpserver, tmp_path):
+    from conftest import CompositeMappedSpyConfig
+    serve(httpserver, standard_profiles())
+    app, _ = main.create_app(CompositeMappedSpyConfig(httpserver.host, httpserver.port, tmp_path))
+    assert get_optimised(app.test_client(), device='home_theatre').json == {'profiles': ['float32-96k'],
+                                                                           'ids': ['123456_0']}

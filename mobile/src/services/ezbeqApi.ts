@@ -2,6 +2,8 @@ import type {
   CatalogueEntry,
   CatalogueMeta,
   DeviceCollection,
+  DeviceState,
+  EntryOptimisation,
   GainsPayload,
   VersionInfo,
 } from '../types/ezbeq';
@@ -225,6 +227,19 @@ export class EzbeqApi {
   getDevices = async (): Promise<DeviceCollection> => this.doGet('devices', 2);
 
   getLevels = async (device: string) => this.doGet(`devices/${device}/levels`);
+
+  getOptimisedEntries = async (device: string): Promise<{ profiles: string[]; ids: string[] }> =>
+    this.doGet(`devices/${device}/optimised`);
+
+  getEntryOptimisation = async (device: string, entryId: string): Promise<EntryOptimisation> =>
+    this.doGet(`devices/${device}/optimisation/${entryId}`);
+
+  setOptimise = async (device: string, slotId: string, enabled: boolean): Promise<DeviceState> =>
+    this.doPatch(device, this.buildOptimisePayload(slotId, enabled));
+
+  buildOptimisePayload = (slotId: string, enabled: boolean) => ({
+    slots: [{ id: String(slotId), optimise: Boolean(enabled) }],
+  });
 }
 
 export const createEzbeqApi = (baseUrl: string): EzbeqApi => new EzbeqApi(baseUrl);

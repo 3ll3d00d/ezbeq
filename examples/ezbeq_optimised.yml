@@ -1,0 +1,44 @@
+accessLogging: false
+debugLogging: true
+devices:
+  # a built in device_type uses the device catalogue matching its format by default (float32-48k here)
+  ddrc24:
+    cmdTimeout: 10
+    exe: minidsp
+    options: ''
+    type: minidsp
+    device_type: DDRC24
+  # optimisationProfile: none opts a device out of optimised coefficients
+  hd:
+    cmdTimeout: 10
+    exe: minidsp
+    options: '--tcp 192.168.1.20'
+    type: minidsp
+    device_type: 24HD
+    optimisationProfile: none
+  # a custom layout declaring its precision uses the device catalogue matching its precision and fs (float32-96k here)
+  # alternatively, name the device catalogue explicitly via optimisationProfile
+  custom:
+    cmdTimeout: 10
+    exe: minidsp
+    options: '--tcp 192.168.1.21'
+    type: minidsp
+    descriptor:
+      name: 2x4
+      fs: 96000
+      precision: float32
+      routes:
+      - name: input
+        biquads: 10
+        channels: [0]
+        slots: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+      - name: crossover
+        biquads: 4
+        channels: [0, 1, 2, 3]
+        slots: []
+        groups: [0, 1]
+      - name: output
+        biquads: 10
+        channels: [0, 1, 2, 3]
+        slots: []
+port: 8080
