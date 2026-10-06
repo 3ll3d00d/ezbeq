@@ -391,7 +391,7 @@ export default function MainScreen({ navigation }: Props) {
         </Text>
       ) : null}
       {/* the optimisation switch sits in the master volume row, only a device without one shows it here */}
-      {api && device.masterVolume === undefined ? optimisationControl : null}
+      {device.masterVolume === undefined ? optimisationControl : null}
       <SlotsGrid
         slots={device.slots ?? []}
         selectedSlotId={selectedSlotId}
@@ -406,7 +406,7 @@ export default function MainScreen({ navigation }: Props) {
           gains={currentGains}
           updateGain={updateGain}
           commitGain={commitGain}
-          masterExtra={api ? optimisationControl : null}
+          masterExtra={optimisationControl}
         />
       ) : null}
     </View>

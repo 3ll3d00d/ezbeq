@@ -140,6 +140,22 @@ describe('Filter device optimisation', () => {
     });
 });
 
+describe('Filter device optimisation reselection', () => {
+    it('allows the optional selection callback to be omitted', () => {
+        render(<Filter {...baseProps} optimisable={true}/>);
+        fireEvent.click(screen.getByRole('button', {name: 'Optimised'}));
+        expect(screen.getByRole('button', {name: 'Any'})).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('ignores a click on the already selected option', () => {
+        const setSelectedOptimisation = vi.fn();
+        render(<Filter {...baseProps} optimisable={true} selectedOptimisation={null}
+                       setSelectedOptimisation={setSelectedOptimisation}/>);
+        fireEvent.click(screen.getByRole('button', {name: 'Any'}));
+        expect(setSelectedOptimisation).not.toHaveBeenCalled();
+    });
+});
+
 describe('fuzzy free-text-create matching', () => {
     it('matchAudioTypes matches case-insensitively and by substring', () => {
         expect(matchAudioTypes(['Atmos', 'DTS:X'], ['atmos'])).toEqual(['Atmos']);

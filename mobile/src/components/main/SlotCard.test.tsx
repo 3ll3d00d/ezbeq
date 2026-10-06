@@ -14,6 +14,14 @@ test('shows the slot id and last-loaded filter when the slot has no name', async
   expect(screen.getByText(/^1: Interstellar \(2014\)/)).toBeTruthy();
 });
 
+test('shows the slot name in place of the id when the slot has one', async () => {
+  await render(
+    <SlotCard slot={slot({ name: 'Movies', last: 'Interstellar (2014)' })} selected={false} pending={false} onSelect={jest.fn()} onClear={jest.fn()} />
+  );
+
+  expect(screen.getByText(/^Movies: Interstellar \(2014\)/)).toBeTruthy();
+});
+
 test('shows Empty when nothing is loaded', async () => {
   await render(<SlotCard slot={slot()} selected={false} pending={false} onSelect={jest.fn()} onClear={jest.fn()} />);
 

@@ -181,4 +181,13 @@ describe('Slots optimisation', () => {
         expect(screen.getByText('Optimised')).toBeInTheDocument();
         expect(screen.getAllByText('Unoptimised')).toHaveLength(1);
     });
+
+    it('shows the optimisation control above the slots for a device without a master volume', () => {
+        const {masterVolume: _masterVolume, ...device} = baseDevice(0);
+        renderSlots({
+            ...device,
+            optimisation: {profile: 'float32-96k', label: 'float32 @ 96 kHz', available: true, reason: null}
+        });
+        expect(screen.getByRole('switch', {name: /into slot 1$/})).toBeChecked();
+    });
 });

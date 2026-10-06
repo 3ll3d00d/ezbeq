@@ -40,7 +40,7 @@ const Filter = ({
                     setError,
                     optimisable = false,
                     selectedOptimisation = null,
-                    setSelectedOptimisation = () => {}
+                    setSelectedOptimisation
                 }) => {
 
     const freshness = ['Fresh', 'Updated', 'Stale'];
@@ -150,7 +150,7 @@ const Filter = ({
                                                value={selectedOptimisation ?? 'any'}
                                                aria-label="Device optimisation"
                                                onChange={(e, v) => {
-                                                   if (v !== null) setSelectedOptimisation(v === 'any' ? null : v);
+                                                   if (v !== null) setSelectedOptimisation?.(v === 'any' ? null : v);
                                                }}>
                                 <ToggleButton value="any">Any</ToggleButton>
                                 <ToggleButton value={OPTIMISED}>Optimised</ToggleButton>

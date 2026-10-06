@@ -308,8 +308,8 @@ class Catalogue:
 
 class Catalogues:
     def __init__(self, config_path: str, catalogue_url: str, ws: WsServer, refresh_seconds: float,
-                 first_chunk_size: int, chunk_size: int, sync_load: bool, mmap_mb: int = 0,
-                 on_download: Callable[[], None] | None = None):
+                 first_chunk_size: int, chunk_size: int, sync_load: bool, mmap_mb: int = 0, *,
+                 on_download: Callable[[], None]):
         self.__catalogue_url = catalogue_url
         self.__on_download = on_download
         self.__version_file = os.path.join(config_path, 'version.txt')
@@ -589,11 +589,10 @@ class Catalogues:
         return downloader.version, reload_required
 
     def __notify_download(self):
-        if self.__on_download:
-            try:
-                self.__on_download()
-            except Exception:
-                logger.exception('Failed to handle catalogue download')
+        try:
+            self.__on_download()
+        except Exception:
+            logger.exception('Failed to handle catalogue download')
 
     def __reload(self):
         now = time.time()

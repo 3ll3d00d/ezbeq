@@ -109,6 +109,21 @@ describe('OptimisationControl', () => {
   it('is disabled when no slot is selected', async () => {
     await renderControl(slotted(optimisation()), null);
     expect(screen.getByTestId('optimisation-switch').props.disabled).toBe(true);
+    expect(screen.getByLabelText('Load filters optimised for float32 @ 96 kHz into the selected slot')).toBeTruthy();
+  });
+
+  it('does not toggle without a selected slot', async () => {
+    const api = makeApi();
+    await renderControl(slotted(optimisation()), null, api);
+    await act(async () => {
+      fireEvent(screen.getByTestId('optimisation-switch'), 'valueChange', false);
+    });
+    expect(api.setOptimise).not.toHaveBeenCalled();
+  });
+
+  it('names the slot, and the device when the profile has no label', async () => {
+    await renderControl({ ...device(optimisation({ label: null })), slots: [{ id: '1', name: 'Movies', active: true }] }, '1');
+    expect(screen.getByLabelText('Load filters optimised for this device into slot Movies')).toBeTruthy();
   });
 
   it('shows a disabled switch explaining why when the device cannot be optimised', async () => {
@@ -221,6 +236,24 @@ describe('useEntryOptimisation', () => {
     expect(screen.getByTestId('result')).toHaveTextContent('null');
   });
 
+  it('ignores a lookup which completes after the device has changed', async () => {
+    let resolve: (v: unknown) => void = () => {};
+    const api = makeApi({ getEntryOptimisation: jest.fn().mockReturnValueOnce(new Promise((r) => (resolve = r))) });
+    await render(<HookProbe api={api} dev={device(optimisation())} />);
+    await screen.rerender(<HookProbe api={api} dev={device()} />);
+    await act(async () => resolve({ optimised: true }));
+    expect(screen.getByTestId('result')).toHaveTextContent('null');
+  });
+
+  it('ignores a failure which completes after the device has changed', async () => {
+    let reject: (e: Error) => void = () => {};
+    const api = makeApi({ getEntryOptimisation: jest.fn().mockReturnValueOnce(new Promise((_, r) => (reject = r))) });
+    await render(<HookProbe api={api} dev={device(optimisation())} />);
+    await screen.rerender(<HookProbe api={api} dev={device()} />);
+    await act(async () => reject(new Error('boom')));
+    expect(screen.getByTestId('result')).toHaveTextContent('null');
+  });
+
   it('does not refetch when unrelated device state changes', async () => {
     const api = makeApi({ getEntryOptimisation: jest.fn().mockResolvedValue({ optimised: true }) });
     await render(<HookProbe api={api} dev={device(optimisation())} />);
@@ -270,6 +303,25 @@ describe('useOptimisedEntryIds', () => {
     const api = makeApi();
     await render(<IdsProbe api={api} dev={device()} search="optimised" />);
     expect(api.getOptimisedEntries).not.toHaveBeenCalled();
+  });
+
+  it('ignores a load which completes after the search has changed', async () => {
+    let resolve: (v: unknown) => void = () => {};
+    const api = makeApi({ getOptimisedEntries: jest.fn().mockReturnValueOnce(new Promise((r) => (resolve = r))) });
+    await render(<IdsProbe api={api} dev={device(optimisation())} search="optimised" />);
+    await screen.rerender(<IdsProbe api={api} dev={device(optimisation())} search={null} />);
+    await act(async () => resolve({ profiles: ['p'], ids: ['e1'] }));
+    expect(screen.getByTestId('ids')).toHaveTextContent('none');
+  });
+
+  it('ignores a failure which completes after the search has changed', async () => {
+    let reject: (e: Error) => void = () => {};
+    const api = makeApi({ getOptimisedEntries: jest.fn().mockReturnValueOnce(new Promise((_, r) => (reject = r))) });
+    const onError = jest.fn();
+    await render(<IdsProbe api={api} dev={device(optimisation())} search="optimised" onError={onError} />);
+    await screen.rerender(<IdsProbe api={api} dev={device(optimisation())} search={null} onError={onError} />);
+    await act(async () => reject(new Error('boom')));
+    expect(onError).not.toHaveBeenCalled();
   });
 
   it('reports a failed load', async () => {
