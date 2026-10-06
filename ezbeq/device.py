@@ -441,6 +441,14 @@ class PersistentDevice(Device, ABC, Generic[T]):
         if self.ws_server:
             self.ws_server.broadcast(self.__get_state_msg())
 
+    def _broadcast_if_hydrated(self):
+        """
+        Broadcasts the current state if there is one, for changes which originate outside the device (e.g. the device
+        catalogues finishing loading) and so may arrive before the device has loaded its state.
+        """
+        if self._current_state is not None:
+            self._broadcast()
+
     def __get_state_msg(self):
         assert self._current_state, 'hydrate cannot return None'
         return json.dumps({'message': 'DeviceState', 'data': self._current_state.serialise()}, ensure_ascii=False)

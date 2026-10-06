@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from ezbeq.catalogue import (
@@ -73,13 +74,19 @@ class DeviceOptimisation:
     beqcatalogue device catalogue.
     """
 
-    def __init__(self, device_name: str, fmt: CoefficientFormat, cfg: dict, catalogues: DeviceCatalogues | None):
+    def __init__(self, device_name: str, fmt: CoefficientFormat, cfg: dict, catalogues: DeviceCatalogues | None,
+                 on_change: Callable[[], None] | None = None):
+        """
+        :param on_change: called when the device catalogues change, as that may change this device's status.
+        """
         self.__device_name = device_name
         self.__format = fmt
         self.__catalogues = catalogues
         self.__requirement = make_requirement(device_name, fmt, cfg)
         self.enabled = True
         if self.__requirement and catalogues:
+            if on_change:
+                catalogues.add_listener(on_change)
             catalogues.require(self.__requirement)
 
     def __status(self) -> tuple[DeviceProfile | None, str | None]:

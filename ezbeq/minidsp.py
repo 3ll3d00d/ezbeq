@@ -657,7 +657,8 @@ class Minidsp(PersistentDevice[MinidspState]):
             self.__ws_client = None
         self.__descriptor: MinidspDescriptor = make_peq_layout(cfg, self.__runner)
         self.__optimisation = DeviceOptimisation(name, self.__descriptor.coefficient_format, cfg,
-                                                 catalogue.device_catalogues if catalogue else None)
+                                                 catalogue.device_catalogues if catalogue else None,
+                                                 on_change=self._broadcast_if_hydrated)
         logger.info(f"[{name}] Minidsp descriptor is loaded.... exe is {self.__runner}")
         logger.debug(yaml.dump(self.__descriptor, indent=2, default_flow_style=False, sort_keys=False))
         ws_server.factory.set_levels_provider(name, self.start_broadcast_levels)

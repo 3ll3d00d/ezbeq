@@ -678,17 +678,17 @@ class Catalogues:
                 logger.exception("Failed to refresh catalogue")
 
     def find_by_id(self, entry_id: str, as_dict: bool = False) -> CatalogueEntry | dict | None:
-        return self.__find(f"{ID} = '{entry_id}'", as_dict)
+        return self.__find(f"{ID} = ?", entry_id, as_dict)
 
     def find_by_digest(self, digest: str, as_dict: bool = False) -> CatalogueEntry | dict | None:
-        return self.__find(f"{DIGEST} = '{digest}'", as_dict)
+        return self.__find(f"{DIGEST} = ?", digest, as_dict)
 
-    def __find(self, clause: str, as_dict: bool) -> CatalogueEntry | dict | None:
+    def __find(self, clause: str, value: str, as_dict: bool) -> CatalogueEntry | dict | None:
         catalogue = self.latest
         if not catalogue:
             return None
         sql = f"SELECT {FIELDS_STR} FROM catalogue_entry WHERE {clause}"
-        results = self.__fetch_entries(sql, FIELDS, 1)
+        results = self.__fetch_entries(sql, FIELDS, 1, params=(value,))
         if results:
             return results[0] if as_dict else CatalogueEntry(results[0][ID], results[0])
         else:
@@ -765,8 +765,8 @@ class Catalogues:
 
         return self.__fetch_entries(sql, fields, limit)
 
-    def __fetch_entries(self, select: str, fields: list[str], limit: int | None, offset: int | None = None) -> \
-            list[dict]:
+    def __fetch_entries(self, select: str, fields: list[str], limit: int | None, offset: int | None = None,
+                        params: tuple = ()) -> list[dict]:
         if limit:
             select = f'{select} LIMIT {limit}'
         if offset:
@@ -785,7 +785,7 @@ class Catalogues:
             before = time.time()
             logger.debug(f'>>> {select}')
             entries: list[dict] = []
-            res = cur.execute(select)
+            res = cur.execute(select, params)
             rows = res.fetchmany(size=limit if limit else 20000)
             after_load = time.time()
             logger.debug(f'Loaded {len(rows)} entries from db in {to_millis(before, after_load)} ms')
@@ -1163,6 +1163,7 @@ class DeviceCatalogues:
         self.__db = db
         self.__sync_load = sync_load
         self.__requirements: set[ProfileRequirement] = set()
+        self.__listeners: list[Callable[[], None]] = []
         self.__published: dict[str, DeviceProfile] = {}
         self.__lock = threading.Lock()
         self.__ensure_db()
@@ -1193,6 +1194,19 @@ class DeviceCatalogues:
                     logger.exception(f'Ignoring unreadable device profile {row[0]} in db')
             return loaded
 
+    def add_listener(self, listener: Callable[[], None]) -> None:
+        """
+        :param listener: called whenever the set of loaded profiles changes.
+        """
+        self.__listeners.append(listener)
+
+    def __notify(self):
+        for listener in self.__listeners:
+            try:
+                listener()
+            except Exception:
+                logger.exception('Device catalogue listener failed')
+
     def require(self, requirement: ProfileRequirement) -> None:
         with self.__lock:
             if requirement in self.__requirements:
@@ -1217,33 +1231,51 @@ class DeviceCatalogues:
         the one already loaded. Any failure leaves the previously loaded data in place.
         """
         with self.__lock:
-            requirements = set(self.__requirements)
-            if not requirements:
-                return
-            index = self.__fetch_index()
-            if index is None:
-                return
-            self.__published = index
-            required = {p for p in index.values() if any(r.matches(p) for r in requirements)}
-            for r in requirements:
-                if not any(r.matches(p) for p in index.values()):
-                    logger.warning(f'No published device catalogue matches {r}')
-            for p in sorted(required, key=lambda x: x.id):
-                loaded = self.__loaded.get(p.id)
-                if loaded and loaded.sha256 == p.sha256:
-                    logger.debug(f'[{p.id}] Device catalogue is up to date at {p.sha256}')
-                    continue
-                try:
-                    self.__load_profile(p)
-                except (InvalidDeviceCatalogueError, requests.RequestException, sqlite3.Error, ijson.JSONError,
-                        ValueError) as e:
-                    logger.error(f'[{p.id}] Unable to load device catalogue: {e}')
-            # a profile no longer published has been withdrawn so stop using it
+            before = self.__loaded
+            self.__refresh_locked()
+            changed = self.__loaded is not before
+        if changed:
+            self.__notify()
+
+    def __refresh_locked(self):
+        requirements = set(self.__requirements)
+        if not requirements:
+            return
+        fetched = self.__fetch_index()
+        if fetched is None:
+            return
+        index, complete = fetched
+        self.__published = index
+        published = sorted(index.values(), key=lambda x: x.id)
+        required: dict[str, DeviceProfile] = {}
+        for r in requirements:
+            # a format match uses the first matching profile, consistent with resolve()
+            match = next((p for p in published if r.matches(p)), None)
+            if match:
+                required[match.id] = match
+            else:
+                logger.warning(f'No published device catalogue matches {r}')
+        for p in sorted(required.values(), key=lambda x: x.id):
+            loaded = self.__loaded.get(p.id)
+            if loaded and loaded.sha256 == p.sha256:
+                logger.debug(f'[{p.id}] Device catalogue is up to date at {p.sha256}')
+                continue
+            try:
+                self.__load_profile(p)
+            except (InvalidDeviceCatalogueError, requests.RequestException, sqlite3.Error, ijson.JSONError,
+                    ValueError) as e:
+                logger.error(f'[{p.id}] Unable to load device catalogue: {e}')
+        # a profile no longer published has been withdrawn so stop using it, but only trust an index which was
+        # read in full as a truncated or partly invalid index would otherwise wipe out good data
+        if complete and index:
             for withdrawn in [k for k in self.__loaded if k not in index]:
                 logger.warning(f'[{withdrawn}] Device catalogue is no longer published, removing')
                 self.__delete_profile(withdrawn)
 
-    def __fetch_index(self) -> dict[str, DeviceProfile] | None:
+    def __fetch_index(self) -> tuple[dict[str, DeviceProfile], bool] | None:
+        """
+        :return: the published profiles and whether every profile in the index was valid, None if unavailable.
+        """
         url = f'{self.__base_url}index.json'
         try:
             r = requests.get(url, allow_redirects=True, timeout=30)
@@ -1255,13 +1287,15 @@ class DeviceCatalogues:
                 logger.warning(f'Unsupported device catalogue index schema {index.get("schema_version")} at {url}')
                 return None
             profiles = {}
+            complete = True
             for vals in index.get('profiles', []):
                 try:
                     p = DeviceProfile.from_index(vals)
                     profiles[p.id] = p
                 except (KeyError, ValueError, TypeError):
                     logger.warning(f'Ignoring invalid device profile in index {vals}')
-            return profiles
+                    complete = False
+            return profiles, complete
         except Exception:
             logger.exception(f'Failed to get {url}')
             return None
@@ -1305,6 +1339,8 @@ class DeviceCatalogues:
         for prefix, event, value in ijson.parse(io.BytesIO(content)):
             if prefix in wanted and event in ('string', 'number'):
                 header[prefix] = value
+                if len(header) == len(wanted):
+                    break
         if header.get('schema_version') != DEVICE_SCHEMA_VERSION:
             raise InvalidDeviceCatalogueError(f'unsupported schema_version {header.get("schema_version")}')
         if header.get('loading_model') not in SUPPORTED_LOADING_MODELS:

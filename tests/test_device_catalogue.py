@@ -161,10 +161,58 @@ class TestDeviceCatalogues:
         dc = make_dc(httpserver, tmp_path)
         dc.require(REQ_96K)
         httpserver.clear_all_handlers()
-        httpserver.expect_request('/devices/index.json').respond_with_json({'schema_version': 1, 'profiles': []})
+        httpserver.expect_request('/devices/index.json').respond_with_json(
+            {'schema_version': 1, 'profiles': [index_entry('other', 96000, b'x')]})
         dc.refresh()
         assert dc.loaded == []
         assert dc.optimised_biquads('float32-96k', DIGEST, 5) is None
+
+    @pytest.mark.parametrize('profiles', [[], [{'id': 'broken'}]], ids=['empty', 'invalid'])
+    def test_incomplete_index_does_not_remove_loaded_profiles(self, httpserver, tmp_path, profiles):
+        serve(httpserver, standard_profiles())
+        dc = make_dc(httpserver, tmp_path)
+        dc.require(REQ_96K)
+        httpserver.clear_all_handlers()
+        httpserver.expect_request('/devices/index.json').respond_with_json({'schema_version': 1, 'profiles': profiles})
+        dc.refresh()
+        assert [p.id for p in dc.loaded] == ['float32-96k']
+        assert dc.optimised_biquads('float32-96k', DIGEST, 5)
+
+    def test_listeners_are_notified_when_loaded_profiles_change(self, httpserver, tmp_path):
+        serve(httpserver, standard_profiles())
+        dc = make_dc(httpserver, tmp_path)
+        calls = []
+        dc.add_listener(lambda: calls.append(len(dc.loaded)))
+        dc.require(REQ_96K)
+        assert calls == [1]
+        dc.refresh()
+        assert calls == [1]
+        httpserver.clear_all_handlers()
+        httpserver.expect_request('/devices/index.json').respond_with_json(
+            {'schema_version': 1, 'profiles': [index_entry('other', 96000, b'x')]})
+        dc.refresh()
+        assert calls == [1, 0]
+
+    def test_failing_listener_does_not_break_refresh(self, httpserver, tmp_path):
+        serve(httpserver, standard_profiles())
+        dc = make_dc(httpserver, tmp_path)
+
+        def boom():
+            raise ValueError('boom')
+
+        dc.add_listener(boom)
+        dc.require(REQ_96K)
+        assert [p.id for p in dc.loaded] == ['float32-96k']
+
+    def test_format_match_only_downloads_the_profile_it_uses(self, httpserver, tmp_path):
+        profiles = standard_profiles()
+        profiles['float32-96k-v2'] = (96000, make_profile('float32-96k-v2', 96000, {DIGEST: [OPT_BQ] * 5}))
+        serve(httpserver, profiles)
+        dc = make_dc(httpserver, tmp_path)
+        req = ProfileRequirement(None, 96000, 'float32')
+        dc.require(req)
+        assert dc.resolve(req).id == 'float32-96k'
+        assert downloads(httpserver, '/devices/float32-96k-v2.json') == 0
 
     def test_loaded_profiles_survive_restart_without_network(self, httpserver, tmp_path):
         serve(httpserver, standard_profiles())
@@ -492,6 +540,7 @@ def test_entry_optimisation_unknown_entry_or_device(httpserver, tmp_path):
     serve(httpserver, standard_profiles())
     client, _ = make_client(httpserver, tmp_path)
     assert get_entry_optimisation(client, entry='nope').status_code == 404
+    assert get_entry_optimisation(client, entry="' OR '1'='1").status_code == 404
     assert get_entry_optimisation(client, device='nope').status_code == 404
 
 

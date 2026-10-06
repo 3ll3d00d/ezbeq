@@ -129,6 +129,9 @@ class CompositeDevice(PersistentDevice[CompositeDeviceState]):
         self.__specs = self.__build_specs(cfg)
         self.__primary_name = cfg.get('primary') or next(iter(members))
         self.__executor = ThreadPoolExecutor(max_workers=max(len(members), 1))
+        if catalogue:
+            # the members broadcast their own state when the device catalogues change, the composite has to as well
+            catalogue.device_catalogues.add_listener(self._broadcast_if_hydrated)
 
     def __build_specs(self, cfg: dict) -> dict[str, MemberSpec]:
         overrides = cfg.get('members', {}) if cfg['mode'] == 'mapped' else {}
@@ -317,12 +320,14 @@ class CompositeDevice(PersistentDevice[CompositeDeviceState]):
         self._hydrate_cache_broadcast(__do_it)
 
     def set_optimisation_enabled(self, enabled: bool) -> bool:
+        changed: list[bool] = []
+
+        def __call(name: str, dev: Device):
+            changed.append(dev.set_optimisation_enabled(enabled))
+
         def __do_it() -> bool:
-            changed = False
-            for dev in self.__members.values():
-                changed |= dev.set_optimisation_enabled(enabled)
-            self.__refresh_members()
-            return changed
+            self.__fan_out('set_optimisation_enabled', __call)
+            return any(changed)
 
         return self._hydrate_cache_broadcast(__do_it)
 
