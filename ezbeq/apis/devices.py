@@ -7,7 +7,12 @@ from flask import request
 from flask_restx import Namespace, Resource, fields
 
 from ezbeq.catalogue import CatalogueEntry, CatalogueProvider
-from ezbeq.device import DeviceRepository, InvalidRequestError, UnableToPatchDeviceError
+from ezbeq.device import (
+    DeviceRepository,
+    InvalidRequestError,
+    NoSuchDevice,
+    UnableToPatchDeviceError,
+)
 from ezbeq.iir import HighShelf, LowShelf, PeakingEQ
 
 logger = logging.getLogger('ezbeq.devices')
@@ -340,6 +345,9 @@ slot_model_v3 = v3_api.model('SlotV3', {
                                description='(Optional) gains to set on the specified output channels (minidsp)'),
     'outputMutes': fields.List(fields.Nested(mute_model_v3), required=False,
                                description='(Optional) allows each output channel to be muted or unmuted individually (minidsp)'),
+    'optimise': fields.Boolean(required=False,
+                               description='(Optional) true to load device optimised coefficients, when available, into '
+                                           'this slot, false to load the authored coefficients (minidsp)'),
     'entry': fields.String(required=False, description='(Optional) Accepts value from either the id or digest fields')
 })
 
@@ -373,6 +381,49 @@ class DeviceV3(Resource):
             logger.exception(f'PATCH {device_name} failure')
             return {'message': f'Update failed : {e.msg}'}, e.code
         return self.__bridge.state(device_name).serialise(), 200
+
+
+@v1_api.route('/<string:device_name>/optimisation/<string:entry_id>')
+@v1_api.doc(params={
+    'device_name': 'The dsp device name',
+    'entry_id': 'The catalogue entry id or digest'
+})
+class EntryOptimisation(Resource):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__bridge: DeviceRepository = kwargs['device_bridge']
+        self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
+
+    def get(self, device_name: str, entry_id: str) -> tuple[dict, int]:
+        entry = self.__catalogue_provider.find(entry_id)
+        if not entry:
+            return {'message': f'Unknown catalogue entry {entry_id}'}, 404
+        try:
+            result = self.__bridge.entry_optimisation(device_name, entry)
+        except NoSuchDevice:
+            return {'message': f'Unknown device {device_name}'}, 404
+        return (result if result else {'applicable': False, 'profile': None, 'optimised': False}), 200
+
+
+@v1_api.route('/<string:device_name>/optimised')
+@v1_api.doc(params={'device_name': 'The dsp device name'})
+class OptimisedEntries(Resource):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__bridge: DeviceRepository = kwargs['device_bridge']
+        self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
+
+    def get(self, device_name: str) -> tuple[dict, int]:
+        """
+        The ids of the catalogue entries which have optimised coefficients this device can load.
+        """
+        try:
+            profiles = self.__bridge.optimisable_profiles(device_name)
+        except NoSuchDevice:
+            return {'message': f'Unknown device {device_name}'}, 404
+        return {'profiles': profiles, 'ids': self.__catalogue_provider.optimised_ids(profiles)}, 200
 
 
 @v1_api.route('/<string:device_name>/levels')

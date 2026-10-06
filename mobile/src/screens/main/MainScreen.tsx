@@ -15,6 +15,13 @@ import GainPanel from '../../components/main/GainPanel';
 import PythonVersionWarningBanner from '../../components/main/PythonVersionWarningBanner';
 import SearchBar from '../../components/main/SearchBar';
 import SettingsSheet from '../../components/main/SettingsSheet';
+import {
+  isOptimisable,
+  OPTIMISED,
+  OptimisationControl,
+  type OptimisationSearch,
+  useOptimisedEntryIds,
+} from '../../components/main/Optimisation';
 import SlotsGrid from '../../components/main/SlotsGrid';
 import UpdateAvailableBanner from '../../components/main/UpdateAvailableBanner';
 import WhatsNewSheet, { computeNewCount } from '../../components/main/WhatsNewSheet';
@@ -54,12 +61,35 @@ const BACK_SWIPE_MIN_TRANSLATION_X = 60;
 export const shouldTriggerBackSwipe = (translationX: number, velocityX: number): boolean =>
   translationX > BACK_SWIPE_MIN_TRANSLATION_X && velocityX > 0;
 
-export type EntryFilters = FilterSelection & { debouncedTxtFilter: string };
+export type EntryFilters = FilterSelection & {
+  debouncedTxtFilter: string;
+  selectedFilterAuthors: string[];
+  selectedOptimisation?: OptimisationSearch;
+  optimisedIds?: ReadonlySet<string> | null;
+};
 
 // entry passes only if it satisfies every selected filter dimension
 export const isMatch = (entry: CatalogueEntry, filters: EntryFilters): boolean => {
-  const { authors, years, audioTypes, contentTypes, freshness, languages, debouncedTxtFilter } = filters;
+  const {
+    authors,
+    years,
+    audioTypes,
+    contentTypes,
+    freshness,
+    languages,
+    selectedFilterAuthors,
+    debouncedTxtFilter,
+    selectedOptimisation = null,
+    optimisedIds = null,
+  } = filters;
+  // optimisedIds is only loaded while searching on optimisation for a device which can be optimised
+  if (selectedOptimisation && optimisedIds) {
+    const optimised = optimisedIds.has(String(entry.id));
+    if (selectedOptimisation === OPTIMISED ? !optimised : optimised) return false;
+  }
   if (authors.length && !authors.includes(entry.author)) return false;
+  if (selectedFilterAuthors.length && (!entry.filterAuthor || !selectedFilterAuthors.includes(entry.filterAuthor)))
+    return false;
   if (years.length && !years.includes(String(entry.year))) return false;
   if (audioTypes.length && !entry.audioTypes.some((at) => audioTypes.includes(at))) return false;
   if (contentTypes.length && !contentTypes.includes(entry.contentType)) return false;
@@ -107,6 +137,7 @@ export default function MainScreen({ navigation }: Props) {
   const debouncedTxtFilter = useDebouncedValue(txtFilter, 300);
   const [showFilters, setShowFilters] = useState(false);
   const [filterSelection, setFilterSelection] = useState<FilterSelection>(emptyFilterSelection);
+  const [selectedOptimisation, setSelectedOptimisation] = useState<OptimisationSearch>(null);
   const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
   const [userDriven, setUserDriven] = useState(false);
   const [pendingSlotIds, setPendingSlotIds] = useState<ReadonlySet<string>>(new Set());
@@ -128,6 +159,10 @@ export default function MainScreen({ navigation }: Props) {
     'filterNotificationEnabled',
     false
   );
+  const [selectedFilterAuthors, setSelectedFilterAuthors] = useAsyncStorageState<string[]>(
+    'selectedFilterAuthors',
+    []
+  );
   // Static for the life of the process (Platform.OS/Expo Go don't change at runtime) - computed
   // once rather than memoized.
   const filterNotificationSupported = isFilterNotificationSupported();
@@ -136,9 +171,11 @@ export default function MainScreen({ navigation }: Props) {
   // SELECT happens to return, which groups by author rather than title - see compareByTitle.
   const entryList = useMemo(() => Object.values(entries).sort(compareByTitle), [entries]);
 
+  const optimisedIds = useOptimisedEntryIds(api, device, selectedOptimisation, meta, setError);
+
   const filters = useMemo<EntryFilters>(
-    () => ({ ...filterSelection, debouncedTxtFilter }),
-    [filterSelection, debouncedTxtFilter]
+    () => ({ ...filterSelection, debouncedTxtFilter, selectedFilterAuthors, selectedOptimisation, optimisedIds }),
+    [filterSelection, debouncedTxtFilter, selectedFilterAuthors, selectedOptimisation, optimisedIds]
   );
 
   const filteredEntries = useMemo(
@@ -330,6 +367,17 @@ export default function MainScreen({ navigation }: Props) {
     setWhatsNewOpen(false);
   });
 
+  const optimisationControl =
+    api && device ? (
+      <OptimisationControl
+        api={api}
+        device={device}
+        selectedSlotId={selectedSlotId}
+        onDeviceUpdate={replaceDevice}
+        onError={setError}
+      />
+    ) : null;
+
   const devicesPane = !device ? (
     <View style={styles.center}>
       <ActivityIndicator />
@@ -342,6 +390,8 @@ export default function MainScreen({ navigation }: Props) {
           {device.name}
         </Text>
       ) : null}
+      {/* the optimisation switch sits in the master volume row, only a device without one shows it here */}
+      {device.masterVolume === undefined ? optimisationControl : null}
       <SlotsGrid
         slots={device.slots ?? []}
         selectedSlotId={selectedSlotId}
@@ -356,6 +406,7 @@ export default function MainScreen({ navigation }: Props) {
           gains={currentGains}
           updateGain={updateGain}
           commitGain={commitGain}
+          masterExtra={optimisationControl}
         />
       ) : null}
     </View>
@@ -471,8 +522,13 @@ export default function MainScreen({ navigation }: Props) {
             api={api}
             selection={filterSelection}
             onChange={setFilterSelection}
+            selectedFilterAuthors={selectedFilterAuthors}
+            onSelectedFilterAuthorsChange={setSelectedFilterAuthors}
             filteredEntries={filteredEntries}
             onError={setError}
+            optimisable={isOptimisable(device)}
+            selectedOptimisation={selectedOptimisation}
+            onSelectedOptimisationChange={setSelectedOptimisation}
           />
         </View>
       ) : null}

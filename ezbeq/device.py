@@ -21,6 +21,9 @@ class SlotState(Generic[S]):
         self.last = 'Empty'
         self.last_author = None
         self.active = False
+        # what kind of coefficients were loaded, see ezbeq.optimisation, None if not known or not applicable
+        self.coefficients: str | None = None
+        self.profile: str | None = None
 
     @property
     def slot_id(self) -> str:
@@ -35,9 +38,19 @@ class SlotState(Generic[S]):
             self.active = False
         if 'author' in state:
             self.last_author = state['author']
+        self.coefficients = state.get('coefficients', None)
+        self.profile = state.get('profile', None)
 
     def as_dict(self) -> dict:
-        return {'id': self.slot_id, 'last': self.last, 'active': self.active, 'author': self.last_author}
+        vals = {'id': self.slot_id, 'last': self.last, 'active': self.active, 'author': self.last_author}
+        if self.coefficients:
+            vals['coefficients'] = self.coefficients
+            vals['profile'] = self.profile
+        return vals
+
+    def clear_coefficients(self):
+        self.coefficients = None
+        self.profile = None
 
     def __repr__(self):
         return f"{'*' if self.active else ''} {self.slot_id} - {self.last}"
@@ -45,6 +58,7 @@ class SlotState(Generic[S]):
     def clear(self):
         self.last = 'Empty'
         self.last_author = None
+        self.clear_coefficients()
 
 
 class DeviceState(ABC):
@@ -136,6 +150,27 @@ class Device(ABC, Generic[T]):
     def levels(self) -> dict:
         pass
 
+    def set_optimise(self, slot: str, enabled: bool) -> bool:
+        """
+        Turns the use of device optimised coefficients on or off for filters subsequently loaded into the slot, a nop
+        for devices which are sent filter parameters.
+        :return: true if the setting changed.
+        """
+        return False
+
+    def entry_optimisation(self, entry: CatalogueEntry) -> dict | None:
+        """
+        :return: whether the entry has optimised coefficients for this device, None if optimisation is not applicable
+        to this device.
+        """
+        return None
+
+    def optimisable_profiles(self) -> list[str]:
+        """
+        :return: the device catalogue profiles whose optimised coefficients this device can load.
+        """
+        return []
+
 
 class DeviceRepository:
 
@@ -206,6 +241,12 @@ class DeviceRepository:
 
     def levels(self, device_name: str) -> dict:
         return self.__get_device(device_name).levels()
+
+    def entry_optimisation(self, device_name: str, entry: CatalogueEntry) -> dict | None:
+        return self.__get_device(device_name).entry_optimisation(entry)
+
+    def optimisable_profiles(self, device_name: str) -> list[str]:
+        return self.__get_device(device_name).optimisable_profiles()
 
 
 def _composite_member_names(values: dict) -> list[str]:
@@ -409,6 +450,14 @@ class PersistentDevice(Device, ABC, Generic[T]):
     def _broadcast(self):
         if self.ws_server:
             self.ws_server.broadcast(self.__get_state_msg())
+
+    def _broadcast_if_hydrated(self):
+        """
+        Broadcasts the current state if there is one, for changes which originate outside the device (e.g. the device
+        catalogues finishing loading) and so may arrive before the device has loaded its state.
+        """
+        if self._current_state is not None:
+            self._broadcast()
 
     def __get_state_msg(self):
         assert self._current_state, 'hydrate cannot return None'

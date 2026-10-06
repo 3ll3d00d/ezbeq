@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { SegmentedButtons, Text } from 'react-native-paper';
 
 import MultiSelectField from './MultiSelectField';
+import { NOT_OPTIMISED, OPTIMISED, type OptimisationSearch } from './Optimisation';
 import type { EzbeqApi } from '../../services/ezbeqApi';
 import type { CatalogueEntry } from '../../types/ezbeq';
 
@@ -29,8 +31,14 @@ type Props = {
   api: EzbeqApi;
   selection: FilterSelection;
   onChange: (next: FilterSelection) => void;
+  selectedFilterAuthors: string[];
+  onSelectedFilterAuthorsChange: (next: string[]) => void;
   filteredEntries: CatalogueEntry[];
   onError: (e: Error) => void;
+  // only offered when the selected device can load optimised coefficients
+  optimisable?: boolean;
+  selectedOptimisation?: OptimisationSearch;
+  onSelectedOptimisationChange?: (next: OptimisationSearch) => void;
 };
 
 const isInView =
@@ -41,8 +49,20 @@ const isInView =
 // Presentation (bottom sheet on phone, persistent panel on tablet) is decided in a later step
 // (ui/src/components/main/Filter.jsx's `visible` toggle becomes MainScreen's job too) - this
 // just owns the six filter dimensions and their option-fetching/derived-in-view logic.
-export default function FilterSheet({ api, selection, onChange, filteredEntries, onError }: Props) {
+export default function FilterSheet({
+  api,
+  selection,
+  onChange,
+  selectedFilterAuthors,
+  onSelectedFilterAuthorsChange,
+  filteredEntries,
+  onError,
+  optimisable = false,
+  selectedOptimisation = null,
+  onSelectedOptimisationChange,
+}: Props) {
   const [authors, setAuthors] = useState<string[]>([]);
+  const [filterAuthors, setFilterAuthors] = useState<string[]>([]);
   const [languages, setLanguages] = useState<string[]>([]);
   const [years, setYears] = useState<string[]>([]);
   const [audioTypes, setAudioTypes] = useState<string[]>([]);
@@ -50,6 +70,7 @@ export default function FilterSheet({ api, selection, onChange, filteredEntries,
 
   useEffect(() => {
     api.getAuthors().then(setAuthors).catch(onError);
+    api.getFilterAuthors().then(setFilterAuthors).catch(onError);
     api.getLanguages().then(setLanguages).catch(onError);
     api.getYears().then((ys) => setYears(ys.map(String))).catch(onError);
     api.getAudioTypes().then(setAudioTypes).catch(onError);
@@ -92,6 +113,12 @@ export default function FilterSheet({ api, selection, onChange, filteredEntries,
         onChange={(v) => onChange({ ...selection, authors: v })}
       />
       <MultiSelectField
+        label="Filter Author"
+        items={filterAuthors}
+        selectedValues={selectedFilterAuthors}
+        onChange={onSelectedFilterAuthorsChange}
+      />
+      <MultiSelectField
         label="Year"
         items={years}
         selectedValues={selection.years}
@@ -119,11 +146,30 @@ export default function FilterSheet({ api, selection, onChange, filteredEntries,
         onChange={(v) => onChange({ ...selection, languages: v })}
         isInView={isInView(filteredLanguages)}
       />
+      {optimisable ? (
+        <View style={styles.optimisation}>
+          <Text variant="bodyMedium">Device optimisation</Text>
+          <SegmentedButtons
+            value={selectedOptimisation ?? 'any'}
+            onValueChange={(v) => onSelectedOptimisationChange?.(v === 'any' ? null : (v as OptimisationSearch))}
+            buttons={[
+              { value: 'any', label: 'Any', accessibilityLabel: 'Device optimisation: any' },
+              { value: OPTIMISED, label: 'Optimised', accessibilityLabel: 'Device optimisation: optimised' },
+              // titles not in the device catalogue were already realised well enough on this device
+              { value: NOT_OPTIMISED, label: 'Not needed', accessibilityLabel: 'Device optimisation: not needed' },
+            ]}
+          />
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  optimisation: {
+    gap: 4,
+    paddingVertical: 8,
+  },
   container: {
     padding: 8,
   },

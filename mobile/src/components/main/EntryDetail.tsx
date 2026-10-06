@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Image, type NativeSyntheticEvent, type ImageLoadEventData, Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, Text, useTheme } from 'react-native-paper';
 
+import { EntryOptimisationChip, slotOptimises, useEntryOptimisation } from './Optimisation';
 import UploaderControls from './UploaderControls';
 import type { EzbeqApi } from '../../services/ezbeqApi';
 import type { CatalogueEntry, DeviceState } from '../../types/ezbeq';
@@ -85,6 +86,7 @@ export default function EntryDetail({
   const [uploadSlotId, setUploadSlotId] = useState<string | null>(null);
   const [sendGain, setSendGain] = useState(false);
   const [pending, setPending] = useState(false);
+  const entryOptimisation = useEntryOptimisation(api, selectedDevice, selectedEntry);
 
   useEffect(() => {
     setSendGain(false);
@@ -169,6 +171,10 @@ export default function EntryDetail({
             <Text variant="titleMedium">{selectedEntry.altTitle}</Text>
           ) : null}
           {extraMeta ? <Text variant="bodyLarge">{extraMeta}</Text> : null}
+          <EntryOptimisationChip
+            entryOptimisation={entryOptimisation}
+            optimise={!uploadSlot || slotOptimises(uploadSlot)}
+          />
           {selectedEntry.overview ? <Text variant="bodyMedium">{selectedEntry.overview}</Text> : null}
           {secondaryLines.length > 0 ? (
             <Text variant="bodySmall" style={styles.secondary}>

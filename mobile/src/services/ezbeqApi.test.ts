@@ -38,6 +38,15 @@ describe('buildTargetedPayload', () => {
   });
 });
 
+describe('buildOptimisePayload', () => {
+  const api = new EzbeqApi(BASE_URL);
+
+  it('builds the per slot optimise payload', () => {
+    expect(api.buildOptimisePayload('2', false)).toEqual({ slots: [{ id: '2', optimise: false }] });
+    expect(api.buildOptimisePayload('1', true)).toEqual({ slots: [{ id: '1', optimise: true }] });
+  });
+});
+
 describe('createPatchPayload', () => {
   const api = new EzbeqApi(BASE_URL);
 
@@ -103,6 +112,33 @@ describe('network calls', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  it('setOptimise PATCHes the slot with the optimise payload', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: true, json: () => Promise.resolve({ name: 'd1' }) });
+
+    await api.setOptimise('d1', '2', false);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      `${BASE_URL}/api/3/devices/d1`,
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ slots: [{ id: '2', optimise: false }] }) })
+    );
+  });
+
+  it('getOptimisedEntries GETs the ids optimised for the device', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: true, json: () => Promise.resolve({ profiles: ['p'], ids: ['e1'] }) });
+
+    await expect(api.getOptimisedEntries('d1')).resolves.toEqual({ profiles: ['p'], ids: ['e1'] });
+
+    expect(global.fetch).toHaveBeenCalledWith(`${BASE_URL}/api/1/devices/d1/optimised`, expect.anything());
+  });
+
+  it('getEntryOptimisation GETs the device entry optimisation', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: true, json: () => Promise.resolve({ optimised: true }) });
+
+    await expect(api.getEntryOptimisation('d1', 'entry-1')).resolves.toEqual({ optimised: true });
+
+    expect(global.fetch).toHaveBeenCalledWith(`${BASE_URL}/api/1/devices/d1/optimisation/entry-1`, expect.anything());
   });
 
   it('sendFilter without gains PUTs the entry id to the slot', async () => {
