@@ -229,6 +229,8 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
         self.output_mutes = self.__make_output_vals(False)
         self.active = active
         self.slot_name = slot_name
+        # whether filters loaded into this slot use device optimised coefficients, deliberately survives clear
+        self.optimise = True
 
     def clear(self):
         super().clear()
@@ -287,6 +289,7 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
 
     def merge_with(self, state: dict) -> None:
         super().merge_with(state)
+        self.optimise = bool(state.get('optimise', True))
         if 'gains' in state and len(state['gains']) == self.__input_channels:
             self.gains = []
             for i, g in enumerate(state['gains']):
@@ -325,6 +328,7 @@ class MinidspSlotState(SlotState['MinidspSlotState']):
             'gains': self.gains,
             'mutes': self.mutes,
             'canActivate': True,
+            'optimise': self.optimise,
             'inputs': self.__input_channels,
             'outputs': self.__output_channels,
         }
@@ -775,7 +779,7 @@ class Minidsp(PersistentDevice[MinidspState]):
         def __do_it():
             target_slot_idx = self.__as_idx(slot)
             self.__validate_slot_idx(target_slot_idx)
-            to_load = self.__optimisation.resolve(entry)
+            to_load = self.__optimisation.resolve(entry, self._current_state.get_slot(slot).optimise)
             cmds = MinidspBeqCommandGenerator.filt(entry, self.__descriptor, biquads=to_load.biquads)
             logger.info(f"[{self.name}] Loading '{entry.formatted_title}' to slot {slot} ({len(cmds)} commands, "
                         f"{to_load.coefficients} coefficients)")
@@ -921,17 +925,16 @@ class Minidsp(PersistentDevice[MinidspState]):
 
     def _merge_state(self, loaded: MinidspState, cached: dict) -> MinidspState:
         loaded.merge_with(cached)
-        cached_optimisation = cached.get('optimisation', None)
-        if isinstance(cached_optimisation, dict) and 'enabled' in cached_optimisation:
-            self.__optimisation.enabled = bool(cached_optimisation['enabled'])
         return loaded
 
-    def set_optimisation_enabled(self, enabled: bool) -> bool:
+    def set_optimise(self, slot: str, enabled: bool) -> bool:
         def __do_it() -> bool:
-            if self.__optimisation.enabled == enabled:
+            self.__validate_slot_idx(self.__as_idx(slot))
+            slot_state = self._current_state.get_slot(slot)
+            if slot_state.optimise == enabled:
                 return False
-            logger.info(f"[{self.name}] Device optimised coefficients {'enabled' if enabled else 'disabled'}")
-            self.__optimisation.enabled = enabled
+            logger.info(f"[{self.name}] Optimised coefficients {'enabled' if enabled else 'disabled'} for slot {slot}")
+            slot_state.optimise = enabled
             return True
 
         return self._hydrate_cache_broadcast(__do_it)
@@ -946,8 +949,6 @@ class Minidsp(PersistentDevice[MinidspState]):
     def update(self, params: dict) -> bool:
         def __do_it() -> bool:
             any_update = False
-            if 'optimisation' in params and 'enabled' in params['optimisation']:
-                any_update |= self.set_optimisation_enabled(bool(params['optimisation']['enabled']))
             if 'slots' in params:
                 for slot in params['slots']:
                     any_update |= self.__update_slot(slot)
@@ -974,6 +975,9 @@ class Minidsp(PersistentDevice[MinidspState]):
             match = self.__catalogue.find(slot['entry'])
             if not match:
                 raise UnableToPatchDeviceError(f'Unknown catalogue entry {slot["entry"]}', True)
+        # before any entry is loaded so a single PATCH can change the setting and load with it
+        if 'optimise' in slot:
+            any_update |= self.set_optimise(current_slot.slot_id, bool(slot['optimise']))
         if 'gains' in slot:
             for gain in slot['gains']:
                 self.set_gain(current_slot.slot_id, int(gain['id']), gain['value'])

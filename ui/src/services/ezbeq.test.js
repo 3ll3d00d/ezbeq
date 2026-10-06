@@ -35,10 +35,10 @@ describe('buildTargetedPayload', () => {
     });
 });
 
-describe('buildOptimisationPayload', () => {
-    it('builds the optimisation toggle payload', () => {
-        expect(ezbeq.buildOptimisationPayload(false)).toEqual({optimisation: {enabled: false}});
-        expect(ezbeq.buildOptimisationPayload(true)).toEqual({optimisation: {enabled: true}});
+describe('buildOptimisePayload', () => {
+    it('builds the per slot optimise payload', () => {
+        expect(ezbeq.buildOptimisePayload('2', false)).toEqual({slots: [{id: '2', optimise: false}]});
+        expect(ezbeq.buildOptimisePayload(1, true)).toEqual({slots: [{id: '1', optimise: true}]});
     });
 });
 
@@ -131,14 +131,14 @@ describe('network calls', () => {
         }));
     });
 
-    it('setOptimisationEnabled PATCHes the device with the optimisation payload', async () => {
+    it('setOptimise PATCHes the slot with the optimise payload', async () => {
         global.fetch.mockResolvedValue({ok: true, json: () => Promise.resolve({name: 'd1'})});
 
-        await ezbeq.setOptimisationEnabled('d1', false);
+        await ezbeq.setOptimise('d1', '2', false);
 
         expect(global.fetch).toHaveBeenCalledWith('/api/3/devices/d1', expect.objectContaining({
             method: 'PATCH',
-            body: JSON.stringify({optimisation: {enabled: false}})
+            body: JSON.stringify({slots: [{id: '2', optimise: false}]})
         }));
     });
 

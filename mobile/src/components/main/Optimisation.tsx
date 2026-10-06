@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet } from 'react-native';
-import { Chip, Switch, useTheme } from 'react-native-paper';
+import { StyleSheet, View } from 'react-native';
+import { Chip, Switch, Text, useTheme } from 'react-native-paper';
 
 import type { EzbeqApi } from '../../services/ezbeqApi';
 import type { CatalogueEntry, DeviceOptimisation, DeviceState, EntryOptimisation, SlotState } from '../../types/ezbeq';
@@ -8,7 +8,6 @@ import type { CatalogueEntry, DeviceOptimisation, DeviceState, EntryOptimisation
 // Ported from ui/src/components/main/Optimisation.jsx. Mobile has no hover tooltips so the reason
 // optimised filters are not in use is shown as text beside the warning instead.
 const REASONS: Record<string, string> = {
-  disabled: 'Device optimised filters are switched off so the authored coefficients are loaded',
   no_profile: 'No optimised filters are published for this device so the authored coefficients are loaded',
   profile_unavailable:
     'The optimised filters for this device have not been downloaded so the authored coefficients are loaded',
@@ -40,26 +39,33 @@ function UnoptimisedChip({ accessibilityLabel }: { accessibilityLabel: string })
   );
 }
 
+// true if filters loaded into the slot will use optimised coefficients when they're available, slots
+// which don't report the setting are treated as optimising.
+export const slotOptimises = (slot: SlotState | null | undefined): boolean => Boolean(slot) && slot?.optimise !== false;
+
 type ControlProps = {
   api: EzbeqApi;
   device: DeviceState;
+  selectedSlotId: string | null;
   onDeviceUpdate: (device: DeviceState) => void;
   onError: (e: Error) => void;
 };
 
-// Compact device level control over the use of device optimised coefficients, sits in the master
-// volume row. Only shown for devices which load coefficients (i.e. those which report an
-// optimisation status); a device which cannot use optimised filters shows a disabled switch whose
-// accessibility label explains why.
-export function OptimisationControl({ api, device, onDeviceUpdate, onError }: ControlProps) {
+// Compact control over the use of device optimised coefficients by the selected slot, sits in the
+// master volume row. Only shown for devices which load coefficients (i.e. those which report an
+// optimisation status); a device which cannot use optimised filters, or no slot selected, shows a
+// disabled switch whose accessibility label explains why.
+export function OptimisationControl({ api, device, selectedSlotId, onDeviceUpdate, onError }: ControlProps) {
   const [pending, setPending] = useState(false);
   const optimisation = device.optimisation;
   if (!optimisation) return null;
+  const slot = device.slots?.find((s) => s.id === selectedSlotId) ?? null;
 
   const toggle = async (enabled: boolean) => {
+    if (!slot) return;
     setPending(true);
     try {
-      onDeviceUpdate(await api.setOptimisationEnabled(device.name, enabled));
+      onDeviceUpdate(await api.setOptimise(device.name, slot.id, enabled));
     } catch (e) {
       onError(e as Error);
     } finally {
@@ -68,15 +74,20 @@ export function OptimisationControl({ api, device, onDeviceUpdate, onError }: Co
   };
 
   const reason = describeReason(optimisation);
-  const label = optimisation.label ? `Use optimised filters (${optimisation.label})` : 'Use optimised filters';
+  const slotName = slot ? `slot ${slot.name ?? slot.id}` : 'the selected slot';
+  const description =
+    reason ?? `Load filters optimised for ${optimisation.label ?? 'this device'} into ${slotName}`;
   return (
-    <Switch
-      value={optimisation.available && optimisation.enabled}
-      disabled={pending || !optimisation.available}
-      onValueChange={toggle}
-      accessibilityLabel={reason ?? label}
-      testID="optimisation-switch"
-    />
+    <View style={styles.control}>
+      <Switch
+        value={optimisation.available && slotOptimises(slot)}
+        disabled={pending || !optimisation.available || !slot}
+        onValueChange={toggle}
+        accessibilityLabel={description}
+        testID="optimisation-switch"
+      />
+      <Text variant="labelSmall">Optimise</Text>
+    </View>
   );
 }
 
@@ -110,7 +121,6 @@ export const useEntryOptimisation = (
 ): EntryOptimisation | null => {
   const [result, setResult] = useState<EntryOptimisation | null>(null);
   const deviceName = device?.name ?? null;
-  const enabled = device?.optimisation?.enabled ?? null;
   const profile = device?.optimisation?.profile ?? null;
   const reason = device?.optimisation?.reason ?? null;
   const entryId = entry ? String(entry.id) : null;
@@ -130,7 +140,7 @@ export const useEntryOptimisation = (
     return () => {
       cancelled = true;
     };
-  }, [api, deviceName, entryId, enabled, profile, reason]);
+  }, [api, deviceName, entryId, profile, reason]);
   return result;
 };
 
@@ -181,9 +191,16 @@ export const useOptimisedEntryIds = (
 };
 
 // Flags an entry with optimised coefficients for the selected device, and whether they will be used.
-export function EntryOptimisationChip({ entryOptimisation }: { entryOptimisation: EntryOptimisation | null }) {
+// optimise is whether the slot the entry will be uploaded to uses optimised coefficients.
+export function EntryOptimisationChip({
+  entryOptimisation,
+  optimise = true,
+}: {
+  entryOptimisation: EntryOptimisation | null;
+  optimise?: boolean;
+}) {
   if (!entryOptimisation || !entryOptimisation.optimised) return null;
-  if (entryOptimisation.inUse) {
+  if (optimise) {
     return (
       <Chip
         compact
@@ -202,6 +219,9 @@ export function EntryOptimisationChip({ entryOptimisation }: { entryOptimisation
 }
 
 const styles = StyleSheet.create({
+  control: {
+    alignItems: 'center',
+  },
   chip: {
     alignSelf: 'flex-start',
   },

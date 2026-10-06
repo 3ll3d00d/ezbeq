@@ -11,7 +11,8 @@ a device is running unoptimised coefficients.
 ## Decisions
 
 - 4x10 and 10x10 are fixed point and are unsupported for now (no fixed-point profile exists).
-- The use-optimised toggle is per device, runtime-persisted, default on.
+- The use-optimised toggle is per slot (sticky, so e.g. one slot can be optimised and another not for
+  A/B comparison), runtime-persisted, default on. (Revised from per device after review.)
 - ezbeq only needs to know whether an entry needs optimisation: present in the device catalogue =
   needs it (and it's available), absent = doesn't. No extra data from beqcatalogue. Accepted gap: a
   brand-new title reads as "not needed" until the device stage has run.
@@ -62,16 +63,17 @@ a device is running unoptimised coefficients.
   the device precision; otherwise it is refused with reason `rate_mismatch` / `precision_mismatch`.
 - Composite devices resolve per member.
 
-## 3. Per-device toggle
+## 3. Per-slot toggle
 
-- `useOptimised` (default true) persisted in the device state cache, set via device PATCH
-  `{"optimisation": {"enabled": false}}`.
-- Toggling does not reload slots; the UI shows what is actually loaded.
+- Each minidsp slot has `optimise` (default true) persisted with the slot state, set via device PATCH
+  `{"slots": [{"id": "1", "optimise": false}]}` (applied before any `entry` in the same PATCH) and fanned
+  out by composites. It survives clearing the slot.
+- Toggling does not reload the slot; the UI shows what is actually loaded.
 
 ## 4. Load path and state
 
-- `Minidsp.load_filter` uses `optimised_biquads(...)` when a profile is mapped, available and
-  enabled, passing them to `MinidspBeqCommandGenerator.filt(..., biquads=...)`; otherwise the
+- `Minidsp.load_filter` uses `optimised_biquads(...)` when a profile is mapped and available and the
+  target slot has `optimise` on, passing them to `MinidspBeqCommandGenerator.filt(..., biquads=...)`; otherwise the
   existing `as_bq` path. `mv_adjust`, gains and raw `load_biquads` are unchanged.
 - Slot records `coefficients: 'optimised' | 'standard' | 'unoptimised'` and `profile`:
   - `optimised`: optimised coefficients were loaded
@@ -79,18 +81,20 @@ a device is running unoptimised coefficients.
   - `unoptimised`: optimised coefficients exist for the entry (or the device can't be optimised)
     but were not used
   - old caches without the field read as unknown.
-- Device state gains `optimisation: {profile, label, enabled, available, reason}` (`null` for
-  parametric devices); `reason` in `disabled | no_profile | profile_unavailable | rate_mismatch |
-  precision_mismatch`.
+- Device state gains `optimisation: {profile, label, available, reason}` (`null` for parametric
+  devices); `reason` in `no_profile | profile_unavailable | rate_mismatch | precision_mismatch`.
 - Entry lookup `GET /api/1/devices/<name>/optimisation/<entry id>` so the UI can show whether a
   title is optimised for the selected device before loading.
 
 ## 5. UI (`ui/` and `mobile/` mirror)
 
-- Device: "Use device-optimised filters" switch when `optimisation != null`; warning chip
-  "Unoptimised" with reason tooltip when optimisation is unavailable or disabled.
+- Device: a labelled "Optimise" switch at the end of the master volume row for the selected slot,
+  when `optimisation != null`; disabled, with the reason as its tooltip, when the device cannot be
+  optimised.
 - Slot: "Optimised (<label>)" chip; warning "Unoptimised" chip; nothing for `standard`.
-- Entry: "Optimised for this device" badge, or a hint that optimisation is available but not in use.
+- Entry: "Optimised for this device" badge, or "Unoptimised" when the slot it will be uploaded to has
+  `optimise` off.
+- Advanced search: "Optimised for this device" (Any / Yes / No), via `GET /api/1/devices/<name>/optimised`.
 - Nothing shown for parametric devices.
 
 ## 6. Tests and docs
@@ -105,5 +109,5 @@ a device is running unoptimised coefficients.
 ## Phasing (one commit each)
 
 1. Backend: loading, mapping, load path, state fields (always on).
-2. Per-device toggle + PATCH and entry lookup API.
+2. Toggle (per device, later revised to per slot) + PATCH and entry lookup API.
 3. UI + mobile.

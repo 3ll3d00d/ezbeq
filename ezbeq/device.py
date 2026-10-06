@@ -150,17 +150,18 @@ class Device(ABC, Generic[T]):
     def levels(self) -> dict:
         pass
 
-    def set_optimisation_enabled(self, enabled: bool) -> bool:
+    def set_optimise(self, slot: str, enabled: bool) -> bool:
         """
-        Turns the use of device optimised coefficients on or off, a nop for devices which are sent filter parameters.
+        Turns the use of device optimised coefficients on or off for filters subsequently loaded into the slot, a nop
+        for devices which are sent filter parameters.
         :return: true if the setting changed.
         """
         return False
 
     def entry_optimisation(self, entry: CatalogueEntry) -> dict | None:
         """
-        :return: whether the entry has optimised coefficients for this device and whether they would be used, None if
-        optimisation is not applicable to this device.
+        :return: whether the entry has optimised coefficients for this device, None if optimisation is not applicable
+        to this device.
         """
         return None
 

@@ -555,12 +555,14 @@ A custom layout can either name its device catalogue via `optimisationProfile` o
 `descriptor`, in which case the device catalogue whose precision and sample rate match the descriptor is used. A custom
 layout with neither does not use optimised coefficients.
 
-Optimised coefficients can also be switched off, and back on, for a device from the UI without changing the config.
-This setting is remembered across restarts. Via the API, this is
+Optimised coefficients can also be switched off, and back on, for each slot via the "Optimise" switch next to the master
+volume, which applies to the selected slot. This makes it easy to compare the two, e.g. by loading the same title into
+one slot with optimised coefficients and another without. The setting applies to filters loaded into the slot from
+then on, survives clearing the slot and is remembered across restarts. Via the API, this is
 
 ```
 PATCH /api/3/devices/<device name>
-{"optimisation": {"enabled": false}}
+{"slots": [{"id": "1", "optimise": false}]}
 ```
 
 and `GET /api/1/devices/<device name>/optimisation/<catalogue entry id>` reports whether a title has optimised

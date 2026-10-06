@@ -319,21 +319,21 @@ class CompositeDevice(PersistentDevice[CompositeDeviceState]):
 
         self._hydrate_cache_broadcast(__do_it)
 
-    def set_optimisation_enabled(self, enabled: bool) -> bool:
+    def set_optimise(self, slot: str, enabled: bool) -> bool:
         changed: list[bool] = []
 
         def __call(name: str, dev: Device):
-            changed.append(dev.set_optimisation_enabled(enabled))
+            changed.append(dev.set_optimise(self.__translate_slot(name, slot), enabled))
 
         def __do_it() -> bool:
-            self.__fan_out('set_optimisation_enabled', __call)
+            self.__fan_out('set_optimise', __call)
             return any(changed)
 
         return self._hydrate_cache_broadcast(__do_it)
 
     def entry_optimisation(self, entry: CatalogueEntry) -> dict | None:
         """
-        optimised if any member has optimised coefficients for the entry, in use only if every such member uses them.
+        optimised if any member has optimised coefficients for the entry.
         """
         results = [r for r in (dev.entry_optimisation(entry) for dev in self.__members.values()) if r]
         if not results:
@@ -343,7 +343,6 @@ class CompositeDevice(PersistentDevice[CompositeDeviceState]):
             'applicable': True,
             'profile': optimised[0]['profile'] if optimised else results[0]['profile'],
             'optimised': len(optimised) > 0,
-            'inUse': len(optimised) > 0 and all(r['inUse'] for r in optimised),
         }
 
     def optimisable_profiles(self) -> list[str]:
@@ -352,8 +351,6 @@ class CompositeDevice(PersistentDevice[CompositeDeviceState]):
     def update(self, params: dict) -> bool:
         def __do_it() -> bool:
             any_update = False
-            if 'optimisation' in params and 'enabled' in params['optimisation']:
-                any_update |= self.set_optimisation_enabled(bool(params['optimisation']['enabled']))
             if 'slots' in params:
                 for slot in params['slots']:
                     any_update |= self.__update_slot(slot)
@@ -373,6 +370,9 @@ class CompositeDevice(PersistentDevice[CompositeDeviceState]):
     def __update_slot(self, slot: dict) -> bool:
         any_update = False
         slot_id = slot['id']
+        # before any entry is loaded so a single PATCH can change the setting and load with it
+        if 'optimise' in slot:
+            any_update |= self.set_optimise(slot_id, bool(slot['optimise']))
         if 'gains' in slot:
             for gain in slot['gains']:
                 self.set_gain(slot_id, int(gain['id']), gain['value'])

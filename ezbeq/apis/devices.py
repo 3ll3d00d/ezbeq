@@ -345,21 +345,16 @@ slot_model_v3 = v3_api.model('SlotV3', {
                                description='(Optional) gains to set on the specified output channels (minidsp)'),
     'outputMutes': fields.List(fields.Nested(mute_model_v3), required=False,
                                description='(Optional) allows each output channel to be muted or unmuted individually (minidsp)'),
+    'optimise': fields.Boolean(required=False,
+                               description='(Optional) true to load device optimised coefficients, when available, into '
+                                           'this slot, false to load the authored coefficients (minidsp)'),
     'entry': fields.String(required=False, description='(Optional) Accepts value from either the id or digest fields')
-})
-
-optimisation_model_v3 = v3_api.model('OptimisationV3', {
-    'enabled': fields.Boolean(required=True,
-                              description='true to load device optimised coefficients when available, false to load '
-                                          'the authored coefficients')
 })
 
 device_model_v3 = v3_api.model('DeviceV3', {
     'mute': fields.Boolean(required=False,
                            description='(Optional) True if mute the entire output, false to unmute (minidsp, camilladsp)'),
     'masterVolume': fields.Float(required=False, description='(Optional) The master gain in dB (minidsp, camilladsp)'),
-    'optimisation': fields.Nested(optimisation_model_v3, required=False,
-                                  description='(Optional) Controls use of device optimised coefficients (minidsp)'),
     'slots': fields.List(fields.Nested(slot_model_v3), required=False, description='(Optional) Allows updates to be applied to individual DSP slots')
 })
 
@@ -408,7 +403,7 @@ class EntryOptimisation(Resource):
             result = self.__bridge.entry_optimisation(device_name, entry)
         except NoSuchDevice:
             return {'message': f'Unknown device {device_name}'}, 404
-        return (result if result else {'applicable': False, 'profile': None, 'optimised': False, 'inUse': False}), 200
+        return (result if result else {'applicable': False, 'profile': None, 'optimised': False}), 200
 
 
 @v1_api.route('/<string:device_name>/optimised')

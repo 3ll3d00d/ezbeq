@@ -18,13 +18,14 @@ export type SlotState = {
   // which coefficients were loaded into the slot (see ezbeq/optimisation.py), absent when unknown
   coefficients?: 'optimised' | 'standard' | 'unoptimised';
   profile?: string | null;
+  // whether filters loaded into the slot use device optimised coefficients (minidsp only)
+  optimise?: boolean;
 };
 
 // Present only for devices which load raw coefficients (minidsp), see ezbeq/optimisation.py.
 export type DeviceOptimisation = {
   profile: string | null;
   label: string | null;
-  enabled: boolean;
   available: boolean;
   reason: string | null;
   // set on a composite device to the member the status describes
@@ -35,7 +36,6 @@ export type EntryOptimisation = {
   applicable: boolean;
   profile: string | null;
   optimised: boolean;
-  inUse: boolean;
 };
 
 export type DeviceState = {

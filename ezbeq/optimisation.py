@@ -27,7 +27,6 @@ NO_PROFILE = 'no_profile'
 PROFILE_UNAVAILABLE = 'profile_unavailable'
 RATE_MISMATCH = 'rate_mismatch'
 PRECISION_MISMATCH = 'precision_mismatch'
-DISABLED = 'disabled'
 
 
 @dataclass(frozen=True)
@@ -83,7 +82,6 @@ class DeviceOptimisation:
         self.__format = fmt
         self.__catalogues = catalogues
         self.__requirement = make_requirement(device_name, fmt, cfg)
-        self.enabled = True
         if self.__requirement and catalogues:
             if on_change:
                 catalogues.add_listener(on_change)
@@ -115,22 +113,22 @@ class DeviceOptimisation:
         return profile if reason is None else None
 
     def as_dict(self) -> dict:
+        """
+        :return: whether this device can load optimised coefficients and, if not, why not. Whether a particular slot
+        does so is a per slot setting.
+        """
         profile, reason = self.__status()
-        if reason is None and not self.enabled:
-            reason = DISABLED
         return {
             'profile': profile.id if profile else (self.__requirement.profile_id if self.__requirement else None),
             'label': profile.label if profile else None,
-            'enabled': self.enabled,
-            'available': profile is not None and reason in (None, DISABLED),
+            'available': profile is not None and reason is None,
             'reason': reason,
         }
 
     def describe(self, entry: CatalogueEntry) -> dict:
         """
         :param entry: the entry.
-        :return: whether optimised coefficients are published for this entry in a profile this device can use and
-        whether they would be loaded.
+        :return: whether optimised coefficients are published for this entry in a profile this device can use.
         """
         profile, reason = self.__status()
         optimised = profile is not None and reason is None and self.__catalogues is not None \
@@ -139,12 +137,12 @@ class DeviceOptimisation:
             'applicable': True,
             'profile': profile.id if profile else None,
             'optimised': optimised,
-            'inUse': optimised and self.enabled,
         }
 
-    def resolve(self, entry: CatalogueEntry) -> LoadableCoefficients:
+    def resolve(self, entry: CatalogueEntry, enabled: bool = True) -> LoadableCoefficients:
         """
         :param entry: the entry to load.
+        :param enabled: whether the target slot uses optimised coefficients.
         :return: the optimised biquads to load, if any, and how to describe what was loaded.
         """
         profile, reason = self.__status()
@@ -153,7 +151,7 @@ class DeviceOptimisation:
         biquads = self.__catalogues.optimised_biquads(profile.id, entry.digest, len(entry.filters))
         if biquads is None:
             return LoadableCoefficients(None, STANDARD if reason is None else UNOPTIMISED, profile.id)
-        if reason is None and self.enabled:
+        if reason is None and enabled:
             logger.info(f'[{self.__device_name}] Using {profile.id} optimised biquads for {entry.formatted_title}')
             return LoadableCoefficients(biquads, OPTIMISED, profile.id)
         return LoadableCoefficients(None, UNOPTIMISED, profile.id)
