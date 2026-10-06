@@ -7,6 +7,7 @@ import Box from '@mui/material/Box';
 import ClearIcon from "@mui/icons-material/Clear";
 import Typography from "@mui/material/Typography";
 import Gain from "./Gain";
+import {OptimisationControl, SlotCoefficientsChip} from "./Optimisation";
 
 const PREFIX = 'Slots';
 
@@ -73,8 +74,9 @@ const Slot = ({selected, slot, onSelect, isPending, onClear}) => {
     return (
         <StyledPaper slotIsSelected={selected} onClick={onSelect}>
             <OuterGrid container justifyContent="space-between" alignItems="center">
-                <ContentGrid size={{ xs: 8 }}>
+                <ContentGrid size={{ xs: 8 }} sx={{gap: 1, flexWrap: 'wrap'}}>
                     <Typography component="p" variant="body2">{slot.name ? slot.name : slot.id}: {slot.last}{last_author}</Typography>
+                    <SlotCoefficientsChip slot={slot}/>
                 </ContentGrid>
                 <Grid size={{ xs: 4 }}>
                     <RightIconButton
@@ -137,7 +139,11 @@ const clearDeviceSlot = (slotId) => {
     };
 
     const rows = chunk(selectedDevice && selectedDevice.hasOwnProperty('slots') ? selectedDevice.slots : [], 2);
-    const devices = rows.map((r, i1) =>
+    const optimisation = <OptimisationControl key="optimisation"
+                                              selectedDevice={selectedDevice}
+                                              setDevice={setDevice}
+                                              setError={setError}/>;
+    const slotRows = rows.map((r, i1) =>
         <Grid container key={i1} className={classes.root}>
             {r.map((d, i2) =>
                 <Grid key={i2} container size={{ xs: r.length === 1 ? 12 : 6 }} className={classes.container}>
@@ -150,6 +156,7 @@ const clearDeviceSlot = (slotId) => {
             )}
         </Grid>
     );
+    const devices = [optimisation, ...slotRows];
 
     // Show gain panel whenever device supports it (not gated on slot selection)
     if (selectedDevice && selectedDevice.hasOwnProperty('masterVolume')) {

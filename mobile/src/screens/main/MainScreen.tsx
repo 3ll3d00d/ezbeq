@@ -15,6 +15,7 @@ import GainPanel from '../../components/main/GainPanel';
 import PythonVersionWarningBanner from '../../components/main/PythonVersionWarningBanner';
 import SearchBar from '../../components/main/SearchBar';
 import SettingsSheet from '../../components/main/SettingsSheet';
+import { OptimisationControl } from '../../components/main/Optimisation';
 import SlotsGrid from '../../components/main/SlotsGrid';
 import UpdateAvailableBanner from '../../components/main/UpdateAvailableBanner';
 import WhatsNewSheet, { computeNewCount } from '../../components/main/WhatsNewSheet';
@@ -356,6 +357,9 @@ export default function MainScreen({ navigation }: Props) {
         <Text variant="titleMedium" style={styles.deviceName}>
           {device.name}
         </Text>
+      ) : null}
+      {api ? (
+        <OptimisationControl api={api} device={device} onDeviceUpdate={replaceDevice} onError={setError} />
       ) : null}
       <SlotsGrid
         slots={device.slots ?? []}

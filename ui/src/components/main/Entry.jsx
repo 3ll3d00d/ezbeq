@@ -14,6 +14,7 @@ import Typography from "@mui/material/Typography";
 import PublishIcon from "@mui/icons-material/Publish";
 import React, {useEffect, useMemo, useState} from "react";
 import ezbeq from "../../services/ezbeq";
+import {EntryOptimisationChip, useEntryOptimisation} from "./Optimisation";
 
 const formatExtraMeta = entry => {
     const extras = []
@@ -153,6 +154,7 @@ const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotI
     const [sendGain, setSendGain] = useState(false);
     const [pending, setPending] = useState(false);
     const [acceptGain, setAcceptGain] = useState(false);
+    const entryOptimisation = useEntryOptimisation(selectedDevice, selectedEntry);
 
     useEffect(() => {
         setSendGain(false);
@@ -241,6 +243,7 @@ const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotI
                 {
                     formatExtraMeta(selectedEntry)
                 }
+                <EntryOptimisationChip entryOptimisation={entryOptimisation}/>
                 <br/>
                 <Typography variant="body2" color="textSecondary" component="p">
                     {formatTV(selectedEntry)}

@@ -227,6 +227,18 @@ class EzBeqService {
     getLevels = async (device) => {
         return this.doGet(`devices/${device}/levels`);
     }
+
+    getEntryOptimisation = async (device, entryId) => {
+        return this.doGet(`devices/${device}/optimisation/${entryId}`);
+    }
+
+    setOptimisationEnabled = async (device, enabled) => {
+        return await this.doPatch(device, this.buildOptimisationPayload(enabled));
+    }
+
+    buildOptimisationPayload = (enabled) => {
+        return {optimisation: {enabled: Boolean(enabled)}};
+    }
 }
 
 const ezBeqService = new EzBeqService();
