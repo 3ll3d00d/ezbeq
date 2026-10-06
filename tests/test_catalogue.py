@@ -11,6 +11,7 @@ from pytest_httpserver import HTTPServer
 
 from ezbeq.catalogue import (
     DB_BUSY_TIMEOUT_MILLIS,
+    FILTER_AUTHOR,
     TWO_WEEKS_AGO_SECONDS,
     Catalogue,
     Catalogues,
@@ -133,6 +134,43 @@ class TestInsertAndFind:
         cat = self._load(tmp_path)
         entry = cat.find_by_id('v1_0')
         assert entry.title == 'Alpha One'
+
+
+class TestFilterAuthor:
+
+    def _load(self, tmp_path, entries, version='v1'):
+        cat = make_catalogues(tmp_path)
+        write_catalogue_json(cat._Catalogues__catalogue_file, entries)
+        catalogue = cat._Catalogues__insert_catalogue(version)
+        cat._Catalogues__catalogues = [catalogue]
+        return cat, catalogue
+
+    def test_filter_author_is_parsed_onto_the_entry(self, tmp_path):
+        cat, _ = self._load(tmp_path, [
+            {'title': 'Alpha One', 'year': '2001', 'audioTypes': ['DTS-HD MA 5.1'], 'content_type': 'film',
+             'author': 'authorA', 'filterAuthor': 'groupA', 'digest': 'digest-1'},
+        ])
+        entry = cat.find_by_id('v1_0')
+        assert entry.filter_author == 'groupA'
+
+    def test_filter_author_defaults_to_empty_string_when_absent(self, tmp_path):
+        cat, _ = self._load(tmp_path, [
+            {'title': 'Alpha One', 'year': '2001', 'audioTypes': ['DTS-HD MA 5.1'], 'content_type': 'film',
+             'author': 'authorA', 'digest': 'digest-1'},
+        ])
+        entry = cat.find_by_id('v1_0')
+        assert entry.filter_author == ''
+
+    def test_filter_author_meta_collects_distinct_values(self, tmp_path):
+        _, catalogue = self._load(tmp_path, [
+            {'title': 'Alpha One', 'year': '2001', 'audioTypes': ['DTS-HD MA 5.1'], 'content_type': 'film',
+             'author': 'authorA', 'filterAuthor': 'groupA', 'digest': 'digest-1'},
+            {'title': 'Beta Two', 'year': '2010', 'audioTypes': ['TrueHD 7.1'], 'content_type': 'film',
+             'author': 'authorB', 'filterAuthor': 'groupB', 'digest': 'digest-2'},
+            {'title': 'Gamma Three', 'year': '2015', 'audioTypes': ['DTS-HD MA 5.1'], 'content_type': 'TV',
+             'author': 'authorA', 'digest': 'digest-3', 'season': '1', 'episode': '1,2,3'},
+        ])
+        assert catalogue.meta[FILTER_AUTHOR] == {'groupA', 'groupB'}
 
 
 class TestSearch:

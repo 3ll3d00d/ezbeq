@@ -1,8 +1,11 @@
 import enum
+import hashlib
+import io
 import json
 import logging
 import os
 import sqlite3
+import threading
 import time
 from collections.abc import Callable
 from contextlib import contextmanager
@@ -25,6 +28,7 @@ YEAR = 'year'
 AUDIO_TYPES = 'audioTypes'
 CONTENT_TYPE = 'content_type'
 AUTHOR = 'author'
+FILTER_AUTHOR = 'filterAuthor'
 CATALOGUE_URL = 'catalogue_url'
 FILTERS = 'filters'
 IMAGES = 'images'
@@ -63,6 +67,7 @@ FIELDS = [
     AUDIO_TYPES,
     CONTENT_TYPE,
     AUTHOR,
+    FILTER_AUTHOR,
     CATALOGUE_URL,
     FILTERS,
     IMAGES,
@@ -110,6 +115,7 @@ UI_FIELDS = [x for x in FIELDS if x not in IGNORE_FIELDS]
 META_FIELDS = [
     AUDIO_TYPES,
     AUTHOR,
+    FILTER_AUTHOR,
     CONTENT_TYPE,
     LANGUAGE,
     YEAR
@@ -139,6 +145,7 @@ class CatalogueEntry:
         self.audio_channel_counts = split_list(vals.get(AUDIO_CHANNEL_COUNTS, []))
         self.content_type = vals.get(CONTENT_TYPE, 'film')
         self.author = vals.get(AUTHOR, '')
+        self.filter_author = vals.get(FILTER_AUTHOR, '')
         self.catalogue_url = vals.get(CATALOGUE_URL, '')
         f = vals.get(FILTERS, [])
         self.filters = json.loads(f) if isinstance(f, str) else f
@@ -241,6 +248,7 @@ class CatalogueEntry:
             format_list(self.audio_types),
             self.content_type,  # 5
             self.author,
+            self.filter_author,
             self.catalogue_url,
             json.dumps(self.filters),  # json
             format_list(self.images),
@@ -300,8 +308,10 @@ class Catalogue:
 
 class Catalogues:
     def __init__(self, config_path: str, catalogue_url: str, ws: WsServer, refresh_seconds: float,
-                 first_chunk_size: int, chunk_size: int, sync_load: bool, mmap_mb: int = 0):
+                 first_chunk_size: int, chunk_size: int, sync_load: bool, mmap_mb: int = 0, *,
+                 on_download: Callable[[], None]):
         self.__catalogue_url = catalogue_url
+        self.__on_download = on_download
         self.__version_file = os.path.join(config_path, 'version.txt')
         self.__catalogue_file = os.path.join(config_path, 'database.json')
         self.__db = os.path.join(config_path, 'ezbeq.db')
@@ -320,6 +330,7 @@ class Catalogues:
         if sync_load:
             self.__download()
             self.__last_refresh_check = time.time()
+            self.__notify_download()
         self.__catalogues = self.__load_catalogues()
         if self.__catalogues:
             self.__ws.broadcast(self.__catalogues[-1].meta_msg)
@@ -425,6 +436,7 @@ class Catalogues:
                         ");")
             add_column(AUDIO_CODECS)
             add_column(AUDIO_CHANNEL_COUNTS)
+            add_column(FILTER_AUTHOR)
             cur.execute(f"CREATE INDEX IF NOT EXISTS entry_digest ON catalogue_entry ({DIGEST});")
             cur.execute("CREATE INDEX IF NOT EXISTS entry_version ON catalogue_entry (version);")
             cur.execute("CREATE TABLE IF NOT EXISTS catalogue_meta("
@@ -475,6 +487,7 @@ class Catalogues:
         now = int(datetime.now(UTC).timestamp() * 1000)
         audio_types = set()
         authors = set()
+        filter_authors = set()
         contenttypes = set()
         languages = set()
         years = set()
@@ -500,6 +513,8 @@ class Catalogues:
                     audio_types.add(v)
                 if entry.author:
                     authors.add(entry.author)
+                if entry.filter_author:
+                    filter_authors.add(entry.filter_author)
                 if entry.content_type:
                     contenttypes.add(entry.content_type)
                 if entry.language:
@@ -534,11 +549,13 @@ class Catalogues:
 
             insert_if(AUDIO_TYPES, audio_types)
             insert_if(AUTHOR, authors)
+            insert_if(FILTER_AUTHOR, filter_authors)
             insert_if(CONTENT_TYPE, contenttypes)
             insert_if(LANGUAGE, languages)
             insert_if(YEAR, years)
 
-            return Catalogue(count, version, {AUDIO_TYPES: audio_types, AUTHOR: authors, CONTENT_TYPE: contenttypes,
+            return Catalogue(count, version, {AUDIO_TYPES: audio_types, AUTHOR: authors,
+                                              FILTER_AUTHOR: filter_authors, CONTENT_TYPE: contenttypes,
                                               LANGUAGE: languages, YEAR: years},
                              datetime.fromtimestamp(now / 1000, tz=UTC)) if count else None
 
@@ -571,6 +588,12 @@ class Catalogues:
         reload_required = downloader.run()
         return downloader.version, reload_required
 
+    def __notify_download(self):
+        try:
+            self.__on_download()
+        except Exception:
+            logger.exception('Failed to handle catalogue download')
+
     def __reload(self):
         now = time.time()
         last_refresh = self.__last_refresh_check
@@ -587,6 +610,7 @@ class Catalogues:
         prefix = 'Rel' if self.loaded else 'L'
         logger.debug(f'{prefix}oading catalogue')
         version, reload_required = self.__download()
+        self.__notify_download()
         if reload_required or not self.loaded:
             if os.path.exists(self.__catalogue_file):
 
@@ -653,21 +677,37 @@ class Catalogues:
                 logger.exception("Failed to refresh catalogue")
 
     def find_by_id(self, entry_id: str, as_dict: bool = False) -> CatalogueEntry | dict | None:
-        return self.__find(f"{ID} = '{entry_id}'", as_dict)
+        return self.__find(f"{ID} = ?", entry_id, as_dict)
 
     def find_by_digest(self, digest: str, as_dict: bool = False) -> CatalogueEntry | dict | None:
-        return self.__find(f"{DIGEST} = '{digest}'", as_dict)
+        return self.__find(f"{DIGEST} = ?", digest, as_dict)
 
-    def __find(self, clause: str, as_dict: bool) -> CatalogueEntry | dict | None:
+    def __find(self, clause: str, value: str, as_dict: bool) -> CatalogueEntry | dict | None:
         catalogue = self.latest
         if not catalogue:
             return None
         sql = f"SELECT {FIELDS_STR} FROM catalogue_entry WHERE {clause}"
-        results = self.__fetch_entries(sql, FIELDS, 1)
+        results = self.__fetch_entries(sql, FIELDS, 1, params=(value,))
         if results:
             return results[0] if as_dict else CatalogueEntry(results[0][ID], results[0])
         else:
             return None
+
+    def optimised_ids(self, profile_ids: list[str]) -> list[str]:
+        """
+        :param profile_ids: device catalogue profiles.
+        :return: the ids of the entries in the latest catalogue which have optimised biquads in any of those profiles.
+        """
+        catalogue = self.latest
+        if not catalogue or not profile_ids:
+            return []
+        # the biquad count check mirrors DeviceCatalogues.optimised_biquads which ignores mismatched entries
+        sql = (f"SELECT DISTINCT c.{ID} FROM catalogue_entry c "
+               f"JOIN device_entry d ON d.digest = c.{DIGEST} "
+               f"WHERE c.version = ? AND d.profile IN ({', '.join(['?'] * len(profile_ids))}) "
+               f"AND json_array_length(d.biquads) = json_array_length(c.{FILTERS})")
+        with db_ops(self.__db) as cur:
+            return [row[0] for row in cur.execute(sql, (catalogue.version, *profile_ids)).fetchall()]
 
     def whats_new(self, since: int, limit: int = 50) -> list[dict]:
         # Queried the same way as search()/find() rather than kept in memory - the
@@ -740,8 +780,8 @@ class Catalogues:
 
         return self.__fetch_entries(sql, fields, limit)
 
-    def __fetch_entries(self, select: str, fields: list[str], limit: int | None, offset: int | None = None) -> \
-            list[dict]:
+    def __fetch_entries(self, select: str, fields: list[str], limit: int | None, offset: int | None = None,
+                        params: tuple = ()) -> list[dict]:
         if limit:
             select = f'{select} LIMIT {limit}'
         if offset:
@@ -760,7 +800,7 @@ class Catalogues:
             before = time.time()
             logger.debug(f'>>> {select}')
             entries: list[dict] = []
-            res = cur.execute(select)
+            res = cur.execute(select, params)
             rows = res.fetchmany(size=limit if limit else 20000)
             after_load = time.time()
             logger.debug(f'Loaded {len(rows)} entries from db in {to_millis(before, after_load)} ms')
@@ -784,6 +824,9 @@ class Catalogues:
 class CatalogueProvider:
 
     def __init__(self, config: Config, ws: WsServer):
+        self.__device_catalogues = DeviceCatalogues(os.path.join(config.config_path, 'ezbeq.db'),
+                                                    config.beqcatalogue_url,
+                                                    config.load_catalogue_at_startup)
         self.__catalogues: Catalogues = Catalogues(config.config_path,
                                                    config.beqcatalogue_url,
                                                    ws,
@@ -791,7 +834,8 @@ class CatalogueProvider:
                                                    config.first_chunk_size,
                                                    config.chunk_size,
                                                    config.load_catalogue_at_startup,
-                                                   config.db_mmap_mb)
+                                                   config.db_mmap_mb,
+                                                   on_download=self.__device_catalogues.refresh)
 
     def find(self, entry_id: str, match_on_idx: bool | None = None, as_dict: bool = False) -> (
                                                                                                   CatalogueEntry | dict) | None:
@@ -807,8 +851,16 @@ class CatalogueProvider:
         return self.__catalogues.latest
 
     @property
+    def device_catalogues(self) -> 'DeviceCatalogues':
+        return self.__device_catalogues
+
+    @property
     def authors(self) -> list[str]:
         return self.__load_meta_if_present(AUTHOR)
+
+    @property
+    def filter_authors(self) -> list[str]:
+        return self.__load_meta_if_present(FILTER_AUTHOR)
 
     @property
     def audio_types(self) -> list[str]:
@@ -825,6 +877,9 @@ class CatalogueProvider:
     @property
     def years(self) -> list[str]:
         return self.__load_meta_if_present(YEAR)
+
+    def optimised_ids(self, profile_ids: list[str]) -> list[str]:
+        return self.__catalogues.optimised_ids(profile_ids)
 
     def whats_new(self, since: int, limit: int = 50) -> list[dict]:
         from twisted.internet import reactor
@@ -1050,3 +1105,311 @@ class LoadTester:
                 count = count + 1
         end = time.time()
         return count, to_millis(begin, end, 3)
+
+
+DEVICE_SCHEMA_VERSION = 1
+SUPPORTED_LOADING_MODELS = frozenset({'additive-feedback-decimal17-v1'})
+
+
+@dataclass(frozen=True)
+class DeviceProfile:
+    """
+    A beqcatalogue device catalogue profile, i.e. a numerical format (rate + coefficient precision) for which
+    beqcatalogue publishes optimised biquads keyed by catalogue entry digest.
+    """
+    id: str
+    label: str
+    rate: int
+    storage: str
+    transport: str
+    revision: int
+    sha256: str
+    file: str
+    entries: int = 0
+
+    @staticmethod
+    def from_index(vals: dict) -> 'DeviceProfile':
+        return DeviceProfile(id=str(vals['id']), label=str(vals.get('label', vals['id'])), rate=int(vals['rate']),
+                             storage=str(vals['storage']), transport=str(vals.get('transport', vals['storage'])),
+                             revision=int(vals.get('revision', 0)), sha256=str(vals['sha256']),
+                             file=str(vals.get('file', f"{vals['id']}.json")), entries=int(vals.get('entries', 0)))
+
+    def json(self) -> dict:
+        return {
+            'id': self.id,
+            'label': self.label,
+            'rate': self.rate,
+            'storage': self.storage,
+            'transport': self.transport,
+            'revision': self.revision,
+            'sha256': self.sha256,
+            'file': self.file,
+            'entries': self.entries,
+        }
+
+
+@dataclass(frozen=True)
+class ProfileRequirement:
+    """
+    What a device needs from the device catalogues: either a specific profile id (built in default or user
+    configured) or, when no id is given, whichever published profile matches its rate and precision.
+    """
+    profile_id: str | None
+    rate: int
+    precision: str | None
+
+    def matches(self, profile: DeviceProfile) -> bool:
+        if self.profile_id:
+            return profile.id == self.profile_id
+        return profile.rate == self.rate and self.precision is not None and profile.storage == self.precision
+
+
+class InvalidDeviceCatalogueError(Exception):
+    pass
+
+
+class DeviceCatalogues:
+    """
+    Downloads and stores the beqcatalogue device catalogues ({catalogue_url}devices/index.json and the profile files
+    it lists) required by the configured devices. Entries are held in sqlite, not memory, so lookups are by
+    (profile, digest) against the db.
+    """
+
+    def __init__(self, db: str, catalogue_url: str, sync_load: bool):
+        base = catalogue_url if catalogue_url.endswith('/') else f'{catalogue_url}/'
+        self.__base_url = f'{base}devices/'
+        self.__db = db
+        self.__sync_load = sync_load
+        self.__requirements: set[ProfileRequirement] = set()
+        self.__listeners: list[Callable[[], None]] = []
+        self.__published: dict[str, DeviceProfile] = {}
+        self.__lock = threading.Lock()
+        self.__ensure_db()
+        self.__loaded: dict[str, DeviceProfile] = self.__load_profiles_from_db()
+        if self.__loaded:
+            logger.info(f'Device catalogues available from db: {sorted(self.__loaded.keys())}')
+
+    def __ensure_db(self):
+        with db_ops(self.__db) as cur:
+            cur.execute("CREATE TABLE IF NOT EXISTS device_profile("
+                        "id TEXT PRIMARY KEY, "
+                        "meta TEXT NOT NULL"
+                        ");")
+            cur.execute("CREATE TABLE IF NOT EXISTS device_entry("
+                        "profile TEXT NOT NULL, "
+                        "digest TEXT NOT NULL, "
+                        "biquads TEXT NOT NULL, "
+                        "PRIMARY KEY (profile, digest)"
+                        ") WITHOUT ROWID;")
+
+    def __load_profiles_from_db(self) -> dict[str, DeviceProfile]:
+        with db_ops(self.__db) as cur:
+            loaded = {}
+            for row in cur.execute("SELECT id, meta FROM device_profile").fetchall():
+                try:
+                    loaded[row[0]] = DeviceProfile.from_index(json.loads(row[1]))
+                except Exception:
+                    logger.exception(f'Ignoring unreadable device profile {row[0]} in db')
+            return loaded
+
+    def add_listener(self, listener: Callable[[], None]) -> None:
+        """
+        :param listener: called whenever the set of loaded profiles changes.
+        """
+        self.__listeners.append(listener)
+
+    def __notify(self):
+        for listener in self.__listeners:
+            try:
+                listener()
+            except Exception:
+                logger.exception('Device catalogue listener failed')
+
+    def require(self, requirement: ProfileRequirement) -> None:
+        with self.__lock:
+            if requirement in self.__requirements:
+                return
+            self.__requirements.add(requirement)
+        logger.info(f'Device catalogue required: {requirement}')
+        if self.__sync_load:
+            self.refresh()
+        else:
+            from twisted.internet import reactor
+            reactor.callInThread(self.__refresh_safe)
+
+    def __refresh_safe(self):
+        try:
+            self.refresh()
+        except Exception:
+            logger.exception('Failed to refresh device catalogues')
+
+    def refresh(self) -> None:
+        """
+        Fetches the device catalogue index and (re)loads every required profile whose published sha256 differs from
+        the one already loaded. Any failure leaves the previously loaded data in place.
+        """
+        with self.__lock:
+            before = self.__loaded
+            self.__refresh_locked()
+            changed = self.__loaded is not before
+        if changed:
+            self.__notify()
+
+    def __refresh_locked(self):
+        requirements = set(self.__requirements)
+        if not requirements:
+            return
+        fetched = self.__fetch_index()
+        if fetched is None:
+            return
+        index, complete = fetched
+        self.__published = index
+        published = sorted(index.values(), key=lambda x: x.id)
+        required: dict[str, DeviceProfile] = {}
+        for r in requirements:
+            # a format match uses the first matching profile, consistent with resolve()
+            match = next((p for p in published if r.matches(p)), None)
+            if match:
+                required[match.id] = match
+            else:
+                logger.warning(f'No published device catalogue matches {r}')
+        for p in sorted(required.values(), key=lambda x: x.id):
+            loaded = self.__loaded.get(p.id)
+            if loaded and loaded.sha256 == p.sha256:
+                logger.debug(f'[{p.id}] Device catalogue is up to date at {p.sha256}')
+                continue
+            try:
+                self.__load_profile(p)
+            except (InvalidDeviceCatalogueError, requests.RequestException, sqlite3.Error, ijson.JSONError,
+                    ValueError) as e:
+                logger.error(f'[{p.id}] Unable to load device catalogue: {e}')
+        # a profile no longer published has been withdrawn so stop using it, but only trust an index which was
+        # read in full as a truncated or partly invalid index would otherwise wipe out good data
+        if complete and index:
+            for withdrawn in [k for k in self.__loaded if k not in index]:
+                logger.warning(f'[{withdrawn}] Device catalogue is no longer published, removing')
+                self.__delete_profile(withdrawn)
+
+    def __fetch_index(self) -> tuple[dict[str, DeviceProfile], bool] | None:
+        """
+        :return: the published profiles and whether every profile in the index was valid, None if unavailable.
+        """
+        url = f'{self.__base_url}index.json'
+        try:
+            r = requests.get(url, allow_redirects=True, timeout=30)
+            if r.status_code != 200:
+                logger.warning(f'Unable to get {url}, response was {r.status_code}')
+                return None
+            index = r.json()
+            if index.get('schema_version') != DEVICE_SCHEMA_VERSION:
+                logger.warning(f'Unsupported device catalogue index schema {index.get("schema_version")} at {url}')
+                return None
+            profiles = {}
+            complete = True
+            for vals in index.get('profiles', []):
+                try:
+                    p = DeviceProfile.from_index(vals)
+                    profiles[p.id] = p
+                except (KeyError, ValueError, TypeError):
+                    logger.warning(f'Ignoring invalid device profile in index {vals}')
+                    complete = False
+            return profiles, complete
+        except Exception:
+            logger.exception(f'Failed to get {url}')
+            return None
+
+    def __load_profile(self, profile: DeviceProfile):
+        url = f'{self.__base_url}{profile.file}'
+        logger.info(f'[{profile.id}] Downloading device catalogue from {url}')
+        start = time.time()
+        r = requests.get(url, allow_redirects=True, timeout=120)
+        if r.status_code != 200:
+            raise InvalidDeviceCatalogueError(f'response from {url} was {r.status_code}')
+        content = r.content
+        actual = hashlib.sha256(content).hexdigest()
+        if actual != profile.sha256:
+            raise InvalidDeviceCatalogueError(f'sha256 mismatch, expected {profile.sha256} got {actual}')
+        self.__validate_header(profile, content)
+        rows = []
+        skipped = 0
+        for digest, biquads in ijson.kvitems(io.BytesIO(content), 'entries'):
+            coeffs = to_coefficients(biquads)
+            if coeffs:
+                rows.append((profile.id, digest, json.dumps(coeffs)))
+            else:
+                skipped += 1
+        if skipped:
+            logger.warning(f'[{profile.id}] Skipped {skipped} malformed device catalogue entries')
+        with db_ops(self.__db) as cur:
+            cur.execute("DELETE FROM device_entry WHERE profile = ?", (profile.id,))
+            cur.executemany("INSERT OR REPLACE INTO device_entry VALUES(?, ?, ?)", rows)
+            cur.execute("INSERT OR REPLACE INTO device_profile VALUES(?, ?)",
+                        (profile.id, json.dumps(profile.json())))
+        # replaced rather than mutated as request threads read this without holding the lock
+        self.__loaded = {**self.__loaded, profile.id: profile}
+        logger.info(f'[{profile.id}] Loaded {len(rows)} device catalogue entries at revision {profile.revision} '
+                    f'in {to_millis(start, time.time())}ms')
+
+    @staticmethod
+    def __validate_header(profile: DeviceProfile, content: bytes):
+        header = {}
+        wanted = {'schema_version', 'profile', 'rate', 'loading_model'}
+        for prefix, event, value in ijson.parse(io.BytesIO(content)):
+            if prefix in wanted and event in ('string', 'number'):
+                header[prefix] = value
+                if len(header) == len(wanted):
+                    break
+        if header.get('schema_version') != DEVICE_SCHEMA_VERSION:
+            raise InvalidDeviceCatalogueError(f'unsupported schema_version {header.get("schema_version")}')
+        if header.get('loading_model') not in SUPPORTED_LOADING_MODELS:
+            raise InvalidDeviceCatalogueError(f'unsupported loading_model {header.get("loading_model")}')
+        if header.get('profile') != profile.id:
+            raise InvalidDeviceCatalogueError(f'profile {header.get("profile")} does not match index')
+        if header.get('rate') is None or int(header['rate']) != profile.rate:
+            raise InvalidDeviceCatalogueError(f'rate {header.get("rate")} does not match index {profile.rate}')
+
+    def __delete_profile(self, profile_id: str):
+        with db_ops(self.__db) as cur:
+            cur.execute("DELETE FROM device_entry WHERE profile = ?", (profile_id,))
+            cur.execute("DELETE FROM device_profile WHERE id = ?", (profile_id,))
+        self.__loaded = {k: v for k, v in self.__loaded.items() if k != profile_id}
+
+    def resolve(self, requirement: ProfileRequirement) -> DeviceProfile | None:
+        return next((p for _, p in sorted(self.__loaded.items()) if requirement.matches(p)), None)
+
+    @property
+    def loaded(self) -> list[DeviceProfile]:
+        return [p for _, p in sorted(self.__loaded.items())]
+
+    def optimised_biquads(self, profile_id: str, digest: str, expected_count: int) -> list[list[str]] | None:
+        if not digest or profile_id not in self.__loaded:
+            return None
+        with db_ops(self.__db) as cur:
+            row = cur.execute("SELECT biquads FROM device_entry WHERE profile = ? AND digest = ?",
+                              (profile_id, digest)).fetchone()
+        if not row:
+            return None
+        biquads = json.loads(row[0])
+        if len(biquads) != expected_count:
+            logger.warning(f'[{profile_id}] Ignoring optimised biquads for {digest}, has {len(biquads)} biquads but '
+                           f'entry has {expected_count} filters')
+            return None
+        return biquads
+
+
+def to_coefficients(biquads) -> list[list[str]] | None:
+    """
+    converts a device catalogue entry, [{b: [b0, b1, b2], a: [a1, a2]}, ...], into [[b0, b1, b2, a1, a2], ...] or
+    None if it is malformed.
+    """
+    try:
+        coeffs = []
+        for bq in biquads:
+            b = [str(v) for v in bq['b']]
+            a = [str(v) for v in bq['a']]
+            if len(b) != 3 or len(a) != 2:
+                return None
+            coeffs.append(b + a)
+        return coeffs if coeffs else None
+    except (KeyError, TypeError):
+        return None

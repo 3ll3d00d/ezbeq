@@ -6,7 +6,8 @@ import ezbeq from '../../services/ezbeq';
 vi.mock('../../services/ezbeq', () => ({
     default: {
         loadWithMV: vi.fn(),
-        sendFilter: vi.fn()
+        sendFilter: vi.fn(),
+        getEntryOptimisation: vi.fn()
     }
 }));
 
@@ -267,5 +268,31 @@ describe('Entry layout', () => {
     it('does not render an upload action when there is no selected device', () => {
         renderEntry({selectedDevice: null, selectedEntry: entryWithMvAdjust()});
         expect(screen.queryByRole('button', {name: /upload/i})).not.toBeInTheDocument();
+    });
+});
+
+describe('Entry optimisation', () => {
+    it('flags an entry optimised for the selected device', async () => {
+        ezbeq.getEntryOptimisation.mockResolvedValue({applicable: true, profile: 'float32-96k', optimised: true});
+        const selectedDevice = {
+            ...plainDevice(),
+            optimisation: {profile: 'float32-96k', label: 'float32 @ 96 kHz', available: true, reason: null}
+        };
+        renderEntry({selectedDevice, selectedEntry: entryWithMvAdjust()});
+        expect(await screen.findByText('Optimised for this device')).toBeInTheDocument();
+        expect(ezbeq.getEntryOptimisation).toHaveBeenCalledWith('d1', 'entry-1');
+    });
+});
+
+describe('Entry optimisation target slot', () => {
+    it('warns when the slot it will be uploaded to does not use optimised filters', async () => {
+        ezbeq.getEntryOptimisation.mockResolvedValue({applicable: true, profile: 'float32-96k', optimised: true});
+        const selectedDevice = {
+            name: 'd1',
+            slots: [{id: '1', optimise: false}],
+            optimisation: {profile: 'float32-96k', label: 'float32 @ 96 kHz', available: true, reason: null}
+        };
+        renderEntry({selectedDevice, selectedEntry: entryWithMvAdjust()});
+        expect(await screen.findByText('Unoptimised')).toBeInTheDocument();
     });
 });

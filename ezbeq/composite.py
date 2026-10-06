@@ -77,8 +77,28 @@ class CompositeDeviceState(DeviceState):
             ]
         primary_serialised['type'] = 'composite'
         primary_serialised['name'] = self.name
-        primary_serialised['members'] = {n: s.serialise() for n, s in self.member_states.items()}
+        members = {n: s.serialise() for n, s in self.member_states.items()}
+        primary_serialised['members'] = members
+        optimisation = self.__reduce_optimisation(name_used, members)
+        if optimisation:
+            primary_serialised['optimisation'] = optimisation
+        else:
+            primary_serialised.pop('optimisation', None)
         return primary_serialised
+
+    @staticmethod
+    def __reduce_optimisation(primary_name: str, members: dict[str, dict]) -> dict | None:
+        """
+        The composite is only as optimised as its least optimised member so report the first member not using
+        optimised coefficients, if any, otherwise the primary's (or any member's) status.
+        """
+        statuses = {n: m['optimisation'] for n, m in members.items() if m.get('optimisation')}
+        if not statuses:
+            return None
+        not_in_use = next(((n, o) for n, o in statuses.items() if o.get('reason')), None)
+        if not_in_use:
+            return {**not_in_use[1], 'member': not_in_use[0]}
+        return statuses.get(primary_name, next(iter(statuses.values())))
 
 
 class CompositeDevice(PersistentDevice[CompositeDeviceState]):
@@ -109,6 +129,9 @@ class CompositeDevice(PersistentDevice[CompositeDeviceState]):
         self.__specs = self.__build_specs(cfg)
         self.__primary_name = cfg.get('primary') or next(iter(members))
         self.__executor = ThreadPoolExecutor(max_workers=max(len(members), 1))
+        if catalogue:
+            # the members broadcast their own state when the device catalogues change, the composite has to as well
+            catalogue.device_catalogues.add_listener(self._broadcast_if_hydrated)
 
     def __build_specs(self, cfg: dict) -> dict[str, MemberSpec]:
         overrides = cfg.get('members', {}) if cfg['mode'] == 'mapped' else {}
@@ -296,6 +319,35 @@ class CompositeDevice(PersistentDevice[CompositeDeviceState]):
 
         self._hydrate_cache_broadcast(__do_it)
 
+    def set_optimise(self, slot: str, enabled: bool) -> bool:
+        changed: list[bool] = []
+
+        def __call(name: str, dev: Device):
+            changed.append(dev.set_optimise(self.__translate_slot(name, slot), enabled))
+
+        def __do_it() -> bool:
+            self.__fan_out('set_optimise', __call)
+            return any(changed)
+
+        return self._hydrate_cache_broadcast(__do_it)
+
+    def entry_optimisation(self, entry: CatalogueEntry) -> dict | None:
+        """
+        optimised if any member has optimised coefficients for the entry.
+        """
+        results = [r for r in (dev.entry_optimisation(entry) for dev in self.__members.values()) if r]
+        if not results:
+            return None
+        optimised = [r for r in results if r['optimised']]
+        return {
+            'applicable': True,
+            'profile': optimised[0]['profile'] if optimised else results[0]['profile'],
+            'optimised': len(optimised) > 0,
+        }
+
+    def optimisable_profiles(self) -> list[str]:
+        return sorted({p for dev in self.__members.values() for p in dev.optimisable_profiles()})
+
     def update(self, params: dict) -> bool:
         def __do_it() -> bool:
             any_update = False
@@ -318,6 +370,9 @@ class CompositeDevice(PersistentDevice[CompositeDeviceState]):
     def __update_slot(self, slot: dict) -> bool:
         any_update = False
         slot_id = slot['id']
+        # before any entry is loaded so a single PATCH can change the setting and load with it
+        if 'optimise' in slot:
+            any_update |= self.set_optimise(slot_id, bool(slot['optimise']))
         if 'gains' in slot:
             for gain in slot['gains']:
                 self.set_gain(slot_id, int(gain['id']), gain['value'])

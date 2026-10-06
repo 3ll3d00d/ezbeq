@@ -35,6 +35,13 @@ describe('buildTargetedPayload', () => {
     });
 });
 
+describe('buildOptimisePayload', () => {
+    it('builds the per slot optimise payload', () => {
+        expect(ezbeq.buildOptimisePayload('2', false)).toEqual({slots: [{id: '2', optimise: false}]});
+        expect(ezbeq.buildOptimisePayload(1, true)).toEqual({slots: [{id: '1', optimise: true}]});
+    });
+});
+
 describe('createPatchPayload', () => {
     it('includes masterVolume and mute when present', () => {
         const payload = ezbeq.createPatchPayload(null, {master_mv: -12.5, master_mute: true});
@@ -121,6 +128,37 @@ describe('network calls', () => {
         expect(global.fetch).toHaveBeenCalledWith('/api/3/devices/d1', expect.objectContaining({
             method: 'PATCH',
             body: JSON.stringify({masterVolume: -10, slots: [{id: '1', entry: 'entry-1'}]})
+        }));
+    });
+
+    it('setOptimise PATCHes the slot with the optimise payload', async () => {
+        global.fetch.mockResolvedValue({ok: true, json: () => Promise.resolve({name: 'd1'})});
+
+        await ezbeq.setOptimise('d1', '2', false);
+
+        expect(global.fetch).toHaveBeenCalledWith('/api/3/devices/d1', expect.objectContaining({
+            method: 'PATCH',
+            body: JSON.stringify({slots: [{id: '2', optimise: false}]})
+        }));
+    });
+
+    it('getOptimisedEntries GETs the ids optimised for the device', async () => {
+        global.fetch.mockResolvedValue({ok: true, json: () => Promise.resolve({profiles: ['p'], ids: ['e1']})});
+
+        await expect(ezbeq.getOptimisedEntries('d1')).resolves.toEqual({profiles: ['p'], ids: ['e1']});
+
+        expect(global.fetch).toHaveBeenCalledWith('/api/1/devices/d1/optimised', expect.objectContaining({
+            method: 'GET'
+        }));
+    });
+
+    it('getEntryOptimisation GETs the device entry optimisation', async () => {
+        global.fetch.mockResolvedValue({ok: true, json: () => Promise.resolve({optimised: true})});
+
+        await expect(ezbeq.getEntryOptimisation('d1', 'entry-1')).resolves.toEqual({optimised: true});
+
+        expect(global.fetch).toHaveBeenCalledWith('/api/1/devices/d1/optimisation/entry-1', expect.objectContaining({
+            method: 'GET'
         }));
     });
 

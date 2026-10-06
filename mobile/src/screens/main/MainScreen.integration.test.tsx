@@ -45,6 +45,7 @@ const mockStateSocket = () => {
 const buildApi = (overrides: Record<string, jest.Mock> = {}) => ({
   getDevices: jest.fn().mockResolvedValue({}),
   getAuthors: jest.fn().mockResolvedValue([]),
+  getFilterAuthors: jest.fn().mockResolvedValue([]),
   getLanguages: jest.fn().mockResolvedValue([]),
   getYears: jest.fn().mockResolvedValue([]),
   getAudioTypes: jest.fn().mockResolvedValue([]),

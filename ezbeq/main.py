@@ -14,6 +14,7 @@ from ezbeq.apis import (
     contenttypes,
     devices,
     diagnostics,
+    filterauthors,
     languages,
     load,
     meta,
@@ -71,6 +72,7 @@ def create_app(config: Config, ws: WsServer | None = None) -> tuple[Flask, WsSer
     decorate_ns(search.api)
     decorate_ns(version.api)
     decorate_ns(authors.api)
+    decorate_ns(filterauthors.api)
     decorate_ns(audiotypes.api)
     decorate_ns(load.api)
     decorate_ns(years.api)

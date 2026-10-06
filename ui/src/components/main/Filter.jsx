@@ -3,6 +3,8 @@ import React, {useEffect, useState} from "react";
 import {pushData} from "../../services/util";
 import ezbeq from "../../services/ezbeq";
 import Box from "@mui/material/Box";
+import {ToggleButton, ToggleButtonGroup, Typography} from "@mui/material";
+import {NOT_OPTIMISED, OPTIMISED} from "./Optimisation";
 
 // exported for direct testing of the fuzzy free-text-create matching, independent of the
 // rest of Filter's rendering (which fetches from 5 endpoints on mount)
@@ -30,14 +32,20 @@ const Filter = ({
                     setSelectedLanguages,
                     selectedAuthors,
                     setSelectedAuthors,
+                    selectedFilterAuthors,
+                    setSelectedFilterAuthors,
                     selectedContentTypes,
                     setSelectedContentTypes,
                     filteredEntries,
-                    setError
+                    setError,
+                    optimisable = false,
+                    selectedOptimisation = null,
+                    setSelectedOptimisation
                 }) => {
 
     const freshness = ['Fresh', 'Updated', 'Stale'];
     const [authors, setAuthors] = useState([]);
+    const [filterAuthors, setFilterAuthors] = useState([]);
     const [languages, setLanguages] = useState([]);
     const [years, setYears] = useState([]);
     const [audioTypes, setAudioTypes] = useState([]);
@@ -49,6 +57,10 @@ const Filter = ({
 
     useEffect(() => {
         pushData(setAuthors, ezbeq.getAuthors, setError);
+    }, [setError]);
+
+    useEffect(() => {
+        pushData(setFilterAuthors, ezbeq.getFilterAuthors, setError);
     }, [setError]);
 
     useEffect(() => {
@@ -95,6 +107,11 @@ const Filter = ({
                              label="Author"
                              onToggleOption={selected => setSelectedAuthors(selected)}
                              onClearOptions={() => setSelectedAuthors([])}/>
+                <MultiSelect items={filterAuthors}
+                             selectedValues={selectedFilterAuthors}
+                             label="Filter Author"
+                             onToggleOption={selected => setSelectedFilterAuthors(selected)}
+                             onClearOptions={() => setSelectedFilterAuthors([])}/>
                 <MultiSelect items={years}
                              selectedValues={selectedYears}
                              label="Year"
@@ -124,6 +141,25 @@ const Filter = ({
                              onCreateOption={value => addSelectedLanguages(value)}
                              onClearOptions={() => setSelectedLanguages([])}
                              isInView={v => filteredLanguages.length === 0 || filteredLanguages.indexOf(v) > -1}/>
+                {
+                    optimisable
+                        ? <Box sx={{display: 'flex', alignItems: 'center', gap: 1, mt: 1}}>
+                            <Typography variant="body2" color="textSecondary">Device optimisation</Typography>
+                            <ToggleButtonGroup size="small"
+                                               exclusive
+                                               value={selectedOptimisation ?? 'any'}
+                                               aria-label="Device optimisation"
+                                               onChange={(e, v) => {
+                                                   if (v !== null) setSelectedOptimisation?.(v === 'any' ? null : v);
+                                               }}>
+                                <ToggleButton value="any">Any</ToggleButton>
+                                <ToggleButton value={OPTIMISED}>Optimised</ToggleButton>
+                                {/* titles not in the device catalogue were already realised well enough on this device */}
+                                <ToggleButton value={NOT_OPTIMISED}>Not needed</ToggleButton>
+                            </ToggleButtonGroup>
+                        </Box>
+                        : null
+                }
             </Box>
         )
     } else {

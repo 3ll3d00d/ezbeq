@@ -14,7 +14,8 @@ class CatalogueMeta(Resource):
 
     def get(self):
         catalogue = self.__provider.catalogue
-        return {
+        device_profiles = [p.json() for p in self.__provider.device_catalogues.loaded]
+        return ({
             'version': catalogue.version,
             'loaded': int(catalogue.loaded_at.timestamp()),
             'count': catalogue.count
@@ -22,4 +23,4 @@ class CatalogueMeta(Resource):
             'version': 'N/A',
             'loaded': None,
             'count': 0
-        }
+        }) | {'deviceProfiles': device_profiles}
