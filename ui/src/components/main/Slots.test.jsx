@@ -177,7 +177,6 @@ describe('Slots optimisation', () => {
         });
         expect(screen.getByRole('switch')).not.toBeChecked();
         expect(screen.getByText('Optimised')).toBeInTheDocument();
-        // one for the device, one for slot 2
-        expect(screen.getAllByText('Unoptimised')).toHaveLength(2);
+        expect(screen.getAllByText('Unoptimised')).toHaveLength(1);
     });
 });

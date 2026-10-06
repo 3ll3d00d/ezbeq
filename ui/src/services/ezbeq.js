@@ -228,6 +228,10 @@ class EzBeqService {
         return this.doGet(`devices/${device}/levels`);
     }
 
+    getOptimisedEntries = async (device) => {
+        return this.doGet(`devices/${device}/optimised`);
+    }
+
     getEntryOptimisation = async (device, entryId) => {
         return this.doGet(`devices/${device}/optimisation/${entryId}`);
     }

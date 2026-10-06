@@ -164,6 +164,12 @@ class Device(ABC, Generic[T]):
         """
         return None
 
+    def optimisable_profiles(self) -> list[str]:
+        """
+        :return: the device catalogue profiles whose optimised coefficients this device can load.
+        """
+        return []
+
 
 class DeviceRepository:
 
@@ -237,6 +243,9 @@ class DeviceRepository:
 
     def entry_optimisation(self, device_name: str, entry: CatalogueEntry) -> dict | None:
         return self.__get_device(device_name).entry_optimisation(entry)
+
+    def optimisable_profiles(self, device_name: str) -> list[str]:
+        return self.__get_device(device_name).optimisable_profiles()
 
 
 def _composite_member_names(values: dict) -> list[str]:

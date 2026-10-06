@@ -15,7 +15,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
 const dp = (step) => step < 0.1 ? 2 : step < 1 ? 1 : 0;
 
-const GainRow = ({label, minGain, maxGain, step, value, muted, savedValue, savedMuted, onValueChange, onValueCommit, onMuteToggle}) => {
+const GainRow = ({label, minGain, maxGain, step, value, muted, savedValue, savedMuted, onValueChange, onValueCommit, onMuteToggle, extra = null}) => {
     const isDirty = parseFloat(value) !== parseFloat(savedValue) || muted !== savedMuted;
     const numValue = parseFloat(value);
     const isValid = !isNaN(numValue);
@@ -65,11 +65,12 @@ const GainRow = ({label, minGain, maxGain, step, value, muted, savedValue, saved
                     {muted ? <VolumeOffIcon fontSize="small"/> : <VolumeUpIcon fontSize="small"/>}
                 </IconButton>
             </Tooltip>
+            {extra}
         </Box>
     );
 };
 
-const Gain = ({selectedSlotId, deviceGains, gains, updateGain, commitGain}) => {
+const Gain = ({selectedSlotId, deviceGains, gains, updateGain, commitGain, masterExtra = null}) => {
     const [channelsOpen, setChannelsOpen] = useState(false);
     const hasInputChannels = gains.gains && gains.gains.length > 0;
     const hasOutputChannels = gains.output_gains && gains.output_gains.length > 0;
@@ -90,6 +91,7 @@ const Gain = ({selectedSlotId, deviceGains, gains, updateGain, commitGain}) => {
                 onValueChange={v => updateGain('master', 'mv', v)}
                 onValueCommit={v => commitGain('master', 'mv', v)}
                 onMuteToggle={v => commitGain('master', 'mute', v)}
+                extra={masterExtra}
             />
 
             {hasChannels && (

@@ -102,6 +102,14 @@ class DeviceOptimisation:
         return profile, None
 
     @property
+    def optimisable_profile(self) -> str | None:
+        """
+        :return: the profile whose optimised coefficients this device can load (whether or not it currently does).
+        """
+        profile, reason = self.__status()
+        return profile.id if profile and reason is None else None
+
+    @property
     def usable_profile(self) -> DeviceProfile | None:
         profile, reason = self.__status()
         return profile if reason is None else None

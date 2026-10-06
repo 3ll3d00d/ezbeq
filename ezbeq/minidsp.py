@@ -939,6 +939,10 @@ class Minidsp(PersistentDevice[MinidspState]):
     def entry_optimisation(self, entry: CatalogueEntry) -> dict | None:
         return self.__optimisation.describe(entry)
 
+    def optimisable_profiles(self) -> list[str]:
+        profile = self.__optimisation.optimisable_profile
+        return [profile] if profile else []
+
     def update(self, params: dict) -> bool:
         def __do_it() -> bool:
             any_update = False

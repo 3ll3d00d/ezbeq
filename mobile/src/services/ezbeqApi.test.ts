@@ -125,6 +125,14 @@ describe('network calls', () => {
     );
   });
 
+  it('getOptimisedEntries GETs the ids optimised for the device', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: true, json: () => Promise.resolve({ profiles: ['p'], ids: ['e1'] }) });
+
+    await expect(api.getOptimisedEntries('d1')).resolves.toEqual({ profiles: ['p'], ids: ['e1'] });
+
+    expect(global.fetch).toHaveBeenCalledWith(`${BASE_URL}/api/1/devices/d1/optimised`, expect.anything());
+  });
+
   it('getEntryOptimisation GETs the device entry optimisation', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({ ok: true, json: () => Promise.resolve({ optimised: true }) });
 

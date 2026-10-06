@@ -9,6 +9,7 @@ import {debounce} from "lodash/function";
 import {pushData, useLocalStorage} from "../../services/util";
 import Slots from "./Slots";
 import Entry from "./Entry";
+import {isOptimisable, OPTIMISED, useOptimisedEntryIds} from "./Optimisation";
 import Search from "./Search";
 import Footer from "./Footer";
 import ezbeq from "../../services/ezbeq";
@@ -46,8 +47,14 @@ export const txtMatch = (entry, txtFilter) => {
 export const isMatch = (entry, filters) => {
     const {
         selectedAuthors, selectedYears, selectedAudioTypes, selectedContentTypes,
-        selectedFreshness, selectedLanguages, selectedFilterAuthors, debouncedTxtFilter
+        selectedFreshness, selectedLanguages, selectedFilterAuthors, debouncedTxtFilter,
+        selectedOptimisation = null, optimisedIds = null
     } = filters;
+    // optimisedIds is only loaded while searching on optimisation for a device which can be optimised
+    if (selectedOptimisation && optimisedIds) {
+        const optimised = optimisedIds.has(entry.id);
+        if (selectedOptimisation === OPTIMISED ? !optimised : optimised) return false;
+    }
     if (selectedAuthors.length && selectedAuthors.indexOf(entry.author) === -1) return false;
     if (selectedFilterAuthors.length && selectedFilterAuthors.indexOf(entry.filterAuthor) === -1) return false;
     if (selectedYears.length && selectedYears.indexOf(entry.year) === -1) return false;
@@ -92,6 +99,7 @@ const MainView = ({
     const [selectedAudioTypes, setSelectedAudioTypes] = useState([]);
     const [selectedContentTypes, setSelectedContentTypes] = useState([]);
     const [selectedFreshness, setSelectedFreshness] = useState([]);
+    const [selectedOptimisation, setSelectedOptimisation] = useState(null);
     const [txtFilter, setTxtFilter] = useState('');
     const [debouncedTxtFilter, setDebouncedTxtFilter] = useState('');
     const [showFilters, setShowFilters] = useState(false);
@@ -109,10 +117,13 @@ const MainView = ({
         pushData(setRecentEntries, () => ezbeq.getWhatsNew(), setErr);
     }, [meta]);
 
+    const optimisedIds = useOptimisedEntryIds(availableDevices[selectedDeviceName], selectedOptimisation, meta, setErr);
+
     const filters = useMemo(() => ({
         selectedAuthors, selectedYears, selectedAudioTypes, selectedContentTypes,
-        selectedFreshness, selectedLanguages, selectedFilterAuthors, debouncedTxtFilter
-    }), [selectedAuthors, selectedYears, selectedAudioTypes, selectedContentTypes, selectedFreshness, selectedLanguages, selectedFilterAuthors, debouncedTxtFilter]);
+        selectedFreshness, selectedLanguages, selectedFilterAuthors, debouncedTxtFilter,
+        selectedOptimisation, optimisedIds
+    }), [selectedAuthors, selectedYears, selectedAudioTypes, selectedContentTypes, selectedFreshness, selectedLanguages, selectedFilterAuthors, debouncedTxtFilter, selectedOptimisation, optimisedIds]);
 
     // What's New should only surface entries that also pass the catalogue filters, so the two
     // views never disagree about what's currently in scope
@@ -252,6 +263,9 @@ const MainView = ({
                     selectedFilterAuthors={selectedFilterAuthors}
                     setSelectedFilterAuthors={setSelectedFilterAuthors}
                     selectedContentTypes={selectedContentTypes}
+                    optimisable={isOptimisable(availableDevices[selectedDeviceName])}
+                    selectedOptimisation={selectedOptimisation}
+                    setSelectedOptimisation={setSelectedOptimisation}
                     setSelectedContentTypes={setSelectedContentTypes}
                     filteredEntries={filteredEntries}
                     setError={setErr}/>

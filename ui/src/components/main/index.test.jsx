@@ -69,6 +69,19 @@ describe('isMatch', () => {
         expect(isMatch(entry, noFilters)).toBe(true);
     });
 
+    it('filters on device optimisation once the optimised ids are loaded', () => {
+        const optimised = {...entry, id: 'e1'};
+        const other = {...entry, id: 'e2'};
+        const ids = new Set(['e1']);
+        const only = v => ({...noFilters, selectedOptimisation: v, optimisedIds: ids});
+        expect(isMatch(optimised, only('optimised'))).toBe(true);
+        expect(isMatch(other, only('optimised'))).toBe(false);
+        expect(isMatch(optimised, only('unoptimised'))).toBe(false);
+        expect(isMatch(other, only('unoptimised'))).toBe(true);
+        // not filtered until the ids are loaded
+        expect(isMatch(other, {...noFilters, selectedOptimisation: 'optimised', optimisedIds: null})).toBe(true);
+    });
+
     it('excludes an entry whose author is not in the selected authors', () => {
         expect(isMatch(entry, {...noFilters, selectedAuthors: ['someone-else']})).toBe(false);
         expect(isMatch(entry, {...noFilters, selectedAuthors: ['author1']})).toBe(true);

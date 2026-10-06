@@ -3,16 +3,19 @@ import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {
     describeReason,
     EntryOptimisationChip,
+    isOptimisable,
     OptimisationControl,
     SlotCoefficientsChip,
-    useEntryOptimisation
+    useEntryOptimisation,
+    useOptimisedEntryIds
 } from './Optimisation';
 import ezbeq from '../../services/ezbeq';
 
 vi.mock('../../services/ezbeq', () => ({
     default: {
         setOptimisationEnabled: vi.fn(),
-        getEntryOptimisation: vi.fn()
+        getEntryOptimisation: vi.fn(),
+        getOptimisedEntries: vi.fn()
     }
 }));
 
@@ -64,25 +67,25 @@ describe('OptimisationControl', () => {
         expect(container).toBeEmptyDOMElement();
     });
 
-    it('shows an enabled switch and no warning when optimised filters are in use', () => {
+    it('shows just an enabled switch when optimised filters are in use', () => {
         render(<OptimisationControl selectedDevice={device(optimisation())} setDevice={vi.fn()} setError={vi.fn()}/>);
-        expect(screen.getByLabelText('Use optimised filters (float32 @ 96 kHz)')).toBeChecked();
-        expect(screen.queryByText('Unoptimised')).toBeNull();
+        expect(screen.getByRole('switch', {name: 'Use optimised filters (float32 @ 96 kHz)'})).toBeChecked();
+        expect(screen.queryByText(/ptimised$/)).toBeNull();
     });
 
-    it('warns when switched off', () => {
+    it('shows an unchecked switch when switched off', () => {
         render(<OptimisationControl selectedDevice={device(optimisation({enabled: false, reason: 'disabled'}))}
                                     setDevice={vi.fn()} setError={vi.fn()}/>);
         expect(screen.getByRole('switch')).not.toBeChecked();
-        expect(screen.getByText('Unoptimised')).toBeInTheDocument();
+        expect(screen.getByRole('switch')).toBeEnabled();
     });
 
-    it('warns without a switch when the device cannot be optimised', () => {
+    it('shows a disabled switch when the device cannot be optimised', () => {
         render(<OptimisationControl
             selectedDevice={device(optimisation({profile: null, label: null, available: false, reason: 'no_profile'}))}
             setDevice={vi.fn()} setError={vi.fn()}/>);
-        expect(screen.queryByRole('switch')).toBeNull();
-        expect(screen.getByText('Unoptimised')).toBeInTheDocument();
+        expect(screen.getByRole('switch')).not.toBeChecked();
+        expect(screen.getByRole('switch')).toBeDisabled();
     });
 
     it('toggles optimisation and updates the device', async () => {
@@ -102,6 +105,51 @@ describe('OptimisationControl', () => {
         render(<OptimisationControl selectedDevice={device(optimisation())} setDevice={vi.fn()} setError={setError}/>);
         fireEvent.click(screen.getByRole('switch'));
         await waitFor(() => expect(setError).toHaveBeenCalledWith(err));
+    });
+});
+
+describe('isOptimisable', () => {
+    it('is true only for a device with an available profile', () => {
+        expect(isOptimisable(null)).toBe(false);
+        expect(isOptimisable(device())).toBe(false);
+        expect(isOptimisable(device(optimisation()))).toBe(true);
+        expect(isOptimisable(device(optimisation({enabled: false, reason: 'disabled'})))).toBe(true);
+        expect(isOptimisable(device(optimisation({available: false, reason: 'profile_unavailable'})))).toBe(false);
+    });
+});
+
+const IdsProbe = ({selectedDevice, selectedOptimisation, setError}) => {
+    const ids = useOptimisedEntryIds(selectedDevice, selectedOptimisation, null, setError);
+    return <span data-testid="ids">{ids ? [...ids].join(',') : 'none'}</span>;
+};
+
+describe('useOptimisedEntryIds', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('loads ids only while searching on optimisation', async () => {
+        ezbeq.getOptimisedEntries.mockResolvedValue({profiles: ['float32-96k'], ids: ['e1', 'e2']});
+        const {rerender} = render(<IdsProbe selectedDevice={device(optimisation())} selectedOptimisation={null}/>);
+        expect(ezbeq.getOptimisedEntries).not.toHaveBeenCalled();
+        expect(screen.getByTestId('ids')).toHaveTextContent('none');
+        rerender(<IdsProbe selectedDevice={device(optimisation())} selectedOptimisation="optimised"/>);
+        await waitFor(() => expect(screen.getByTestId('ids')).toHaveTextContent('e1,e2'));
+        expect(ezbeq.getOptimisedEntries).toHaveBeenCalledWith('d1');
+    });
+
+    it('does not load ids for a device which cannot be optimised', () => {
+        render(<IdsProbe selectedDevice={device()} selectedOptimisation="optimised"/>);
+        expect(ezbeq.getOptimisedEntries).not.toHaveBeenCalled();
+    });
+
+    it('reports a failed load', async () => {
+        const err = new Error('boom');
+        ezbeq.getOptimisedEntries.mockRejectedValue(err);
+        const setError = vi.fn();
+        render(<IdsProbe selectedDevice={device(optimisation())} selectedOptimisation="optimised" setError={setError}/>);
+        await waitFor(() => expect(setError).toHaveBeenCalledWith(err));
+        expect(screen.getByTestId('ids')).toHaveTextContent('none');
     });
 });
 

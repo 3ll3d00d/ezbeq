@@ -411,6 +411,26 @@ class EntryOptimisation(Resource):
         return (result if result else {'applicable': False, 'profile': None, 'optimised': False, 'inUse': False}), 200
 
 
+@v1_api.route('/<string:device_name>/optimised')
+@v1_api.doc(params={'device_name': 'The dsp device name'})
+class OptimisedEntries(Resource):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__bridge: DeviceRepository = kwargs['device_bridge']
+        self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
+
+    def get(self, device_name: str) -> tuple[dict, int]:
+        """
+        The ids of the catalogue entries which have optimised coefficients this device can load.
+        """
+        try:
+            profiles = self.__bridge.optimisable_profiles(device_name)
+        except NoSuchDevice:
+            return {'message': f'Unknown device {device_name}'}, 404
+        return {'profiles': profiles, 'ids': self.__catalogue_provider.optimised_ids(profiles)}, 200
+
+
 @v1_api.route('/<string:device_name>/levels')
 class DeviceLevels(Resource):
 

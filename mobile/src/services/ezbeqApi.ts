@@ -228,6 +228,9 @@ export class EzbeqApi {
 
   getLevels = async (device: string) => this.doGet(`devices/${device}/levels`);
 
+  getOptimisedEntries = async (device: string): Promise<{ profiles: string[]; ids: string[] }> =>
+    this.doGet(`devices/${device}/optimised`);
+
   getEntryOptimisation = async (device: string, entryId: string): Promise<EntryOptimisation> =>
     this.doGet(`devices/${device}/optimisation/${entryId}`);
 

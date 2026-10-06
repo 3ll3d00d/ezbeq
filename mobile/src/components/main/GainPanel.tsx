@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { IconButton, Text } from 'react-native-paper';
 
@@ -11,6 +11,8 @@ type Props = {
   gains: GainsPayload;
   updateGain: (parent: string, key: 'mv' | 'mute', value: number | boolean) => void;
   commitGain: (parent: string, key: 'mv' | 'mute', value: number | boolean) => void;
+  // rendered at the end of the master row
+  masterExtra?: ReactNode;
 };
 
 // Ported from ui/src/components/main/Gain.jsx. The real "does this device support volume
@@ -19,7 +21,14 @@ type Props = {
 // ('masterVolume')` check) - useGainSync's deriveDeviceGain always defaults master_mv to 0 once
 // synced, so checking it here would never actually be false. This early-out only covers the
 // narrower case of gains not being synced (e.g. a caller passing the hook's raw initial state).
-export default function GainPanel({ selectedSlotId, deviceGains, gains, updateGain, commitGain }: Props) {
+export default function GainPanel({
+  selectedSlotId,
+  deviceGains,
+  gains,
+  updateGain,
+  commitGain,
+  masterExtra = null,
+}: Props) {
   const [channelsOpen, setChannelsOpen] = useState(false);
 
   if (gains.master_mv === undefined) return null;
@@ -43,6 +52,7 @@ export default function GainPanel({ selectedSlotId, deviceGains, gains, updateGa
         onValueChange={(v) => updateGain('master', 'mv', v)}
         onValueCommit={(v) => commitGain('master', 'mv', v)}
         onMuteToggle={(v) => commitGain('master', 'mute', v)}
+        extra={masterExtra}
       />
 
       {hasChannels ? (

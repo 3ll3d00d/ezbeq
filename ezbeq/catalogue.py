@@ -694,6 +694,22 @@ class Catalogues:
         else:
             return None
 
+    def optimised_ids(self, profile_ids: list[str]) -> list[str]:
+        """
+        :param profile_ids: device catalogue profiles.
+        :return: the ids of the entries in the latest catalogue which have optimised biquads in any of those profiles.
+        """
+        catalogue = self.latest
+        if not catalogue or not profile_ids:
+            return []
+        # the biquad count check mirrors DeviceCatalogues.optimised_biquads which ignores mismatched entries
+        sql = (f"SELECT DISTINCT c.{ID} FROM catalogue_entry c "
+               f"JOIN device_entry d ON d.digest = c.{DIGEST} "
+               f"WHERE c.version = ? AND d.profile IN ({', '.join(['?'] * len(profile_ids))}) "
+               f"AND json_array_length(d.biquads) = json_array_length(c.{FILTERS})")
+        with db_ops(self.__db) as cur:
+            return [row[0] for row in cur.execute(sql, (catalogue.version, *profile_ids)).fetchall()]
+
     def whats_new(self, since: int, limit: int = 50) -> list[dict]:
         # Queried the same way as search()/find() rather than kept in memory - the
         # index-backed sqlite table is already the single source of truth for entry
@@ -862,6 +878,9 @@ class CatalogueProvider:
     @property
     def years(self) -> list[str]:
         return self.__load_meta_if_present(YEAR)
+
+    def optimised_ids(self, profile_ids: list[str]) -> list[str]:
+        return self.__catalogues.optimised_ids(profile_ids)
 
     def whats_new(self, since: int, limit: int = 50) -> list[dict]:
         from twisted.internet import reactor

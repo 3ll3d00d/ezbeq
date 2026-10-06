@@ -1,12 +1,15 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Text } from 'react-native';
 
 import {
   describeReason,
   EntryOptimisationChip,
+  isOptimisable,
   OptimisationControl,
+  type OptimisationSearch,
   SlotCoefficientsChip,
   useEntryOptimisation,
+  useOptimisedEntryIds,
 } from './Optimisation';
 import type { EzbeqApi } from '../../services/ezbeqApi';
 import type { CatalogueEntry, DeviceOptimisation, DeviceState } from '../../types/ezbeq';
@@ -34,6 +37,7 @@ const makeApi = (overrides: Partial<EzbeqApi> = {}) =>
   ({
     setOptimisationEnabled: jest.fn(),
     getEntryOptimisation: jest.fn(),
+    getOptimisedEntries: jest.fn(),
     ...overrides,
   }) as unknown as EzbeqApi;
 
@@ -65,16 +69,17 @@ describe('OptimisationControl', () => {
     expect(screen.queryByTestId('optimisation-control')).toBeNull();
   });
 
-  it('shows an enabled switch and no warning when optimised filters are in use', async () => {
+  it('shows just an enabled switch when optimised filters are in use', async () => {
     await render(
       <OptimisationControl api={makeApi()} device={device(optimisation())} onDeviceUpdate={jest.fn()} onError={jest.fn()} />
     );
-    expect(screen.getByTestId('optimisation-switch').props.value).toBe(true);
-    expect(screen.getByText('Use optimised filters (float32 @ 96 kHz)')).toBeTruthy();
-    expect(screen.queryByText('Unoptimised')).toBeNull();
+    const toggle = screen.getByTestId('optimisation-switch');
+    expect(toggle.props.value).toBe(true);
+    expect(screen.getByLabelText('Use optimised filters (float32 @ 96 kHz)')).toBeTruthy();
+    expect(screen.queryByText(/ptimised/)).toBeNull();
   });
 
-  it('warns when switched off', async () => {
+  it('shows an unchecked switch when switched off', async () => {
     await render(
       <OptimisationControl
         api={makeApi()}
@@ -84,11 +89,10 @@ describe('OptimisationControl', () => {
       />
     );
     expect(screen.getByTestId('optimisation-switch').props.value).toBe(false);
-    expect(screen.getByText('Unoptimised')).toBeTruthy();
-    expect(screen.getByText(/switched off/)).toBeTruthy();
+    expect(screen.getByLabelText(/switched off/)).toBeTruthy();
   });
 
-  it('warns without a switch when the device cannot be optimised', async () => {
+  it('shows a disabled switch explaining why when the device cannot be optimised', async () => {
     await render(
       <OptimisationControl
         api={makeApi()}
@@ -97,8 +101,9 @@ describe('OptimisationControl', () => {
         onError={jest.fn()}
       />
     );
-    expect(screen.queryByTestId('optimisation-switch')).toBeNull();
-    expect(screen.getByText('Unoptimised')).toBeTruthy();
+    const toggle = screen.getByTestId('optimisation-switch');
+    expect(toggle.props.value).toBe(false);
+    expect(screen.getByLabelText(/No optimised filters are published/)).toBeTruthy();
   });
 
   it('toggles optimisation and updates the device', async () => {
@@ -109,9 +114,12 @@ describe('OptimisationControl', () => {
       <OptimisationControl api={api} device={device(optimisation())} onDeviceUpdate={onDeviceUpdate} onError={jest.fn()} />
     );
     // a Switch is driven by valueChange, it has no press handler
-    fireEvent(screen.getByTestId('optimisation-switch'), 'valueChange', false);
+    await act(async () => {
+      fireEvent(screen.getByTestId('optimisation-switch'), 'valueChange', false);
+    });
     await waitFor(() => expect(onDeviceUpdate).toHaveBeenCalledWith(updated));
     expect(api.setOptimisationEnabled).toHaveBeenCalledWith('d1', false);
+    await waitFor(() => expect(screen.getByTestId('optimisation-switch').props.disabled).toBeFalsy());
   });
 
   it('reports a failed toggle', async () => {
@@ -121,8 +129,11 @@ describe('OptimisationControl', () => {
     await render(
       <OptimisationControl api={api} device={device(optimisation())} onDeviceUpdate={jest.fn()} onError={onError} />
     );
-    fireEvent(screen.getByTestId('optimisation-switch'), 'valueChange', false);
+    await act(async () => {
+      fireEvent(screen.getByTestId('optimisation-switch'), 'valueChange', false);
+    });
     await waitFor(() => expect(onError).toHaveBeenCalledWith(err));
+    await waitFor(() => expect(screen.getByTestId('optimisation-switch').props.disabled).toBeFalsy());
   });
 });
 
@@ -199,5 +210,57 @@ describe('useEntryOptimisation', () => {
     await screen.rerender(<HookProbe api={api} dev={{ ...device(optimisation()), masterVolume: -10 }} />);
     await screen.rerender(<HookProbe api={api} dev={device(optimisation({ enabled: false, reason: 'disabled' }))} />);
     await waitFor(() => expect(api.getEntryOptimisation).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe('isOptimisable', () => {
+  it('is true only for a device with an available profile', () => {
+    expect(isOptimisable(null)).toBe(false);
+    expect(isOptimisable(device())).toBe(false);
+    expect(isOptimisable(device(optimisation()))).toBe(true);
+    expect(isOptimisable(device(optimisation({ enabled: false, reason: 'disabled' })))).toBe(true);
+    expect(isOptimisable(device(optimisation({ available: false, reason: 'profile_unavailable' })))).toBe(false);
+  });
+});
+
+function IdsProbe({
+  api,
+  dev,
+  search,
+  onError = jest.fn(),
+}: {
+  api: EzbeqApi;
+  dev: DeviceState;
+  search: OptimisationSearch;
+  onError?: (e: Error) => void;
+}) {
+  const ids = useOptimisedEntryIds(api, dev, search, null, onError);
+  return <Text testID="ids">{ids ? [...ids].join(',') : 'none'}</Text>;
+}
+
+describe('useOptimisedEntryIds', () => {
+  it('loads ids only while searching on optimisation', async () => {
+    const api = makeApi({ getOptimisedEntries: jest.fn().mockResolvedValue({ profiles: ['p'], ids: ['e1', 'e2'] }) });
+    await render(<IdsProbe api={api} dev={device(optimisation())} search={null} />);
+    expect(api.getOptimisedEntries).not.toHaveBeenCalled();
+    expect(screen.getByTestId('ids')).toHaveTextContent('none');
+    await screen.rerender(<IdsProbe api={api} dev={device(optimisation())} search="optimised" />);
+    await waitFor(() => expect(screen.getByTestId('ids')).toHaveTextContent('e1,e2'));
+    expect(api.getOptimisedEntries).toHaveBeenCalledWith('d1');
+  });
+
+  it('does not load ids for a device which cannot be optimised', async () => {
+    const api = makeApi();
+    await render(<IdsProbe api={api} dev={device()} search="optimised" />);
+    expect(api.getOptimisedEntries).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed load', async () => {
+    const err = new Error('boom');
+    const api = makeApi({ getOptimisedEntries: jest.fn().mockRejectedValue(err) });
+    const onError = jest.fn();
+    await render(<IdsProbe api={api} dev={device(optimisation())} search="optimised" onError={onError} />);
+    await waitFor(() => expect(onError).toHaveBeenCalledWith(err));
+    expect(screen.getByTestId('ids')).toHaveTextContent('none');
   });
 });

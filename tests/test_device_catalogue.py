@@ -573,3 +573,49 @@ def test_composite_mapped_with_parametric_member(httpserver, tmp_path):
     state = patch_optimisation(client, False, device='home_theatre')
     assert state['optimisation']['enabled'] is False
     assert state['optimisation']['member'] == 'sub1'
+
+
+def get_optimised(client, device: str = 'master'):
+    return client.get(f'/api/1/devices/{device}/optimised')
+
+
+def test_optimised_ids(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _ = make_client(httpserver, tmp_path)
+    r = get_optimised(client)
+    assert r.status_code == 200
+    assert r.json == {'profiles': ['float32-96k'], 'ids': ['123456_0']}
+    # still optimisable when the device is not currently using optimised coefficients
+    patch_optimisation(client, False)
+    assert get_optimised(client).json['ids'] == ['123456_0']
+
+
+def test_optimised_ids_excludes_entries_without_optimisation_or_with_mismatched_counts(httpserver, tmp_path):
+    serve(httpserver, standard_profiles(count=4))
+    client, _ = make_client(httpserver, tmp_path)
+    assert get_optimised(client).json == {'profiles': ['float32-96k'], 'ids': []}
+
+
+@pytest.mark.parametrize('device_type,extra', [('4x10', {}), ('4x10', {'optimisationProfile': 'float32-96k'})],
+                         ids=['no_profile', 'precision_mismatch'])
+def test_optimised_ids_for_device_which_cannot_be_optimised(httpserver, tmp_path, device_type, extra):
+    serve(httpserver, standard_profiles())
+    client, _ = make_client(httpserver, tmp_path, device_type=device_type, extra=extra)
+    assert get_optimised(client).json == {'profiles': [], 'ids': []}
+
+
+def test_optimised_ids_unknown_device(httpserver, tmp_path):
+    client, _ = make_client(httpserver, tmp_path)
+    assert get_optimised(client, device='nope').status_code == 404
+
+
+def test_optimised_ids_for_parametric_device(reaper_client):
+    assert get_optimised(reaper_client, device='reaper1').json == {'profiles': [], 'ids': []}
+
+
+def test_optimised_ids_for_composite(httpserver, tmp_path):
+    from conftest import CompositeMappedSpyConfig
+    serve(httpserver, standard_profiles())
+    app, _ = main.create_app(CompositeMappedSpyConfig(httpserver.host, httpserver.port, tmp_path))
+    assert get_optimised(app.test_client(), device='home_theatre').json == {'profiles': ['float32-96k'],
+                                                                           'ids': ['123456_0']}
