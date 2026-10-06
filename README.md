@@ -115,6 +115,7 @@ See [examples](examples)
 | Minidsp DDRC-88             | [ezbeq_ddrc88.yml](examples/ezbeq_ddrc88.yml)                                                                                                                               |
 | Minidsp HTx                 | [ezbeq_htx.yml](examples/ezbeq_htx.yml)                                                                                                                                     |
 | Minidsp SHD                 | [ezbeq_shd.yml](examples/ezbeq_shd.yml)                                                                                                                                     |
+| Device-optimised filters    | [ezbeq_optimised.yml](examples/ezbeq_optimised.yml)                                                                                                                         |
 | Monolith HTP-1              | [ezbeq_htp1.yml](examples/ezbeq_htp1.yml)                                                                                                                                   |
 | Q-Sys                       | [ezbeq_qsys.yml](examples/ezbeq_qsys.yml)                                                                                                                                   |
 | StormAudio                  | [ezbeq_stormaudio.yml](examples/ezbeq_stormaudio.yml)                                                                                                                       |
@@ -547,6 +548,8 @@ devices:
     device_type: 24HD
     optimisationProfile: none
 ```
+
+See [ezbeq_optimised.yml](examples/ezbeq_optimised.yml) for a fuller example.
 
 A custom layout can either name its device catalogue via `optimisationProfile` or declare its `precision` in the
 `descriptor`, in which case the device catalogue whose precision and sample rate match the descriptor is used. A custom
