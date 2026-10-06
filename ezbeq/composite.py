@@ -77,8 +77,28 @@ class CompositeDeviceState(DeviceState):
             ]
         primary_serialised['type'] = 'composite'
         primary_serialised['name'] = self.name
-        primary_serialised['members'] = {n: s.serialise() for n, s in self.member_states.items()}
+        members = {n: s.serialise() for n, s in self.member_states.items()}
+        primary_serialised['members'] = members
+        optimisation = self.__reduce_optimisation(name_used, members)
+        if optimisation:
+            primary_serialised['optimisation'] = optimisation
+        else:
+            primary_serialised.pop('optimisation', None)
         return primary_serialised
+
+    @staticmethod
+    def __reduce_optimisation(primary_name: str, members: dict[str, dict]) -> dict | None:
+        """
+        The composite is only as optimised as its least optimised member so report the first member not using
+        optimised coefficients, if any, otherwise the primary's (or any member's) status.
+        """
+        statuses = {n: m['optimisation'] for n, m in members.items() if m.get('optimisation')}
+        if not statuses:
+            return None
+        not_in_use = next(((n, o) for n, o in statuses.items() if o.get('reason')), None)
+        if not_in_use:
+            return {**not_in_use[1], 'member': not_in_use[0]}
+        return statuses.get(primary_name, next(iter(statuses.values())))
 
 
 class CompositeDevice(PersistentDevice[CompositeDeviceState]):
