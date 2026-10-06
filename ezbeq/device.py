@@ -150,6 +150,20 @@ class Device(ABC, Generic[T]):
     def levels(self) -> dict:
         pass
 
+    def set_optimisation_enabled(self, enabled: bool) -> bool:
+        """
+        Turns the use of device optimised coefficients on or off, a nop for devices which are sent filter parameters.
+        :return: true if the setting changed.
+        """
+        return False
+
+    def entry_optimisation(self, entry: CatalogueEntry) -> dict | None:
+        """
+        :return: whether the entry has optimised coefficients for this device and whether they would be used, None if
+        optimisation is not applicable to this device.
+        """
+        return None
+
 
 class DeviceRepository:
 
@@ -220,6 +234,9 @@ class DeviceRepository:
 
     def levels(self, device_name: str) -> dict:
         return self.__get_device(device_name).levels()
+
+    def entry_optimisation(self, device_name: str, entry: CatalogueEntry) -> dict | None:
+        return self.__get_device(device_name).entry_optimisation(entry)
 
 
 def _composite_member_names(values: dict) -> list[str]:

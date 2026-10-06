@@ -316,9 +316,36 @@ class CompositeDevice(PersistentDevice[CompositeDeviceState]):
 
         self._hydrate_cache_broadcast(__do_it)
 
+    def set_optimisation_enabled(self, enabled: bool) -> bool:
+        def __do_it() -> bool:
+            changed = False
+            for dev in self.__members.values():
+                changed |= dev.set_optimisation_enabled(enabled)
+            self.__refresh_members()
+            return changed
+
+        return self._hydrate_cache_broadcast(__do_it)
+
+    def entry_optimisation(self, entry: CatalogueEntry) -> dict | None:
+        """
+        optimised if any member has optimised coefficients for the entry, in use only if every such member uses them.
+        """
+        results = [r for r in (dev.entry_optimisation(entry) for dev in self.__members.values()) if r]
+        if not results:
+            return None
+        optimised = [r for r in results if r['optimised']]
+        return {
+            'applicable': True,
+            'profile': optimised[0]['profile'] if optimised else results[0]['profile'],
+            'optimised': len(optimised) > 0,
+            'inUse': len(optimised) > 0 and all(r['inUse'] for r in optimised),
+        }
+
     def update(self, params: dict) -> bool:
         def __do_it() -> bool:
             any_update = False
+            if 'optimisation' in params and 'enabled' in params['optimisation']:
+                any_update |= self.set_optimisation_enabled(bool(params['optimisation']['enabled']))
             if 'slots' in params:
                 for slot in params['slots']:
                     any_update |= self.__update_slot(slot)

@@ -920,11 +920,29 @@ class Minidsp(PersistentDevice[MinidspState]):
 
     def _merge_state(self, loaded: MinidspState, cached: dict) -> MinidspState:
         loaded.merge_with(cached)
+        cached_optimisation = cached.get('optimisation', None)
+        if isinstance(cached_optimisation, dict) and 'enabled' in cached_optimisation:
+            self.__optimisation.enabled = bool(cached_optimisation['enabled'])
         return loaded
+
+    def set_optimisation_enabled(self, enabled: bool) -> bool:
+        def __do_it() -> bool:
+            if self.__optimisation.enabled == enabled:
+                return False
+            logger.info(f"[{self.name}] Device optimised coefficients {'enabled' if enabled else 'disabled'}")
+            self.__optimisation.enabled = enabled
+            return True
+
+        return self._hydrate_cache_broadcast(__do_it)
+
+    def entry_optimisation(self, entry: CatalogueEntry) -> dict | None:
+        return self.__optimisation.describe(entry)
 
     def update(self, params: dict) -> bool:
         def __do_it() -> bool:
             any_update = False
+            if 'optimisation' in params and 'enabled' in params['optimisation']:
+                any_update |= self.set_optimisation_enabled(bool(params['optimisation']['enabled']))
             if 'slots' in params:
                 for slot in params['slots']:
                     any_update |= self.__update_slot(slot)
