@@ -1,6 +1,6 @@
 # Device-optimised BEQ coefficients
 
-Status: approved 2026-10-06.
+Status: implemented 2026-10-06.
 
 beqcatalogue publishes per-device-format catalogues (see `beqcatalogue/plans/device-catalogues.md`)
 holding optimised biquads, keyed by the main catalogue `digest`, for entries where the optimiser
@@ -99,7 +99,8 @@ a device is running unoptimised coefficients.
   profile), lookups, minidsp command generation, mapping incl. fixed-point and mismatch refusal,
   custom descriptors, toggle and slot persistence, old caches, composites.
 - Vitest/Jest: switch, chips, tooltips, parametric devices hidden.
-- Docs: `optimisationProfile`, descriptor `precision`, device table.
+- Docs: `optimisationProfile`, descriptor `precision`, device table (README), example config
+  `examples/ezbeq_optimised.yml`.
 
 ## Phasing (one commit each)
 
