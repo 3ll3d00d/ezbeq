@@ -265,7 +265,7 @@ The [`docker.yaml`](../.github/workflows/docker.yaml) workflow publishes images 
 |---------|--------------|----------------|
 | Push to `main` | `:edge` | Production target - wheel built from local source (snapshot version) |
 | Push to `dev` | `:dev` | Production target - wheel built from local source (snapshot version) |
-| Tag push (e.g. `v1.2.3`) | `:1.2.3`, `:1.2`, `:1`, `:latest` | Production target - released version baked in |
+| Tag push (e.g. `1.2.3`) | `:1.2.3`, `:1.2`, `:1`, `:latest` | Production target - released version baked in |
 | Manual (`workflow_dispatch`) | derived from ref | Production target from any branch |
 
 `:latest` is only ever produced by a version-tag push, so it always points at an actual release - it's never silently reassigned by an ordinary `main` merge. Pull `:edge` (or `:dev`) instead if you specifically want the most recent unreleased build.
