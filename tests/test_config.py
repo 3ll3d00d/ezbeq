@@ -10,6 +10,27 @@ from ezbeq.device import create_devices
 EXAMPLES_DIR = os.path.join(os.path.dirname(__file__), '..', 'examples')
 
 
+@pytest.mark.parametrize('sources', [[], '', [''], [1], {}])
+def test_invalid_catalogue_sources(sources):
+    class SourcesConfig(Config):
+        def load_config(self):
+            return {'devices': {}, 'catalogueSources': sources}
+
+    with pytest.raises(ValueError, match='catalogueSources'):
+        SourcesConfig('test')
+
+
+def test_catalogue_sources_preserves_legacy_url():
+    class SourcesConfig(Config):
+        def load_config(self):
+            return {'devices': {}, 'catalogueUrl': 'http://example.test/',
+                    'catalogueSources': ['http://example.test/', '/local/database.json']}
+
+    cfg = SourcesConfig('test')
+    assert cfg.catalogue_sources == ['http://example.test/', '/local/database.json']
+    assert cfg.beqcatalogue_url == 'http://example.test/'
+
+
 def test_python_version_reports_running_interpreter(tmp_path):
     cfg = StubConfig(tmp_path)
     assert cfg.python_version == '.'.join(str(v) for v in sys.version_info[:3])
