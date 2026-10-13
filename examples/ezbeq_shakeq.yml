@@ -1,0 +1,10 @@
+port: 8080
+devices:
+  # Must match the processor name configured in the separate ShakEQ service.
+  shakeq1:
+    type: shakeq
+    url: http://127.0.0.1:8081
+    # Existing service token; relative to ezBEQ's configuration directory.
+    tokenFile: shakeq-service.token
+    requestTimeout: 120
+    stateTimeout: 2
