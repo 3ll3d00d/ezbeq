@@ -280,6 +280,9 @@ def _device_class_for_type(d_type: str) -> type[Device]:
     elif d_type == 'qsys':
         from ezbeq.qsys import Qsys
         return Qsys
+    elif d_type == 'shakeq':
+        from ezbeq.shakeq import ShakEQ
+        return ShakEQ
     elif d_type == 'camilladsp':
         from ezbeq.camilladsp import CamillaDsp
         return CamillaDsp
