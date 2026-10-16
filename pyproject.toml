@@ -37,7 +37,7 @@ dev = [
     "pytest-httpserver>=1.0.7,<1.2.0",
     "pytest-cov ~=7.1.0",
     "busypie ~=0.6.1",
-    "pyupgrade ~=3.21.2",
+    "pyupgrade>=3.21.2,<3.23.0",
     "ruff >=0.15.5, <0.17.0",
     "ty >=0.0.32, <0.1.0",
 ]
