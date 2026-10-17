@@ -293,7 +293,7 @@ class Catalogue:
 
     @property
     def stale(self):
-        now = datetime.now(self.loaded_at.tzinfo) if self.loaded_at.tzinfo else datetime.now()  # noqa: DTZ005
+        now = datetime.now(self.loaded_at.tzinfo) if self.loaded_at.tzinfo else datetime.now()
         return (now - self.loaded_at) > timedelta(minutes=5)
 
     def json(self) -> dict:
