@@ -133,6 +133,27 @@ describe('network calls', () => {
     expect(global.fetch).toHaveBeenCalledWith(`${BASE_URL}/api/1/devices/d1/optimised`, expect.anything());
   });
 
+  it('getFilters GETs the filters for every requested entry id', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: true, json: () => Promise.resolve([{ id: 'e1', filters: [] }]) });
+
+    await expect(api.getFilters(['e1', 'a b'])).resolves.toEqual([{ id: 'e1', filters: [] }]);
+
+    expect(global.fetch).toHaveBeenCalledWith(`${BASE_URL}/api/1/catalogue/filters?ids=e1&ids=a%20b`, expect.anything());
+  });
+
+  it('getFilters splits large requests into batches of at most 50 ids', async () => {
+    const ids = Array.from({ length: 120 }, (_, i) => `e${i}`);
+    const idsOf = (url: string) => new URL(url).searchParams.getAll('ids');
+    (global.fetch as jest.Mock).mockImplementation((url: string) =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve(idsOf(url).map((id) => ({ id, filters: [] }))) })
+    );
+
+    const results = await api.getFilters(ids);
+
+    expect((global.fetch as jest.Mock).mock.calls.map((c) => idsOf(c[0]).length)).toEqual([50, 50, 20]);
+    expect(results.map((r) => r.id)).toEqual(ids);
+  });
+
   it('getEntryOptimisation GETs the device entry optimisation', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({ ok: true, json: () => Promise.resolve({ optimised: true }) });
 

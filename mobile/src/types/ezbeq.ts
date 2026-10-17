@@ -76,12 +76,27 @@ export type CatalogueEntry = {
   genres?: string[];
   season?: string;
   episodes?: string;
+  episode?: string;
   mvAdjust?: number;
   note?: string;
   warning?: string;
   created_at?: number;
   updated_at?: number;
   [key: string]: unknown;
+};
+
+// a filter's parameters as returned by /api/1/catalogue/filters, see ezbeq/apis/catalogue.py
+export type FilterParams = {
+  type: string;
+  freq: number;
+  gain: number;
+  q: number;
+  count?: number;
+};
+
+export type EntryFilters = {
+  id: string;
+  filters: FilterParams[];
 };
 
 export type CatalogueMeta = {
