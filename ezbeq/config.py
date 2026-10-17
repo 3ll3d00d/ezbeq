@@ -22,6 +22,10 @@ class Config:
         if 'catalogueUrl' in self.config:
             self.__beqcatalogue_url = self.config['catalogueUrl']
             self.logger.warning(f"Loading catalogue from custom location {self.__beqcatalogue_url}")
+        sources = self.config.get('catalogueSources')
+        if sources is not None and (not isinstance(sources, list) or not sources or
+                                    any(not isinstance(s, str) or not s.strip() for s in sources)):
+            raise ValueError('catalogueSources must be a non-empty list of URLs or local paths')
         self.devices = self.config['devices']
         self.webapp_path = self.config.get('webappPath', None)
 
@@ -58,6 +62,10 @@ class Config:
     @property
     def beqcatalogue_url(self) -> str:
         return self.__beqcatalogue_url
+
+    @property
+    def catalogue_sources(self) -> list[str] | None:
+        return self.config.get('catalogueSources')
 
     @property
     def catalogue_refresh_interval(self) -> float:
