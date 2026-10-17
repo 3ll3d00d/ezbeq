@@ -402,11 +402,11 @@ class TestCatalogueStale:
     """
 
     def test_stale_with_naive_loaded_at(self):
-        c = Catalogue(count=1, version='v1', loaded_at=datetime.now() - timedelta(minutes=10))  # noqa: DTZ005
+        c = Catalogue(count=1, version='v1', loaded_at=datetime.now() - timedelta(minutes=10))
         assert c.stale is True
 
     def test_not_stale_with_naive_loaded_at(self):
-        c = Catalogue(count=1, version='v1', loaded_at=datetime.now())  # noqa: DTZ005
+        c = Catalogue(count=1, version='v1', loaded_at=datetime.now())
         assert c.stale is False
 
     def test_stale_with_aware_loaded_at(self):
