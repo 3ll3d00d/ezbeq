@@ -250,6 +250,32 @@ ezbeq will instead load the catalogue from `http://localhost:9999/database.json`
 
 This provides the ability to run ezbeq against a custom, or locally provided, catalogue.
 
+To combine multiple catalogues, configure `catalogueSources` instead:
+
+```yaml
+catalogueSources:
+  - https://raw.githubusercontent.com/3ll3d00d/beqcatalogue/master/docs/
+  - http://localhost:9999/
+  - /home/user/my-beq/database.json
+  - local-catalogue
+catalogueRefreshSeconds: 300
+```
+
+Each HTTP(S) URL is a base URL containing `database.json` and optionally `version.txt`.
+Local sources may be JSON files, directories containing `database.json`, or `file:///` URLs.
+Files use the same JSON array format as the published catalogue. Relative paths are resolved
+against the directory containing `ezbeq.yml`; `~` is expanded for local paths.
+
+The list replaces the default catalogue, so include the GitHub URL to keep it. All sources are
+polled on the existing refresh schedule. Local changes are detected from file contents and need
+no `version.txt`. Entries are combined for browsing, searching and loading filters; duplicate
+non-empty digests use the first entry in source order. Entries without a digest are kept separately.
+An unavailable or invalid source keeps its last cached entries while other sources continue updating;
+a source that has never loaded is skipped. Removing a source from the list removes its entries
+after restarting ezbeq. A valid empty array removes that source's entries.
+
+Device optimisation profiles continue to come from `catalogueUrl` (the GitHub default when unset).
+
 ### Configuring Devices
 
 The devices section contains a list of supported device, the format varies by the type of device and each item is a
