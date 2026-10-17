@@ -162,6 +162,30 @@ describe('network calls', () => {
         }));
     });
 
+    it('getFilters GETs the filters for every requested entry id', async () => {
+        global.fetch.mockResolvedValue({ok: true, json: () => Promise.resolve([{id: 'e1', filters: []}])});
+
+        await expect(ezbeq.getFilters(['e1', 'a b'])).resolves.toEqual([{id: 'e1', filters: []}]);
+
+        expect(global.fetch).toHaveBeenCalledWith('/api/1/catalogue/filters?ids=e1&ids=a%20b', expect.objectContaining({
+            method: 'GET'
+        }));
+    });
+
+    it('getFilters splits large requests into batches of at most 50 ids', async () => {
+        const ids = Array.from({length: 120}, (_, i) => `e${i}`);
+        global.fetch.mockImplementation(url => {
+            const requested = new URL(url, 'http://x').searchParams.getAll('ids');
+            return Promise.resolve({ok: true, json: () => Promise.resolve(requested.map(id => ({id, filters: []})))});
+        });
+
+        const results = await ezbeq.getFilters(ids);
+
+        expect(global.fetch).toHaveBeenCalledTimes(3);
+        expect(global.fetch.mock.calls.map(c => new URL(c[0], 'http://x').searchParams.getAll('ids').length)).toEqual([50, 50, 20]);
+        expect(results.map(r => r.id)).toEqual(ids);
+    });
+
     it('doGet throws with the endpoint name on a non-ok response', async () => {
         global.fetch.mockResolvedValue({ok: false, status: 404});
 

@@ -11,6 +11,15 @@ vi.mock('../../services/ezbeq', () => ({
     }
 }));
 
+vi.mock('./Compare', () => ({
+    default: ({matches, onSelect, onClose}) => (
+        <div data-testid="compare">
+            {matches.map(m => <button key={m.id} onClick={() => onSelect(m.id)}>pick {m.id}</button>)}
+            <button onClick={onClose}>close compare</button>
+        </div>
+    )
+}));
+
 const gainCapableDevice = () => ({
     name: 'd1',
     slots: [{
@@ -294,5 +303,25 @@ describe('Entry optimisation target slot', () => {
         };
         renderEntry({selectedDevice, selectedEntry: entryWithMvAdjust()});
         expect(await screen.findByText('Unoptimised')).toBeInTheDocument();
+    });
+
+    describe('compare', () => {
+        const movie = (id, author) => ({id, title: 'Some Movie', year: 2020, contentType: 'film', author, audioTypes: ['Atmos']});
+        const entries = [movie('e1', 'a1'), movie('e2', 'a2'), {...movie('e3', 'a3'), audioTypes: ['DD+']}];
+
+        it('hides the compare button when nothing else matches', () => {
+            renderEntry({selectedEntry: entries[0], entries: [entries[0]], setSelectedEntryId: vi.fn()});
+            expect(screen.queryByRole('button', {name: /Compare/})).not.toBeInTheDocument();
+        });
+
+        it('opens the comparison and selects the chosen match', async () => {
+            const setSelectedEntryId = vi.fn();
+            renderEntry({selectedEntry: entries[0], entries, setSelectedEntryId});
+            fireEvent.click(screen.getByRole('button', {name: 'Compare (1)'}));
+            fireEvent.click(await screen.findByRole('button', {name: 'pick e2'}));
+            expect(setSelectedEntryId).toHaveBeenCalledWith('e2');
+            fireEvent.click(screen.getByRole('button', {name: 'close compare'}));
+            expect(screen.queryByTestId('compare')).not.toBeInTheDocument();
+        });
     });
 });

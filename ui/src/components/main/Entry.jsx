@@ -12,9 +12,14 @@ import {
 } from "@mui/material";
 import Typography from "@mui/material/Typography";
 import PublishIcon from "@mui/icons-material/Publish";
-import React, {useEffect, useMemo, useState} from "react";
+import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
+import React, {lazy, Suspense, useEffect, useMemo, useState} from "react";
 import ezbeq from "../../services/ezbeq";
 import {EntryOptimisationChip, slotOptimises, useEntryOptimisation} from "./Optimisation";
+import {buildCompareIndex, findComparable} from "../../services/compare";
+
+// only needed once the user asks to compare, and pulls in uPlot
+const CompareDialog = lazy(() => import("./Compare"));
 
 const formatExtraMeta = entry => {
     const extras = []
@@ -149,12 +154,18 @@ const Uploader = ({
     );
 };
 
-const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotId, setError, setSuccess, setUploadPendingSlotId}) => {
+const Entry = ({
+                   selectedDevice, selectedEntry, useWide, setDevice, selectedSlotId, setError, setSuccess,
+                   setUploadPendingSlotId, entries, setSelectedEntryId
+               }) => {
     const [uploadSlotId, setUploadSlotId] = useState(null);
     const [sendGain, setSendGain] = useState(false);
     const [pending, setPending] = useState(false);
     const [acceptGain, setAcceptGain] = useState(false);
+    const [comparing, setComparing] = useState(false);
     const entryOptimisation = useEntryOptimisation(selectedDevice, selectedEntry);
+    const compareIndex = useMemo(() => buildCompareIndex(entries), [entries]);
+    const comparable = useMemo(() => findComparable(selectedEntry, compareIndex), [selectedEntry, compareIndex]);
 
     useEffect(() => {
         setSendGain(false);
@@ -291,6 +302,23 @@ const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotI
                     selectedEntry.beqcUrl
                         ? <Button size="small" color="primary" href={selectedEntry.beqcUrl}
                                   target='_beq'>Catalogue</Button>
+                        : null
+                }
+                {
+                    comparable.length > 0 && setSelectedEntryId
+                        ? <Button size="small" color="primary" startIcon={<CompareArrowsIcon fontSize="small"/>}
+                                  onClick={() => setComparing(true)}>Compare ({comparable.length})</Button>
+                        : null
+                }
+                {
+                    comparing
+                        ? <Suspense fallback={null}>
+                            <CompareDialog selectedEntry={selectedEntry}
+                                           matches={comparable}
+                                           onSelect={setSelectedEntryId}
+                                           onClose={() => setComparing(false)}
+                                           setError={setError}/>
+                        </Suspense>
                         : null
                 }
             </FormGroup>;
