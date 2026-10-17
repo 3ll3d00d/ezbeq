@@ -171,6 +171,12 @@ const Entry = ({
         setSendGain(false);
     }, [selectedEntry]);
 
+    // keyed on id, a catalogue refresh replaces the entry object but shouldn't close the comparison
+    const selectedEntryId = selectedEntry ? selectedEntry.id : null;
+    useEffect(() => {
+        setComparing(false);
+    }, [selectedEntryId]);
+
     useEffect(() => {
         const slot = selectedDevice && selectedDevice.slots ? selectedDevice.slots.find(s => s.id === uploadSlotId) : null;
         const accepted = slot && slot.gains && Object.keys(slot.gains).length > 0;

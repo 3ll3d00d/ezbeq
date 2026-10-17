@@ -85,6 +85,7 @@ const CompareDialog = ({selectedEntry, matches, onSelect, onClose, setError}) =>
 
     useEffect(() => {
         let cancelled = false;
+        setFailed(false);
         ezbeq.getFilters(idsKey.split('\n'))
             .then(results => {
                 if (!cancelled) setFiltersById(Object.fromEntries(results.map(r => [r.id, r.filters])));

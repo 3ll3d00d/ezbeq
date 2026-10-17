@@ -323,5 +323,17 @@ describe('Entry optimisation target slot', () => {
             fireEvent.click(screen.getByRole('button', {name: 'close compare'}));
             expect(screen.queryByTestId('compare')).not.toBeInTheDocument();
         });
+
+        it('closes the comparison when another entry is selected, but not when the same one is refreshed', async () => {
+            const props = {entries, setSelectedEntryId: vi.fn(), selectedDevice: null, useWide: true, setDevice: vi.fn(),
+                selectedSlotId: '1', setError: vi.fn(), setSuccess: vi.fn(), setUploadPendingSlotId: vi.fn()};
+            const {rerender} = render(<Entry {...props} selectedEntry={entries[0]}/>);
+            fireEvent.click(screen.getByRole('button', {name: 'Compare (1)'}));
+            await screen.findByTestId('compare');
+            rerender(<Entry {...props} selectedEntry={{...entries[0]}}/>);
+            expect(screen.getByTestId('compare')).toBeInTheDocument();
+            rerender(<Entry {...props} selectedEntry={entries[1]}/>);
+            expect(screen.queryByTestId('compare')).not.toBeInTheDocument();
+        });
     });
 });

@@ -1,5 +1,5 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {fireEvent, render, screen, waitFor, within} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import CompareDialog, {maxDifference, variantLabel} from './Compare';
 import ezbeq from '../../services/ezbeq';
 
@@ -186,15 +186,26 @@ describe('CompareDialog', () => {
         expect(setError).toHaveBeenCalledWith(err);
     });
 
-    it('ignores a response which arrives after closing', async () => {
-        let resolve;
-        ezbeq.getFilters.mockReturnValue(new Promise(r => {
-            resolve = r;
+    it('ignores a failure which arrives after closing', async () => {
+        let reject;
+        ezbeq.getFilters.mockReturnValue(new Promise((_, r) => {
+            reject = r;
         }));
         const setError = vi.fn();
         const {unmount} = renderDialog({setError});
         unmount();
-        resolve([]);
-        await waitFor(() => expect(setError).not.toHaveBeenCalled());
+        // let the rejection's handlers run before asserting they did nothing
+        await act(async () => reject(new Error('late')));
+        expect(setError).not.toHaveBeenCalled();
+    });
+
+    it('clears a failure once a later load of different entries succeeds', async () => {
+        ezbeq.getFilters.mockRejectedValueOnce(new Error('boom'));
+        const props = {onSelect: vi.fn(), onClose: vi.fn(), setError: vi.fn()};
+        const {rerender} = render(<CompareDialog selectedEntry={selected} matches={[other]} {...props}/>);
+        expect(await screen.findByText('Unable to load filters')).toBeInTheDocument();
+        rerender(<CompareDialog selectedEntry={selected} matches={[other, entry('n')]} {...props}/>);
+        expect(await screen.findByTestId('chart')).toBeInTheDocument();
+        expect(screen.queryByText('Unable to load filters')).not.toBeInTheDocument();
     });
 });
