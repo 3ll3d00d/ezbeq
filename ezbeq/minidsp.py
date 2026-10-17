@@ -11,7 +11,7 @@ from typing import Any
 import yaml
 from autobahn.exception import Disconnected
 from autobahn.twisted import WebSocketClientFactory, WebSocketClientProtocol
-from plumbum import ProcessExecutionError
+from plumbum import ProcessExecutionError, ProcessTimedOut
 from twisted.internet.protocol import ReconnectingClientFactory
 
 from ezbeq import to_millis
@@ -705,7 +705,7 @@ class Minidsp(PersistentDevice[MinidspState]):
                                 logger.debug(f'[{self.name}] Unexpected output from probe : {line}')
                     if serials:
                         values['serials'] = serials
-                except Exception:
+                except (ProcessExecutionError, ProcessTimedOut, OSError):
                     logger.warning(f'[{self.name}] Unable to probe')
                 return MinidspState(self.name, self.__descriptor, self.__optimisation, **values)
             else:

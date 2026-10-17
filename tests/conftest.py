@@ -285,6 +285,9 @@ class MinidspSpy:
             return self._version_str
         if self.pending:
             self.history.append(self.pending)
+            if self.pending[-1] == 'probe':
+                self.pending = []
+                return ''
             if len(self.pending[-1]) == 2 and self.pending[-1][0] == '-f':
                 with open(self.pending[-1][1]) as f:
                     new_cmds = [c for c in f.read().split('\n') if c]

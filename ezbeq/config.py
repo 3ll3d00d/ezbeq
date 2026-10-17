@@ -293,7 +293,7 @@ class Config:
                 ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
                 stderr=subprocess.DEVNULL, cwd=os.path.dirname(__file__)
             ).decode().strip()
-        except Exception:
+        except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
             self.logger.debug('Unable to determine git branch/sha, not running from a git checkout')
         return result
 
