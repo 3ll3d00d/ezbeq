@@ -3,6 +3,7 @@ import os
 
 import pytest
 from conftest import MinidspSpy, MinidspSpyConfig
+from plumbum import ProcessExecutionError
 
 
 def verify_slot(slot: dict, idx: int, active: bool = False, gain = (0.0, 0.0), mute = (False, False), last: str = 'Empty', author: str | None = None):
@@ -46,6 +47,25 @@ def test_devices(minidsp_client, minidsp_app):
     assert r
     assert r.status_code == 200
     verify_default_device_state(r.json)
+
+
+def test_devices_reports_probed_serials(minidsp_client, minidsp_app):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    config.spy.probe_output = '0: Found 2x4HD with serial 911111 at ws://localhost/devices/0/ws [hw_id: 10, dsp_version: 100]\n' \
+                              'unexpected probe line'
+    r = minidsp_client.get("/api/1/devices")
+    assert r.status_code == 200
+    verify_default_device_state(r.json)
+    assert r.json['serials'] == ['911111']
+
+
+def test_devices_tolerates_probe_failure(minidsp_client, minidsp_app):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    config.spy.probe_error = ProcessExecutionError(['minidsp', 'probe'], 1, '', 'no device')
+    r = minidsp_client.get("/api/1/devices")
+    assert r.status_code == 200
+    verify_default_device_state(r.json)
+    assert 'serials' not in r.json
 
 
 @pytest.mark.parametrize("slot", [1, 2, 3, 4])
