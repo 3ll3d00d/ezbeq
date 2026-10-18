@@ -143,25 +143,22 @@ def test_version_includes_python_fields_reflecting_config(version_client_no_git)
 
 
 # ─── Config.version fallback chain ──────────────────────────────────────────
-# These tests exercise the actual fallback logic (VERSION file → pyproject.toml
-# → importlib.metadata → 'UNKNOWN'). They sidestep the VersionedConfig stub
+# These tests exercise the actual fallback logic (VERSION file → importlib.metadata
+# → 'UNKNOWN'). They sidestep the VersionedConfig stub
 # above, which overrides `version` entirely.
 
-def _make_fake_root(tmp_path, version_content=None, pyproject_content=None):
+def _make_fake_root(tmp_path, version_content=None):
     """Stand up a fake ezbeq package directory under tmp_path.
 
     Mirrors the on-disk layout that Config.version reads:
       <root>/ezbeq/__init__.py     ← config.py's __file__ is patched here
       <root>/ezbeq/VERSION         ← optional VERSION file
-      <root>/pyproject.toml        ← optional pyproject.toml
     """
     fake_ezbeq = tmp_path / 'ezbeq'
     fake_ezbeq.mkdir()
     (fake_ezbeq / '__init__.py').write_text('')
     if version_content is not None:
         (fake_ezbeq / 'VERSION').write_text(version_content)
-    if pyproject_content is not None:
-        (tmp_path / 'pyproject.toml').write_text(pyproject_content)
     return fake_ezbeq
 
 
@@ -191,14 +188,7 @@ def test_version_strips_VERSION_file_whitespace(tmp_path, monkeypatch):
     assert cfg.version == '1.2.3'
 
 
-def test_version_from_pyproject_project_version(tmp_path, monkeypatch):
-    pyproject = '[project]\nname = "ezbeq"\nversion = "5.4.3"\n'
-    fake = _make_fake_root(tmp_path, pyproject_content=pyproject)
-    cfg = _bare_config(monkeypatch, fake)
-    assert cfg.version == '5.4.3'
-
-
-def test_version_falls_back_to_metadata_when_no_VERSION_or_pyproject(tmp_path, monkeypatch):
+def test_version_falls_back_to_metadata_when_no_VERSION_file(tmp_path, monkeypatch):
     # Production Docker image case: ezbeq is pip-installed, source tree is
     # absent. importlib.metadata is the source of truth.
     fake = _make_fake_root(tmp_path)
@@ -211,7 +201,7 @@ def test_version_falls_back_to_metadata_when_no_VERSION_or_pyproject(tmp_path, m
 
 
 def test_version_unknown_when_nothing_resolves(tmp_path, monkeypatch):
-    # Defensive: VERSION absent, pyproject absent, package not installed under
+    # Defensive: VERSION absent, package not installed under
     # this name. Fallback returns the literal 'UNKNOWN' rather than raising.
     fake = _make_fake_root(tmp_path)
     cfg = _bare_config(monkeypatch, fake)
@@ -220,14 +210,3 @@ def test_version_unknown_when_nothing_resolves(tmp_path, monkeypatch):
         raise md.PackageNotFoundError(name)
     monkeypatch.setattr(md, 'version', _missing)
     assert cfg.version == 'UNKNOWN'
-
-
-def test_version_recovers_from_corrupt_pyproject(tmp_path, monkeypatch, caplog):
-    # A malformed pyproject.toml shouldn't be a silent failure: it should log
-    # a warning and continue down the chain.
-    fake = _make_fake_root(tmp_path, pyproject_content='this is [ not valid toml')
-    cfg = _bare_config(monkeypatch, fake)
-    with caplog.at_level(logging.WARNING, logger='test.config'):
-        v = cfg.version
-    assert v != 'UNKNOWN'  # falls through to importlib.metadata
-    assert any('pyproject.toml' in record.message for record in caplog.records)

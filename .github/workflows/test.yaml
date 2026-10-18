@@ -13,13 +13,11 @@ defaults:
   run:
     shell: bash
 jobs:
-  detect-version-bump:
-    uses: ./.github/workflows/detect-version-bump.yaml
   detect-changed-paths:
     uses: ./.github/workflows/detect-changed-paths.yaml
   build:
-    needs: [detect-version-bump, detect-changed-paths]
-    if: needs.detect-version-bump.outputs.skip != 'true' && needs.detect-changed-paths.outputs.python == 'true'
+    needs: [detect-changed-paths]
+    if: needs.detect-changed-paths.outputs.python == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -65,28 +63,20 @@ jobs:
   required-checks:
     name: Required checks
     runs-on: ubuntu-latest
-    needs: [detect-version-bump, detect-changed-paths, build]
+    needs: [detect-changed-paths, build]
     if: always()
     # statuses:read lets the coverage-gate step below poll Codecov's commit status via the API.
     permissions:
       statuses: read
     steps:
       - name: Check build result
-        # Check the gating jobs' own result before trusting their outputs - if either crashed
+        # Check the gating job's own result before trusting its outputs - if it crashed
         # outright (e.g. a dorny/paths-filter hiccup), its output is empty, which "!= 'true'"
         # would otherwise misreport as a legitimate skip instead of the CI infra failure it is.
         run: |
-          if [[ "${{ needs.detect-version-bump.result }}" != "success" ]]; then
-            echo "detect-version-bump job did not succeed: ${{ needs.detect-version-bump.result }}"
-            exit 1
-          fi
           if [[ "${{ needs.detect-changed-paths.result }}" != "success" ]]; then
             echo "detect-changed-paths job did not succeed: ${{ needs.detect-changed-paths.result }}"
             exit 1
-          fi
-          if [[ "${{ needs.detect-version-bump.outputs.skip }}" == "true" ]]; then
-            echo "Skipping: version-only bump commit"
-            exit 0
           fi
           if [[ "${{ needs.detect-changed-paths.outputs.python }}" != "true" ]]; then
             echo "Skipping: no python-relevant changes"
@@ -104,7 +94,7 @@ jobs:
         # pushing" item on wrapper jobs for the identical problem with build/test-run), this step
         # only ever waits when an upload was actually expected. Coarse heartbeat poll bounded by a
         # timeout, same pattern as the "waiting for PR checks" guidance in AGENTS.md.
-        if: needs.detect-version-bump.outputs.skip != 'true' && needs.detect-changed-paths.outputs.python == 'true'
+        if: needs.detect-changed-paths.outputs.python == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

@@ -1,6 +1,6 @@
 [project]
 name = "ezbeq"
-version = "2.12.2"
+dynamic = ["version"]
 description = "A webapp which can send beqcatalogue filters to a DSP device"
 authors = [
     { name = "3ll3d00d", email = "mattkhan+ezbeq@gmail.com" }
@@ -56,8 +56,14 @@ markers = [
 ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+# Version comes from the git tag (e.g. tag 2.12.3 -> 2.12.3); untagged commits get
+# a dev version like 2.12.4.dev3+gabc1234. Builds without .git (docker) must set
+# SETUPTOOLS_SCM_PRETEND_VERSION.
+source = "vcs"
 
 [tool.hatch.build]
 # ezbeq/ui (built frontend) and ezbeq/VERSION are generated at release/build
