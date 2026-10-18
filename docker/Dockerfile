@@ -107,9 +107,12 @@ RUN --mount=type=cache,target=/app/ui/.yarn/cache \
 # PyPI fetch; the image reflects exactly the source at build time. On tag
 # builds, CI writes ezbeq/VERSION before `docker build`; that file is included
 # in the wheel via pyproject.toml's `include` list, so the image carries the
-# released version. On branch builds with no VERSION file, config.version
-# falls back to pyproject.toml's declared version.
+# released version. The package version itself is derived from the git tag by
+# hatch-vcs, but .git is excluded from the build context, so CI passes it in via
+# EZBEQ_VERSION; local builds without it get a placeholder.
 FROM base AS builder
+
+ARG EZBEQ_VERSION=0.0.0+unknown
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -131,7 +134,7 @@ COPY pyproject.toml uv.lock README.md ./
 COPY ezbeq/ ./ezbeq/
 COPY --from=ui-builder /app/ezbeq/ui ./ezbeq/ui/
 
-RUN pip install --no-cache-dir .
+RUN SETUPTOOLS_SCM_PRETEND_VERSION="${EZBEQ_VERSION}" pip install --no-cache-dir .
 
 # ── Production: clean runtime image ──────────────────────────────────────────
 FROM base AS production

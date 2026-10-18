@@ -1,12 +1,11 @@
 name: Detect changed paths
-# Companion to detect-version-bump.yaml: test.yaml/test-ui.yaml/test-mobile.yaml lost their own
+# test.yaml/test-ui.yaml/test-mobile.yaml lost their own
 # path filters in PR #113 specifically because a path-filtered *required* status check can get
 # stuck permanently pending on a PR that never touches that path (GitHub has no way to distinguish
 # "legitimately skipped" from "never ran"). This workflow keeps the same fix - the workflow trigger
 # itself always fires - but reintroduces the actual point of path filtering (skipping unrelated
 # work) at the *job* level instead, via each caller's own `if:`. A job whose `if:` evaluates false
-# reports as "skipped", which GitHub branch protection treats as a passing required check - the
-# same mechanism the version-bump skip already relies on.
+# reports as "skipped", which GitHub branch protection treats as a passing required check.
 on:
   workflow_call:
     outputs:
@@ -67,19 +66,16 @@ jobs:
               - '.coveragerc'
               - 'codecov.yml'
               - '.github/workflows/test.yaml'
-              - '.github/workflows/detect-version-bump.yaml'
               - '.github/workflows/detect-changed-paths.yaml'
             ui:
               - 'ui/**'
               - 'codecov.yml'
               - '.github/workflows/test-ui.yaml'
-              - '.github/workflows/detect-version-bump.yaml'
               - '.github/workflows/detect-changed-paths.yaml'
             mobile:
               - 'mobile/**'
               - 'codecov.yml'
               - '.github/workflows/test-mobile.yaml'
-              - '.github/workflows/detect-version-bump.yaml'
               - '.github/workflows/detect-changed-paths.yaml'
             # '**' minus '!mobile/**' (gitignore-style: later negation wins) rather than an
             # explicit allow-list - the docker image build (docker/Dockerfile's production target)

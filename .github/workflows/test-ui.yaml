@@ -14,14 +14,12 @@ defaults:
     shell: bash
     working-directory: ./ui
 jobs:
-  detect-version-bump:
-    uses: ./.github/workflows/detect-version-bump.yaml
   detect-changed-paths:
     uses: ./.github/workflows/detect-changed-paths.yaml
   test-run:
     name: UI test run
-    needs: [detect-version-bump, detect-changed-paths]
-    if: needs.detect-version-bump.outputs.skip != 'true' && needs.detect-changed-paths.outputs.ui == 'true'
+    needs: [detect-changed-paths]
+    if: needs.detect-changed-paths.outputs.ui == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -44,13 +42,13 @@ jobs:
         run: yarn build
   # This job, not test-run, is the one named "UI tests" and required by branch protection - see
   # test.yaml's "Required checks" job for why. If test-run's `if:` were the only gate, a crashed
-  # detect-version-bump/detect-changed-paths (empty outputs, not just false ones) would make
+  # detect-changed-paths (empty outputs, not just false ones) would make
   # GitHub auto-skip test-run via its default "needs jobs must succeed" behavior, and a skipped
   # required check reports as passing - silently masking a real CI infra failure as a green check.
   test:
     name: UI tests
     runs-on: ubuntu-latest
-    needs: [detect-version-bump, detect-changed-paths, test-run]
+    needs: [detect-changed-paths, test-run]
     if: always()
     # statuses:read lets the coverage-gate step below poll Codecov's commit status via the API.
     permissions:
@@ -62,17 +60,9 @@ jobs:
       - name: Check test result
         working-directory: .
         run: |
-          if [[ "${{ needs.detect-version-bump.result }}" != "success" ]]; then
-            echo "detect-version-bump job did not succeed: ${{ needs.detect-version-bump.result }}"
-            exit 1
-          fi
           if [[ "${{ needs.detect-changed-paths.result }}" != "success" ]]; then
             echo "detect-changed-paths job did not succeed: ${{ needs.detect-changed-paths.result }}"
             exit 1
-          fi
-          if [[ "${{ needs.detect-version-bump.outputs.skip }}" == "true" ]]; then
-            echo "Skipping: version-only bump commit"
-            exit 0
           fi
           if [[ "${{ needs.detect-changed-paths.outputs.ui }}" != "true" ]]; then
             echo "Skipping: no ui-relevant changes"
@@ -85,7 +75,7 @@ jobs:
       - name: Wait for Codecov coverage-regression result
         # See test.yaml's "Required checks" job for why this lives here instead of requiring the
         # raw `codecov/project/ui` status context directly in branch protection.
-        if: needs.detect-version-bump.outputs.skip != 'true' && needs.detect-changed-paths.outputs.ui == 'true'
+        if: needs.detect-changed-paths.outputs.ui == 'true'
         working-directory: .
         env:
           GH_TOKEN: ${{ github.token }}
