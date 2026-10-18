@@ -99,6 +99,16 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, selec
     // console.debug(`denominator: ${halfHeight ? 2 : 1}`);
     // console.debug(`Grid Height: ${gridHeight}`);
     const authors = useMemo(() => new Set(entries.map(e => e.author)), [entries]);
+    // controlled so a selection made elsewhere (compare, what's new) is highlighted here too, but only
+    // with ids the grid has as it prunes (and reports as a deselection) any it doesn't
+    const rowSelectionModel = useMemo(
+        () => ({type: 'include', ids: new Set(entries.some(e => e.id === selectedEntryId) ? [selectedEntryId] : [])}),
+        [entries, selectedEntryId]
+    );
+    const onRowSelectionModelChange = e => {
+        const id = e.ids.values().next().value;
+        if (id !== undefined) setSelectedEntryId(id);
+    };
     const grid =
         <Grid style={{
             height: `${gridHeight}px`,
@@ -109,7 +119,8 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, selec
                               pageSize={50}
                               density={'compact'}
                               initialState={{sorting: {sortModel: [{field: 'sortTitle', sort: 'asc'}]}}}
-                              onRowSelectionModelChange={e => setSelectedEntryId(e.ids.values().next().value) }
+                              rowSelectionModel={rowSelectionModel}
+                              onRowSelectionModelChange={onRowSelectionModelChange}
                               columnVisibilityModel={{sortTitle: false, edition: useWide, author: authors.size > 1}}
                               sx={{p: 0, '& .avatar': { paddingLeft: '0px', paddingRight: '0px' }}}
                               disableColumnMenu={true}

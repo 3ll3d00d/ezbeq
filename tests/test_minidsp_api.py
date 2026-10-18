@@ -2817,6 +2817,27 @@ def test_get_by_digest_404(minidsp_client, minidsp_app, endpoint):
     assert r.status_code == 404
 
 
+def test_get_filters_by_ids(minidsp_client, minidsp_app):
+    r = minidsp_client.get("/api/1/catalogue/filters?ids=123456_0&ids=missing&ids=abcdefghijklm&ids=123456_0")
+    assert r.status_code == 200
+    # unknown ids (including digests, it is an id only lookup) are dropped, duplicates collapsed
+    assert [e['id'] for e in r.json] == ['123456_0']
+    filters = r.json[0]['filters']
+    assert len(filters) == 5
+    assert filters[0] == {'type': 'LowShelf', 'freq': 33.0, 'gain': 5.0, 'q': 0.9, 'count': 1}
+
+
+def test_get_filters_by_ids_requires_ids(minidsp_client, minidsp_app):
+    r = minidsp_client.get("/api/1/catalogue/filters")
+    assert r.status_code == 400
+
+
+def test_get_filters_by_ids_limits_count(minidsp_client, minidsp_app):
+    ids = '&'.join(f'ids={i}' for i in range(51))
+    r = minidsp_client.get(f"/api/1/catalogue/filters?{ids}")
+    assert r.status_code == 400
+
+
 @pytest.mark.parametrize('dt,exp', [
     ('24HD', 'Minidsp24HD'),
     ('DDRC24', 'MinidspDDRC24'),

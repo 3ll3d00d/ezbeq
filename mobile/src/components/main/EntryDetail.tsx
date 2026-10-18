@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Image, type NativeSyntheticEvent, type ImageLoadEventData, Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, Text, useTheme } from 'react-native-paper';
 
+import CompareSheet from './CompareSheet';
 import { EntryOptimisationChip, slotOptimises, useEntryOptimisation } from './Optimisation';
 import UploaderControls from './UploaderControls';
+import { type CompareIndex, findComparable } from '../../services/compare';
 import type { EzbeqApi } from '../../services/ezbeqApi';
 import type { CatalogueEntry, DeviceState } from '../../types/ezbeq';
 
@@ -16,6 +18,10 @@ type Props = {
   onError: (e: Error) => void;
   onSuccess: (message: string) => void;
   onUploadPendingSlotChange?: (slotId: string | null) => void;
+  // the whole catalogue indexed by title, searched for other filters to compare against - built by
+  // the caller since this component remounts on every list -> detail navigation in phone layout
+  compareIndex?: CompareIndex;
+  onSelectEntry?: (id: number) => void;
 };
 
 // Ported from ui/src/components/main/Entry.jsx. Web renders content/uploadAction/links in a
@@ -81,16 +87,26 @@ export default function EntryDetail({
   onError,
   onSuccess,
   onUploadPendingSlotChange,
+  compareIndex,
+  onSelectEntry,
 }: Props) {
   const theme = useTheme();
   const [uploadSlotId, setUploadSlotId] = useState<string | null>(null);
   const [sendGain, setSendGain] = useState(false);
   const [pending, setPending] = useState(false);
+  const [comparing, setComparing] = useState(false);
   const entryOptimisation = useEntryOptimisation(api, selectedDevice, selectedEntry);
+  const comparable = useMemo(() => findComparable(selectedEntry, compareIndex), [selectedEntry, compareIndex]);
 
   useEffect(() => {
     setSendGain(false);
   }, [selectedEntry]);
+
+  // keyed on id, a catalogue refresh replaces the entry object but shouldn't close the comparison
+  const selectedEntryId = selectedEntry ? selectedEntry.id : null;
+  useEffect(() => {
+    setComparing(false);
+  }, [selectedEntryId]);
 
   useEffect(() => {
     if (!uploadSlotId && selectedSlotId) {
@@ -196,7 +212,22 @@ export default function EntryDetail({
           ) : null}
           {selectedEntry.avsUrl ? <Button onPress={() => openLink(selectedEntry.avsUrl)}>Discuss</Button> : null}
           {selectedEntry.beqcUrl ? <Button onPress={() => openLink(selectedEntry.beqcUrl)}>Catalogue</Button> : null}
+          {comparable.length > 0 && onSelectEntry ? (
+            <Button icon="compare-horizontal" onPress={() => setComparing(true)}>
+              {`Compare (${comparable.length})`}
+            </Button>
+          ) : null}
         </Card.Actions>
+        {comparing && onSelectEntry ? (
+          <CompareSheet
+            api={api}
+            selectedEntry={selectedEntry}
+            matches={comparable}
+            onSelect={onSelectEntry}
+            onClose={() => setComparing(false)}
+            onError={onError}
+          />
+        ) : null}
         {selectedEntry.images && selectedEntry.images.length > 0 ? (
           <View style={styles.gallery}>
             {selectedEntry.images.map((image, idx) => (

@@ -25,6 +25,35 @@ describe('Catalogue', () => {
         expect(setSelectedEntryId).toHaveBeenCalledWith(2);
     });
 
+    it('highlights the row for a selection made elsewhere', () => {
+        const entries = [entry(1, 'Alice Smith', 'Movie One'), entry(2, 'Bob Jones', 'Movie Two')];
+        const props = {entries, setSelectedEntryId: vi.fn(), useWide: true, selectedDevice: null};
+        const {rerender} = render(<Catalogue {...props} selectedEntryId={1}/>);
+        const rowOf = title => screen.getByText(title).closest('[role="row"]');
+        expect(rowOf('Movie One')).toHaveAttribute('aria-selected', 'true');
+
+        rerender(<Catalogue {...props} selectedEntryId={2}/>);
+
+        expect(rowOf('Movie One')).toHaveAttribute('aria-selected', 'false');
+        expect(rowOf('Movie Two')).toHaveAttribute('aria-selected', 'true');
+    });
+
+    it('keeps the selection when the selected entry is not among the rows shown', () => {
+        const setSelectedEntryId = vi.fn();
+        const one = entry(1, 'Alice Smith', 'Movie One');
+        const two = entry(2, 'Bob Jones', 'Movie Two');
+        const three = entry(3, 'Bob Jones', 'Movie Three');
+        const props = {setSelectedEntryId, useWide: true, selectedDevice: null};
+        const {rerender} = render(<Catalogue {...props} entries={[one, two]} selectedEntryId={1}/>);
+
+        // filtered out of the grid, e.g. selected via compare while an author filter is active
+        rerender(<Catalogue {...props} entries={[two]} selectedEntryId={1}/>);
+        rerender(<Catalogue {...props} entries={[two, three]} selectedEntryId={1}/>);
+
+        expect(setSelectedEntryId).not.toHaveBeenCalled();
+        expect(screen.getByText('Movie Two').closest('[role="row"]')).toHaveAttribute('aria-selected', 'false');
+    });
+
     it('hides the author avatar column when every entry shares the same author', () => {
         const entries = [entry(1, 'Alice Smith', 'Movie One'), entry(2, 'Alice Smith', 'Movie Two')];
         render(<Catalogue entries={entries} setSelectedEntryId={vi.fn()} selectedEntryId={-1} useWide={true} selectedDevice={null}/>);
