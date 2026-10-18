@@ -87,7 +87,11 @@ EXPOSE 8080
 # node_modules is discarded after this stage completes.
 # Declared before `builder` because both the production and dev targets copy
 # the compiled UI from here.
-FROM node:22-slim AS ui-builder
+# Pinned to $BUILDPLATFORM: the output is architecture-independent JS/CSS, so it
+# is built once natively rather than per target platform. Building it for arm64
+# under QEMU intermittently hung Vite/rolldown at "transforming..." until the job
+# was cancelled or hit the 6h limit.
+FROM --platform=$BUILDPLATFORM node:22-slim AS ui-builder
 
 WORKDIR /app/ui
 

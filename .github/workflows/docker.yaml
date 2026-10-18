@@ -52,6 +52,9 @@ jobs:
        needs.detect-changed-paths.result != 'success' ||
        needs.detect-changed-paths.outputs.docker == 'true')
     runs-on: ubuntu-latest
+    # A normal multi-arch build takes ~6-9 min; fail a hung build fast instead of
+    # waiting out GitHub's 6h default.
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
