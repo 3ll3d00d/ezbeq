@@ -3,6 +3,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
+import requests
 from conftest import CapturingWsServer, ReaperSpyConfig
 from werkzeug.wrappers import Response
 
@@ -38,6 +39,8 @@ class HttpServiceSpy:
         self.beq_status = 200
         self.state_status = 200
         self.state_override = None
+        self.beq_override = None
+        self.error_body = {}
         self.snapshot = {
             'type': 'shakeq', 'name': name, 'status': 'unknown', 'beq': None,
             'consoleBusy': False,
@@ -57,14 +60,14 @@ class HttpServiceSpy:
         body = request.get_json()
         self.posts.append(body)
         if self.beq_status != 200:
-            return Response('{}', status=self.beq_status, mimetype='application/json')
+            return Response(json.dumps(self.error_body), status=self.beq_status, mimetype='application/json')
         item = body.get('entry') if body['action'] == 'load' else None
         self.snapshot.update(status='sent', beq=item)
         self.snapshot['slots'][0].update(
             last=item['formatted_title'] if item else 'Empty',
             author=item['author'] if item else None,
         )
-        return Response(json.dumps(self.snapshot), mimetype='application/json')
+        return Response(json.dumps(self.beq_override if self.beq_override is not None else self.snapshot), mimetype='application/json')
 
 
 @pytest.fixture
@@ -156,30 +159,34 @@ def test_busy_preserves_previous_beq_without_retry(device, service, operation):
     assert state['slots'][0]['last'] == old_state['slots'][0]['last']
 
 
-@pytest.mark.parametrize('status', [401, 500, 503])
+@pytest.mark.parametrize('status', [500, 503])
 def test_service_error_marks_state_unknown_and_does_not_replay(device, service, status):
     service.beq_status = status
     with pytest.raises(OSError, match='no automatic replay'):
         device.load_filter('BEQ', entry())
     assert len(service.posts) == 1
     service.state_status = 503
-    state = device.state().serialise()
-    assert state['status'] == 'unknown' and not state['serviceOnline']
+    device._ShakEQ__next_state_check = 0
+    state = device.state(refresh=True).serialise()
+    assert state['status'] == 'unknown' and state['serviceOnline']
     assert state['slots'][0]['last'] == 'ERROR'
 
 
 def test_http_timeout_is_not_replayed(device, monkeypatch):
     calls = []
 
-    def timeout(request, **kwargs):
+    def timeout(*args, **kwargs):
         calls.append(kwargs['timeout'])
-        raise TimeoutError()
+        raise requests.Timeout()
 
-    monkeypatch.setattr(device._ShakEQ__opener, 'open', timeout)
+    monkeypatch.setattr(device._ShakEQ__session, 'request', timeout)
     with pytest.raises(OSError, match='no automatic replay'):
         device.clear_filter('BEQ')
     assert calls == [3]
     assert device.state().serialise()['status'] == 'unknown'
+    assert calls == [3]
+    device._ShakEQ__next_state_check = 0
+    device.state(refresh=True)
     assert calls == [3, 1]
 
 
@@ -191,10 +198,10 @@ def test_http_timeout_is_not_replayed(device, monkeypatch):
     {'type': 'shakeq', 'name': 'shakeq1', 'status': 'sent', 'slots': [None]},
     {'type': 'shakeq', 'name': 'shakeq1', 'status': 'sent', 'slots': [{'id': 'wrong'}]},
 ])
-def test_invalid_state_response_is_offline(device, service, snapshot):
+def test_invalid_state_response_is_unknown_but_service_reachable(device, service, snapshot):
     service.state_override = snapshot
     state = device.state().serialise()
-    assert state['status'] == 'unknown' and not state['serviceOnline']
+    assert state['status'] == 'unknown' and state['serviceOnline']
     assert service.posts == []
 
 
@@ -266,10 +273,12 @@ def test_invalid_timeout(tmp_path, httpserver, timeout):
 
 def test_short_token_rejected(tmp_path, httpserver):
     (tmp_path / 'token').write_text('short')
-    with pytest.raises(ValueError, match='token'):
-        ShakEQ('shakeq1', str(tmp_path), {
-            'url': httpserver.url_for('/'), 'tokenFile': 'token',
-        }, CapturingWsServer(), None)
+    device = ShakEQ('shakeq1', str(tmp_path), {
+        'url': httpserver.url_for('/'), 'tokenFile': 'token',
+    }, CapturingWsServer(), None)
+    assert not device.state().serialise()['serviceOnline']
+    with pytest.raises(OSError, match='token'):
+        device.clear_filter('BEQ')
 
 
 def test_redirect_does_not_forward_token_or_replay(device, service, httpserver):
@@ -332,3 +341,140 @@ def test_multiple_device_names_route_independently(tmp_path, httpserver, service
     }, CapturingWsServer(), None)
     device.clear_filter('BEQ')
     assert other.posts == [{'action': 'clear'}] and service.posts == []
+
+
+def test_busy_state_does_not_escape_or_remove_previous_entry(device, service):
+    device.load_filter('BEQ', entry())
+    before = device.state().serialise()['beq']
+    service.state_status = 423
+    device._ShakEQ__next_state_check = 0
+    state = device.state(refresh=True).serialise()
+    assert state['consoleBusy'] and state['serviceOnline']
+    assert state['beq'] == before
+
+
+def test_unchanged_refresh_does_not_persist_or_broadcast(device, service, monkeypatch):
+    device.state()
+    writes, messages = [], []
+    monkeypatch.setattr(device, '_persist', lambda: writes.append(True))
+    monkeypatch.setattr(device, '_broadcast', lambda: messages.append(True))
+    for _ in range(3):
+        device._ShakEQ__next_state_check = 0
+        device.state(refresh=True)
+    assert service.state_reads == 4
+    assert not writes and not messages
+
+
+def test_snapshot_reuse_expiry_and_failure_backoff(device, service, monkeypatch):
+    clock = [100.0]
+    monkeypatch.setattr('ezbeq.shakeq.time', SimpleNamespace(monotonic=lambda: clock[0]))
+    device.load_filter('BEQ', entry())
+    device.state()
+    assert service.state_reads == 0
+    clock[0] += 2.1
+    device.state()
+    assert service.state_reads == 1
+    service.state_status = 503
+    clock[0] += 2.1
+    for _ in range(5):
+        device.state()
+    assert service.state_reads == 2
+    device.state(refresh=True)
+    assert service.state_reads == 2
+    clock[0] += 2.1
+    device.state(refresh=True)
+    assert service.state_reads == 3
+
+
+@pytest.mark.parametrize('status', [400, 401, 403, 404, 405, 413, 415, 422])
+def test_rejection_preserves_beq_and_service_online(device, service, status):
+    device.load_filter('BEQ', entry())
+    previous = device.state().serialise()
+    service.beq_status = status
+    service.error_body = {'applied': False}
+    with pytest.raises(InvalidRequestError, match=f'HTTP {status}'):
+        device.load_filter('BEQ', entry(title='Other film'))
+    state = device.state().serialise()
+    assert state['beq'] == previous['beq']
+    assert state['slots'] == previous['slots']
+    assert state['status'] == 'sent' and state['serviceOnline']
+    assert len(service.posts) == 2
+
+
+def test_legacy_400_without_no_effect_guarantee_stays_unconfirmed(device, service):
+    device.load_filter('BEQ', entry())
+    service.beq_status = 400
+    with pytest.raises(OSError, match='HTTP 400'):
+        device.clear_filter('BEQ')
+    state = device.state().serialise()
+    assert state['status'] == 'unknown' and state['beq'] is None
+    assert state['serviceOnline']
+    assert len(service.posts) == 2
+
+
+@pytest.mark.parametrize('size', [300000, 1100000])
+def test_response_size_is_bounded_with_explicit_error(device, service, size):
+    service.beq_override = dict(service.snapshot, padding='x' * size, status='sent')
+    if size > 1024 * 1024:
+        with pytest.raises(OSError, match='response too large'):
+            device.clear_filter('BEQ')
+        assert device.state().serialise()['status'] == 'unknown'
+    else:
+        device.clear_filter('BEQ')
+        assert device.state().serialise()['status'] == 'sent'
+    assert len(service.posts) == 1
+
+
+def test_empty_digest_identity_requires_same_id(device, service, monkeypatch):
+    item = entry()
+    item.digest = ''
+    device.load_filter('BEQ', item)
+    original = device._ShakEQ__request
+
+    def wrong_id(route, body=None):
+        snapshot = original(route, body)
+        snapshot['beq']['id'] = 'different-entry'
+        return snapshot
+
+    monkeypatch.setattr(device, '_ShakEQ__request', wrong_id)
+    with pytest.raises(OSError, match='different BEQ'):
+        device.load_filter('BEQ', item)
+    assert len(service.posts) == 2
+
+
+def test_missing_token_does_not_block_startup_and_recovers(tmp_path, httpserver, service):
+    device = ShakEQ('shakeq1', str(tmp_path), {
+        'url': httpserver.url_for('/'), 'tokenFile': 'later-token',
+    }, CapturingWsServer(), None)
+    assert not device.state().serialise()['serviceOnline']
+    (tmp_path / 'later-token').write_text(TOKEN)
+    device._ShakEQ__next_state_check = 0
+    assert device.state(refresh=True).serialise()['serviceOnline']
+
+
+def test_token_file_is_reread_after_rotation(device, service, tmp_path, httpserver):
+    device.state()
+    rotated = 'rotated-' + 'z' * 48
+    (tmp_path / 'token').write_text(rotated)
+    httpserver.expect_request('/api/1/shakeq/shakeq1/state', method='GET',
+                              headers={'Authorization': 'Bearer ' + rotated}).respond_with_json(service.snapshot)
+    device._ShakEQ__next_state_check = 0
+    assert device.state(refresh=True).serialise()['serviceOnline']
+
+
+def test_requests_ignores_environment_proxies(device, service, monkeypatch):
+    monkeypatch.setenv('HTTP_PROXY', 'http://127.0.0.1:1')
+    monkeypatch.setenv('HTTPS_PROXY', 'http://127.0.0.1:1')
+    monkeypatch.setenv('NO_PROXY', '')
+    assert device._ShakEQ__session.trust_env is False
+    assert device.state().serialise()['serviceOnline']
+
+
+def test_existing_api_error_path_with_busy_state(client, service):
+    service.beq_status = service.state_status = 423
+    response = client.put('/api/1/devices/shakeq1/filter/BEQ', json={'entryId': '123456_0'})
+    assert response.status_code == 400
+    assert response.is_json and response.json['consoleBusy']
+    # Listing refresh also handles the 423 instead of dropping this device.
+    response = client.get('/api/2/devices')
+    assert response.status_code == 200 and 'shakeq1' in response.json
