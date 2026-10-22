@@ -32,6 +32,8 @@ Full documentation, including this README, is also published at
   - [Smoke test](#smoke-test)
 - [Configuration](#configuration)
   - [Using a custom catalogue](#using-a-custom-catalogue)
+    - [Adding your own catalogues with `catalogueSources`](#adding-your-own-catalogues-with-cataloguesources)
+    - [Replacing the catalogue with `catalogueUrl`](#replacing-the-catalogue-with-catalogueurl)
   - [Configuring Devices](#configuring-devices)
     - [Minidsp](#minidsp)
       - [Device-optimised filters](#device-optimised-filters)
@@ -242,15 +244,30 @@ defaults to 8080.
 
 ### Using a custom catalogue
 
-If `catalogueUrl` is added to the configuration, e.g.
+By default ezbeq loads the published BEQ catalogue from GitHub. You can point it at your own catalogue instead, or
+load your own entries alongside the published ones. A custom catalogue is a `database.json` file in the same format
+as the [published one](https://raw.githubusercontent.com/3ll3d00d/beqcatalogue/master/docs/database.json), served
+over HTTP(S) or stored locally.
 
-    catalogueUrl: http://localhost:9999
+There are two settings, both in `ezbeq.yml`:
 
-ezbeq will instead load the catalogue from `http://localhost:9999/database.json`
+* `catalogueSources`: one or more catalogues, local or HTTP(S), combined into one. Use this to add your own filters
+  to the published catalogue, or to load from local files.
+* `catalogueUrl`: a single HTTP(S) location that replaces the published catalogue.
 
-This provides the ability to run ezbeq against a custom, or locally provided, catalogue.
+To set one up:
 
-To combine multiple catalogues, configure `catalogueSources` instead:
+1. Put your `database.json` where ezbeq can read it: a local directory, or a web server.
+2. Edit `ezbeq.yml` in the ezbeq config directory: `~/.ezbeq` by default, `$EZBEQ_CONFIG_HOME` if that is set, or
+   `/config` in the docker image. Add one of the settings shown below.
+3. Restart ezbeq. The config file is only read at startup.
+4. Check the catalogue view lists your entries. If it doesn't, look in `ezbeq.log` in the same config directory
+   for `Unable to refresh catalogue source <source>` (`catalogueSources`) or `Unable to download catalogue`
+   (`catalogueUrl`).
+
+To go back to the published catalogue, remove the setting and restart.
+
+#### Adding your own catalogues with `catalogueSources`
 
 ```yaml
 catalogueSources:
@@ -261,20 +278,38 @@ catalogueSources:
 catalogueRefreshSeconds: 300
 ```
 
-Each HTTP(S) URL is a base URL containing `database.json` and optionally `version.txt`.
-Local sources may be JSON files, directories containing `database.json`, or `file:///` URLs.
-Files use the same JSON array format as the published catalogue. Relative paths are resolved
-against the directory containing `ezbeq.yml`; `~` is expanded for local paths.
+The list replaces the published catalogue, so keep the GitHub URL in it if you want those entries too. Each item can
+be:
 
-The list replaces the default catalogue, so include the GitHub URL to keep it. All sources are
-polled on the existing refresh schedule. Local changes are detected from file contents and need
-no `version.txt`. Entries are combined for browsing, searching and loading filters; duplicate
-non-empty digests use the first entry in source order. Entries without a digest are kept separately.
-An unavailable or invalid source keeps its last cached entries while other sources continue updating;
-a source that has never loaded is skipped. Removing a source from the list removes its entries
-after restarting ezbeq. A valid empty array removes that source's entries.
+* an HTTP(S) base URL that serves `database.json`, and optionally `version.txt`
+* a local JSON file, a directory containing `database.json`, or a `file:///` URL. Relative paths are resolved against
+  the config directory and `~` is expanded. In docker, local catalogues must be inside the mounted `/config`
+  directory.
 
-Device optimisation profiles continue to come from `catalogueUrl` (the GitHub default when unset).
+Every source is checked for changes every `catalogueRefreshSeconds` (300 by default), so after editing a catalogue
+you only need to wait, not restart. Local files are compared by content. An HTTP(S) source that publishes
+`version.txt` is only downloaded again when that version changes, so update it whenever you change `database.json`,
+or don't publish one at all.
+
+All entries appear together for browsing, searching and loading filters. When two sources contain an entry with the
+same `digest`, the one from the source listed first is used, so listing your catalogue before the GitHub URL lets it
+replace a published entry. If a source can't be read, or contains an invalid entry, it keeps its last loaded entries
+while the other sources carry on updating; a source that has never loaded is skipped. A source removed from the list
+disappears after a restart, and a source whose file is an empty array (`[]`) has no entries.
+
+#### Replacing the catalogue with `catalogueUrl`
+
+```yaml
+catalogueUrl: http://localhost:9999
+```
+
+ezbeq then loads `http://localhost:9999/database.json` instead of the published catalogue, and checks
+`http://localhost:9999/version.txt` to decide when to download it again. If `catalogueSources` is also set, it takes
+precedence for the catalogue itself.
+
+`catalogueUrl` is also where ezbeq fetches [device-optimised filters](#device-optimised-filters) from
+(`devices/index.json` under that URL). If you set it, minidsp devices only use optimised filters when your location
+publishes them too.
 
 ### Configuring Devices
 
