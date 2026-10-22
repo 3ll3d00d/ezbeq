@@ -225,6 +225,9 @@ const Entry = ({
         const uploadSlot = selectedDevice && selectedDevice.slots
             ? selectedDevice.slots.find(s => s.id === uploadSlotId)
             : null;
+        // against other releases of the title and/or against the coefficients optimised for this device
+        const optimised = Boolean(entryOptimisation && entryOptimisation.optimised);
+        const canCompare = setSelectedEntryId && (comparable.length > 0 || optimised);
         const images = selectedEntry.images
             ?
             selectedEntry.images.map((i, idx) =>
@@ -311,9 +314,11 @@ const Entry = ({
                         : null
                 }
                 {
-                    comparable.length > 0 && setSelectedEntryId
+                    canCompare
                         ? <Button size="small" color="primary" startIcon={<CompareArrowsIcon fontSize="small"/>}
-                                  onClick={() => setComparing(true)}>Compare ({comparable.length})</Button>
+                                  onClick={() => setComparing(true)}>
+                            {comparable.length > 0 ? `Compare (${comparable.length})` : 'Compare'}
+                        </Button>
                         : null
                 }
                 {
@@ -321,6 +326,8 @@ const Entry = ({
                         ? <Suspense fallback={null}>
                             <CompareDialog selectedEntry={selectedEntry}
                                            matches={comparable}
+                                           deviceName={selectedDevice ? selectedDevice.name : null}
+                                           optimised={optimised}
                                            onSelect={setSelectedEntryId}
                                            onClose={() => setComparing(false)}
                                            setError={setError}/>

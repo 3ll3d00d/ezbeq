@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {cascadeResponseDb, coeffsFor, logSpace, magnitudeDb} from './biquad';
+import {cascadeResponseDb, coefficientResponseDb, coeffsFor, logSpace, magnitudeDb} from './biquad';
 
 describe('biquad', () => {
     it('matches the coefficients ezbeq/iir.py publishes for a LowShelf', () => {
@@ -51,5 +51,28 @@ describe('biquad', () => {
         const shelf = {type: 'LowShelf', freq: 30, q: 0.707, gain: 6};
         expect(cascadeResponseDb([shelf, {type: 'Gain', gain: 3}], [1]))
             .toEqual(cascadeResponseDb([shelf], [1]));
+    });
+
+    describe('coefficientResponseDb', () => {
+        // as published, b0 b1 b2 then the negated a1 a2
+        const asLoaded = (type, freq, q, gain) => {
+            const c = coeffsFor(type, freq, q, gain);
+            return [c.b0, c.b1, c.b2, -c.a1, -c.a2].map(String);
+        };
+        const filters = [{type: 'LowShelf', freq: 20, q: 0.9, gain: 5}, {type: 'PeakingEQ', freq: 40, q: 2, gain: -3}];
+        const freqs = logSpace(1, 200, 20);
+
+        it('matches the response of the filter parameters at full precision', () => {
+            const actual = coefficientResponseDb(filters.map(f => asLoaded(f.type, f.freq, f.q, f.gain)), freqs);
+            cascadeResponseDb(filters, freqs).forEach((v, i) => expect(actual[i]).toBeCloseTo(v, 6));
+        });
+
+        it('shows the error from quantising the coefficients at low frequencies', () => {
+            const biquads = [asLoaded('LowShelf', 10, 0.7, 10)];
+            const ideal = coefficientResponseDb(biquads, [2, 1000]);
+            const realised = coefficientResponseDb(biquads, [2, 1000], 96000, Math.fround);
+            expect(Math.abs(realised[0] - ideal[0])).toBeGreaterThan(0.01);
+            expect(realised[1]).toBeCloseTo(ideal[1], 3);
+        });
     });
 });

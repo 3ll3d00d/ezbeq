@@ -2,9 +2,10 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { PaperProvider } from 'react-native-paper';
 import type { ReactElement } from 'react';
 
-import CompareSheet, { maxDifference, variantLabel } from './CompareSheet';
+import CompareSheet, { maxDifference, optimisationResponses, variantLabel } from './CompareSheet';
+import { coeffsFor } from '../../services/biquad';
 import type { EzbeqApi } from '../../services/ezbeqApi';
-import type { CatalogueEntry, EntryFilters } from '../../types/ezbeq';
+import type { CatalogueEntry, EntryCoefficients, EntryFilters } from '../../types/ezbeq';
 
 // Ported from ui/src/components/main/Compare.test.jsx.
 const entry = (id: number, overrides: Partial<CatalogueEntry> = {}): CatalogueEntry => ({
@@ -210,5 +211,123 @@ describe('CompareSheet', () => {
   it('falls back to the formatted title when there is no title', async () => {
     await renderSheet({ selectedEntry: { ...selected, title: '', formattedTitle: 'Formatted' } });
     expect(screen.getByText('Compare: Formatted (2020)')).toBeTruthy();
+  });
+});
+
+// as published, b0 b1 b2 then the negated a1 a2
+const published = (type: string, freq: number, q: number, gain: number) => {
+  const c = coeffsFor(type, freq, q, gain)!;
+  return [c.b0, c.b1, c.b2, -c.a1, -c.a2].map(String);
+};
+
+// a low, high gain shelf which float32 storage at 96kHz realises badly, "optimised" here is just a nudged copy
+const coefficients = (overrides: Partial<EntryCoefficients> = {}): EntryCoefficients => ({
+  profile: 'float32-96k',
+  label: 'float32 @ 96 kHz',
+  rate: 96000,
+  precision: 'float32',
+  authored: [published('LowShelf', 10, 0.7, 10)],
+  optimised: [published('LowShelf', 10.01, 0.7, 10)],
+  ...overrides,
+});
+
+describe('optimisationResponses', () => {
+  it('is null until the coefficients load', () => {
+    expect(optimisationResponses(null)).toBeNull();
+  });
+
+  it('models float32 storage for the coefficients as loaded but not for the ideal', () => {
+    const r = optimisationResponses(coefficients())!;
+    expect(Math.abs(maxDifference(r.ideal, r.unoptimised).db)).toBeGreaterThan(0.01);
+  });
+
+  it('treats coefficients in an unmodelled precision as exact', () => {
+    const r = optimisationResponses(coefficients({ precision: 'fixed' }))!;
+    expect(maxDifference(r.ideal, r.unoptimised)).toEqual({ db: 0, freq: null });
+  });
+});
+
+describe('CompareSheet optimisation', () => {
+  const selected = entry(1, { author: 'mine' });
+  const other = entry(2, { author: 'theirs' });
+  let getFilters: jest.Mock;
+  let getEntryCoefficients: jest.Mock;
+
+  const renderSheet = async (props: Partial<Parameters<typeof CompareSheet>[0]> = {}) =>
+    renderInProvider(
+      <CompareSheet
+        api={{ getFilters, getEntryCoefficients } as unknown as EzbeqApi}
+        selectedEntry={selected}
+        matches={[]}
+        deviceName="d1"
+        optimised
+        onSelect={jest.fn()}
+        onClose={jest.fn()}
+        onError={jest.fn()}
+        {...props}
+      />
+    );
+
+  const layoutChart = async () => {
+    fireEvent(await screen.findByTestId('response-chart'), 'layout', {
+      nativeEvent: { layout: { width: 300, height: 180 } },
+    });
+    await waitFor(() => expect(screen.queryAllByTestId(/^series-/).length).toBeGreaterThan(0));
+  };
+
+  beforeEach(() => {
+    getFilters = jest.fn().mockResolvedValue([
+      { id: '1', filters: [shelf(6)] },
+      { id: '2', filters: [shelf(4)] },
+    ] as EntryFilters[]);
+    getEntryCoefficients = jest.fn().mockResolvedValue(coefficients());
+  });
+
+  it('compares the selection with its optimised coefficients when there are no other releases', async () => {
+    await renderSheet();
+    await layoutChart();
+    expect(getEntryCoefficients).toHaveBeenCalledWith('d1', '1');
+    expect(getFilters).not.toHaveBeenCalled();
+    expect(screen.queryByText('Releases (0)')).toBeNull();
+    expect(screen.getByTestId('series-ideal')).toBeTruthy();
+    expect(screen.getByTestId('series-unoptimised')).toBeTruthy();
+    expect(screen.getByTestId('series-optimised')).toBeTruthy();
+    expect(screen.getByText(/As loaded by d1 \(float32 @ 96 kHz\)/)).toBeTruthy();
+    expect(within(screen.getByTestId('compare-row-ideal')).queryByText(/max error/)).toBeNull();
+    expect(within(screen.getByTestId('compare-row-unoptimised')).getByText(/^max error .* dB @ \d+ Hz$/)).toBeTruthy();
+    expect(within(screen.getByTestId('compare-row-optimised')).getByText(/^max error /)).toBeTruthy();
+  });
+
+  it('plots the error vs ideal on request', async () => {
+    await renderSheet();
+    await layoutChart();
+    fireEvent.press(screen.getByText('Difference'));
+    expect(await screen.findByLabelText('Frequency response chart, Δ dB against Hz')).toBeTruthy();
+  });
+
+  it('offers both comparisons when there are other releases too', async () => {
+    await renderSheet({ matches: [other] });
+    await layoutChart();
+    expect(screen.getByTestId('series-2')).toBeTruthy();
+    fireEvent.press(screen.getByText('Optimised'));
+    expect(await screen.findByText('Unoptimised (as loaded)')).toBeTruthy();
+    fireEvent.press(screen.getByText('Releases (1)'));
+    expect(await screen.findByTestId('compare-row-2')).toBeTruthy();
+  });
+
+  it('only compares releases without a device', async () => {
+    await renderSheet({ matches: [other], deviceName: null });
+    await layoutChart();
+    expect(screen.queryByText('Releases (1)')).toBeNull();
+    expect(getEntryCoefficients).not.toHaveBeenCalled();
+  });
+
+  it('reports a failure to load the coefficients', async () => {
+    const err = new Error('boom');
+    getEntryCoefficients.mockRejectedValue(err);
+    const onError = jest.fn();
+    await renderSheet({ onError });
+    expect(await screen.findByText('Unable to load filters')).toBeTruthy();
+    expect(onError).toHaveBeenCalledWith(err);
   });
 });
