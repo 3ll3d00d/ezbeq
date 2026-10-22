@@ -12,8 +12,8 @@ vi.mock('../../services/ezbeq', () => ({
 }));
 
 vi.mock('./Compare', () => ({
-    default: ({matches, onSelect, onClose}) => (
-        <div data-testid="compare">
+    default: ({matches, onSelect, onClose, deviceName, optimised}) => (
+        <div data-testid="compare" data-device={deviceName || ''} data-optimised={String(Boolean(optimised))}>
             {matches.map(m => <button key={m.id} onClick={() => onSelect(m.id)}>pick {m.id}</button>)}
             <button onClick={onClose}>close compare</button>
         </div>
@@ -322,6 +322,30 @@ describe('Entry optimisation target slot', () => {
             expect(setSelectedEntryId).toHaveBeenCalledWith('e2');
             fireEvent.click(screen.getByRole('button', {name: 'close compare'}));
             expect(screen.queryByTestId('compare')).not.toBeInTheDocument();
+        });
+
+        it('offers to compare an optimised entry with no other releases against its optimised filters', async () => {
+            ezbeq.getEntryOptimisation.mockResolvedValue({applicable: true, profile: 'float32-96k', optimised: true});
+            const selectedDevice = {
+                ...plainDevice(),
+                optimisation: {profile: 'float32-96k', label: 'float32 @ 96 kHz', available: true, reason: null}
+            };
+            renderEntry({selectedDevice, selectedEntry: entries[0], entries: [entries[0]], setSelectedEntryId: vi.fn()});
+            fireEvent.click(await screen.findByRole('button', {name: 'Compare'}));
+            const dialog = await screen.findByTestId('compare');
+            expect(dialog.dataset.device).toBe('d1');
+            expect(dialog.dataset.optimised).toBe('true');
+        });
+
+        it('does not offer the optimised comparison when the entry is not optimised for the device', async () => {
+            ezbeq.getEntryOptimisation.mockResolvedValue({applicable: true, profile: 'float32-96k', optimised: false});
+            const selectedDevice = {
+                ...plainDevice(),
+                optimisation: {profile: 'float32-96k', label: 'float32 @ 96 kHz', available: true, reason: null}
+            };
+            renderEntry({selectedDevice, selectedEntry: entries[0], entries: [entries[0]], setSelectedEntryId: vi.fn()});
+            await waitFor(() => expect(ezbeq.getEntryOptimisation).toHaveBeenCalled());
+            expect(screen.queryByRole('button', {name: /Compare/})).not.toBeInTheDocument();
         });
 
         it('closes the comparison when another entry is selected, but not when the same one is refreshed', async () => {

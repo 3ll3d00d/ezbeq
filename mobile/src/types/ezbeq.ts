@@ -38,6 +38,16 @@ export type EntryOptimisation = {
   optimised: boolean;
 };
 
+// biquads as [b0, b1, b2, a1, a2] strings, the a terms negated
+export type EntryCoefficients = {
+  profile: string;
+  label: string;
+  rate: number;
+  precision: string;
+  authored: string[][];
+  optimised: string[][];
+};
+
 export type DeviceState = {
   name: string;
   type: string;

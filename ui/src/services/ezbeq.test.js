@@ -162,6 +162,15 @@ describe('network calls', () => {
         }));
     });
 
+    it('getEntryCoefficients GETs the coefficients the device would load', async () => {
+        global.fetch.mockResolvedValue({ok: true, json: () => Promise.resolve({profile: 'float32-96k'})});
+
+        await expect(ezbeq.getEntryCoefficients('d1', 'entry-1')).resolves.toEqual({profile: 'float32-96k'});
+
+        expect(global.fetch).toHaveBeenCalledWith('/api/1/devices/d1/optimisation/entry-1/coefficients',
+            expect.objectContaining({method: 'GET'}));
+    });
+
     it('getFilters GETs the filters for every requested entry id', async () => {
         global.fetch.mockResolvedValue({ok: true, json: () => Promise.resolve([{id: 'e1', filters: []}])});
 

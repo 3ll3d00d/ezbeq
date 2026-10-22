@@ -73,3 +73,22 @@ export const cascadeResponseDb = (filters: FilterParams[], freqs: number[], fs =
   });
   return totals;
 };
+
+// cascaded response in dB of biquads as loaded into a device, [b0, b1, b2, a1, a2] with the a terms negated (the
+// minidsp convention used by ezbeq/iir.py and the catalogue), quantise models the device's coefficient storage
+export const coefficientResponseDb = (
+  biquads: (string | number)[][],
+  freqs: number[],
+  fs = FS,
+  quantise: (v: number) => number = (v) => v
+): number[] => {
+  const totals = new Array<number>(freqs.length).fill(0);
+  biquads.forEach((bq) => {
+    const [b0, b1, b2, a1, a2] = bq.map((v) => quantise(Number(v)));
+    const c = { b0, b1, b2, a1: -a1, a2: -a2 };
+    freqs.forEach((freq, i) => {
+      totals[i] += magnitudeDb(c, freq, fs);
+    });
+  });
+  return totals;
+};

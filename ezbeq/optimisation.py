@@ -124,14 +124,24 @@ class DeviceOptimisation:
         :param entry: the entry.
         :return: whether optimised coefficients are published for this entry in a profile this device can use.
         """
-        profile, reason = self.__status()
-        optimised = profile is not None and reason is None and self.__catalogues is not None \
-            and self.__catalogues.optimised_biquads(profile.id, entry.digest, len(entry.filters)) is not None
+        profile, _ = self.__status()
+        optimised = self.optimised_coefficients(entry) is not None
         return {
             'applicable': True,
             'profile': profile.id if profile else None,
             'optimised': optimised,
         }
+
+    def optimised_coefficients(self, entry: CatalogueEntry) -> tuple[DeviceProfile, list[list[str]]] | None:
+        """
+        :param entry: the entry.
+        :return: the profile and the optimised biquads this device can load for the entry, None if there are none.
+        """
+        profile, reason = self.__status()
+        if profile is None or reason is not None or self.__catalogues is None:
+            return None
+        biquads = self.__catalogues.optimised_biquads(profile.id, entry.digest, len(entry.filters))
+        return (profile, biquads) if biquads is not None else None
 
     def resolve(self, entry: CatalogueEntry, enabled: bool = True) -> LoadableCoefficients:
         """

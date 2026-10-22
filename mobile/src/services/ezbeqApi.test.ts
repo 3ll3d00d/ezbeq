@@ -162,6 +162,17 @@ describe('network calls', () => {
     expect(global.fetch).toHaveBeenCalledWith(`${BASE_URL}/api/1/devices/d1/optimisation/entry-1`, expect.anything());
   });
 
+  it('getEntryCoefficients GETs the coefficients the device would load', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: true, json: () => Promise.resolve({ profile: 'float32-96k' }) });
+
+    await expect(api.getEntryCoefficients('d1', 'entry-1')).resolves.toEqual({ profile: 'float32-96k' });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      `${BASE_URL}/api/1/devices/d1/optimisation/entry-1/coefficients`,
+      expect.anything()
+    );
+  });
+
   it('sendFilter without gains PUTs the entry id to the slot', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({ ok: true, json: () => Promise.resolve({ name: 'd1' }) });
 

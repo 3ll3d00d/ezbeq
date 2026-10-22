@@ -97,6 +97,9 @@ export default function EntryDetail({
   const [comparing, setComparing] = useState(false);
   const entryOptimisation = useEntryOptimisation(api, selectedDevice, selectedEntry);
   const comparable = useMemo(() => findComparable(selectedEntry, compareIndex), [selectedEntry, compareIndex]);
+  // against other releases of the title and/or against the coefficients optimised for this device
+  const optimised = Boolean(entryOptimisation && entryOptimisation.optimised);
+  const canCompare = Boolean(onSelectEntry) && (comparable.length > 0 || optimised);
 
   useEffect(() => {
     setSendGain(false);
@@ -212,9 +215,9 @@ export default function EntryDetail({
           ) : null}
           {selectedEntry.avsUrl ? <Button onPress={() => openLink(selectedEntry.avsUrl)}>Discuss</Button> : null}
           {selectedEntry.beqcUrl ? <Button onPress={() => openLink(selectedEntry.beqcUrl)}>Catalogue</Button> : null}
-          {comparable.length > 0 && onSelectEntry ? (
+          {canCompare ? (
             <Button icon="compare-horizontal" onPress={() => setComparing(true)}>
-              {`Compare (${comparable.length})`}
+              {comparable.length > 0 ? `Compare (${comparable.length})` : 'Compare'}
             </Button>
           ) : null}
         </Card.Actions>
@@ -223,6 +226,8 @@ export default function EntryDetail({
             api={api}
             selectedEntry={selectedEntry}
             matches={comparable}
+            deviceName={selectedDevice ? selectedDevice.name : null}
+            optimised={optimised}
             onSelect={onSelectEntry}
             onClose={() => setComparing(false)}
             onError={onError}

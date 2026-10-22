@@ -348,6 +348,12 @@ class CompositeDevice(PersistentDevice[CompositeDeviceState]):
     def optimisable_profiles(self) -> list[str]:
         return sorted({p for dev in self.__members.values() for p in dev.optimisable_profiles()})
 
+    def entry_coefficients(self, entry: CatalogueEntry) -> dict | None:
+        """
+        the first member with optimised coefficients for the entry, mirroring entry_optimisation.
+        """
+        return next((r for r in (dev.entry_coefficients(entry) for dev in self.__members.values()) if r), None)
+
     def update(self, params: dict) -> bool:
         def __do_it() -> bool:
             any_update = False

@@ -1,11 +1,13 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
-import CompareDialog, {maxDifference, variantLabel} from './Compare';
+import CompareDialog, {maxDifference, optimisationResponses, variantLabel} from './Compare';
+import {coeffsFor} from '../../services/biquad';
 import ezbeq from '../../services/ezbeq';
 
 vi.mock('../../services/ezbeq', () => ({
     default: {
-        getFilters: vi.fn()
+        getFilters: vi.fn(),
+        getEntryCoefficients: vi.fn()
     }
 }));
 
@@ -207,5 +209,125 @@ describe('CompareDialog', () => {
         rerender(<CompareDialog selectedEntry={selected} matches={[other, entry('n')]} {...props}/>);
         expect(await screen.findByTestId('chart')).toBeInTheDocument();
         expect(screen.queryByText('Unable to load filters')).not.toBeInTheDocument();
+    });
+});
+
+// as published, b0 b1 b2 then the negated a1 a2
+const published = (type, freq, q, gain) => {
+    const c = coeffsFor(type, freq, q, gain);
+    return [c.b0, c.b1, c.b2, -c.a1, -c.a2].map(String);
+};
+
+// a low, high gain shelf which float32 storage at 96kHz realises badly, "optimised" here is just a nudged copy
+const coefficients = (overrides = {}) => ({
+    profile: 'float32-96k', label: 'float32 @ 96 kHz', rate: 96000, precision: 'float32',
+    authored: [published('LowShelf', 10, 0.7, 10)],
+    optimised: [published('LowShelf', 10.01, 0.7, 10)],
+    ...overrides
+});
+
+describe('optimisationResponses', () => {
+    it('is null until the coefficients load', () => {
+        expect(optimisationResponses(null)).toBeNull();
+    });
+
+    it('models float32 storage for the coefficients as loaded but not for the ideal', () => {
+        const r = optimisationResponses(coefficients());
+        expect(Math.abs(maxDifference(r.ideal, r.unoptimised).db)).toBeGreaterThan(0.01);
+    });
+
+    it('treats coefficients in an unmodelled precision as exact', () => {
+        const r = optimisationResponses(coefficients({precision: 'fixed'}));
+        expect(maxDifference(r.ideal, r.unoptimised)).toEqual({db: 0, freq: null});
+    });
+});
+
+describe('CompareDialog optimisation', () => {
+    const selected = entry('s', {author: 'mine'});
+    const other = entry('m', {author: 'theirs'});
+
+    const renderDialog = (props = {}) => render(
+        <CompareDialog selectedEntry={selected} matches={[]} deviceName="d1" optimised onSelect={vi.fn()}
+                       onClose={vi.fn()} setError={vi.fn()} {...props}/>
+    );
+
+    beforeEach(() => {
+        ezbeq.getFilters.mockReset().mockResolvedValue([
+            {id: 's', filters: [shelf(6)]},
+            {id: 'm', filters: [shelf(4)]}
+        ]);
+        ezbeq.getEntryCoefficients.mockReset().mockResolvedValue(coefficients());
+    });
+
+    it('compares the selection with its optimised coefficients when there are no other releases', async () => {
+        renderDialog();
+        const chart = await screen.findByTestId('chart');
+        expect(ezbeq.getEntryCoefficients).toHaveBeenCalledWith('d1', 's');
+        expect(ezbeq.getFilters).not.toHaveBeenCalled();
+        expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+        expect(JSON.parse(chart.dataset.series))
+            .toEqual(['Hz', 'Ideal', 'Unoptimised (as loaded)', 'Optimised (as loaded)']);
+        expect(chart.dataset.ylabel).toBe('Gain (dB)');
+        expect(screen.getByText(/As loaded by d1 \(float32 @ 96 kHz\)/)).toBeInTheDocument();
+        const rows = within(screen.getByRole('table', {name: 'coefficients'})).getAllByRole('row');
+        expect(within(rows[1]).getByText('Ideal')).toBeInTheDocument();
+        expect(within(rows[2]).getByText(/dB @ \d+ Hz/)).toBeInTheDocument();
+        expect(within(rows[3]).getByText(/dB/)).toBeInTheDocument();
+    });
+
+    it('plots the error vs ideal on request', async () => {
+        renderDialog();
+        await screen.findByTestId('chart');
+        fireEvent.click(screen.getByRole('button', {name: 'Difference'}));
+        const chart = screen.getByTestId('chart');
+        expect(chart.dataset.ylabel).toBe('Error vs ideal (dB)');
+        const [ideal, unoptimised] = JSON.parse(chart.dataset.first);
+        expect(ideal).toBe(0);
+        expect(Math.abs(unoptimised)).toBeGreaterThan(0.01);
+    });
+
+    it('offers both comparisons as tabs when there are other releases too', async () => {
+        renderDialog({matches: [other]});
+        let chart = await screen.findByTestId('chart');
+        expect(JSON.parse(chart.dataset.series)).toEqual(['Hz', 'Selected: mine — Atmos', 'theirs — Atmos']);
+        expect(screen.getByRole('tab', {name: 'Releases (1)'})).toHaveAttribute('aria-selected', 'true');
+        fireEvent.click(screen.getByRole('tab', {name: 'Optimised'}));
+        await waitFor(() => expect(JSON.parse(screen.getByTestId('chart').dataset.series)[1]).toBe('Ideal'));
+        fireEvent.click(screen.getByRole('tab', {name: 'Releases (1)'}));
+        chart = await screen.findByTestId('chart');
+        expect(JSON.parse(chart.dataset.series)[1]).toBe('Selected: mine — Atmos');
+    });
+
+    it('only compares releases without a device', async () => {
+        renderDialog({matches: [other], deviceName: null});
+        await screen.findByTestId('chart');
+        expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+        expect(ezbeq.getEntryCoefficients).not.toHaveBeenCalled();
+    });
+
+    it('uses a list on a narrow screen', async () => {
+        const matchMedia = window.matchMedia;
+        window.matchMedia = query => ({
+            matches: true, media: query, addListener: vi.fn(), removeListener: vi.fn(),
+            addEventListener: vi.fn(), removeEventListener: vi.fn()
+        });
+        try {
+            renderDialog();
+            await screen.findByTestId('chart');
+            const items = within(screen.getByRole('list', {name: 'coefficients'})).getAllByRole('listitem');
+            expect(items).toHaveLength(3);
+            expect(within(items[1]).getByText(/^max error .* dB @ \d+ Hz$/)).toBeInTheDocument();
+        } finally {
+            window.matchMedia = matchMedia;
+        }
+    });
+
+    it('reports a failure to load the coefficients', async () => {
+        const err = new Error('boom');
+        ezbeq.getEntryCoefficients.mockRejectedValue(err);
+        const setError = vi.fn();
+        renderDialog({setError});
+        expect(await screen.findByText('Unable to load filters')).toBeInTheDocument();
+        expect(setError).toHaveBeenCalledWith(err);
     });
 });

@@ -946,6 +946,25 @@ class Minidsp(PersistentDevice[MinidspState]):
         profile = self.__optimisation.optimisable_profile
         return [profile] if profile else []
 
+    def entry_coefficients(self, entry: CatalogueEntry) -> dict | None:
+        optimised = self.__optimisation.optimised_coefficients(entry)
+        if not optimised:
+            return None
+        profile, biquads = optimised
+        try:
+            authored = [MinidspBeqCommandGenerator.as_bq(f, self.__descriptor.fs) for f in entry.filters]
+        except (InvalidRequestError, ValueError):
+            logger.warning(f"[{self.name}] Unable to compute authored biquads for {entry.formatted_title}")
+            return None
+        return {
+            'profile': profile.id,
+            'label': profile.label,
+            'rate': profile.rate,
+            'precision': profile.storage,
+            'authored': authored,
+            'optimised': biquads,
+        }
+
     def update(self, params: dict) -> bool:
         def __do_it() -> bool:
             any_update = False

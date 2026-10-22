@@ -340,6 +340,42 @@ describe('compare', () => {
     await waitFor(() => expect(screen.queryByText('Compare: Some Movie (2020)')).toBeNull());
   });
 
+  test('offers to compare an optimised entry with no other releases against its optimised filters', async () => {
+    const user = userEvent.setup();
+    const coefficients = {
+      profile: 'float32-96k',
+      label: 'float32 @ 96 kHz',
+      rate: 96000,
+      precision: 'float32',
+      authored: [['1', '0', '0', '0', '0']],
+      optimised: [['1', '0', '0', '0', '0']],
+    };
+    const api = {
+      getEntryOptimisation: jest.fn().mockResolvedValue({ applicable: true, profile: 'float32-96k', optimised: true }),
+      getEntryCoefficients: jest.fn().mockResolvedValue(coefficients),
+    } as unknown as EzbeqApi;
+    await render(
+      <PaperProvider>
+        <EntryDetail
+          api={api}
+          selectedEntry={entries[0]}
+          selectedDevice={device({
+            optimisation: { profile: 'float32-96k', label: 'float32 @ 96 kHz', available: true, reason: null },
+          })}
+          selectedSlotId="1"
+          onDeviceUpdate={noop}
+          onError={noop}
+          onSuccess={noop}
+          compareIndex={buildCompareIndex([entries[0]])}
+          onSelectEntry={jest.fn()}
+        />
+      </PaperProvider>
+    );
+    await user.press(await screen.findByText('Compare'));
+    expect(await screen.findByText('Unoptimised (as loaded)')).toBeTruthy();
+    expect(api.getEntryCoefficients).toHaveBeenCalledWith(device().name, '1');
+  });
+
   test('closes the comparison when another entry is selected, but not when the same one is refreshed', async () => {
     const user = userEvent.setup();
     const element = (selectedEntry: CatalogueEntry) => (

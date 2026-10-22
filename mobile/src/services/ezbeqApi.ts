@@ -4,6 +4,7 @@ import type {
   DeviceCollection,
   DeviceState,
   EntryFilters,
+  EntryCoefficients,
   EntryOptimisation,
   GainsPayload,
   VersionInfo,
@@ -237,6 +238,9 @@ export class EzbeqApi {
 
   getEntryOptimisation = async (device: string, entryId: string): Promise<EntryOptimisation> =>
     this.doGet(`devices/${device}/optimisation/${entryId}`);
+
+  getEntryCoefficients = async (device: string, entryId: string): Promise<EntryCoefficients> =>
+    this.doGet(`devices/${device}/optimisation/${entryId}/coefficients`);
 
   // the server caps how many ids can be requested at once
   getFilters = async (entryIds: string[]): Promise<EntryFilters[]> => {

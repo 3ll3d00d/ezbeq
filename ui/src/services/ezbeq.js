@@ -238,6 +238,10 @@ class EzBeqService {
         return this.doGet(`devices/${device}/optimisation/${entryId}`);
     }
 
+    getEntryCoefficients = async (device, entryId) => {
+        return this.doGet(`devices/${device}/optimisation/${entryId}/coefficients`);
+    }
+
     // the server caps how many ids can be requested at once
     getFilters = async (entryIds) => {
         const chunks = [];

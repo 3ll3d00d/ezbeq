@@ -710,6 +710,73 @@ def test_entry_optimisation_unknown_entry_or_device(httpserver, tmp_path):
     assert get_entry_optimisation(client, device='nope').status_code == 404
 
 
+def get_entry_coefficients(client, device: str = 'master', entry: str = '123456_0'):
+    return client.get(f'/api/1/devices/{device}/optimisation/{entry}/coefficients')
+
+
+def test_entry_coefficients(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _ = make_client(httpserver, tmp_path)
+    r = get_entry_coefficients(client)
+    assert r.status_code == 200
+    assert r.json['profile'] == 'float32-96k'
+    assert r.json['label'] == 'float32 @ 96 kHz'
+    assert r.json['rate'] == 96000
+    assert r.json['precision'] == 'float32'
+    assert r.json['optimised'] == [OPT_CMD.split(' ')] * 5
+    # authored is what the device loads when unoptimised
+    assert len(r.json['authored']) == 5
+    assert all(len(bq) == 5 for bq in r.json['authored'])
+    assert r.json['authored'] != r.json['optimised']
+    # the slot setting doesn't change what can be compared
+    patch_optimise(client, False)
+    assert get_entry_coefficients(client, entry=DIGEST).json == r.json
+
+
+def test_entry_coefficients_when_not_optimised(httpserver, tmp_path):
+    serve(httpserver, standard_profiles(digest='other'))
+    client, _ = make_client(httpserver, tmp_path)
+    assert get_entry_coefficients(client).status_code == 404
+
+
+def test_entry_coefficients_with_mismatched_profile(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _ = make_client(httpserver, tmp_path, device_type='4x10', extra={'optimisationProfile': 'float32-96k'})
+    assert get_entry_coefficients(client).status_code == 404
+
+
+def test_entry_coefficients_unknown_entry_or_device(httpserver, tmp_path):
+    serve(httpserver, standard_profiles())
+    client, _ = make_client(httpserver, tmp_path)
+    assert get_entry_coefficients(client, entry='nope').status_code == 404
+    assert get_entry_coefficients(client, device='nope').status_code == 404
+
+
+def test_entry_coefficients_when_authored_biquads_cannot_be_computed(httpserver, tmp_path, monkeypatch):
+    from ezbeq.minidsp import InvalidRequestError, MinidspBeqCommandGenerator
+    serve(httpserver, standard_profiles())
+    client, _ = make_client(httpserver, tmp_path)
+
+    def unsupported(*_args, **_kwargs):
+        raise InvalidRequestError('Unknown filt_type')
+
+    monkeypatch.setattr(MinidspBeqCommandGenerator, 'as_bq', staticmethod(unsupported))
+    assert get_entry_coefficients(client).status_code == 404
+
+
+def test_entry_coefficients_for_parametric_device(reaper_client):
+    assert get_entry_coefficients(reaper_client, device='reaper1').status_code == 404
+
+
+def test_composite_entry_coefficients(httpserver, tmp_path):
+    from conftest import CompositeMirrorSpyConfig
+    serve(httpserver, standard_profiles())
+    app, _ = main.create_app(CompositeMirrorSpyConfig(httpserver.host, httpserver.port, tmp_path))
+    r = get_entry_coefficients(app.test_client(), device='bass_array')
+    assert r.status_code == 200
+    assert r.json['optimised'] == [OPT_CMD.split(' ')] * 5
+
+
 def test_composite_entry_optimisation_when_no_member_is_applicable(httpserver, tmp_path, monkeypatch):
     from conftest import CompositeMappedSpyConfig
 
