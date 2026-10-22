@@ -2973,3 +2973,20 @@ def test_cfg_makes_custom_minidsp():
     assert desc.peq_routes[2].channels == [1, 2, 3]
     assert desc.peq_routes[2].beq_slots == [0, 1]
     assert not desc.peq_routes[2].groups
+
+
+@pytest.mark.parametrize('extra', [{}, {'biquads': {}}, {'biquads': None}], ids=['missing', 'empty', 'null'])
+def test_biquads_are_calculated_when_not_published(extra):
+    # a custom catalogue may only provide the filter params
+    from ezbeq.iir import LowShelf
+    from ezbeq.minidsp import MinidspBeqCommandGenerator
+    f = {'type': 'LowShelf', 'freq': 20.0, 'gain': 6.0, 'q': 0.9, **extra}
+    expected = list(LowShelf(96000, 20.0, 0.9, 6.0).format_biquads().values())
+    assert MinidspBeqCommandGenerator.as_bq(f, '96000') == expected
+
+
+def test_published_biquads_are_preferred():
+    from ezbeq.minidsp import MinidspBeqCommandGenerator
+    f = {'type': 'LowShelf', 'freq': 20.0, 'gain': 6.0, 'q': 0.9,
+         'biquads': {'96000': {'b': ['1', '2', '3'], 'a': ['4', '5']}}}
+    assert MinidspBeqCommandGenerator.as_bq(f, '96000') == ['1', '2', '3', '4', '5']
