@@ -1125,8 +1125,10 @@ class MinidspBeqCommandGenerator:
 
     @staticmethod
     def as_bq(f: dict, fs: str) -> list[str]:
-        if fs in f['biquads']:
-            bq = f['biquads'][fs]['b'] + f['biquads'][fs]['a']
+        # custom catalogues may omit the precomputed biquads, they're calculated from the filter params instead
+        published = f.get('biquads') or {}
+        if fs in published:
+            bq = published[fs]['b'] + published[fs]['a']
         else:
             t = f['type']
             freq = f['freq']
