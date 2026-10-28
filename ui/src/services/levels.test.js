@@ -34,7 +34,18 @@ class FakeWebSocket {
     }
 }
 
-const newService = (setErr = vi.fn()) => new LevelsService(setErr, 'ws://test', theme);
+// a connected service registers page-level listeners, close them so they can't react to a later test's events
+let services = [];
+const newService = (setErr = vi.fn()) => {
+    const service = new LevelsService(setErr, 'ws://test', theme);
+    services.push(service);
+    return service;
+};
+
+afterEach(() => {
+    services.forEach(s => s.close());
+    services = [];
+});
 
 // loadDevices takes an object keyed by device name (it does its own Object.keys(...)
 // internally, matching how Chart.jsx calls it with the raw availableDevices object)
@@ -98,12 +109,15 @@ describe('loadDevices', () => {
     });
 
     it('subscribes over an already-open socket for a newly loaded device', () => {
+        vi.stubGlobal('WebSocket', FakeWebSocket);
         const service = newService();
-        service.ws = {readyState: 1, send: vi.fn()};
+        service.initWebsocket();
+        FakeWebSocket.lastInstance.open();
 
         service.loadDevices(devicesObj('d1'));
 
-        expect(service.ws.send).toHaveBeenCalledWith('subscribe levels d1');
+        expect(FakeWebSocket.lastInstance.send).toHaveBeenCalledWith('subscribe levels d1');
+        vi.unstubAllGlobals();
     });
 
     it('does not try to subscribe when there is no open socket yet', () => {
@@ -299,16 +313,6 @@ describe('WebSocket lifecycle', () => {
         expect(setErr).not.toHaveBeenCalled();
     });
 
-    it('reports a connection error via setErr', () => {
-        const setErr = vi.fn();
-        const service = newService(setErr);
-        service.initWebsocket();
-
-        FakeWebSocket.lastInstance.onerror({});
-
-        expect(setErr).toHaveBeenCalledWith(new Error('Failed to connect to ws://test'));
-    });
-
     it('schedules a reconnect with exponential backoff on an unintentional close', () => {
         vi.useFakeTimers();
         const setConnected = vi.fn();
@@ -325,19 +329,6 @@ describe('WebSocket lifecycle', () => {
         expect(FakeWebSocket.lastInstance).not.toBe(first); // reconnected after the initial 1s delay
     });
 
-    it('doubles the reconnect delay on repeated closes, capped at the max', () => {
-        vi.useFakeTimers();
-        const service = newService();
-        service.initWebsocket();
-
-        FakeWebSocket.lastInstance.triggerClose(1006); // delay becomes 2000
-        expect(service.reconnectDelay).toBe(2000);
-        vi.advanceTimersByTime(2000);
-
-        FakeWebSocket.lastInstance.triggerClose(1006); // delay becomes 4000
-        expect(service.reconnectDelay).toBe(4000);
-    });
-
     it('does not schedule a reconnect after an intentional close', () => {
         vi.useFakeTimers();
         const service = newService();
@@ -351,19 +342,67 @@ describe('WebSocket lifecycle', () => {
         expect(FakeWebSocket.lastInstance).toBe(instanceCountBefore);
     });
 
-    it('close() closes an open socket and returns true', () => {
+    it('reports a connection error via setErr once the socket stays down', () => {
+        vi.useFakeTimers();
+        const setErr = vi.fn();
+        const service = newService(setErr);
+        service.initWebsocket();
+
+        FakeWebSocket.lastInstance.onerror({});
+        expect(setErr).not.toHaveBeenCalled();
+        FakeWebSocket.lastInstance.triggerClose(1006);
+        vi.advanceTimersByTime(10000);
+
+        expect(setErr).toHaveBeenCalledWith(new Error('Failed to connect to ws://test'));
+        service.close();
+    });
+
+    it('resubscribes after reconnecting', () => {
+        vi.useFakeTimers();
+        const service = newService();
+        service.loadDevices(devicesObj('d1'));
+        service.initWebsocket();
+        FakeWebSocket.lastInstance.open();
+        const first = FakeWebSocket.lastInstance;
+
+        first.triggerClose(1006);
+        window.dispatchEvent(new Event('pageshow'));
+        FakeWebSocket.lastInstance.open();
+
+        expect(FakeWebSocket.lastInstance).not.toBe(first);
+        expect(FakeWebSocket.lastInstance.send).toHaveBeenCalledWith('subscribe levels d1');
+        service.close();
+    });
+
+    it('close() closes the socket', () => {
         const service = newService();
         service.initWebsocket();
-        FakeWebSocket.lastInstance.readyState = 1;
         const ws = FakeWebSocket.lastInstance;
 
-        expect(service.close()).toBe(true);
+        service.close();
+
         expect(ws.close).toHaveBeenCalled();
-        expect(service.ws).toBeNull();
+        expect(service.socket).toBeNull();
     });
 
-    it('close() is a no-op that returns false when the socket is not open', () => {
+    it('close() is a no-op when the socket was never opened', () => {
         const service = newService();
-        expect(service.close()).toBe(false);
+        expect(() => service.close()).not.toThrow();
     });
+
+    it('reconnects again after being closed and reopened', () => {
+        vi.useFakeTimers();
+        const service = newService();
+        service.initWebsocket();
+        service.close();
+
+        service.initWebsocket();
+        const reopened = FakeWebSocket.lastInstance;
+        reopened.triggerClose(1006);
+        vi.advanceTimersByTime(1000);
+
+        expect(FakeWebSocket.lastInstance).not.toBe(reopened);
+        service.close();
+    });
+
 });

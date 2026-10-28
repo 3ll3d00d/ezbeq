@@ -7,7 +7,9 @@ import type { CatalogueEntry, CatalogueMeta, DeviceState } from '../types/ezbeq'
 // CatalogueEntries) and the same "load catalogue" handshake once a version is known. Both sides
 // share the same reconnect design (exponential backoff, a grace period before reporting a
 // failure, immediate retry when the app/page returns to the foreground or the network comes
-// back) - this side triggers on AppState/NetInfo, the web side on visibilitychange/pageshow/online.
+// back) - this side triggers on AppState/NetInfo, the web side (ui/src/services/socket.js) on
+// visibilitychange/pageshow/online. The web side also has a ping/Pong heartbeat; this side can't
+// use it as-is since the app may be paired with an older server that never answers the ping.
 
 const MAX_RECONNECT_DELAY_MS = 30000;
 const DEFAULT_INITIAL_RECONNECT_DELAY_MS = 1000;

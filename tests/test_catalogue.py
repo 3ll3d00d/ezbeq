@@ -298,6 +298,45 @@ class TestPruneEntriesSafe:
         assert received['version'] == 'some-version'
 
 
+class TestSendChunkedCatalogue:
+
+    @staticmethod
+    def _cat(tmp_path, monkeypatch, entries):
+        from twisted.internet import defer, threads
+        monkeypatch.setattr(threads, 'deferToThread', lambda f: defer.succeed(f()))
+        cat = make_catalogues(tmp_path)
+        cat._Catalogues__chunk_sizes = (1, 2)
+        write_catalogue_json(cat._Catalogues__catalogue_file, entries)
+        cat._Catalogues__catalogues = [cat._Catalogues__insert_catalogue('v1')]
+        return cat
+
+    def test_sends_every_entry_in_chunks(self, tmp_path, monkeypatch):
+        cat = self._cat(tmp_path, monkeypatch, SAMPLE_ENTRIES)
+        sent = []
+
+        cat._Catalogues__send_chunked_catalogue(lambda msg: sent.append(json.loads(msg)) or True)
+
+        assert [len(m['data']) for m in sent] == [1, 2]
+        assert all(m['message'] == 'CatalogueEntries' for m in sent)
+        assert sorted(e['title'] for m in sent for e in m['data']) == ['Alpha One', 'Beta Two', 'Gamma Three']
+
+    def test_stops_once_the_client_has_gone(self, tmp_path, monkeypatch):
+        cat = self._cat(tmp_path, monkeypatch, SAMPLE_ENTRIES)
+        sent = []
+
+        cat._Catalogues__send_chunked_catalogue(lambda msg: sent.append(msg) and False)
+
+        assert len(sent) == 1
+
+    def test_sends_nothing_for_an_empty_catalogue(self, tmp_path, monkeypatch):
+        cat = self._cat(tmp_path, monkeypatch, [])
+        sent = []
+
+        cat._Catalogues__send_chunked_catalogue(lambda msg: sent.append(msg) or True)
+
+        assert sent == []
+
+
 class TestPrunePool:
 
     def test_pool_created_lazily_and_uses_daemon_threads(self, tmp_path):
