@@ -25,11 +25,11 @@ from ezbeq.device import (
 logger = logging.getLogger('ezbeq.shakeq')
 
 
-class ShakEQBusyError(InvalidRequestError):
+class ShakEQBusyError(OSError):
     """The service rejected the operation because the console owns the device."""
 
 
-class ShakEQRejectedError(InvalidRequestError):
+class ShakEQRejectedError(OSError):
     """The service explicitly rejected an operation before hardware access."""
 
 
@@ -37,10 +37,15 @@ class ShakEQResponseError(OSError):
     """An HTTP response arrived, but does not confirm the hardware result."""
 
 
+class ShakEQNotSentError(OSError):
+    """Local preflight failure; no HTTP request was sent."""
+
+
 SLOT_ID = 'BEQ'
 FILTER_TYPES = frozenset({'PeakingEQ', 'LowShelf'})
 MAX_RESPONSE_BYTES = 1024 * 1024  # Independent service's maximum encoded snapshot.
 STATE_CACHE_SECONDS = 2.0
+MAX_STATE_BACKOFF_SECONDS = 60.0
 
 
 def validate_filters(entry: CatalogueEntry) -> None:
@@ -105,10 +110,15 @@ class ShakEQ(PersistentDevice[ShakEQState]):
         if any(not math.isfinite(t) or t <= 0 for t in (self.__timeout, self.__state_timeout)):
             raise ValueError('ShakEQ HTTP timeouts must be finite and positive')
         self.__catalogue = catalogue
-        self.__lock = threading.RLock()
+        self.__lock = threading.RLock()  # Protects published state and persistence.
+        self.__operation_lock = threading.Lock()  # Serialises load/clear.
+        self.__refresh_lock = threading.Lock()  # Only one GET in flight.
+        self.__transfer_active = False
+        self.__generation = 0
         self.__session = requests.Session()
         self.__session.trust_env = False
         self.__next_state_check = 0.0
+        self.__state_failures = 0
 
     @property
     def device_type(self):
@@ -128,20 +138,27 @@ class ShakEQ(PersistentDevice[ShakEQState]):
 
     def __request(self, route, body=None):
         # Read lazily: an unavailable/rotated token must not prevent ezBEQ startup.
-        token = self.__token_path.read_text().strip()
+        try:
+            token = self.__token_path.read_text().strip()
+        except (OSError, UnicodeError) as exc:
+            raise ShakEQNotSentError('ShakEQ service token file unavailable; request not sent') from exc
         if len(token) < 32 or not token.isascii() or any(c.isspace() for c in token):
-            raise OSError('Invalid ShakEQ service token file')
+            raise ShakEQNotSentError('Invalid ShakEQ service token file; request not sent')
         headers = {'Authorization': 'Bearer '+token, 'Accept': 'application/json'}
+        timeout = self.__state_timeout if body is None else self.__timeout
+        deadline = time.monotonic() + timeout
         try:
             with self.__session.request('GET' if body is None else 'POST', self.__url+'/'+route,
                                         headers=headers, json=body, stream=True, allow_redirects=False,
-                                        timeout=self.__state_timeout if body is None else self.__timeout) as response:
+                                        timeout=timeout) as response:
                 if response.status_code == 423:
                     raise ShakEQBusyError('ShakEQ console is busy; BEQ deferred')
                 # Bound decoded bytes too, including compressed responses. Using
                 # json.loads here avoids requests.json() buffering an unbounded body.
                 chunks, size = [], 0
                 for chunk in response.iter_content(8192):
+                    if time.monotonic() > deadline:
+                        raise ShakEQResponseError('ShakEQ response exceeded elapsed-time deadline; no automatic replay')
                     size += len(chunk)
                     if size > MAX_RESPONSE_BYTES:
                         raise ShakEQResponseError('ShakEQ service response too large; no automatic replay')
@@ -154,7 +171,7 @@ class ShakEQ(PersistentDevice[ShakEQState]):
                         try:
                             detail = json.loads(raw)
                             rejected = isinstance(detail, dict) and detail.get('applied') is False
-                        except (ValueError, TypeError):
+                        except (ValueError, TypeError, RecursionError):
                             pass
                     message = f'ShakEQ service returned HTTP {response.status_code}; no automatic replay'
                     if rejected:
@@ -162,7 +179,7 @@ class ShakEQ(PersistentDevice[ShakEQState]):
                     raise ShakEQResponseError(message)
                 try:
                     result = json.loads(raw)
-                except (ValueError, UnicodeError) as exc:
+                except (ValueError, UnicodeError, RecursionError) as exc:
                     raise ShakEQResponseError('Invalid ShakEQ service JSON; no automatic replay') from exc
         except requests.RequestException as exc:
             raise OSError('ShakEQ service unavailable or timed out; no automatic replay') from exc
@@ -185,35 +202,48 @@ class ShakEQ(PersistentDevice[ShakEQState]):
         self._current_state.service_online = True
 
     def state(self, refresh=False):
-        # This only reads HTTP service memory, never UART/device status.
+        # Never wait for a POST or another GET to serve the published snapshot.
         with self.__lock:
-            # Repository list polls pass refresh=True too. Keep the same short
-            # TTL/backoff for them, rather than resetting from disk or blocking
-            # every poll behind another request to an unavailable service.
             self._hydrate()
-            assert self._current_state is not None
-            if time.monotonic() < self.__next_state_check:
-                return self._current_state
-            before = deepcopy(self._current_state.serialise())
+            if self.__transfer_active or time.monotonic() < self.__next_state_check:
+                return deepcopy(self._current_state)
+            if not self.__refresh_lock.acquire(blocking=False):
+                return deepcopy(self._current_state)
+            generation = self.__generation
+        try:
             try:
-                self.__adopt(self.__request('state'))
-            except ShakEQBusyError:
-                self._current_state.console_busy = True
-                self._current_state.service_online = True
-                logger.info('ShakEQ %s state is busy', self.name)
-            except (OSError, InvalidRequestError, ValueError, TypeError, KeyError) as exc:
-                self._current_state.status = 'unknown'
-                self._current_state.service_online = isinstance(exc, (ShakEQResponseError, ShakEQRejectedError))
-                self._current_state.console_busy = False
-                logger.warning('Unable to refresh ShakEQ %s: %s', self.name, exc)
-            finally:
-                # Also back off after failures, so every device-list poll does
-                # not wait for another unreachable-host timeout.
-                self.__next_state_check = time.monotonic() + STATE_CACHE_SECONDS
-            if before != self._current_state.serialise():
-                self._persist()
-                self._broadcast()
-            return self._current_state
+                snapshot, error = self.__request('state'), None
+            except (ShakEQBusyError, OSError, InvalidRequestError, ValueError,
+                    TypeError, KeyError, RecursionError) as exc:
+                snapshot, error = None, exc
+            with self.__lock:
+                # A POST started while GET was in flight: its result takes priority.
+                if generation != self.__generation or self.__transfer_active:
+                    return deepcopy(self._current_state)
+                before = self._current_state.serialise()
+                if error is None:
+                    self.__adopt(snapshot)
+                elif isinstance(error, ShakEQBusyError):
+                    self._current_state.console_busy = True
+                    self._current_state.service_online = True
+                    logger.info('ShakEQ %s state is busy', self.name)
+                else:
+                    self._current_state.status = 'unknown'
+                    self._current_state.service_online = isinstance(error, (ShakEQResponseError, ShakEQRejectedError))
+                    self._current_state.console_busy = False
+                    logger.warning('Unable to refresh ShakEQ %s: %s', self.name, error)
+                if error is None or isinstance(error, ShakEQBusyError):
+                    self.__state_failures = 0
+                else:
+                    self.__state_failures += 1
+                delay = min(MAX_STATE_BACKOFF_SECONDS, STATE_CACHE_SECONDS * (2 ** min(self.__state_failures, 6)))
+                self.__next_state_check = time.monotonic() + delay
+                if before != self._current_state.serialise():
+                    self._persist()
+                    self._broadcast()
+                return deepcopy(self._current_state)
+        finally:
+            self.__refresh_lock.release()
 
     @staticmethod
     def __check_slot(slot):
@@ -226,45 +256,56 @@ class ShakEQ(PersistentDevice[ShakEQState]):
             self._hydrate_cache_broadcast(lambda: None)
 
     def __transfer(self, body):
-        def apply():
-            assert self._current_state is not None
+        # Hold the operation lock across the request, but never the state lock.
+        with self.__operation_lock:
+            with self.__lock:
+                self._hydrate()
+                self.__transfer_active = True
+                self.__generation += 1
             try:
-                snapshot = self.__request('beq', body)
-                if snapshot['status'] != 'sent':
-                    raise ShakEQResponseError('ShakEQ service did not confirm completion')
-                actual = snapshot.get('beq')
-                if body['action'] == 'load':
-                    if not isinstance(actual, dict) or actual.get('id') != body['entry']['id'] or actual.get('digest') != body['entry']['digest']:
-                        raise ShakEQResponseError('ShakEQ service confirmed a different BEQ')
-                elif actual is not None:
-                    raise ShakEQResponseError('ShakEQ service did not confirm clear')
-                self.__adopt(snapshot)
-                self.__next_state_check = time.monotonic() + STATE_CACHE_SECONDS
-            except ShakEQBusyError:
-                self._current_state.console_busy = True
-                self._current_state.service_online = True
-                self.__next_state_check = time.monotonic() + STATE_CACHE_SECONDS
-                logger.info('ShakEQ %s BEQ operation deferred: console is busy', self.name)
-                raise
-            except ShakEQRejectedError:
-                self._current_state.service_online = True
-                self.__next_state_check = time.monotonic() + STATE_CACHE_SECONDS
-                logger.warning('ShakEQ %s BEQ operation rejected', self.name, exc_info=True)
-                raise
-            except InvalidRequestError:
-                raise
-            except Exception as exc:
-                self._current_state.slot.last = 'ERROR'
-                self._current_state.slot.last_author = None
-                self._current_state.entry = None
-                self._current_state.status = 'unknown'
-                self._current_state.service_online = isinstance(exc, ShakEQResponseError)
-                self._current_state.console_busy = False
-                self.__next_state_check = time.monotonic() + STATE_CACHE_SECONDS
-                logger.exception('ShakEQ %s BEQ result is unconfirmed; no automatic replay', self.name)
-                raise
-        with self.__lock:
-            self._hydrate_cache_broadcast(apply)
+                try:
+                    snapshot = self.__request('beq', body)
+                    if snapshot['status'] != 'sent':
+                        raise ShakEQResponseError('ShakEQ service did not confirm completion')
+                    actual = snapshot.get('beq')
+                    if body['action'] == 'load':
+                        if not isinstance(actual, dict) or actual.get('id') != body['entry']['id'] or actual.get('digest') != body['entry']['digest']:
+                            raise ShakEQResponseError('ShakEQ service confirmed a different BEQ')
+                    elif actual is not None:
+                        raise ShakEQResponseError('ShakEQ service did not confirm clear')
+                    error = None
+                except Exception as exc:
+                    snapshot, error = None, exc
+                with self.__lock:
+                    def apply():
+                        if error is None:
+                            self.__adopt(snapshot)
+                        elif isinstance(error, ShakEQBusyError):
+                            self._current_state.console_busy = True
+                            self._current_state.service_online = True
+                            logger.info('ShakEQ %s BEQ operation deferred: console is busy', self.name)
+                        elif isinstance(error, (ShakEQRejectedError, ShakEQNotSentError)):
+                            if isinstance(error, ShakEQRejectedError):
+                                self._current_state.service_online = True
+                            else:
+                                self._current_state.service_online = False
+                            logger.warning('ShakEQ %s BEQ operation not applied: %s', self.name, error)
+                        elif not isinstance(error, InvalidRequestError):
+                            self._current_state.slot.last = 'ERROR'
+                            self._current_state.slot.last_author = None
+                            self._current_state.entry = None
+                            self._current_state.status = 'unknown'
+                            self._current_state.service_online = isinstance(error, ShakEQResponseError)
+                            self._current_state.console_busy = False
+                            logger.error('ShakEQ %s BEQ result is unconfirmed; no automatic replay: %s', self.name, error)
+                        self.__next_state_check = time.monotonic() + STATE_CACHE_SECONDS
+                        if error is not None:
+                            raise error
+                    self._hydrate_cache_broadcast(apply)
+            finally:
+                with self.__lock:
+                    self.__transfer_active = False
+                    self.__generation += 1
 
     def load_filter(self, slot, entry, mv_adjust=0.0):
         self.__check_slot(slot)

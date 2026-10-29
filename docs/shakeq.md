@@ -36,14 +36,13 @@ named entry for each additional processor. An example is provided in
 | --- | --- |
 | `url` | Required HTTP(S) origin of the service, without an API path, query or credentials. |
 | `tokenFile` | Required path to the service's existing bearer-token file. Relative paths are resolved against the ezBEQ configuration directory; `~` is supported. |
-| `requestTimeout` | Positive, finite timeout in seconds for load/clear requests; default `120`. |
-| `stateTimeout` | Positive, finite timeout in seconds for state requests; default `2`. |
+| `requestTimeout` | Positive, finite timeout in seconds for load/clear requests; default `120`. An elapsed-time check also limits streamed response reads; OS connection/DNS timing may still exceed this setting. |
+| `stateTimeout` | Positive, finite timeout in seconds for state requests; default `2`. Streamed response reads also check elapsed time; this is not a hard wall-clock cutoff for DNS, connection or blocking socket reads. |
 
 Do not copy a token into the URL. When the service is remote, copy its token to a
 file accessible to ezBEQ and set `tokenFile` to that file. The file is read for
 each HTTP request, so it may be created after ezBEQ starts or replaced without
-restarting ezBEQ. A missing, unreadable or invalid file makes only this device
-unavailable. If the service token changes, update its configured token file and
+restarting ezBEQ. A missing, unreadable or invalid file prevents new requests for this device without discarding its previously confirmed BEQ. If the service token changes, update its configured token file and
 restart the service too; the service reads its token at startup. HTTPS requires a valid
 certificate trusted by the Python runtime. HTTP redirects are not followed.
 
@@ -65,22 +64,19 @@ be reached; an invalid response still leaves BEQ status `unknown`. This is not v
 filter coefficients. A cached title can remain visible while the service is
 unavailable, with status `unknown`.
 
-The driver reuses the snapshot returned by load/clear. State snapshots and failed
-state checks have a two-second cache/backoff, including repository list polls
+The driver reuses the snapshot returned by load/clear. Successful state snapshots have a two-second cache; failed state checks use exponential backoff (4–60 seconds), including repository list polls
 that use `refresh=True`. An unchanged refresh does not write the cache file or
-broadcast another WebSocket event. External console changes may take up to two
-seconds to appear. GET `/state` must return the latest published snapshot without
+broadcast another WebSocket event. External console changes normally take up to two
+seconds to appear, longer during a service outage. GET `/state` must return the latest published snapshot without
 waiting for an in-progress UART transfer.
 
 If the service returns HTTP 423 because a console operation reserves the device,
 the driver preserves the previous BEQ state and raises an existing ezBEQ error.
-The v3 PATCH path reports an invalid request; the existing v1 filter path can
-report a server error. A 423 on a state read is handled locally and does not
+The v3 PATCH and v1 filter paths report a server error (HTTP 500), so callers can distinguish a busy service from an invalid filter request. A 423 on a state read is handled locally and does not
 remove the device from the list. Authentication/routing rejections preserve the
 previous BEQ and mark the service reachable. A 400/422 preserves the previous BEQ
 only when the response explicitly includes `applied: false`; legacy services
-without that guarantee are treated as an unconfirmed result. No API error
-handlers are changed. Load/clear failures and
+without that guarantee are treated as an unconfirmed result. The existing API error handlers are unchanged; ShakEQ-specific service failures are no longer subclasses of InvalidRequestError. Load/clear failures and
 timeouts are never replayed automatically because the hardware may already have
 changed. Retry deliberately once the service/device is ready.
 

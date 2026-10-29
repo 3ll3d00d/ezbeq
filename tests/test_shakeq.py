@@ -148,7 +148,7 @@ def test_busy_preserves_previous_beq_without_retry(device, service, operation):
     old_state = device.state().serialise()
     service.beq_status = 423
     service.snapshot['consoleBusy'] = True
-    with pytest.raises(InvalidRequestError, match='console is busy'):
+    with pytest.raises(OSError, match='console is busy'):
         if operation == 'load':
             device.load_filter('BEQ', entry(title='Another film'))
         else:
@@ -315,7 +315,7 @@ def test_existing_filter_api_load_clear_and_busy(client, service):
     service.beq_status = 423
     service.snapshot['consoleBusy'] = True
     response = client.patch('/api/3/devices/shakeq1', json={'slots': [{'id': 'BEQ', 'entry': '123456_0'}]})
-    assert response.status_code == 400 and 'console is busy' in response.json['message']
+    assert response.status_code == 500 and 'console is busy' in response.json['message']
     response = client.delete('/api/1/devices/shakeq1/filter/BEQ')
     assert response.status_code == 500 and response.json['consoleBusy']
     assert response.json['beq']['title'] == 'Alien Resurrection'
@@ -381,7 +381,7 @@ def test_snapshot_reuse_expiry_and_failure_backoff(device, service, monkeypatch)
     assert service.state_reads == 2
     device.state(refresh=True)
     assert service.state_reads == 2
-    clock[0] += 2.1
+    clock[0] += 4.1
     device.state(refresh=True)
     assert service.state_reads == 3
 
@@ -392,7 +392,7 @@ def test_rejection_preserves_beq_and_service_online(device, service, status):
     previous = device.state().serialise()
     service.beq_status = status
     service.error_body = {'applied': False}
-    with pytest.raises(InvalidRequestError, match=f'HTTP {status}'):
+    with pytest.raises(OSError, match=f'HTTP {status}'):
         device.load_filter('BEQ', entry(title='Other film'))
     state = device.state().serialise()
     assert state['beq'] == previous['beq']
@@ -473,7 +473,7 @@ def test_requests_ignores_environment_proxies(device, service, monkeypatch):
 def test_existing_api_error_path_with_busy_state(client, service):
     service.beq_status = service.state_status = 423
     response = client.put('/api/1/devices/shakeq1/filter/BEQ', json={'entryId': '123456_0'})
-    assert response.status_code == 400
+    assert response.status_code == 500
     assert response.is_json and response.json['consoleBusy']
     # Listing refresh also handles the 423 instead of dropping this device.
     response = client.get('/api/2/devices')
