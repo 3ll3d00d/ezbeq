@@ -620,7 +620,7 @@ class CapturingWsServerFactory(WsServerFactory):
     def init_meta_provider(self, meta_provider: Callable[[], str]):
         pass
 
-    def init_catalogue_loader(self, loader: Callable[[Callable[[str], None]], None]):
+    def init_catalogue_loader(self, loader: Callable[[Callable[[str], bool]], None]):
         pass
 
     def broadcast(self, msg: str):

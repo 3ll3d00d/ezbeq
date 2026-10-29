@@ -363,33 +363,37 @@ class Catalogues:
             self.__prune_pool = pool
         return self.__prune_pool
 
-    def __send_chunked_catalogue(self, sender: Callable[[str], None]):
+    def __send_chunked_catalogue(self, sender: Callable[[str], bool]):
         catalogue = self.latest
         if not catalogue:
             return
-        vals = {'count': catalogue.count, 'limit': self.__chunk_sizes[0], 'offset': 0, 'start': time.time()}
-        from twisted.internet import threads
-        threads.deferToThread(lambda: self.__load_next_chunk(sender, catalogue.version, **vals)).addCallback(sender)
+        self.__send_next_chunk(sender, catalogue.version, catalogue.count, self.__chunk_sizes[0], 0, time.time())
 
-    def __load_next_chunk(self, publisher: Callable[[str], None], version: str, count: int = 100, limit: int = 500,
-                          offset: int = 0, start: float = 0) -> str | None:
+    def __send_next_chunk(self, sender: Callable[[str], bool], version: str, count: int, limit: int, offset: int,
+                          start: float):
         if offset >= count:
             logger.info(f'[{version}] Load complete in {to_millis(start, time.time())}ms')
-            return None
-        else:
-            begin = time.time()
-            next_offset = offset + limit
-            select = f"SELECT {UI_FIELDS_STR} FROM catalogue_entry WHERE version = '{version}'"
-            msg = json.dumps({
-                'message': 'CatalogueEntries',
-                'data': self.__fetch_entries(select, UI_FIELDS, limit, offset)
-            }, ensure_ascii=False)
-            end = time.time()
-            logger.debug(f'Loaded chunk from {offset} to {next_offset} in {to_millis(begin, end)}ms')
-            vals = {'count': count, 'limit': self.__chunk_sizes[1], 'offset': next_offset, 'start': start}
-            from twisted.internet import threads
-            threads.deferToThread(lambda: self.__load_next_chunk(publisher, version, **vals)).addCallback(publisher)
-            return msg
+            return
+
+        def on_loaded(msg: str):
+            # stop once the client has gone, it will request the catalogue again if it reconnects
+            if sender(msg):
+                self.__send_next_chunk(sender, version, count, self.__chunk_sizes[1], offset + limit, start)
+            else:
+                logger.info(f'[{version}] Load abandoned at {offset}/{count}, client disconnected')
+
+        from twisted.internet import threads
+        threads.deferToThread(lambda: self.__load_chunk(version, limit, offset)).addCallback(on_loaded)
+
+    def __load_chunk(self, version: str, limit: int, offset: int) -> str:
+        begin = time.time()
+        select = f"SELECT {UI_FIELDS_STR} FROM catalogue_entry WHERE version = '{version}'"
+        msg = json.dumps({
+            'message': 'CatalogueEntries',
+            'data': self.__fetch_entries(select, UI_FIELDS, limit, offset)
+        }, ensure_ascii=False)
+        logger.debug(f'Loaded chunk from {offset} to {offset + limit} in {to_millis(begin, time.time())}ms')
+        return msg
 
     def __ensure_db(self):
         def add_column(column_name: str):

@@ -4,11 +4,12 @@ import NetInfo, { type NetInfoSubscription } from '@react-native-community/netin
 import type { CatalogueEntry, CatalogueMeta, DeviceState } from '../types/ezbeq';
 
 // Ported from ui/src/services/state.js - same message contract (DeviceState/Error/Catalogue/
-// CatalogueEntries) and the same "load catalogue" handshake once a version is known. Unlike the
-// web version, which never reconnects (a page reload is the implicit recovery), this adds
-// exponential-backoff reconnection plus immediate reconnect attempts on app-foreground and
-// connectivity-restored events, since mobile network conditions are far less stable than a
-// LAN-tethered browser tab.
+// CatalogueEntries) and the same "load catalogue" handshake once a version is known. Both sides
+// share the same reconnect design (exponential backoff, a grace period before reporting a
+// failure, immediate retry when the app/page returns to the foreground or the network comes
+// back) - this side triggers on AppState/NetInfo, the web side (ui/src/services/socket.js) on
+// visibilitychange/pageshow/online. The web side also has a ping/Pong heartbeat; this side can't
+// use it as-is since the app may be paired with an older server that never answers the ping.
 
 const MAX_RECONNECT_DELAY_MS = 30000;
 const DEFAULT_INITIAL_RECONNECT_DELAY_MS = 1000;

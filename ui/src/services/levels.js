@@ -1,3 +1,5 @@
+import ReconnectingSocket from './socket';
+
 const NO_DATA_ERROR = new Error("No data in levels update");
 
 class LevelsService {
@@ -14,10 +16,7 @@ class LevelsService {
         this.activeDuration = 60;
         this.dataByDeviceName = {};
         this.seriesDirty = true;
-        this.reconnectDelay = 1000;
-        this.maxReconnectDelay = 30000;
-        this.reconnectTimer = null;
-        this.intentionallyClosed = false;
+        this.socket = null;
         this.setConnected = null;
         this.colours = [
             theme.palette.primary.light,
@@ -72,8 +71,8 @@ class LevelsService {
                     first: 0
                 };
                 this.seriesByDeviceName[d] = [];
-                if (this.ws && this.ws.readyState === 1) {
-                    this.ws.send(`subscribe levels ${d}`);
+                if (this.socket && this.socket.isConnected()) {
+                    this.socket.send(`subscribe levels ${d}`);
                 }
             }
         });
@@ -125,62 +124,52 @@ class LevelsService {
     };
 
     initWebsocket = () => {
-        if (this.ws && this.ws.readyState <= 1) {
+        if (this.socket) {
             console.warn(`Connection to ${this.url} is already open`);
-        } else {
-            this.ws = new WebSocket(this.url);
-            this.ws.onerror = e => {
-                this.setErr(new Error(`Failed to connect to ${this.url}`));
-            };
-            this.ws.onopen = e => {
-                console.log(`Connected to ${this.url}`);
-                this.reconnectDelay = 1000;
-                if (this.setConnected) this.setConnected(true);
-                this.devices.forEach(d => this.ws.send(`subscribe levels ${d}`));
-            }
-            this.ws.onclose = e => {
-                console.log(`Closed connection to ${this.url} - ${e.code}`);
-                if (!this.intentionallyClosed) {
-                    if (this.setConnected) this.setConnected(false);
-                    this.reconnectTimer = setTimeout(() => this.initWebsocket(), this.reconnectDelay);
-                    this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelay);
-                }
-            }
-            this.ws.onmessage = e => {
-                const msg = JSON.parse(e.data)
-                if (msg.hasOwnProperty('message') && msg.message === 'Levels') {
-                    const payload = msg.data;
-                    if (payload) {
-                        if (Object.keys(payload).length === 0) {
-                            this.setErr(NO_DATA_ERROR);
-                        } else if (payload.hasOwnProperty('levels') && payload.hasOwnProperty('name')) {
-                            const deviceName = payload.name;
-                            const series = Object.keys(payload.levels);
-                            this.ensureSeriesForDevice(deviceName, series);
-                            const newVals = [payload.ts, ...series.map(s => payload.levels[s])]
-                            if (this.dataByDeviceName.hasOwnProperty(deviceName)) {
-                                const d = this.dataByDeviceName[deviceName];
-                                // convert to relative timestamps vs the first available
-                                if (d.payload && d.payload.length > 0) {
-                                    d.payload = newVals.map((v, idx) => idx === 0 ? [...d.payload[idx], (v - d.first)] : [...d.payload[idx], v]);
-                                } else {
-                                    d.first = newVals[0];
-                                    d.payload = newVals.map((v, idx) => idx === 0 ? [v - d.first] : [v]);
-                                }
-                                this.dataByDeviceName[deviceName] = this.trimToDuration(d, this.activeDuration);
-                                if (this.chart && deviceName === this.activeDeviceName) {
-                                    this.ensureAllSeriesAreLoadedToChart(deviceName);
-                                    if (!this.paused) {
-                                        this.chart.setData(this.dataByDeviceName[deviceName].payload);
-                                    }
-                                }
-                            } else {
-                                console.warn(`No cached data for ${deviceName}`);
-                            }
+            return;
+        }
+        this.socket = new ReconnectingSocket(this.url, {
+            onOpen: () => this.devices.forEach(d => this.socket.send(`subscribe levels ${d}`)),
+            onMessage: this.handleMessage,
+            onConnectionChange: connected => {
+                if (this.setConnected) this.setConnected(connected);
+            },
+            reportError: msg => this.setErr(new Error(msg))
+        });
+    };
+
+    handleMessage = (msg) => {
+        if (msg.hasOwnProperty('message') && msg.message === 'Levels') {
+            const payload = msg.data;
+            if (payload) {
+                if (Object.keys(payload).length === 0) {
+                    this.setErr(NO_DATA_ERROR);
+                } else if (payload.hasOwnProperty('levels') && payload.hasOwnProperty('name')) {
+                    const deviceName = payload.name;
+                    const series = Object.keys(payload.levels);
+                    this.ensureSeriesForDevice(deviceName, series);
+                    const newVals = [payload.ts, ...series.map(s => payload.levels[s])]
+                    if (this.dataByDeviceName.hasOwnProperty(deviceName)) {
+                        const d = this.dataByDeviceName[deviceName];
+                        // convert to relative timestamps vs the first available
+                        if (d.payload && d.payload.length > 0) {
+                            d.payload = newVals.map((v, idx) => idx === 0 ? [...d.payload[idx], (v - d.first)] : [...d.payload[idx], v]);
                         } else {
-                            this.setErr(new Error(`Unexpected data ${payload}`));
+                            d.first = newVals[0];
+                            d.payload = newVals.map((v, idx) => idx === 0 ? [v - d.first] : [v]);
                         }
+                        this.dataByDeviceName[deviceName] = this.trimToDuration(d, this.activeDuration);
+                        if (this.chart && deviceName === this.activeDeviceName) {
+                            this.ensureAllSeriesAreLoadedToChart(deviceName);
+                            if (!this.paused) {
+                                this.chart.setData(this.dataByDeviceName[deviceName].payload);
+                            }
+                        }
+                    } else {
+                        console.warn(`No cached data for ${deviceName}`);
                     }
+                } else {
+                    this.setErr(new Error(`Unexpected data ${payload}`));
                 }
             }
         }
@@ -210,19 +199,10 @@ class LevelsService {
     };
 
     close = () => {
-        this.intentionallyClosed = true;
-        if (this.reconnectTimer) {
-            clearTimeout(this.reconnectTimer);
-            this.reconnectTimer = null;
-        }
-        if (this.ws && this.ws.readyState === 1) {
+        if (this.socket) {
             console.log(`Closing connection to ${this.url}`);
-            this.ws.close();
-            this.ws = null;
-            return true;
-        } else {
-            console.info('Ignoring close, ws not ready');
-            return false;
+            this.socket.close();
+            this.socket = null;
         }
     };
 }

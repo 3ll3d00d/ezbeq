@@ -12,6 +12,11 @@ SUBSCRIBE_LEVELS_CMD = 'subscribe levels'
 
 LOAD_CATALOGUE_CMD = 'load catalogue'
 
+# app level heartbeat, browsers answer protocol level pings themselves without exposing them to js so a client
+# can only detect a dead connection (e.g. after a phone sleeps) by asking for a reply it can see
+PING_CMD = 'ping'
+PONG_MSG = json.dumps({'message': 'Pong'})
+
 logger = logging.getLogger('ezbeq.ws')
 
 
@@ -37,7 +42,7 @@ class WsServerFactory(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def init_catalogue_loader(self, loader: Callable[[Callable[[str], None]], None]):
+    def init_catalogue_loader(self, loader: Callable[[Callable[[str], bool]], None]):
         pass
 
 
@@ -63,6 +68,8 @@ class WsProtocol(WebSocketServerProtocol):
                 self.factory.register_for_levels(device_name, self)
             elif s.startswith(LOAD_CATALOGUE_CMD):
                 self.factory.send_catalogue(self)
+            elif s == PING_CMD:
+                self.sendMessage(PONG_MSG.encode('utf-8'), isBinary=False)
         except Exception:
             logger.exception('Message received failure')
 
@@ -76,7 +83,7 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
         self.__levels_client: dict[str, list[WsProtocol]] = defaultdict(list)
         self.__state_provider: Callable[[], str] | None = None
         self.__meta_provider: Callable[[], str] | None = None
-        self.__catalogue_loader: Callable[[Callable[[str], None]], None] | None = None
+        self.__catalogue_loader: Callable[[Callable[[str], bool]], None] | None = None
         self.__levels_provider: dict[str, Callable[[], None]] = {}
 
     def init_state_provider(self, state_provider: Callable[[], str]):
@@ -85,7 +92,7 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
     def init_meta_provider(self, meta_provider: Callable[[], str]):
         self.__meta_provider = meta_provider
 
-    def init_catalogue_loader(self, loader: Callable[[Callable[[str], None]], None]):
+    def init_catalogue_loader(self, loader: Callable[[Callable[[str], bool]], None]):
         self.__catalogue_loader = loader
 
     def set_levels_provider(self, name: str, broadcaster: Callable[[], None]):
@@ -113,10 +120,16 @@ class AutobahnWsServerFactory(WsServerFactory, WebSocketServerFactory):
         if self.__catalogue_loader:
             logger.info(f'Sending catalogue to {client.peer}')
 
-            def encode_and_send(msg):
-                if msg:
-                    logger.debug(f'Sending catalogue msg (len {len(msg)}b)')
+            def encode_and_send(msg: str) -> bool:
+                """
+                :return: true if the client is still there to receive more.
+                """
+                logger.debug(f'Sending catalogue msg (len {len(msg)}b)')
+                try:
                     client.sendMessage(msg.encode('utf8'), isBinary=False)
+                    return True
+                except Disconnected:
+                    return False
 
             self.__catalogue_loader(encode_and_send)
         else:

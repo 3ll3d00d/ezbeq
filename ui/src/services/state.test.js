@@ -1,4 +1,4 @@
-import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import StateService from './state';
 
 // StateService reaches for the global WebSocket constructor directly, so tests drive it
@@ -9,7 +9,19 @@ class FakeWebSocket {
         this.readyState = 0;
         this.send = vi.fn();
         this.close = vi.fn();
+        FakeWebSocket.instances.push(this);
         FakeWebSocket.lastInstance = this;
+    }
+
+    open() {
+        this.readyState = 1;
+        this.onopen({});
+    }
+
+    // an unexpected close, e.g. Safari dropping the socket when the tab is backgrounded
+    drop() {
+        this.readyState = 3;
+        this.onclose({code: 1006});
     }
 
     emitMessage(payload) {
@@ -17,12 +29,27 @@ class FakeWebSocket {
     }
 }
 
+// every service registers page-level listeners, close them so they can't react to a later test's events
+let services = [];
+const track = service => {
+    services.push(service);
+    return service;
+};
+
 beforeEach(() => {
+    FakeWebSocket.instances = [];
     vi.stubGlobal('WebSocket', FakeWebSocket);
 });
 
+const closeServices = () => {
+    services.forEach(s => s.close());
+    services = [];
+};
+
+afterEach(closeServices);
+
 const makeService = () => {
-    const service = new StateService('ws://test');
+    const service = track(new StateService('ws://test'));
     const setErr = vi.fn();
     const replaceDevice = vi.fn();
     const setMeta = vi.fn();
@@ -110,10 +137,22 @@ describe('StateService other behavior', () => {
         expect(service.isConnected()).toBe(true);
     });
 
-    it('sends a load-catalogue request over the socket', () => {
+    it('sends a load-catalogue request over an open socket', () => {
+        const {service, ws} = makeService();
+        ws.readyState = 1;
+
+        service.loadCatalogue();
+
+        expect(ws.send).toHaveBeenCalledWith('load catalogue');
+    });
+
+    it('defers a load-catalogue request until the socket opens', () => {
         const {service, ws} = makeService();
 
         service.loadCatalogue();
+        expect(ws.send).not.toHaveBeenCalled();
+
+        ws.open();
 
         expect(ws.send).toHaveBeenCalledWith('load catalogue');
     });
@@ -125,24 +164,84 @@ describe('StateService other behavior', () => {
 
         expect(ws.close).toHaveBeenCalled();
     });
+});
 
-    it('reports a connection error via setErr once initialised', () => {
-        const {ws, setErr} = makeService();
+describe('StateService catalogue loading', () => {
+    const entries = n => Array.from({length: n}, (_, i) => ({id: `e${i}`}));
 
-        ws.onerror({});
+    const connectWithCatalogue = count => {
+        const ctx = makeService();
+        ctx.ws.open();
+        ctx.ws.emitMessage({message: 'Catalogue', data: {version: 1, count}});
+        return ctx;
+    };
 
-        expect(setErr).toHaveBeenCalledTimes(1);
-        expect(setErr.mock.calls[0][0].message).toMatch(/Failed to connect to ws:\/\/test/);
+    const reconnect = () => {
+        FakeWebSocket.lastInstance.drop();
+        window.dispatchEvent(new Event('online'));
+        FakeWebSocket.lastInstance.open();
+        return FakeWebSocket.lastInstance;
+    };
+
+    it('requests the catalogue again when the socket drops mid-download', () => {
+        const {service, ws} = connectWithCatalogue(3);
+        service.loadCatalogue();
+        ws.emitMessage({message: 'CatalogueEntries', data: entries(2)});
+
+        const next = reconnect();
+
+        expect(next.send).toHaveBeenCalledWith('load catalogue');
     });
 
-    it('falls back to logging a connection error before init has been called', () => {
-        const service = new StateService('ws://test');
-        const ws = FakeWebSocket.lastInstance;
-        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    it('counts a restarted download from zero', () => {
+        const {service, ws} = connectWithCatalogue(3);
+        service.loadCatalogue();
+        ws.emitMessage({message: 'CatalogueEntries', data: entries(2)});
+        const next = reconnect();
+        next.emitMessage({message: 'CatalogueEntries', data: entries(2)});
 
-        ws.onerror({});
+        const last = reconnect();
 
-        expect(errorSpy).toHaveBeenCalledWith(expect.stringMatching(/Failed to connect to ws:\/\/test/));
-        errorSpy.mockRestore();
+        expect(last.send).toHaveBeenCalledWith('load catalogue');
     });
+
+    it('does not request it again once it has all arrived', () => {
+        const {service, ws} = connectWithCatalogue(3);
+        service.loadCatalogue();
+        ws.emitMessage({message: 'CatalogueEntries', data: entries(2)});
+        ws.emitMessage({message: 'CatalogueEntries', data: entries(1)});
+
+        const next = reconnect();
+
+        expect(next.send).not.toHaveBeenCalledWith('load catalogue');
+    });
+
+    it('does not request one that was never asked for', () => {
+        connectWithCatalogue(3);
+
+        const next = reconnect();
+
+        expect(next.send).not.toHaveBeenCalledWith('load catalogue');
+    });
+
+    it('keeps requesting on reconnect when the catalogue size is unknown', () => {
+        const {service, ws} = makeService();
+        ws.open();
+        service.loadCatalogue();
+        ws.emitMessage({message: 'CatalogueEntries', data: entries(2)});
+
+        const next = reconnect();
+
+        expect(next.send).toHaveBeenCalledWith('load catalogue');
+    });
+
+    it('treats an empty catalogue as complete', () => {
+        const {service} = connectWithCatalogue(0);
+        service.loadCatalogue();
+
+        const next = reconnect();
+
+        expect(next.send).not.toHaveBeenCalledWith('load catalogue');
+    });
+
 });
