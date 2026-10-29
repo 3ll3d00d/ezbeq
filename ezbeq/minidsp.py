@@ -11,7 +11,7 @@ from typing import Any
 import yaml
 from autobahn.exception import Disconnected
 from autobahn.twisted import WebSocketClientFactory, WebSocketClientProtocol
-from plumbum import ProcessExecutionError
+from plumbum import ProcessExecutionError, ProcessTimedOut
 from twisted.internet.protocol import ReconnectingClientFactory
 
 from ezbeq import to_millis
@@ -705,7 +705,7 @@ class Minidsp(PersistentDevice[MinidspState]):
                                 logger.debug(f'[{self.name}] Unexpected output from probe : {line}')
                     if serials:
                         values['serials'] = serials
-                except Exception:
+                except (ProcessExecutionError, ProcessTimedOut, OSError):
                     logger.warning(f'[{self.name}] Unable to probe')
                 return MinidspState(self.name, self.__descriptor, self.__optimisation, **values)
             else:
@@ -946,6 +946,25 @@ class Minidsp(PersistentDevice[MinidspState]):
         profile = self.__optimisation.optimisable_profile
         return [profile] if profile else []
 
+    def entry_coefficients(self, entry: CatalogueEntry) -> dict | None:
+        optimised = self.__optimisation.optimised_coefficients(entry)
+        if not optimised:
+            return None
+        profile, biquads = optimised
+        try:
+            authored = [MinidspBeqCommandGenerator.as_bq(f, self.__descriptor.fs) for f in entry.filters]
+        except (InvalidRequestError, ValueError):
+            logger.warning(f"[{self.name}] Unable to compute authored biquads for {entry.formatted_title}")
+            return None
+        return {
+            'profile': profile.id,
+            'label': profile.label,
+            'rate': profile.rate,
+            'precision': profile.storage,
+            'authored': authored,
+            'optimised': biquads,
+        }
+
     def update(self, params: dict) -> bool:
         def __do_it() -> bool:
             any_update = False
@@ -1106,8 +1125,10 @@ class MinidspBeqCommandGenerator:
 
     @staticmethod
     def as_bq(f: dict, fs: str) -> list[str]:
-        if fs in f['biquads']:
-            bq = f['biquads'][fs]['b'] + f['biquads'][fs]['a']
+        # custom catalogues may omit the precomputed biquads, they're calculated from the filter params instead
+        published = f.get('biquads') or {}
+        if fs in published:
+            bq = published[fs]['b'] + published[fs]['a']
         else:
             t = f['type']
             freq = f['freq']

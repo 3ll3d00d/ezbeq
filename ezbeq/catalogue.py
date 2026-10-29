@@ -11,7 +11,9 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from threading import Thread
+from urllib.parse import unquote, urlparse
 
 import ijson
 import requests
@@ -291,7 +293,7 @@ class Catalogue:
 
     @property
     def stale(self):
-        now = datetime.now(self.loaded_at.tzinfo) if self.loaded_at.tzinfo else datetime.now()  # noqa: DTZ005
+        now = datetime.now(self.loaded_at.tzinfo) if self.loaded_at.tzinfo else datetime.now()
         return (now - self.loaded_at) > timedelta(minutes=5)
 
     def json(self) -> dict:
@@ -309,8 +311,9 @@ class Catalogue:
 class Catalogues:
     def __init__(self, config_path: str, catalogue_url: str, ws: WsServer, refresh_seconds: float,
                  first_chunk_size: int, chunk_size: int, sync_load: bool, mmap_mb: int = 0, *,
-                 on_download: Callable[[], None]):
+                 on_download: Callable[[], None], sources: list[str] | None = None):
         self.__catalogue_url = catalogue_url
+        self.__sources = sources
         self.__on_download = on_download
         self.__version_file = os.path.join(config_path, 'version.txt')
         self.__catalogue_file = os.path.join(config_path, 'database.json')
@@ -360,33 +363,37 @@ class Catalogues:
             self.__prune_pool = pool
         return self.__prune_pool
 
-    def __send_chunked_catalogue(self, sender: Callable[[str], None]):
+    def __send_chunked_catalogue(self, sender: Callable[[str], bool]):
         catalogue = self.latest
         if not catalogue:
             return
-        vals = {'count': catalogue.count, 'limit': self.__chunk_sizes[0], 'offset': 0, 'start': time.time()}
-        from twisted.internet import threads
-        threads.deferToThread(lambda: self.__load_next_chunk(sender, catalogue.version, **vals)).addCallback(sender)
+        self.__send_next_chunk(sender, catalogue.version, catalogue.count, self.__chunk_sizes[0], 0, time.time())
 
-    def __load_next_chunk(self, publisher: Callable[[str], None], version: str, count: int = 100, limit: int = 500,
-                          offset: int = 0, start: float = 0) -> str | None:
+    def __send_next_chunk(self, sender: Callable[[str], bool], version: str, count: int, limit: int, offset: int,
+                          start: float):
         if offset >= count:
             logger.info(f'[{version}] Load complete in {to_millis(start, time.time())}ms')
-            return None
-        else:
-            begin = time.time()
-            next_offset = offset + limit
-            select = f"SELECT {UI_FIELDS_STR} FROM catalogue_entry WHERE version = '{version}'"
-            msg = json.dumps({
-                'message': 'CatalogueEntries',
-                'data': self.__fetch_entries(select, UI_FIELDS, limit, offset)
-            }, ensure_ascii=False)
-            end = time.time()
-            logger.debug(f'Loaded chunk from {offset} to {next_offset} in {to_millis(begin, end)}ms')
-            vals = {'count': count, 'limit': self.__chunk_sizes[1], 'offset': next_offset, 'start': start}
-            from twisted.internet import threads
-            threads.deferToThread(lambda: self.__load_next_chunk(publisher, version, **vals)).addCallback(publisher)
-            return msg
+            return
+
+        def on_loaded(msg: str):
+            # stop once the client has gone, it will request the catalogue again if it reconnects
+            if sender(msg):
+                self.__send_next_chunk(sender, version, count, self.__chunk_sizes[1], offset + limit, start)
+            else:
+                logger.info(f'[{version}] Load abandoned at {offset}/{count}, client disconnected')
+
+        from twisted.internet import threads
+        threads.deferToThread(lambda: self.__load_chunk(version, limit, offset)).addCallback(on_loaded)
+
+    def __load_chunk(self, version: str, limit: int, offset: int) -> str:
+        begin = time.time()
+        select = f"SELECT {UI_FIELDS_STR} FROM catalogue_entry WHERE version = '{version}'"
+        msg = json.dumps({
+            'message': 'CatalogueEntries',
+            'data': self.__fetch_entries(select, UI_FIELDS, limit, offset)
+        }, ensure_ascii=False)
+        logger.debug(f'Loaded chunk from {offset} to {offset + limit} in {to_millis(begin, time.time())}ms')
+        return msg
 
     def __ensure_db(self):
         def add_column(column_name: str):
@@ -471,6 +478,10 @@ class Catalogues:
                     if not vals:
                         logger.warning(f'No meta values found for {f} in catalogue {v}, will reload from disk')
                         loaded = 2
+                if os.path.exists(self.__version_file):
+                    with open(self.__version_file) as f:
+                        if f.read().strip() != v:
+                            loaded = 0
             if loaded != 1:
                 try:
                     if os.path.exists(self.__catalogue_file) and os.path.exists(self.__version_file):
@@ -501,6 +512,10 @@ class Catalogues:
             logger.info(f'[{self.__db} / {version}] Inserted {len(v)} (of {c}) entries in {to_millis(s1, s2)}ms')
 
         with open(self.__catalogue_file, 'rb') as infile, db_ops(self.__db) as cur:
+            if not meta_only:
+                # Content versions can recur when a local edit is reverted.
+                cur.execute('DELETE FROM catalogue_entry WHERE version = ?', (version,))
+                cur.execute('DELETE FROM catalogue_meta WHERE version = ?', (version,))
             values = []
             count = 0
             insert_sql = f"INSERT INTO catalogue_entry({FIELDS_STR},version,loaded_at) VALUES({', '.join(['?'] * (len(FIELDS) + 2))})"
@@ -557,7 +572,7 @@ class Catalogues:
             return Catalogue(count, version, {AUDIO_TYPES: audio_types, AUTHOR: authors,
                                               FILTER_AUTHOR: filter_authors, CONTENT_TYPE: contenttypes,
                                               LANGUAGE: languages, YEAR: years},
-                             datetime.fromtimestamp(now / 1000, tz=UTC)) if count else None
+                             datetime.fromtimestamp(now / 1000, tz=UTC))
 
     def load_meta(self, version: str, meta_type: str) -> list[str]:
         with db_ops(self.__db) as cur:
@@ -581,10 +596,13 @@ class Catalogues:
         if not self.__catalogues:
             return False
         current = self.__catalogues[-1]
-        return current.version != '' and current.count > 0
+        return current.version != ''
 
     def __download(self):
-        downloader = DatabaseDownloader(self.__catalogue_url, self.__catalogue_file, self.__version_file)
+        if self.__sources is None:
+            downloader = DatabaseDownloader(self.__catalogue_url, self.__catalogue_file, self.__version_file)
+        else:
+            downloader = CatalogueSourcesDownloader(self.__sources, self.__catalogue_file, self.__version_file)
         reload_required = downloader.run()
         return downloader.version, reload_required
 
@@ -686,8 +704,9 @@ class Catalogues:
         catalogue = self.latest
         if not catalogue:
             return None
-        sql = f"SELECT {FIELDS_STR} FROM catalogue_entry WHERE {clause}"
-        results = self.__fetch_entries(sql, FIELDS, 1, params=(value,))
+        sql = (f"SELECT {FIELDS_STR} FROM catalogue_entry WHERE {clause} "
+               "ORDER BY (version = ?) DESC, loaded_at DESC")
+        results = self.__fetch_entries(sql, FIELDS, 1, params=(value, catalogue.version))
         if results:
             return results[0] if as_dict else CatalogueEntry(results[0][ID], results[0])
         else:
@@ -835,7 +854,8 @@ class CatalogueProvider:
                                                    config.chunk_size,
                                                    config.load_catalogue_at_startup,
                                                    config.db_mmap_mb,
-                                                   on_download=self.__device_catalogues.refresh)
+                                                   on_download=self.__device_catalogues.refresh,
+                                                   sources=config.catalogue_sources)
 
     def find(self, entry_id: str, match_on_idx: bool | None = None, as_dict: bool = False) -> (
                                                                                                   CatalogueEntry | dict) | None:
@@ -912,6 +932,104 @@ class CatalogueProvider:
         reactor.callLater(0, self.__catalogues.refresh_if_stale)
         latest = self.__catalogues.latest
         return latest.meta[meta_type]
+
+
+class CatalogueSourcesDownloader:
+    """Poll sources independently and publish a single, content-versioned catalogue."""
+
+    def __init__(self, sources: list[str], cached_db_file: str, cached_version_file: str):
+        self.sources = sources
+        self.database = Path(cached_db_file)
+        self.version_file = Path(cached_version_file)
+        self.cache_dir = self.database.parent / 'catalogue_sources'
+        self.cache_dir.mkdir(exist_ok=True)
+        self.version = self.version_file.read_text().strip() if self.version_file.exists() else ''
+
+    @staticmethod
+    def _write(path: Path, content: str):
+        temporary = path.with_name(path.name + '.tmp')
+        temporary.write_text(content, encoding='utf-8')
+        temporary.replace(path)
+
+    @staticmethod
+    def _validate(entries):
+        if not isinstance(entries, list) or any(not isinstance(e, dict) for e in entries):
+            raise ValueError('A catalogue must be a JSON array of entry objects')
+        for idx, entry in enumerate(entries):
+            if entry.get(DIGEST) is not None and not isinstance(entry[DIGEST], str):
+                raise ValueError('Catalogue entry digests must be strings')
+            CatalogueEntry(str(idx), entry)
+        return entries
+
+    def _load_source(self, source: str) -> list[dict] | None:
+        cache = self.cache_dir / (hashlib.sha256(source.encode()).hexdigest() + '.json')
+        snapshot = None
+        if cache.exists():
+            try:
+                snapshot = json.loads(cache.read_text(encoding='utf-8'))
+                self._validate(snapshot['entries'])
+            except (OSError, ValueError, KeyError, TypeError):
+                logger.exception(f'Invalid cached catalogue source {source}')
+                snapshot = None
+        try:
+            parsed = urlparse(source)
+            revision = None
+            if parsed.scheme in ('http', 'https'):
+                base = source.rstrip('/') + '/'
+                response = requests.get(base + 'version.txt', timeout=10)
+                if response.status_code == 200:
+                    revision = response.text.strip() or None
+                if snapshot and revision and revision == snapshot.get('version'):
+                    return snapshot['entries']
+                response = requests.get(base + 'database.json', timeout=60)
+                response.raise_for_status()
+                entries = self._validate(response.json())
+            else:
+                if parsed.scheme == 'file':
+                    if parsed.netloc not in ('', 'localhost'):
+                        raise ValueError('Local file URLs must not specify a remote host')
+                    local = Path(unquote(parsed.path))
+                else:
+                    local = Path(source).expanduser()
+                if not local.is_absolute():
+                    local = self.database.parent / local
+                if local.is_dir():
+                    local = local / 'database.json'
+                entries = self._validate(json.loads(local.read_text(encoding='utf-8')))
+            content = json.dumps({'version': revision, 'entries': entries}, ensure_ascii=False)
+            if not snapshot or snapshot != {'version': revision, 'entries': entries}:
+                self._write(cache, content)
+            return entries
+        except (OSError, ValueError, KeyError, TypeError, requests.RequestException):
+            logger.exception(f'Unable to refresh catalogue source {source}; retaining cached entries if available')
+            return snapshot['entries'] if snapshot else None
+
+    def run(self) -> bool:
+        entries = []
+        digests = set()
+        available = False
+        for source in self.sources:
+            loaded = self._load_source(source)
+            if loaded is None:
+                continue
+            available = True
+            for entry in loaded:
+                digest = entry.get(DIGEST)
+                if digest and digest in digests:
+                    continue
+                if digest:
+                    digests.add(digest)
+                entries.append(entry)
+        if not available:
+            return False
+        content = json.dumps(entries, ensure_ascii=False, sort_keys=True)
+        version = hashlib.sha256(content.encode('utf-8')).hexdigest()
+        if version == self.version and self.database.exists():
+            return False
+        self._write(self.database, content)
+        self._write(self.version_file, version)
+        self.version = version
+        return True
 
 
 class DatabaseDownloader:

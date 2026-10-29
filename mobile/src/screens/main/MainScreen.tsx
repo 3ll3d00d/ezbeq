@@ -33,6 +33,7 @@ import { useFilterLoadedNotification } from '../../hooks/useFilterLoadedNotifica
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { useTVBackHandler } from '../../hooks/useTVBackHandler';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
+import { buildCompareIndex } from '../../services/compare';
 import { isFilterNotificationSupported } from '../../services/filterNotification';
 import { useGainSync } from '../../services/gains';
 import type { CatalogueEntry, DeviceState, VersionInfo } from '../../types/ezbeq';
@@ -170,6 +171,7 @@ export default function MainScreen({ navigation }: Props) {
   // Without an explicit sort, entries come back in whatever order the backend's unordered SQL
   // SELECT happens to return, which groups by author rather than title - see compareByTitle.
   const entryList = useMemo(() => Object.values(entries).sort(compareByTitle), [entries]);
+  const compareIndex = useMemo(() => buildCompareIndex(entryList), [entryList]);
 
   const optimisedIds = useOptimisedEntryIds(api, device, selectedOptimisation, meta, setError);
 
@@ -433,6 +435,8 @@ export default function MainScreen({ navigation }: Props) {
         onError={setError}
         onSuccess={setSuccessMessage}
         onUploadPendingSlotChange={setUploadPendingSlotId}
+        compareIndex={compareIndex}
+        onSelectEntry={setSelectedEntryId}
       />
     ) : null;
 

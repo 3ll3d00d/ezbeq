@@ -218,7 +218,9 @@ const MainView = ({
                          selectedSlotId={selectedSlotId}
                          setError={setErr}
                          setSuccess={setSuccess}
-                         setUploadPendingSlotId={setUploadPendingSlotId}/>;
+                         setUploadPendingSlotId={setUploadPendingSlotId}
+                         entries={entries}
+                         setSelectedEntryId={setSelectedEntryId}/>;
     const footer = <Footer meta={meta}/>;
     return (
         <>

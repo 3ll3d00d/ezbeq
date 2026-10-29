@@ -260,6 +260,8 @@ class MinidspSpy:
         self.__mute = False
         self.commands = []
         self._version_str = version_str
+        self.probe_output = ''
+        self.probe_error: Exception | None = None
 
     def __make_status(self) -> str:
         mute_str = f"{self.__mute}".lower()
@@ -285,6 +287,11 @@ class MinidspSpy:
             return self._version_str
         if self.pending:
             self.history.append(self.pending)
+            if self.pending[-1] == 'probe':
+                self.pending = []
+                if self.probe_error:
+                    raise self.probe_error
+                return self.probe_output
             if len(self.pending[-1]) == 2 and self.pending[-1][0] == '-f':
                 with open(self.pending[-1][1]) as f:
                     new_cmds = [c for c in f.read().split('\n') if c]
@@ -613,7 +620,7 @@ class CapturingWsServerFactory(WsServerFactory):
     def init_meta_provider(self, meta_provider: Callable[[], str]):
         pass
 
-    def init_catalogue_loader(self, loader: Callable[[Callable[[str], None]], None]):
+    def init_catalogue_loader(self, loader: Callable[[Callable[[str], bool]], None]):
         pass
 
     def broadcast(self, msg: str):

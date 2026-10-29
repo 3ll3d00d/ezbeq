@@ -3,6 +3,7 @@ import os
 
 import pytest
 from conftest import MinidspSpy, MinidspSpyConfig
+from plumbum import ProcessExecutionError
 
 
 def verify_slot(slot: dict, idx: int, active: bool = False, gain = (0.0, 0.0), mute = (False, False), last: str = 'Empty', author: str | None = None):
@@ -46,6 +47,25 @@ def test_devices(minidsp_client, minidsp_app):
     assert r
     assert r.status_code == 200
     verify_default_device_state(r.json)
+
+
+def test_devices_reports_probed_serials(minidsp_client, minidsp_app):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    config.spy.probe_output = '0: Found 2x4HD with serial 911111 at ws://localhost/devices/0/ws [hw_id: 10, dsp_version: 100]\n' \
+                              'unexpected probe line'
+    r = minidsp_client.get("/api/1/devices")
+    assert r.status_code == 200
+    verify_default_device_state(r.json)
+    assert r.json['serials'] == ['911111']
+
+
+def test_devices_tolerates_probe_failure(minidsp_client, minidsp_app):
+    config: MinidspSpyConfig = minidsp_app.config['APP_CONFIG']
+    config.spy.probe_error = ProcessExecutionError(['minidsp', 'probe'], 1, '', 'no device')
+    r = minidsp_client.get("/api/1/devices")
+    assert r.status_code == 200
+    verify_default_device_state(r.json)
+    assert 'serials' not in r.json
 
 
 @pytest.mark.parametrize("slot", [1, 2, 3, 4])
@@ -2797,6 +2817,27 @@ def test_get_by_digest_404(minidsp_client, minidsp_app, endpoint):
     assert r.status_code == 404
 
 
+def test_get_filters_by_ids(minidsp_client, minidsp_app):
+    r = minidsp_client.get("/api/1/catalogue/filters?ids=123456_0&ids=missing&ids=abcdefghijklm&ids=123456_0")
+    assert r.status_code == 200
+    # unknown ids (including digests, it is an id only lookup) are dropped, duplicates collapsed
+    assert [e['id'] for e in r.json] == ['123456_0']
+    filters = r.json[0]['filters']
+    assert len(filters) == 5
+    assert filters[0] == {'type': 'LowShelf', 'freq': 33.0, 'gain': 5.0, 'q': 0.9, 'count': 1}
+
+
+def test_get_filters_by_ids_requires_ids(minidsp_client, minidsp_app):
+    r = minidsp_client.get("/api/1/catalogue/filters")
+    assert r.status_code == 400
+
+
+def test_get_filters_by_ids_limits_count(minidsp_client, minidsp_app):
+    ids = '&'.join(f'ids={i}' for i in range(51))
+    r = minidsp_client.get(f"/api/1/catalogue/filters?{ids}")
+    assert r.status_code == 400
+
+
 @pytest.mark.parametrize('dt,exp', [
     ('24HD', 'Minidsp24HD'),
     ('DDRC24', 'MinidspDDRC24'),
@@ -2932,3 +2973,20 @@ def test_cfg_makes_custom_minidsp():
     assert desc.peq_routes[2].channels == [1, 2, 3]
     assert desc.peq_routes[2].beq_slots == [0, 1]
     assert not desc.peq_routes[2].groups
+
+
+@pytest.mark.parametrize('extra', [{}, {'biquads': {}}, {'biquads': None}], ids=['missing', 'empty', 'null'])
+def test_biquads_are_calculated_when_not_published(extra):
+    # a custom catalogue may only provide the filter params
+    from ezbeq.iir import LowShelf
+    from ezbeq.minidsp import MinidspBeqCommandGenerator
+    f = {'type': 'LowShelf', 'freq': 20.0, 'gain': 6.0, 'q': 0.9, **extra}
+    expected = list(LowShelf(96000, 20.0, 0.9, 6.0).format_biquads().values())
+    assert MinidspBeqCommandGenerator.as_bq(f, '96000') == expected
+
+
+def test_published_biquads_are_preferred():
+    from ezbeq.minidsp import MinidspBeqCommandGenerator
+    f = {'type': 'LowShelf', 'freq': 20.0, 'gain': 6.0, 'q': 0.9,
+         'biquads': {'96000': {'b': ['1', '2', '3'], 'a': ['4', '5']}}}
+    assert MinidspBeqCommandGenerator.as_bq(f, '96000') == ['1', '2', '3', '4', '5']

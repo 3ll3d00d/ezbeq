@@ -1,4 +1,6 @@
 const API_PREFIX = '/api';
+// matches MAX_FILTER_IDS in ezbeq/apis/catalogue.py
+const MAX_FILTER_IDS = 50;
 
 /**
  * Encapsulates any calls to the ezbeq server.
@@ -234,6 +236,22 @@ class EzBeqService {
 
     getEntryOptimisation = async (device, entryId) => {
         return this.doGet(`devices/${device}/optimisation/${entryId}`);
+    }
+
+    getEntryCoefficients = async (device, entryId) => {
+        return this.doGet(`devices/${device}/optimisation/${entryId}/coefficients`);
+    }
+
+    // the server caps how many ids can be requested at once
+    getFilters = async (entryIds) => {
+        const chunks = [];
+        for (let i = 0; i < entryIds.length; i += MAX_FILTER_IDS) {
+            chunks.push(entryIds.slice(i, i + MAX_FILTER_IDS));
+        }
+        const results = await Promise.all(
+            chunks.map(ids => this.doGet(this.appendTo('catalogue/filters', 'ids', ids.map(encodeURIComponent))))
+        );
+        return results.flat();
     }
 
     setOptimise = async (device, slotId, enabled) => {

@@ -15,6 +15,7 @@ from ezbeq.catalogue import (
     TWO_WEEKS_AGO_SECONDS,
     Catalogue,
     Catalogues,
+    CatalogueSourcesDownloader,
     DatabaseDownloader,
     compute_freshness,
     db_ops,
@@ -134,6 +135,13 @@ class TestInsertAndFind:
         cat = self._load(tmp_path)
         entry = cat.find_by_id('v1_0')
         assert entry.title == 'Alpha One'
+
+    def test_digest_prefers_latest_but_old_ids_remain_available(self, tmp_path):
+        cat = self._load(tmp_path)
+        write_catalogue_json(cat._Catalogues__catalogue_file, [dict(SAMPLE_ENTRIES[0], title='Updated')])
+        cat._Catalogues__catalogues.append(cat._Catalogues__insert_catalogue('v2'))
+        assert cat.find_by_digest('digest-1').title == 'Updated'
+        assert cat.find_by_id('v1_0').title == 'Alpha One'
 
 
 class TestFilterAuthor:
@@ -290,6 +298,45 @@ class TestPruneEntriesSafe:
         assert received['version'] == 'some-version'
 
 
+class TestSendChunkedCatalogue:
+
+    @staticmethod
+    def _cat(tmp_path, monkeypatch, entries):
+        from twisted.internet import defer, threads
+        monkeypatch.setattr(threads, 'deferToThread', lambda f: defer.succeed(f()))
+        cat = make_catalogues(tmp_path)
+        cat._Catalogues__chunk_sizes = (1, 2)
+        write_catalogue_json(cat._Catalogues__catalogue_file, entries)
+        cat._Catalogues__catalogues = [cat._Catalogues__insert_catalogue('v1')]
+        return cat
+
+    def test_sends_every_entry_in_chunks(self, tmp_path, monkeypatch):
+        cat = self._cat(tmp_path, monkeypatch, SAMPLE_ENTRIES)
+        sent = []
+
+        cat._Catalogues__send_chunked_catalogue(lambda msg: sent.append(json.loads(msg)) or True)
+
+        assert [len(m['data']) for m in sent] == [1, 2]
+        assert all(m['message'] == 'CatalogueEntries' for m in sent)
+        assert sorted(e['title'] for m in sent for e in m['data']) == ['Alpha One', 'Beta Two', 'Gamma Three']
+
+    def test_stops_once_the_client_has_gone(self, tmp_path, monkeypatch):
+        cat = self._cat(tmp_path, monkeypatch, SAMPLE_ENTRIES)
+        sent = []
+
+        cat._Catalogues__send_chunked_catalogue(lambda msg: sent.append(msg) and False)
+
+        assert len(sent) == 1
+
+    def test_sends_nothing_for_an_empty_catalogue(self, tmp_path, monkeypatch):
+        cat = self._cat(tmp_path, monkeypatch, [])
+        sent = []
+
+        cat._Catalogues__send_chunked_catalogue(lambda msg: sent.append(msg) or True)
+
+        assert sent == []
+
+
 class TestPrunePool:
 
     def test_pool_created_lazily_and_uses_daemon_threads(self, tmp_path):
@@ -394,11 +441,11 @@ class TestCatalogueStale:
     """
 
     def test_stale_with_naive_loaded_at(self):
-        c = Catalogue(count=1, version='v1', loaded_at=datetime.now() - timedelta(minutes=10))  # noqa: DTZ005
+        c = Catalogue(count=1, version='v1', loaded_at=datetime.now() - timedelta(minutes=10))
         assert c.stale is True
 
     def test_not_stale_with_naive_loaded_at(self):
-        c = Catalogue(count=1, version='v1', loaded_at=datetime.now())  # noqa: DTZ005
+        c = Catalogue(count=1, version='v1', loaded_at=datetime.now())
         assert c.stale is False
 
     def test_stale_with_aware_loaded_at(self):
@@ -447,3 +494,138 @@ class TestDatabaseDownloader:
         downloader = DatabaseDownloader(f'http://{httpserver.host}:{httpserver.port}/',
                                         str(cached_db), str(cached_version))
         assert downloader.run() is False
+
+
+class TestCatalogueSourcesDownloader:
+
+    def downloader(self, tmp_path, sources):
+        cache = tmp_path / 'cache'
+        cache.mkdir(exist_ok=True)
+        return CatalogueSourcesDownloader(sources, str(cache / 'database.json'), str(cache / 'version.txt'))
+
+    def test_combines_remote_and_local_and_deduplicates(self, httpserver, tmp_path):
+        httpserver.expect_request('/extra/version.txt').respond_with_data('v1')
+        httpserver.expect_request('/extra/database.json').respond_with_json(SAMPLE_ENTRIES[:2])
+        local = tmp_path / 'local.json'
+        write_catalogue_json(local, [dict(SAMPLE_ENTRIES[1], title='Duplicate'), SAMPLE_ENTRIES[2]])
+        sources = [httpserver.url_for('/extra/'), str(local)]
+        downloader = self.downloader(tmp_path, sources)
+        assert downloader.run()
+        assert json.loads(downloader.database.read_text()) == SAMPLE_ENTRIES
+        version = downloader.version
+        assert not self.downloader(tmp_path, sources).run()
+        write_catalogue_json(local, [dict(SAMPLE_ENTRIES[2], title='Edited')])
+        assert downloader.run()
+        assert downloader.version != version
+        assert json.loads(downloader.database.read_text())[-1]['title'] == 'Edited'
+        # Remote content stays cached when its version has not changed.
+        assert len([r for r, _ in httpserver.log if r.path == '/extra/database.json']) == 1
+
+    def test_remote_without_version_and_outage(self, httpserver, tmp_path):
+        httpserver.expect_request('/unversioned/version.txt').respond_with_data('', status=404)
+        httpserver.expect_request('/unversioned/database.json').respond_with_json(SAMPLE_ENTRIES[:1])
+        sources = [httpserver.url_for('/unversioned/')]
+        downloader = self.downloader(tmp_path, sources)
+        assert downloader.run()
+        httpserver.clear()
+        httpserver.expect_request('/unversioned/version.txt').respond_with_data('', status=404)
+        httpserver.expect_request('/unversioned/database.json').respond_with_json(SAMPLE_ENTRIES[1:])
+        assert downloader.run()
+        assert json.loads(downloader.database.read_text()) == SAMPLE_ENTRIES[1:]
+        httpserver.clear()
+        httpserver.expect_request('/unversioned/version.txt').respond_with_data('', status=503)
+        httpserver.expect_request('/unversioned/database.json').respond_with_data('', status=503)
+        downloader = self.downloader(tmp_path, sources)
+        assert not downloader.run()
+        assert json.loads(downloader.database.read_text()) == SAMPLE_ENTRIES[1:]
+
+    def test_entries_without_digest_are_retained(self, tmp_path):
+        local = tmp_path / 'local.json'
+        entries = [{'title': 'First'}, {'title': 'Second'}]
+        write_catalogue_json(local, entries)
+        downloader = self.downloader(tmp_path, [str(local)])
+        assert downloader.run()
+        assert json.loads(downloader.database.read_text()) == entries
+
+    def test_local_deletions_and_empty_catalogue(self, tmp_path):
+        local = tmp_path / 'local.json'
+        write_catalogue_json(local, SAMPLE_ENTRIES)
+        downloader = self.downloader(tmp_path, [local.as_uri()])
+        assert downloader.run()
+        write_catalogue_json(local, SAMPLE_ENTRIES[:1])
+        assert downloader.run()
+        assert json.loads(downloader.database.read_text()) == SAMPLE_ENTRIES[:1]
+        write_catalogue_json(local, [])
+        assert downloader.run()
+        assert json.loads(downloader.database.read_text()) == []
+
+    @pytest.mark.parametrize('failure', ['missing', 'malformed', 'wrong-shape'])
+    def test_failure_retains_last_good_source_while_others_refresh(self, tmp_path, failure):
+        first = tmp_path / 'first.json'
+        second = tmp_path / 'second.json'
+        write_catalogue_json(first, SAMPLE_ENTRIES[:1])
+        write_catalogue_json(second, SAMPLE_ENTRIES[1:2])
+        sources = [str(first), str(second)]
+        assert self.downloader(tmp_path, sources).run()
+        if failure == 'missing':
+            first.unlink()
+        else:
+            first.write_text('broken' if failure == 'malformed' else '{}')
+        write_catalogue_json(second, SAMPLE_ENTRIES[2:])
+        downloader = self.downloader(tmp_path, sources)
+        assert downloader.run()
+        assert json.loads(downloader.database.read_text()) == [SAMPLE_ENTRIES[0], SAMPLE_ENTRIES[2]]
+
+    def test_relative_directory_and_source_removal(self, tmp_path):
+        downloader = self.downloader(tmp_path, ['local', str(tmp_path / 'second.json')])
+        directory = downloader.database.parent / 'local'
+        directory.mkdir()
+        write_catalogue_json(directory / 'database.json', SAMPLE_ENTRIES[:1])
+        write_catalogue_json(tmp_path / 'second.json', SAMPLE_ENTRIES[1:])
+        assert downloader.run()
+        downloader = self.downloader(tmp_path, ['local'])
+        assert downloader.run()
+        assert json.loads(downloader.database.read_text()) == SAMPLE_ENTRIES[:1]
+
+    def test_merged_catalogue_search_and_lookup(self, tmp_path):
+        first = tmp_path / 'first.json'
+        second = tmp_path / 'second.json'
+        write_catalogue_json(first, SAMPLE_ENTRIES[:1])
+        write_catalogue_json(second, SAMPLE_ENTRIES[1:])
+        downloader = CatalogueSourcesDownloader([str(first), str(second)],
+                                                str(tmp_path / 'database.json'), str(tmp_path / 'version.txt'))
+        assert downloader.run()
+        cat = make_catalogues(tmp_path)
+        catalogue = cat._Catalogues__insert_catalogue(downloader.version)
+        cat._Catalogues__catalogues = [catalogue]
+        assert catalogue.count == 3
+        assert catalogue.meta['author'] == {'authorA', 'authorB'}
+        assert cat.find_by_digest('digest-3').title == 'Gamma Three'
+
+    def test_reverted_content_does_not_duplicate_entries(self, tmp_path):
+        cat = make_catalogues(tmp_path)
+        write_catalogue_json(tmp_path / 'database.json', SAMPLE_ENTRIES)
+        cat._Catalogues__insert_catalogue('original')
+        cat._Catalogues__insert_catalogue('edited')
+        cat._Catalogues__insert_catalogue('original')
+        with db_ops(cat._Catalogues__db) as cur:
+            assert cur.execute("SELECT count(*) FROM catalogue_entry WHERE version = 'original'").fetchone()[0] == 3
+
+    def test_startup_loads_changed_cached_version_and_empty_catalogue(self, tmp_path):
+        cat = make_catalogues(tmp_path)
+        write_catalogue_json(tmp_path / 'database.json', SAMPLE_ENTRIES)
+        cat._Catalogues__insert_catalogue('original')
+        cat._Catalogues__schedule_prune = lambda version: None
+        write_catalogue_json(tmp_path / 'database.json', SAMPLE_ENTRIES[:1])
+        (tmp_path / 'version.txt').write_text('changed')
+        loaded = cat._Catalogues__load_catalogues()
+        assert loaded[-1].version == 'changed'
+        assert loaded[-1].count == 1
+        with db_ops(cat._Catalogues__db) as cur:
+            assert cur.execute("SELECT count(*) FROM catalogue_entry WHERE version = 'changed'").fetchone()[0] == 1
+        write_catalogue_json(tmp_path / 'database.json', [])
+        (tmp_path / 'version.txt').write_text('empty')
+        cat._Catalogues__catalogues = cat._Catalogues__load_catalogues()
+        assert cat.loaded
+        assert cat.latest.version == 'empty'
+        assert cat.latest.count == 0

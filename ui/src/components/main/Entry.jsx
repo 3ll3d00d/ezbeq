@@ -12,9 +12,14 @@ import {
 } from "@mui/material";
 import Typography from "@mui/material/Typography";
 import PublishIcon from "@mui/icons-material/Publish";
-import React, {useEffect, useMemo, useState} from "react";
+import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
+import React, {lazy, Suspense, useEffect, useMemo, useState} from "react";
 import ezbeq from "../../services/ezbeq";
 import {EntryOptimisationChip, slotOptimises, useEntryOptimisation} from "./Optimisation";
+import {buildCompareIndex, findComparable} from "../../services/compare";
+
+// only needed once the user asks to compare, and pulls in uPlot
+const CompareDialog = lazy(() => import("./Compare"));
 
 const formatExtraMeta = entry => {
     const extras = []
@@ -149,16 +154,28 @@ const Uploader = ({
     );
 };
 
-const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotId, setError, setSuccess, setUploadPendingSlotId}) => {
+const Entry = ({
+                   selectedDevice, selectedEntry, useWide, setDevice, selectedSlotId, setError, setSuccess,
+                   setUploadPendingSlotId, entries, setSelectedEntryId
+               }) => {
     const [uploadSlotId, setUploadSlotId] = useState(null);
     const [sendGain, setSendGain] = useState(false);
     const [pending, setPending] = useState(false);
     const [acceptGain, setAcceptGain] = useState(false);
+    const [comparing, setComparing] = useState(false);
     const entryOptimisation = useEntryOptimisation(selectedDevice, selectedEntry);
+    const compareIndex = useMemo(() => buildCompareIndex(entries), [entries]);
+    const comparable = useMemo(() => findComparable(selectedEntry, compareIndex), [selectedEntry, compareIndex]);
 
     useEffect(() => {
         setSendGain(false);
     }, [selectedEntry]);
+
+    // keyed on id, a catalogue refresh replaces the entry object but shouldn't close the comparison
+    const selectedEntryId = selectedEntry ? selectedEntry.id : null;
+    useEffect(() => {
+        setComparing(false);
+    }, [selectedEntryId]);
 
     useEffect(() => {
         const slot = selectedDevice && selectedDevice.slots ? selectedDevice.slots.find(s => s.id === uploadSlotId) : null;
@@ -208,6 +225,9 @@ const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotI
         const uploadSlot = selectedDevice && selectedDevice.slots
             ? selectedDevice.slots.find(s => s.id === uploadSlotId)
             : null;
+        // against other releases of the title and/or against the coefficients optimised for this device
+        const optimised = Boolean(entryOptimisation && entryOptimisation.optimised);
+        const canCompare = setSelectedEntryId && (comparable.length > 0 || optimised);
         const images = selectedEntry.images
             ?
             selectedEntry.images.map((i, idx) =>
@@ -291,6 +311,27 @@ const Entry = ({selectedDevice, selectedEntry, useWide, setDevice, selectedSlotI
                     selectedEntry.beqcUrl
                         ? <Button size="small" color="primary" href={selectedEntry.beqcUrl}
                                   target='_beq'>Catalogue</Button>
+                        : null
+                }
+                {
+                    canCompare
+                        ? <Button size="small" color="primary" startIcon={<CompareArrowsIcon fontSize="small"/>}
+                                  onClick={() => setComparing(true)}>
+                            {comparable.length > 0 ? `Compare (${comparable.length})` : 'Compare'}
+                        </Button>
+                        : null
+                }
+                {
+                    comparing
+                        ? <Suspense fallback={null}>
+                            <CompareDialog selectedEntry={selectedEntry}
+                                           matches={comparable}
+                                           deviceName={selectedDevice ? selectedDevice.name : null}
+                                           optimised={optimised}
+                                           onSelect={setSelectedEntryId}
+                                           onClose={() => setComparing(false)}
+                                           setError={setError}/>
+                        </Suspense>
                         : null
                 }
             </FormGroup>;

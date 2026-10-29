@@ -3,6 +3,8 @@ import type {
   CatalogueMeta,
   DeviceCollection,
   DeviceState,
+  EntryFilters,
+  EntryCoefficients,
   EntryOptimisation,
   GainsPayload,
   VersionInfo,
@@ -24,6 +26,9 @@ const fetchWithTimeout = (
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
 };
+
+// matches MAX_FILTER_IDS in ezbeq/apis/catalogue.py
+const MAX_FILTER_IDS = 50;
 
 const jsonHeaders = { 'Content-Type': 'application/json', Accept: 'application/json' };
 
@@ -233,6 +238,21 @@ export class EzbeqApi {
 
   getEntryOptimisation = async (device: string, entryId: string): Promise<EntryOptimisation> =>
     this.doGet(`devices/${device}/optimisation/${entryId}`);
+
+  getEntryCoefficients = async (device: string, entryId: string): Promise<EntryCoefficients> =>
+    this.doGet(`devices/${device}/optimisation/${entryId}/coefficients`);
+
+  // the server caps how many ids can be requested at once
+  getFilters = async (entryIds: string[]): Promise<EntryFilters[]> => {
+    const chunks: string[][] = [];
+    for (let i = 0; i < entryIds.length; i += MAX_FILTER_IDS) {
+      chunks.push(entryIds.slice(i, i + MAX_FILTER_IDS));
+    }
+    const results: EntryFilters[][] = await Promise.all(
+      chunks.map((ids) => this.doGet(this.appendTo('catalogue/filters', 'ids', ids.map(encodeURIComponent))))
+    );
+    return results.flat();
+  };
 
   setOptimise = async (device: string, slotId: string, enabled: boolean): Promise<DeviceState> =>
     this.doPatch(device, this.buildOptimisePayload(slotId, enabled));

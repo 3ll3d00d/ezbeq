@@ -171,6 +171,14 @@ class Device(ABC, Generic[T]):
         """
         return []
 
+    def entry_coefficients(self, entry: CatalogueEntry) -> dict | None:
+        """
+        :return: the authored and optimised coefficients this device would load for the entry, as
+        {profile, label, rate, precision, authored, optimised} with biquads as [b0, b1, b2, a1, a2], None if the
+        device has no optimised coefficients for it.
+        """
+        return None
+
 
 class DeviceRepository:
 
@@ -247,6 +255,9 @@ class DeviceRepository:
 
     def optimisable_profiles(self, device_name: str) -> list[str]:
         return self.__get_device(device_name).optimisable_profiles()
+
+    def entry_coefficients(self, device_name: str, entry: CatalogueEntry) -> dict | None:
+        return self.__get_device(device_name).entry_coefficients(entry)
 
 
 def _composite_member_names(values: dict) -> list[str]:

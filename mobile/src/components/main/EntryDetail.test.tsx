@@ -1,7 +1,9 @@
 import { Linking } from 'react-native';
 import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { PaperProvider } from 'react-native-paper';
 
 import EntryDetail from './EntryDetail';
+import { buildCompareIndex } from '../../services/compare';
 import type { EzbeqApi } from '../../services/ezbeqApi';
 import type { CatalogueEntry, DeviceState } from '../../types/ezbeq';
 
@@ -292,5 +294,111 @@ describe('optimisation badge', () => {
   test('warns when the slot it will be uploaded to does not use optimised filters', async () => {
     await renderDetail(false);
     expect(await screen.findByText('Unoptimised')).toBeTruthy();
+  });
+});
+
+describe('compare', () => {
+  const movie = (id: number, author: string, overrides: Partial<CatalogueEntry> = {}) =>
+    entry({ id, author, theMovieDB: '123', ...overrides });
+  const entries = [movie(1, 'a1'), movie(2, 'a2'), movie(3, 'a3', { audioTypes: ['DD+'] })];
+
+  const renderWith = (props: { entries: CatalogueEntry[]; onSelectEntry?: (id: number) => void }) =>
+    render(
+      <PaperProvider>
+        <EntryDetail
+          api={{ getFilters: jest.fn().mockResolvedValue([]) } as unknown as EzbeqApi}
+          selectedEntry={entries[0]}
+          selectedDevice={null}
+          selectedSlotId={null}
+          onDeviceUpdate={noop}
+          onError={noop}
+          onSuccess={noop}
+          compareIndex={buildCompareIndex(props.entries)}
+          onSelectEntry={props.onSelectEntry}
+        />
+      </PaperProvider>
+    );
+
+  test('hides the compare button when nothing else matches', async () => {
+    await renderWith({ entries: [entries[0]], onSelectEntry: jest.fn() });
+    expect(screen.queryByText(/^Compare/)).toBeNull();
+  });
+
+  test('hides the compare button when selecting another entry is not possible', async () => {
+    await renderWith({ entries });
+    expect(screen.queryByText(/^Compare/)).toBeNull();
+  });
+
+  test('opens the comparison and selects the chosen match', async () => {
+    const onSelectEntry = jest.fn();
+    const user = userEvent.setup();
+    await renderWith({ entries, onSelectEntry });
+    await user.press(screen.getByText('Compare (1)'));
+    expect(await screen.findByText('Compare: Some Movie (2020)')).toBeTruthy();
+    await user.press(screen.getByText('Select'));
+    expect(onSelectEntry).toHaveBeenCalledWith(2);
+    await waitFor(() => expect(screen.queryByText('Compare: Some Movie (2020)')).toBeNull());
+  });
+
+  test('offers to compare an optimised entry with no other releases against its optimised filters', async () => {
+    const user = userEvent.setup();
+    const coefficients = {
+      profile: 'float32-96k',
+      label: 'float32 @ 96 kHz',
+      rate: 96000,
+      precision: 'float32',
+      authored: [['1', '0', '0', '0', '0']],
+      optimised: [['1', '0', '0', '0', '0']],
+    };
+    const api = {
+      getEntryOptimisation: jest.fn().mockResolvedValue({ applicable: true, profile: 'float32-96k', optimised: true }),
+      getEntryCoefficients: jest.fn().mockResolvedValue(coefficients),
+    } as unknown as EzbeqApi;
+    await render(
+      <PaperProvider>
+        <EntryDetail
+          api={api}
+          selectedEntry={entries[0]}
+          selectedDevice={device({
+            optimisation: { profile: 'float32-96k', label: 'float32 @ 96 kHz', available: true, reason: null },
+          })}
+          selectedSlotId="1"
+          onDeviceUpdate={noop}
+          onError={noop}
+          onSuccess={noop}
+          compareIndex={buildCompareIndex([entries[0]])}
+          onSelectEntry={jest.fn()}
+        />
+      </PaperProvider>
+    );
+    await user.press(await screen.findByText('Compare'));
+    expect(await screen.findByText('Unoptimised (as loaded)')).toBeTruthy();
+    expect(api.getEntryCoefficients).toHaveBeenCalledWith(device().name, '1');
+  });
+
+  test('closes the comparison when another entry is selected, but not when the same one is refreshed', async () => {
+    const user = userEvent.setup();
+    const element = (selectedEntry: CatalogueEntry) => (
+      <PaperProvider>
+        <EntryDetail
+          api={{ getFilters: jest.fn().mockResolvedValue([]) } as unknown as EzbeqApi}
+          selectedEntry={selectedEntry}
+          selectedDevice={null}
+          selectedSlotId={null}
+          onDeviceUpdate={noop}
+          onError={noop}
+          onSuccess={noop}
+          compareIndex={buildCompareIndex(entries)}
+          onSelectEntry={jest.fn()}
+        />
+      </PaperProvider>
+    );
+    const { rerender } = await render(element(entries[0]));
+    await user.press(screen.getByText('Compare (1)'));
+    expect(await screen.findByText('Compare: Some Movie (2020)')).toBeTruthy();
+    await rerender(element({ ...entries[0] }));
+    expect(screen.getByText('Compare: Some Movie (2020)')).toBeTruthy();
+    await rerender(element(entries[1]));
+    await waitFor(() => expect(screen.queryByText('Compare: Some Movie (2020)')).toBeNull());
   });
 });

@@ -52,32 +52,39 @@ jobs:
        needs.detect-changed-paths.result != 'success' ||
        needs.detect-changed-paths.outputs.docker == 'true')
     runs-on: ubuntu-latest
+    # A normal multi-arch build takes ~6-9 min; fail a hung build fast instead of
+    # waiting out GitHub's 6h default.
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v7
-      # Set up Python so the version-stamping step's `python3 -c "import tomllib"` is
-      # guaranteed to find tomllib (stdlib only on 3.11+; the runner's system Python
-      # may be older).
+        with:
+          # setuptools-scm needs history + tags to derive a dev version on branch builds.
+          fetch-depth: 0
       - name: Set up Python 3.14
         uses: actions/setup-python@v7
         with:
           python-version: 3.14
       # Write ezbeq/VERSION so the image reports a meaningful version via
-      # /api/1/version. Tag pushes get the released version (e.g. "2.11.9"). Branch
-      # and manual-dispatch pushes get a PEP 440 local-version snapshot (e.g.
-      # "2.11.9+dev.5341b1d") so nobody mistakes an unreleased build for a release.
+      # /api/1/version, and pass the same value to the Dockerfile as the package
+      # version (the build context excludes .git, so hatch-vcs can't derive it there).
+      # Tag pushes get the released version (e.g. "2.11.9"). Branch and
+      # manual-dispatch pushes get a setuptools-scm dev version (e.g.
+      # "2.11.10.dev5+g5341b1d") so nobody mistakes an unreleased build for a release.
       - name: Set version
+        id: version
         run: |
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            echo "${GITHUB_REF_NAME#v}" > ezbeq/VERSION
+            VERSION="${GITHUB_REF_NAME#v}"
           else
-            BASE=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
-            BRANCH_CLEAN=$(echo "$GITHUB_REF_NAME" | tr -c '[:alnum:]' '.' | tr -s '.' | sed 's/^\.//; s/\.$//')
-            echo "${BASE}+${BRANCH_CLEAN}.${GITHUB_SHA:0:7}" > ezbeq/VERSION
+            pip install --quiet setuptools-scm
+            VERSION=$(python -m setuptools_scm)
           fi
-          echo "VERSION stamped: $(cat ezbeq/VERSION)"
+          echo "$VERSION" > ezbeq/VERSION
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "VERSION stamped: $VERSION"
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
       - name: Set up Docker Buildx
@@ -113,5 +120,6 @@ jobs:
           build-args: |
             GIT_BRANCH=${{ github.ref_name }}
             GIT_SHA=${{ github.sha }}
+            EZBEQ_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

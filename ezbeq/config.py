@@ -22,6 +22,10 @@ class Config:
         if 'catalogueUrl' in self.config:
             self.__beqcatalogue_url = self.config['catalogueUrl']
             self.logger.warning(f"Loading catalogue from custom location {self.__beqcatalogue_url}")
+        sources = self.config.get('catalogueSources')
+        if sources is not None and (not isinstance(sources, list) or not sources or
+                                    any(not isinstance(s, str) or not s.strip() for s in sources)):
+            raise ValueError('catalogueSources must be a non-empty list of URLs or local paths')
         self.devices = self.config['devices']
         self.webapp_path = self.config.get('webappPath', None)
 
@@ -58,6 +62,10 @@ class Config:
     @property
     def beqcatalogue_url(self) -> str:
         return self.__beqcatalogue_url
+
+    @property
+    def catalogue_sources(self) -> list[str] | None:
+        return self.config.get('catalogueSources')
 
     @property
     def catalogue_refresh_interval(self) -> float:
@@ -221,20 +229,18 @@ class Config:
 
     @property
     def version(self) -> str:
-        """Resolve the running ezbeq version, trying three sources in order.
+        """Resolve the running ezbeq version, trying two sources in order.
 
         1. **VERSION file** at the package root (or ``sys._MEIPASS`` when running as
            a PyInstaller bundle). Written by CI on tag builds and on branch/docker
-           builds (where it carries a PEP 440 local-version snapshot like
-           ``2.11.9+dev.5341b1d``). Authoritative when present.
-        2. **pyproject.toml** ``project.version``. Used in source-tree builds where
-           no VERSION file has been written.
-        3. **importlib.metadata** for the installed ``ezbeq`` package. Last resort
-           for a pip-installed package with no source tree and no VERSION file.
+           builds (where it carries a dev version like ``2.12.3.dev5+gabc1234``).
+           Authoritative when present.
+        2. **importlib.metadata** for the installed ``ezbeq`` package. The package
+           version is derived from the git tag by hatch-vcs at build/install time
+           (pyproject.toml declares ``dynamic = ["version"]``), so this covers both
+           source-tree (``uv sync``) and pip-installed runs.
 
-        Returns the literal string ``'UNKNOWN'`` only if all three sources fail. A
-        malformed pyproject.toml logs a warning and falls through to step 3 rather
-        than raising.
+        Returns the literal string ``'UNKNOWN'`` if both sources fail.
         """
         if getattr(sys, 'frozen', False):
             # PyInstaller copies bundled files to a temp dir at _MEIPASS.
@@ -245,17 +251,6 @@ class Config:
         if os.path.exists(v_name):
             with open(v_name, encoding='utf-8-sig') as f:
                 return f.read().strip()
-        import tomllib
-        pyproject = os.path.join(os.path.dirname(root), 'pyproject.toml')
-        if os.path.exists(pyproject):
-            try:
-                with open(pyproject, 'rb') as f:
-                    data = tomllib.load(f)
-                v = data.get('project', {}).get('version')
-                if v:
-                    return v
-            except (OSError, tomllib.TOMLDecodeError) as e:
-                self.logger.warning('Failed to read pyproject.toml for version: %s', e)
         from importlib.metadata import PackageNotFoundError
         from importlib.metadata import version as _pkg_version
         try:
@@ -285,7 +280,7 @@ class Config:
                 ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
                 stderr=subprocess.DEVNULL, cwd=os.path.dirname(__file__)
             ).decode().strip()
-        except Exception:
+        except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
             self.logger.debug('Unable to determine git branch/sha, not running from a git checkout')
         return result
 

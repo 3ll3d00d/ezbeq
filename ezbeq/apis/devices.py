@@ -406,6 +406,34 @@ class EntryOptimisation(Resource):
         return (result if result else {'applicable': False, 'profile': None, 'optimised': False}), 200
 
 
+@v1_api.route('/<string:device_name>/optimisation/<string:entry_id>/coefficients')
+@v1_api.doc(params={
+    'device_name': 'The dsp device name',
+    'entry_id': 'The catalogue entry id or digest'
+})
+class EntryCoefficients(Resource):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__bridge: DeviceRepository = kwargs['device_bridge']
+        self.__catalogue_provider: CatalogueProvider = kwargs['catalogue']
+
+    def get(self, device_name: str, entry_id: str) -> tuple[dict, int]:
+        """
+        The authored and optimised coefficients this device would load for the entry, so they can be compared.
+        """
+        entry = self.__catalogue_provider.find(entry_id)
+        if not entry:
+            return {'message': f'Unknown catalogue entry {entry_id}'}, 404
+        try:
+            result = self.__bridge.entry_coefficients(device_name, entry)
+        except NoSuchDevice:
+            return {'message': f'Unknown device {device_name}'}, 404
+        if not result:
+            return {'message': f'No optimised coefficients for {entry_id} on {device_name}'}, 404
+        return result, 200
+
+
 @v1_api.route('/<string:device_name>/optimised')
 @v1_api.doc(params={'device_name': 'The dsp device name'})
 class OptimisedEntries(Resource):
