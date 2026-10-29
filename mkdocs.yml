@@ -17,6 +17,7 @@ nav:
   - Raspberry Pi Installation: rpi.md
   - Windows Installation: win.md
   - REAPER Integration: reaper.md
+  - ShakEQ Integration: shakeq.md
   - Mobile App: mobile.md
   - Installing the Mobile App on iOS/iPadOS: mobile-ios-sideloading.md
 extra_javascript:
