@@ -42,6 +42,7 @@ Full documentation, including this README, is also published at
     - [JRiver Media Center](#jriver-media-center)
     - [Q-Sys](#q-sys)
     - [CamillaDSP](#camilladsp)
+    - [ShakEQ](#shakeq)
 - [Starting ezbeq on bootup](#starting-ezbeq-on-bootup)
 - [Verifying MiniDSP Response](#verifying-minidsp-response)
   - [Quick & Crude](#quick--crude)
@@ -120,6 +121,7 @@ See [examples](examples)
 | Device-optimised filters    | [ezbeq_optimised.yml](examples/ezbeq_optimised.yml)                                                                                                                         |
 | Monolith HTP-1              | [ezbeq_htp1.yml](examples/ezbeq_htp1.yml)                                                                                                                                   |
 | Q-Sys                       | [ezbeq_qsys.yml](examples/ezbeq_qsys.yml)                                                                                                                                   |
+| ShakEQ                      | [ezbeq_shakeq.yml](examples/ezbeq_shakeq.yml)                                                                                                                               |
 | StormAudio                  | [ezbeq_stormaudio.yml](examples/ezbeq_stormaudio.yml)                                                                                                                       |
 | Multiple, different devices | [ezbeq_multi.yml](examples/ezbeq_multi.yml)                                                                                                                                 |
 | Composite (grouped) devices | [ezbeq_composite.yml](examples/ezbeq_composite.yml)                                                                                                                         |
@@ -822,6 +824,34 @@ configured in the pipeline.
 
 BEQ specific input gain adjustments are supported via the use of a [Gain](https://github.com/HEnquist/camilladsp#gain)
 filter which is inserted into the pipeline ahead of the BEQ filters themselves.
+
+#### ShakEQ
+
+[ShakEQ](https://www.dspeaker.com/shakeq) tactile signal processors are supported via a separate ShakEQ
+HTTP connection service, which must be installed and running independently. ezbeq talks to that service over HTTP; it
+does not access the device's serial port directly.
+
+```
+  shakeq1:
+    type: shakeq
+    url: http://127.0.0.1:8081
+    tokenFile: shakeq-service.token
+    requestTimeout: 120
+    stateTimeout: 2
+```
+
+* the device name (`shakeq1` above) must match the device name configured in the ShakEQ service
+* url: the HTTP(S) origin of the service, without an API path, query or credentials
+* tokenFile: path to the service's bearer-token file, relative paths are resolved against the ezbeq configuration
+  directory. The file is re-read on each request so it can be replaced without restarting ezbeq
+* requestTimeout: optional timeout in seconds for load/clear requests, defaults to 120
+* stateTimeout: optional timeout in seconds for state requests, defaults to 2
+
+The device exposes a single, always active slot named `BEQ`. `PeakingEQ` and `LowShelf` filters are supported. Volume,
+mute and raw biquads are not supported.
+
+See the [ShakEQ Integration](https://ezbeq.readthedocs.io/en/latest/shakeq/) docs for full details of the state
+reporting, error handling and the service contract.
 
 #### Composite Devices
 
