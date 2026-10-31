@@ -29,25 +29,10 @@ const TWO_WEEKS_AGO_SECS = () => Math.floor(Date.now() / 1000) - 2 * 7 * 24 * 60
 export const computeNewCount = (recentEntries, lastChecked) =>
     recentEntries.filter(e => Math.max(e.created_at || 0, e.updated_at || 0) >= lastChecked).length;
 
-// letters (anything with case) and digits, enough to find word boundaries in titles without regex
-// unicode property escapes
-const isWordChar = c => c !== undefined && (c.toLowerCase() !== c.toUpperCase() || (c >= '0' && c <= '9'));
-
-const EXACT = 0, LEADING_WORD = 1, WHOLE_WORD = 2, WORD_START = 3, SUBSTRING = 4;
-
-// how well a title matches the (trimmed, lower case) search, best first, or null for no match
-const rankTitle = (title, q) => {
-    const t = title.toLowerCase();
-    if (t === q) return EXACT;
-    let best = null;
-    for (let i = t.indexOf(q); i !== -1; i = t.indexOf(q, i + 1)) {
-        const startsWord = i === 0 || !isWordChar(t[i - 1]);
-        const endsWord = !isWordChar(t[i + q.length]);
-        const rank = startsWord ? (endsWord ? (i === 0 ? LEADING_WORD : WHOLE_WORD) : WORD_START) : SUBSTRING;
-        if (best === null || rank < best) best = rank;
-    }
-    return best;
-};
+// letters (anything with case), digits and apostrophes (so the s in "Ocean's" doesn't start a word),
+// enough to find word boundaries in titles without regex unicode property escapes
+const isWordChar = c =>
+    c !== undefined && (c.toLowerCase() !== c.toUpperCase() || (c >= '0' && c <= '9') || c === "'" || c === '\u2019');
 
 const normaliseSearch = txtFilter => txtFilter.trim().toLowerCase();
 
@@ -56,27 +41,33 @@ export const txtMatch = (entry, txtFilter) => {
     return [entry.formattedTitle, entry.altTitle, entry.collection].some(f => f && f.toLowerCase().includes(matchOn));
 };
 
-// lower is better, null means no match. Only titles say how good a match is, a collection name
-// matching just gets an entry into the results, otherwise every film in "Star Wars Collection"
-// would outrank "A Star Is Born" for "star"
+// while searching, the list is grouped by how the title shown matches, each group alphabetical, so
+// "x" lists X-Men..., then e.g. Malcolm X, then Ex Machina, then anything only matched on its
+// altTitle or collection
+export const TITLE_STARTS = 0, WORD_STARTS = 1, TITLE_CONTAINS = 2, OTHER_MATCH = 3;
+
+// null means no match
 export const matchRank = (entry, txtFilter) => {
     const q = normaliseSearch(txtFilter);
-    const ranks = [entry.title, entry.formattedTitle, entry.altTitle]
-        .filter(Boolean)
-        .map(t => rankTitle(t, q))
-        .filter(r => r !== null);
-    if (ranks.length) return Math.min(...ranks);
-    return entry.collection && entry.collection.toLowerCase().includes(q) ? SUBSTRING : null;
+    const t = entry.formattedTitle.toLowerCase();
+    if (t.startsWith(q)) return TITLE_STARTS;
+    for (let i = t.indexOf(q); i !== -1; i = t.indexOf(q, i + 1)) {
+        if (!isWordChar(t[i - 1])) return WORD_STARTS;
+    }
+    if (t.includes(q)) return TITLE_CONTAINS;
+    return txtMatch(entry, txtFilter) ? OTHER_MATCH : null;
 };
 
-// best matches first, falling back to the catalogue's usual title order within a rank
+// by match group then by the title as displayed, year and author
 export const sortByMatchRank = (entries, txtFilter) => {
     if (!normaliseSearch(txtFilter)) return entries;
-    const sortKey = e => e.sortTitle || e.formattedTitle;
     return entries
-        .map(e => [matchRank(e, txtFilter) ?? SUBSTRING, e])
-        .sort(([r1, e1], [r2, e2]) => r1 - r2 || sortKey(e1).localeCompare(sortKey(e2)))
-        .map(([, e]) => e);
+        .map(e => ({e, rank: matchRank(e, txtFilter) ?? OTHER_MATCH, title: e.formattedTitle.toLowerCase()}))
+        .sort((a, b) => a.rank - b.rank
+            || a.title.localeCompare(b.title)
+            || (a.e.year || 0) - (b.e.year || 0)
+            || (a.e.author || '').localeCompare(b.e.author || ''))
+        .map(({e}) => e);
 };
 
 // catalogue filter: entry passes only if it satisfies every selected filter dimension

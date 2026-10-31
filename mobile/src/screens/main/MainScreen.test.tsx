@@ -9,9 +9,13 @@ import MainScreen, {
   deriveTxtFilterFromActiveSlot,
   isMatch,
   matchRank,
+  OTHER_MATCH,
   shouldTriggerBackSwipe,
   sortByMatchRank,
+  TITLE_CONTAINS,
+  TITLE_STARTS,
   txtMatch,
+  WORD_STARTS,
 } from './MainScreen';
 import { useDeviceState } from '../../context/DeviceStateContext';
 import { useServerContext } from '../../context/ServerContext';
@@ -112,34 +116,49 @@ describe('txtMatch', () => {
 });
 
 describe('matchRank', () => {
-  it('ranks exact, leading word, whole word, word start, then substring', () => {
-    expect(matchRank(entry({ title: 'It', formattedTitle: 'It (2017)' }), 'it')).toBe(0);
-    expect(matchRank(entry({ formattedTitle: 'X-Men (2000)' }), 'x')).toBe(1);
-    expect(matchRank(entry({ formattedTitle: 'Malcolm X (1992)' }), 'x')).toBe(2);
-    expect(matchRank(entry({ formattedTitle: 'The Italian Job (2003)' }), 'it')).toBe(3);
-    expect(matchRank(entry({ formattedTitle: 'Pitch Black (2000)' }), 'it')).toBe(4);
-    expect(matchRank(entry({ formattedTitle: 'Some Movie' }), 'xyz')).toBeNull();
+  const rank = (formattedTitle: string, q: string, extra: Partial<CatalogueEntry> = {}) =>
+    matchRank(entry({ formattedTitle, ...extra }), q);
+
+  it('groups by title starts, a word starts, title contains, then other fields', () => {
+    expect(rank('It (2017)', 'IT')).toBe(TITLE_STARTS);
+    expect(rank('Malcolm X (1992)', 'x')).toBe(WORD_STARTS);
+    expect(rank('Pitch Black (2000)', 'it')).toBe(TITLE_CONTAINS);
+    expect(rank('Logan', 'x', { altTitle: 'X-Men Logan' })).toBe(OTHER_MATCH);
+    expect(rank('Rogue One', 'star', { collection: 'Star Wars Collection' })).toBe(OTHER_MATCH);
+    expect(rank('Some Movie', 'xyz')).toBeNull();
   });
 
-  it('ranks a collection-only match last', () => {
-    expect(
-      matchRank(entry({ formattedTitle: 'Rogue One (2016)', collection: 'Star Wars Collection' }), 'star')
-    ).toBe(4);
+  it('does not treat a letter after an apostrophe as starting a word', () => {
+    expect(rank("Ocean's Eleven", 's')).toBe(TITLE_CONTAINS);
   });
 });
 
 describe('sortByMatchRank', () => {
-  it('orders best matches first, then by title', () => {
-    const entries = ['Pitch Black', 'The Italian Job', 'It Follows', 'Kitchen', 'It'].map((t, i) =>
-      entry({ id: i, formattedTitle: t, sortTitle: t.toLowerCase() })
-    );
-    expect(sortByMatchRank(entries, 'it').map((e) => e.formattedTitle)).toEqual([
-      'It',
-      'It Follows',
-      'The Italian Job',
-      'Kitchen',
-      'Pitch Black',
-    ]);
+  const e = (id: number, formattedTitle: string, year = 2000, author = 'a') =>
+    entry({ id, formattedTitle, year, author });
+
+  it('orders by match group, then title as shown, year and author', () => {
+    const entries = [
+      e(1, 'Pitch Black'),
+      e(2, 'The Italian Job'),
+      e(3, 'It Follows'),
+      e(4, 'Kitchen'),
+      e(5, 'It', 2017, 'b'),
+      e(6, 'It', 2017, 'a'),
+      e(7, 'It', 1990),
+    ];
+    expect(sortByMatchRank(entries, 'it').map((x) => x.id)).toEqual([7, 6, 5, 3, 2, 4, 1]);
+  });
+
+  it('lists altTitle and collection only matches last', () => {
+    const entries = [
+      e(1, 'Logan', 2017),
+      e(2, 'X-Men: Apocalypse'),
+      e(3, 'Ex Machina'),
+      e(4, 'Malcolm X'),
+    ];
+    entries[0].altTitle = 'X-Men Logan';
+    expect(sortByMatchRank(entries, 'x').map((x) => x.id)).toEqual([2, 4, 3, 1]);
   });
 
   it('leaves entries alone when there is no search', () => {

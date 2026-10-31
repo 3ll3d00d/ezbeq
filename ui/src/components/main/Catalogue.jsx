@@ -54,10 +54,12 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, selec
     // while searching, entries arrive ordered by match quality so the grid must not re-sort them by
     // title. A header click still sorts as usual, until the search starts or is cleared
     const [userSort, setUserSort] = useState(null);
-    const sortModel = userSort && userSort.rankedBySearch === rankedBySearch
-        ? userSort.model
-        : (rankedBySearch ? [] : TITLE_SORT);
-    const onSortModelChange = model => setUserSort({rankedBySearch, model});
+    const [sortFor, setSortFor] = useState(rankedBySearch);
+    if (sortFor !== rankedBySearch) {
+        setSortFor(rankedBySearch);
+        setUserSort(null);
+    }
+    const sortModel = userSort ?? (rankedBySearch ? [] : TITLE_SORT);
     const catalogueGridColumns = [
         {
             field: 'author',
@@ -128,7 +130,7 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, selec
                               pageSize={50}
                               density={'compact'}
                               sortModel={sortModel}
-                              onSortModelChange={onSortModelChange}
+                              onSortModelChange={setUserSort}
                               rowSelectionModel={rowSelectionModel}
                               onRowSelectionModelChange={onRowSelectionModelChange}
                               columnVisibilityModel={{sortTitle: false, edition: useWide, author: authors.size > 1}}

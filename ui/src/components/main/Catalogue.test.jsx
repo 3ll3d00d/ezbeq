@@ -23,6 +23,19 @@ describe('Catalogue', () => {
         expect(renderedTitles()).toEqual([expect.stringContaining('Zulu'), expect.stringContaining('Alpha')]);
     });
 
+    it('drops a header sort chosen during a search once the search is cleared', () => {
+        const entries = [{...entry(1, 'Alice Smith', 'Zulu'), title: 'Zulu'}, {...entry(2, 'Alice Smith', 'Alpha'), title: 'Alpha'}];
+        const props = {entries, setSelectedEntryId: vi.fn(), selectedEntryId: -1, useWide: true, selectedDevice: null};
+        const {rerender} = render(<Catalogue {...props} rankedBySearch={true}/>);
+        fireEvent.click(screen.getByText('Title'));
+        expect(renderedTitles()).toEqual([expect.stringContaining('Alpha'), expect.stringContaining('Zulu')]);
+
+        rerender(<Catalogue {...props} rankedBySearch={false}/>);
+        rerender(<Catalogue {...props} rankedBySearch={true}/>);
+
+        expect(renderedTitles()).toEqual([expect.stringContaining('Zulu'), expect.stringContaining('Alpha')]);
+    });
+
     it('goes back to title order when the search is cleared', () => {
         const entries = [entry(1, 'Alice Smith', 'Zulu'), entry(2, 'Alice Smith', 'Alpha')];
         const props = {entries, setSelectedEntryId: vi.fn(), selectedEntryId: -1, useWide: true, selectedDevice: null};
