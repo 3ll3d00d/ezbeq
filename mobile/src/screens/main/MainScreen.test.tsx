@@ -11,6 +11,7 @@ import MainScreen, {
   HAS_WORD,
   matchRank,
   OTHER_MATCH,
+  PUNCTUATION_DIFFERS,
   shouldTriggerBackSwipe,
   sortByMatchRank,
   TITLE_CONTAINS,
@@ -113,7 +114,35 @@ describe('txtMatch', () => {
 
   it('matches any substring, however short', () => {
     expect(txtMatch(entry({ formattedTitle: 'Pitch Black (2000)' }), 'it')).toBe(true);
-    expect(txtMatch(entry({ formattedTitle: 'Some Movie' }), '.*')).toBe(false);
+    expect(txtMatch(entry({ formattedTitle: 'Some Movie' }), '[a-z]')).toBe(false);
+  });
+
+  it('ignores punctuation', () => {
+    const spiderMan = entry({ formattedTitle: 'Spider-Man: No Way Home' });
+    expect(txtMatch(spiderMan, 'spiderman')).toBe(true);
+    expect(txtMatch(spiderMan, 'spider man no way')).toBe(true);
+    expect(txtMatch(spiderMan, 'spider-man no')).toBe(true);
+    expect(txtMatch(entry({ formattedTitle: 'Mission: Impossible' }), 'mission impossible')).toBe(true);
+    expect(txtMatch(entry({ formattedTitle: "Ocean's Eleven" }), 'oceans eleven')).toBe(true);
+    expect(txtMatch(entry({ formattedTitle: 'Ocean\u2019s Eleven' }), "ocean's")).toBe(true);
+    expect(txtMatch(entry({ formattedTitle: 'E.T. the Extra-Terrestrial' }), 'et the extra terrestrial')).toBe(true);
+    expect(txtMatch(entry({ altTitle: 'Face/Off' }), 'face off')).toBe(true);
+    expect(txtMatch(entry({ collection: 'X-Men Collection' }), 'xmen')).toBe(true);
+    expect(txtMatch(entry({ formattedTitle: 'Mission: Impossible' }), 'mission: possible')).toBe(false);
+    expect(txtMatch(entry({ formattedTitle: 'Lost in Italy' }), 'tin')).toBe(false);
+    expect(txtMatch(entry({ formattedTitle: 'Spiderman' }), 'spider-man')).toBe(true);
+  });
+
+  it('matches a search of only punctuation literally', () => {
+    expect(txtMatch(entry({ formattedTitle: 'Who? (1974)' }), ' ? ')).toBe(true);
+    expect(txtMatch(entry({ formattedTitle: 'Some Movie' }), '?')).toBe(false);
+    expect(matchRank(entry({ formattedTitle: 'Who? (1974)' }), '?')).toBe(OTHER_MATCH);
+    expect(matchRank(entry({ formattedTitle: 'Some Movie' }), '?')).toBeNull();
+  });
+
+  it('drops apostrophe look-alikes', () => {
+    expect(txtMatch(entry({ formattedTitle: 'Ocean\u00b4s Eleven' }), 'oceans')).toBe(true);
+    expect(txtMatch(entry({ formattedTitle: 'Ocean\u02bcs Eleven' }), "ocean's")).toBe(true);
   });
 });
 
@@ -166,6 +195,29 @@ describe('matchRank', () => {
     expect(rank('Some Movie', '  ', { altTitle: 'Other' })).toBe(OTHER_MATCH);
   });
 
+  it('ranks ignoring punctuation', () => {
+    expect(rank('Spider-Man (2002)', 'spiderman')).toBe(TITLE_STARTS_WITH_WORD);
+    expect(rank('Spider-Man (2002)', 'spider-man')).toBe(TITLE_STARTS_WITH_WORD);
+    expect(rank('Spider Man (2002)', 'spider-man')).toBe(TITLE_STARTS_WITH_WORD);
+    expect(rank('Spiderman (2002)', 'spider-man')).toBe(TITLE_STARTS_WITH_WORD + PUNCTUATION_DIFFERS);
+    expect(rank('Spiderman (2002)', 'spiderman')).toBe(TITLE_STARTS_WITH_WORD);
+    expect(rank('Get Out', 'e.t.')).toBe(TITLE_CONTAINS + PUNCTUATION_DIFFERS);
+    expect(rank('Rogue One', 'x-men', { collection: 'X-Men Collection' })).toBe(OTHER_MATCH);
+    expect(rank('Rogue One', 'x-men', { collection: 'Xmen Collection' })).toBe(OTHER_MATCH + PUNCTUATION_DIFFERS);
+    expect(rank('Spider-Man (2002)', 'spider man')).toBe(TITLE_STARTS_WITH_WORD);
+    expect(rank('Spider-Man (2002)', 'man')).toBe(HAS_WORD);
+    expect(rank('Mission: Impossible', 'mission impossible')).toBe(TITLE_STARTS_WITH_WORD);
+    expect(rank('Mission: Impossible', 'impossible!')).toBe(HAS_WORD);
+    expect(rank("The Hitchhiker's Guide", 'hitchhikers')).toBe(TITLE_STARTS_WITH_WORD);
+    expect(rank('Movie (?x)', '(?')).toBe(OTHER_MATCH);
+    expect(rank('Alien\u00b3 (1992)', 'alien')).toBe(TITLE_STARTS_WITH_WORD);
+    expect(rank('Brand\u2122 Movie', 'brand')).toBe(TITLE_STARTS_WITH_WORD);
+    expect(rank('E.T. the Extra-Terrestrial', 'et the extra terrestrial')).toBe(TITLE_STARTS_WITH_WORD);
+    expect(rank('E.T. the Extra-Terrestrial', 'terrestrial')).toBe(HAS_WORD);
+    expect(rank('Who? (1974)', 'who 1974')).toBe(TITLE_STARTS_WITH_WORD);
+    expect(rank('Who? (1974)', '1974')).toBe(HAS_WORD);
+  });
+
   it('ranks a whole word above a word that only starts with the search', () => {
     expect(rank('Swamp Thing', 'thing')).toBe(HAS_WORD);
     expect(rank('Things Heard & Seen', 'thing')).toBe(TITLE_STARTS);
@@ -214,9 +266,17 @@ describe('sortByMatchRank', () => {
     expect(sortByMatchRank(entries, 'x').map((x) => x.id)).toEqual([2, 4, 3, 1]);
   });
 
+  it('lists entries whose punctuation matches the search first', () => {
+    const entries = [e(1, 'Spiderman'), e(2, 'The Amazing Spider-Man'), e(3, 'Spider-Man'), e(4, 'Spider Man')];
+    expect(sortByMatchRank(entries, 'spider-man').map((x) => x.id)).toEqual([4, 3, 2, 1]);
+    // a space is not punctuation, so Spider Man doesn't match spiderman
+    expect(sortByMatchRank(entries.slice(0, 3), 'spiderman').map((x) => x.id)).toEqual([3, 1, 2]);
+  });
+
   it('leaves entries alone when there is no search', () => {
     const entries = [entry({ formattedTitle: 'B' }), entry({ formattedTitle: 'A' })];
     expect(sortByMatchRank(entries, '')).toBe(entries);
+    expect(sortByMatchRank(entries, ': ')).toBe(entries);
   });
 });
 

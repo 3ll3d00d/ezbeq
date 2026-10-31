@@ -43,46 +43,128 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Main'>;
 const TWO_WEEKS_AGO_SECS = () => Math.floor(Date.now() / 1000) - 2 * 7 * 24 * 60 * 60;
 
 // Ported from ui/src/components/main/index.jsx.
-// letters (anything with case), digits and apostrophes (so the s in "Ocean's" doesn't start a word),
-// enough to find word boundaries in titles without regex unicode property escapes
-const isWordChar = (c: string | undefined): boolean =>
-  c !== undefined &&
-  (c.toLowerCase() !== c.toUpperCase() || (c >= '0' && c <= '9') || c === "'" || c === '\u2019');
+// punctuation is mostly ignored when searching. Apostrophes are dropped, so Ocean's is found by oceans
+// and its s doesn't start a word. Other punctuation between two words becomes a GAP, which a search
+// matches with a space or nothing, so Spider-Man is found by spiderman, spider man or spider-man and
+// Mission: Impossible by mission impossible. Punctuation in the search still ranks titles with a word
+// break in the same place first (see PUNCTUATION_DIFFERS). Listed explicitly rather than via regex
+// unicode property escapes; this covers every regex special character so a search never needs escaping
+const APOSTROPHES = /['`\u00b4\u02bc\u2018\u2019]/g;
+const PUNCTUATION = /[!-/:-@[-`{-~\u00a1\u00ab\u00b7\u00bb\u00bf\u00d7\u2010-\u2027\u2030-\u205e]+/g;
+const GAP = '\u0000';
 
-const normaliseSearch = (txtFilter: string): string => txtFilter.trim().toLowerCase();
+// lower case, apostrophes dropped, punctuation next to whitespace or at either end dropped, punctuation
+// between two words reduced to a GAP, whitespace collapsed. The search and every title are normalised
+// the same way; titles are cached as each search checks the same ones over and over
+const normalised = new Map<string, string>();
+const normaliseText = (text: string): string => {
+  let n = normalised.get(text);
+  if (n === undefined) {
+    n = text
+      .toLowerCase()
+      .replace(APOSTROPHES, '')
+      .replace(PUNCTUATION, GAP)
+      .replace(/[\s\u0000]*\s[\s\u0000]*/g, ' ')
+      .replace(/^[ \u0000]+|[ \u0000]+$/g, '');
+    if (normalised.size > 50000) normalised.clear();
+    normalised.set(text, n);
+  }
+  return n;
+};
+
+// q must come from normaliseText. The text may have a GAP between any two characters of q, a space
+// in q needs a space or GAP, and so does a GAP in q when the punctuation must match, else it's optional
+const searchPattern = (q: string, punctuationMustMatch: boolean): RegExp =>
+  new RegExp(
+    q
+      .split(GAP)
+      .map((part) =>
+        Array.from(part)
+          .map((c) => (c === ' ' ? '[ \u0000]' : c))
+          .join('\u0000?')
+      )
+      .join(punctuationMustMatch ? '[ \u0000]' : '[ \u0000]?'),
+    'g'
+  );
+
+// letters (anything with case) and digits, enough to find word boundaries without regex unicode
+// property escapes; spaces, GAPs and any symbol PUNCTUATION doesn't list (e.g. a superscript 3 or a trademark sign) are not
+const isWordChar = (c: string | undefined): boolean =>
+  c !== undefined && (c.toLowerCase() !== c.toUpperCase() || (c >= '0' && c <= '9'));
+
+type CompiledSearch = {
+  txtFilter: string;
+  q: string;
+  literal: string;
+  strict: RegExp | null;
+  loose: RegExp | null;
+  hasPunctuation: boolean;
+};
+
+// the search and its patterns, compiled once per search rather than per entry
+let compiled: CompiledSearch | null = null;
+const compileSearch = (txtFilter: string): CompiledSearch => {
+  if (compiled?.txtFilter !== txtFilter) {
+    const q = normaliseText(txtFilter);
+    compiled = {
+      txtFilter,
+      q,
+      // a search of nothing but punctuation is matched literally
+      literal: txtFilter.trim().toLowerCase(),
+      strict: q ? searchPattern(q, true) : null,
+      loose: q ? searchPattern(q, false) : null,
+      hasPunctuation: q.includes(GAP),
+    };
+  }
+  return compiled;
+};
+
+export const hasSearch = (txtFilter: string): boolean => !!compileSearch(txtFilter).q;
+
+const matchesAny = (texts: (string | undefined)[], pattern: RegExp): boolean =>
+  texts.some((t) => {
+    if (!t) return false;
+    pattern.lastIndex = 0;
+    return pattern.test(normaliseText(t));
+  });
 
 export const txtMatch = (entry: CatalogueEntry, txtFilter: string): boolean => {
-  const matchOn = normaliseSearch(txtFilter);
-  return [entry.formattedTitle, entry.altTitle, entry.collection].some(
-    (f) => !!f && f.toLowerCase().includes(matchOn)
-  );
+  const { literal, loose } = compileSearch(txtFilter);
+  const texts = [entry.formattedTitle, entry.altTitle, entry.collection];
+  if (loose) return matchesAny(texts, loose);
+  return texts.some((t) => !!t && t.toLowerCase().includes(literal));
 };
 
 // a leading article is ignored, as a library files titles, so The Thing starts with Thing
 const LEADING_ARTICLE = /^(?:the|a|an)\s+/;
 const withoutArticle = (t: string): string => t.replace(LEADING_ARTICLE, '');
 
-// while searching, the list is grouped by how the title (or the altTitle, which exists to catch such
-// searches) matches, each group alphabetical, so "thing" lists The Thing, then Swamp Thing, then
-// Things Heard & Seen, then Stranger Things, then Something in the Water, then anything only matched
-// on its collection
+// while searching, the list is ordered by the best reason each entry matches, each group alphabetical.
+// The title (or the altTitle, which exists to catch such searches) is checked for how it matches, so
+// "thing" lists The Thing, then Swamp Thing, then Things Heard & Seen, then Stranger Things, then
+// Something in the Water, then anything only matched on its collection. When the search has
+// punctuation, every entry with a word break where the search has punctuation comes first, in those
+// groups, then the entries without one, in the same groups offset by PUNCTUATION_DIFFERS, so
+// spider-man lists Spider-Man, then The Amazing Spider-Man, then Spiderman
 export const TITLE_STARTS_WITH_WORD = 0;
 export const HAS_WORD = 1;
 export const TITLE_STARTS = 2;
 export const WORD_STARTS = 3;
 export const TITLE_CONTAINS = 4;
 export const OTHER_MATCH = 5;
+export const PUNCTUATION_DIFFERS = 6;
 
-const rankTitle = (title: string, q: string): number | null => {
-  if (!q) return null;
-  const t = title.toLowerCase();
+const rankTitle = (title: string, pattern: RegExp): number | null => {
+  const t = normaliseText(title);
   const titleStart = t.length - withoutArticle(t).length;
   let best: number | null = null;
-  for (let i = t.indexOf(q); i !== -1; i = t.indexOf(q, i + 1)) {
+  pattern.lastIndex = 0;
+  for (let m = pattern.exec(t); m; pattern.lastIndex = m.index + 1, m = pattern.exec(t)) {
+    const i = m.index;
     let rank = TITLE_CONTAINS;
     if (!isWordChar(t[i - 1])) {
       const atTitleStart = i === 0 || i === titleStart;
-      if (!isWordChar(t[i + q.length])) {
+      if (!isWordChar(t[i + m[0].length])) {
         if (atTitleStart) return TITLE_STARTS_WITH_WORD;
         rank = HAS_WORD;
       } else {
@@ -94,16 +176,25 @@ const rankTitle = (title: string, q: string): number | null => {
   return best;
 };
 
-// null means no match
-export const matchRank = (entry: CatalogueEntry, txtFilter: string): number | null => {
-  const q = normaliseSearch(txtFilter);
-  let rank = rankTitle(entry.formattedTitle, q);
+// the best group the entry matches pattern in, null if it doesn't
+const rankMatch = (entry: CatalogueEntry, pattern: RegExp): number | null => {
+  let rank = rankTitle(entry.formattedTitle, pattern);
   if (rank !== TITLE_STARTS_WITH_WORD && entry.altTitle) {
-    const altRank = rankTitle(entry.altTitle, q);
+    const altRank = rankTitle(entry.altTitle, pattern);
     if (altRank !== null && (rank === null || altRank < rank)) rank = altRank;
   }
   if (rank !== null) return rank;
-  return txtMatch(entry, txtFilter) ? OTHER_MATCH : null;
+  return matchesAny([entry.collection], pattern) ? OTHER_MATCH : null;
+};
+
+// null means no match
+export const matchRank = (entry: CatalogueEntry, txtFilter: string): number | null => {
+  const { strict, loose, hasPunctuation } = compileSearch(txtFilter);
+  if (!strict || !loose) return txtMatch(entry, txtFilter) ? OTHER_MATCH : null;
+  const rank = rankMatch(entry, strict);
+  if (rank !== null || !hasPunctuation) return rank;
+  const looseRank = rankMatch(entry, loose);
+  return looseRank === null ? null : looseRank + PUNCTUATION_DIFFERS;
 };
 
 // Matches the web UI's default DataGrid sort (Catalogue.jsx's `sortModel: [{field: 'sortTitle',
@@ -113,7 +204,7 @@ export const compareByTitle = (a: CatalogueEntry, b: CatalogueEntry): number =>
 
 // by match group then by the title as displayed (ignoring a leading article), year and author
 export const sortByMatchRank = (entries: CatalogueEntry[], txtFilter: string): CatalogueEntry[] => {
-  if (!normaliseSearch(txtFilter)) return entries;
+  if (!hasSearch(txtFilter)) return entries;
   return entries
     .map((e) => ({
       e,
