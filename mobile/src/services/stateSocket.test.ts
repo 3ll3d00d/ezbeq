@@ -234,3 +234,102 @@ test('reconnects immediately when connectivity is restored', async () => {
 
   socket.close();
 });
+
+// a stand in for a React error state setter, applying functional updates
+const errState = () => {
+  const state: { err: Error | null; setErr: jest.Mock } = { err: null, setErr: jest.fn() };
+  state.setErr.mockImplementation((v: Error | null | ((current: Error | null) => Error | null)) => {
+    state.err = typeof v === 'function' ? v(state.err) : v;
+  });
+  return state;
+};
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// the grace period is short so the outage is reported well within the sleeps below, even on a
+// loaded CI runner
+const GRACE_MS = 30;
+const WAIT_MS = 200;
+
+const reportedOutage = async () => {
+  const socket = new StateSocket(URL, { initialReconnectDelayMs: 500000, connectionErrorGraceMs: GRACE_MS });
+  const state = errState();
+  const callbacks = noopCallbacks();
+  socket.init(state.setErr, callbacks.replaceDevice, callbacks.setMeta, callbacks.loadEntries);
+  await server.connected;
+  server.close();
+  await sleep(WAIT_MS);
+  expect(state.err).toEqual(new Error(`Failed to connect to ${URL}`));
+  return { socket, state };
+};
+
+const reconnect = async (socket: StateSocket) => {
+  const server2 = new WS(URL, { jsonProtocol: false });
+  (socket as unknown as { reconnectNow: () => void }).reconnectNow();
+  await server2.connected;
+};
+
+test('clears a reported connection error once the socket reconnects', async () => {
+  const { socket, state } = await reportedOutage();
+
+  await reconnect(socket);
+
+  expect(state.err).toBeNull();
+  socket.close();
+});
+
+test('leaves a different error alone when the socket reconnects', async () => {
+  const { socket, state } = await reportedOutage();
+  const other = new Error('something else');
+  state.err = other;
+
+  await reconnect(socket);
+
+  expect(state.err).toBe(other);
+  socket.close();
+});
+
+test('withdraws its reported connection error when closed', async () => {
+  const { socket, state } = await reportedOutage();
+
+  socket.close();
+
+  expect(state.err).toBeNull();
+});
+
+test.each(['background', 'inactive'])(
+  'does not report a connection error while the app is %s',
+  async (hiddenState) => {
+    let appStateListener: ((state: string) => void) | undefined;
+    jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, listener) => {
+      appStateListener = listener as (state: string) => void;
+      return { remove: jest.fn() } as never;
+    });
+    // a plain property in the react-native jest setup, so set directly and restored in finally
+    const mutableAppState = AppState as { currentState: string };
+    const originalState = mutableAppState.currentState;
+    mutableAppState.currentState = 'active';
+    const socket = new StateSocket(URL, { initialReconnectDelayMs: 500000, connectionErrorGraceMs: GRACE_MS });
+    try {
+      const callbacks = noopCallbacks();
+      socket.init(callbacks.setErr, callbacks.replaceDevice, callbacks.setMeta, callbacks.loadEntries);
+      await server.connected;
+
+      mutableAppState.currentState = hiddenState;
+      appStateListener?.(hiddenState);
+      server.close();
+      await sleep(WAIT_MS);
+      expect(callbacks.setErr).not.toHaveBeenCalled();
+
+      // still down once back in the foreground, a full grace period then applies
+      mutableAppState.currentState = 'active';
+      appStateListener?.('active');
+      expect(callbacks.setErr).not.toHaveBeenCalled();
+      await sleep(WAIT_MS);
+      expect(callbacks.setErr).toHaveBeenCalledTimes(1);
+    } finally {
+      socket.close();
+      mutableAppState.currentState = originalState;
+    }
+  }
+);
