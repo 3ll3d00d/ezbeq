@@ -1,4 +1,4 @@
-import ReconnectingSocket from './socket';
+import ReconnectingSocket, {connectionErrorCallbacks} from './socket';
 
 // The server resends meta and full device state on every new connection (see register in ezbeq/apis/ws.py), so a
 // reconnect resyncs the UI by itself - except for a catalogue that was still streaming when the socket dropped, which
@@ -19,7 +19,7 @@ class StateService {
         this.socket = new ReconnectingSocket(url, {
             onOpen: this.handleOpen,
             onMessage: this.handleMessage,
-            reportError: msg => this.setErr ? this.setErr(new Error(msg)) : console.error(msg)
+            ...connectionErrorCallbacks(() => this.setErr)
         }, options);
     }
 

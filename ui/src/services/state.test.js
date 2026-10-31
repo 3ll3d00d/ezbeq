@@ -245,3 +245,24 @@ describe('StateService catalogue loading', () => {
     });
 
 });
+
+describe('StateService connection errors', () => {
+    it('clears its connection error once reconnected, via a functional update of the error state', () => {
+        vi.useFakeTimers();
+        let err = null;
+        const setErr = vi.fn(v => {
+            err = typeof v === 'function' ? v(err) : v;
+        });
+        const service = new StateService('ws://test');
+        service.init(setErr, vi.fn(), vi.fn(), vi.fn());
+
+        FakeWebSocket.lastInstance.drop();
+        vi.advanceTimersByTime(10000);
+        expect(err).toEqual(new Error('Failed to connect to ws://test'));
+        FakeWebSocket.lastInstance.open();
+
+        expect(err).toBeNull();
+        service.close();
+        vi.useRealTimers();
+    });
+});

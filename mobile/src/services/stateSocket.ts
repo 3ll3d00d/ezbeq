@@ -20,8 +20,16 @@ const DEFAULT_INITIAL_RECONNECT_DELAY_MS = 1000;
 // isn't working) is worth interrupting the user for.
 const DEFAULT_CONNECTION_ERROR_GRACE_MS = 10000;
 
+// a React error state setter, functional updates let a reported connection error be cleared only
+// while it's still the one being shown
+export type ErrorStateSetter = (err: Error | null | ((current: Error | null) => Error | null)) => void;
+
+// inactive is iOS's transition to the lock screen/app switcher, which may be as far as the app gets
+// before it's suspended
+const isAppHidden = () => AppState.currentState === 'background' || AppState.currentState === 'inactive';
+
 export type StateSocketCallbacks = {
-  setErr: (err: Error) => void;
+  setErr: ErrorStateSetter;
   replaceDevice: (device: DeviceState) => void;
   setMeta: (meta: CatalogueMeta) => void;
   loadEntries: (entries: Record<string, CatalogueEntry>) => void;
@@ -52,6 +60,13 @@ export class StateSocket {
   // connection-failure error only if the socket is still down once the grace period elapses,
   // regardless of how many individual reconnect attempts happened in between.
   private connectionErrorTimer: ReturnType<typeof setTimeout> | null = null;
+  // Down and not yet reported. The grace period only runs while the app is in the foreground: a
+  // backgrounded app (e.g. a locked phone) can't reconnect, and an error raised meanwhile would
+  // still be on screen when it's next opened, by which time the reconnect on return may well have
+  // worked - so it's restarted in full when the app comes back.
+  private connectionErrorPending = false;
+  // the connection error last reported, cleared again once the socket reconnects
+  private reportedConnectionError: Error | null = null;
   private closedByCaller = false;
   private appStateSubscription: { remove: () => void } | null = null;
   private netInfoUnsubscribe: NetInfoSubscription | null = null;
@@ -96,6 +111,7 @@ export class StateSocket {
     ws.onopen = () => {
       this.reconnectAttempt = 0;
       this.clearConnectionErrorTimer();
+      this.withdrawConnectionError();
       this.callbacks?.onConnectionChange?.(true);
     };
     ws.onerror = () => {
@@ -163,17 +179,45 @@ export class StateSocket {
   };
 
   private startConnectionErrorTimer = () => {
-    if (this.connectionErrorTimer) return;
+    if (this.reportedConnectionError) return;
+    this.connectionErrorPending = true;
+    if (this.connectionErrorTimer || isAppHidden()) return;
     this.connectionErrorTimer = setTimeout(() => {
       this.connectionErrorTimer = null;
-      this.callbacks?.setErr(new Error(`Failed to connect to ${this.url}`));
+      if (isAppHidden()) return;
+      this.connectionErrorPending = false;
+      this.reportedConnectionError = new Error(`Failed to connect to ${this.url}`);
+      this.callbacks?.setErr(this.reportedConnectionError);
     }, this.connectionErrorGraceMs);
   };
 
-  private clearConnectionErrorTimer = () => {
+  // clears the reported connection error, if it's still the one being shown
+  private withdrawConnectionError = () => {
+    const reported = this.reportedConnectionError;
+    if (reported) {
+      this.reportedConnectionError = null;
+      this.callbacks?.setErr((current) => (current === reported ? null : current));
+    }
+  };
+
+  private stopConnectionErrorTimer = () => {
     if (this.connectionErrorTimer) {
       clearTimeout(this.connectionErrorTimer);
       this.connectionErrorTimer = null;
+    }
+  };
+
+  private clearConnectionErrorTimer = () => {
+    this.stopConnectionErrorTimer();
+    this.connectionErrorPending = false;
+  };
+
+  // a pending outage whose timer was stopped while the app was hidden gets a fresh grace period, one
+  // whose timer is still running carries on so that e.g. repeated connectivity changes can't postpone
+  // the error indefinitely
+  private resumeConnectionErrorTimer = () => {
+    if (this.connectionErrorPending) {
+      this.startConnectionErrorTimer();
     }
   };
 
@@ -189,12 +233,18 @@ export class StateSocket {
 
   private handleAppStateChange = (state: AppStateStatus) => {
     if (state === 'active') {
+      this.resumeConnectionErrorTimer();
       this.reconnectNow();
+    } else {
+      // the outage stays pending and gets a full grace period once the app is back, so a timer
+      // frozen along with the app can't fire overdue as soon as it returns
+      this.stopConnectionErrorTimer();
     }
   };
 
   private handleNetInfoChange = (state: { isConnected: boolean | null }) => {
     if (state.isConnected) {
+      this.resumeConnectionErrorTimer();
       this.reconnectNow();
     }
   };
@@ -212,6 +262,7 @@ export class StateSocket {
       this.reconnectTimer = null;
     }
     this.clearConnectionErrorTimer();
+    this.withdrawConnectionError();
     this.appStateSubscription?.remove();
     this.netInfoUnsubscribe?.();
     this.ws?.close();

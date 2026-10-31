@@ -43,18 +43,92 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Main'>;
 const TWO_WEEKS_AGO_SECS = () => Math.floor(Date.now() / 1000) - 2 * 7 * 24 * 60 * 60;
 
 // Ported from ui/src/components/main/index.jsx.
+// letters (anything with case), digits and apostrophes (so the s in "Ocean's" doesn't start a word),
+// enough to find word boundaries in titles without regex unicode property escapes
+const isWordChar = (c: string | undefined): boolean =>
+  c !== undefined &&
+  (c.toLowerCase() !== c.toUpperCase() || (c >= '0' && c <= '9') || c === "'" || c === '\u2019');
+
+const normaliseSearch = (txtFilter: string): string => txtFilter.trim().toLowerCase();
+
 export const txtMatch = (entry: CatalogueEntry, txtFilter: string): boolean => {
-  const matchOn = txtFilter.toLowerCase();
-  if (entry.formattedTitle.toLowerCase().includes(matchOn)) return true;
-  if (entry.altTitle && entry.altTitle.toLowerCase().includes(matchOn)) return true;
-  if (entry.collection && entry.collection.toLowerCase().includes(matchOn)) return true;
-  return false;
+  const matchOn = normaliseSearch(txtFilter);
+  return [entry.formattedTitle, entry.altTitle, entry.collection].some(
+    (f) => !!f && f.toLowerCase().includes(matchOn)
+  );
+};
+
+// a leading article is ignored, as a library files titles, so The Thing starts with Thing
+const LEADING_ARTICLE = /^(?:the|a|an)\s+/;
+const withoutArticle = (t: string): string => t.replace(LEADING_ARTICLE, '');
+
+// while searching, the list is grouped by how the title (or the altTitle, which exists to catch such
+// searches) matches, each group alphabetical, so "thing" lists The Thing, then Swamp Thing, then
+// Things Heard & Seen, then Stranger Things, then Something in the Water, then anything only matched
+// on its collection
+export const TITLE_STARTS_WITH_WORD = 0;
+export const HAS_WORD = 1;
+export const TITLE_STARTS = 2;
+export const WORD_STARTS = 3;
+export const TITLE_CONTAINS = 4;
+export const OTHER_MATCH = 5;
+
+const rankTitle = (title: string, q: string): number | null => {
+  if (!q) return null;
+  const t = title.toLowerCase();
+  const titleStart = t.length - withoutArticle(t).length;
+  let best: number | null = null;
+  for (let i = t.indexOf(q); i !== -1; i = t.indexOf(q, i + 1)) {
+    let rank = TITLE_CONTAINS;
+    if (!isWordChar(t[i - 1])) {
+      const atTitleStart = i === 0 || i === titleStart;
+      if (!isWordChar(t[i + q.length])) {
+        if (atTitleStart) return TITLE_STARTS_WITH_WORD;
+        rank = HAS_WORD;
+      } else {
+        rank = atTitleStart ? TITLE_STARTS : WORD_STARTS;
+      }
+    }
+    if (best === null || rank < best) best = rank;
+  }
+  return best;
+};
+
+// null means no match
+export const matchRank = (entry: CatalogueEntry, txtFilter: string): number | null => {
+  const q = normaliseSearch(txtFilter);
+  let rank = rankTitle(entry.formattedTitle, q);
+  if (rank !== TITLE_STARTS_WITH_WORD && entry.altTitle) {
+    const altRank = rankTitle(entry.altTitle, q);
+    if (altRank !== null && (rank === null || altRank < rank)) rank = altRank;
+  }
+  if (rank !== null) return rank;
+  return txtMatch(entry, txtFilter) ? OTHER_MATCH : null;
 };
 
 // Matches the web UI's default DataGrid sort (Catalogue.jsx's `sortModel: [{field: 'sortTitle',
 // sort: 'asc'}]`) - falls back to formattedTitle for the rare entry with no sortTitle set.
 export const compareByTitle = (a: CatalogueEntry, b: CatalogueEntry): number =>
   (a.sortTitle || a.formattedTitle).localeCompare(b.sortTitle || b.formattedTitle);
+
+// by match group then by the title as displayed (ignoring a leading article), year and author
+export const sortByMatchRank = (entries: CatalogueEntry[], txtFilter: string): CatalogueEntry[] => {
+  if (!normaliseSearch(txtFilter)) return entries;
+  return entries
+    .map((e) => ({
+      e,
+      rank: matchRank(e, txtFilter) ?? OTHER_MATCH,
+      title: withoutArticle(e.formattedTitle.toLowerCase()),
+    }))
+    .sort(
+      (a, b) =>
+        a.rank - b.rank ||
+        a.title.localeCompare(b.title) ||
+        (a.e.year || 0) - (b.e.year || 0) ||
+        (a.e.author || '').localeCompare(b.e.author || '')
+    )
+    .map(({ e }) => e);
+};
 
 // A deliberate rightward swipe, not an incidental drag while scrolling or a stray tap-and-drift -
 // requires both a meaningful horizontal distance and a rightward-moving finger at release.
@@ -181,7 +255,7 @@ export default function MainScreen({ navigation }: Props) {
   );
 
   const filteredEntries = useMemo(
-    () => entryList.filter((e) => isMatch(e, filters)),
+    () => sortByMatchRank(entryList.filter((e) => isMatch(e, filters)), filters.debouncedTxtFilter),
     [entryList, filters]
   );
 

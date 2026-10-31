@@ -29,18 +29,72 @@ const TWO_WEEKS_AGO_SECS = () => Math.floor(Date.now() / 1000) - 2 * 7 * 24 * 60
 export const computeNewCount = (recentEntries, lastChecked) =>
     recentEntries.filter(e => Math.max(e.created_at || 0, e.updated_at || 0) >= lastChecked).length;
 
+// letters (anything with case), digits and apostrophes (so the s in "Ocean's" doesn't start a word),
+// enough to find word boundaries in titles without regex unicode property escapes
+const isWordChar = c =>
+    c !== undefined && (c.toLowerCase() !== c.toUpperCase() || (c >= '0' && c <= '9') || c === "'" || c === '\u2019');
+
+const normaliseSearch = txtFilter => txtFilter.trim().toLowerCase();
+
 export const txtMatch = (entry, txtFilter) => {
-    const matchOn = txtFilter.toLowerCase();
-    if (entry.formattedTitle.toLowerCase().includes(matchOn)) {
-        return true;
+    const matchOn = normaliseSearch(txtFilter);
+    return [entry.formattedTitle, entry.altTitle, entry.collection].some(f => f && f.toLowerCase().includes(matchOn));
+};
+
+// a leading article is ignored, as a library files titles, so The Thing starts with Thing
+const LEADING_ARTICLE = /^(?:the|a|an)\s+/;
+const withoutArticle = t => t.replace(LEADING_ARTICLE, '');
+
+// while searching, the list is grouped by how the title (or the altTitle, which exists to catch such
+// searches) matches, each group alphabetical, so "thing" lists The Thing, then Swamp Thing, then
+// Things Heard & Seen, then Stranger Things, then Something in the Water, then anything only matched
+// on its collection
+export const TITLE_STARTS_WITH_WORD = 0, HAS_WORD = 1, TITLE_STARTS = 2, WORD_STARTS = 3, TITLE_CONTAINS = 4,
+    OTHER_MATCH = 5;
+
+const rankTitle = (title, q) => {
+    if (!q) return null;
+    const t = title.toLowerCase();
+    const titleStart = t.length - withoutArticle(t).length;
+    let best = null;
+    for (let i = t.indexOf(q); i !== -1; i = t.indexOf(q, i + 1)) {
+        let rank = TITLE_CONTAINS;
+        if (!isWordChar(t[i - 1])) {
+            const atTitleStart = i === 0 || i === titleStart;
+            if (!isWordChar(t[i + q.length])) {
+                if (atTitleStart) return TITLE_STARTS_WITH_WORD;
+                rank = HAS_WORD;
+            } else {
+                rank = atTitleStart ? TITLE_STARTS : WORD_STARTS;
+            }
+        }
+        if (best === null || rank < best) best = rank;
     }
-    if (entry.hasOwnProperty('altTitle') && entry.altTitle.toLowerCase().includes(matchOn)) {
-        return true;
+    return best;
+};
+
+// null means no match
+export const matchRank = (entry, txtFilter) => {
+    const q = normaliseSearch(txtFilter);
+    let rank = rankTitle(entry.formattedTitle, q);
+    if (rank !== TITLE_STARTS_WITH_WORD && entry.altTitle) {
+        const altRank = rankTitle(entry.altTitle, q);
+        if (altRank !== null && (rank === null || altRank < rank)) rank = altRank;
     }
-    if (entry.hasOwnProperty('collection') && entry.collection.toLowerCase().includes(matchOn)) {
-        return true;
-    }
-    return false;
+    if (rank !== null) return rank;
+    return txtMatch(entry, txtFilter) ? OTHER_MATCH : null;
+};
+
+// by match group then by the title as displayed (ignoring a leading article), year and author
+export const sortByMatchRank = (entries, txtFilter) => {
+    if (!normaliseSearch(txtFilter)) return entries;
+    return entries
+        .map(e => ({e, rank: matchRank(e, txtFilter) ?? OTHER_MATCH, title: withoutArticle(e.formattedTitle.toLowerCase())}))
+        .sort((a, b) => a.rank - b.rank
+            || a.title.localeCompare(b.title)
+            || (a.e.year || 0) - (b.e.year || 0)
+            || (a.e.author || '').localeCompare(b.e.author || ''))
+        .map(({e}) => e);
 };
 
 // catalogue filter: entry passes only if it satisfies every selected filter dimension
@@ -106,6 +160,8 @@ const MainView = ({
     const [selectedEntryId, setSelectedEntryId] = useState(-1);
     const [userDriven, setUserDriven] = useState(false);
     const [filteredEntries, setFilteredEntries] = useState([]);
+    // set alongside filteredEntries so the grid only stops sorting by title once ranked rows arrive
+    const [rankedBySearch, setRankedBySearch] = useState(false);
     const [uploadPendingSlotId, setUploadPendingSlotId] = useState(null);
 
     // whats new
@@ -178,7 +234,12 @@ const MainView = ({
     }, [availableDevices, selectedDeviceName, setSelectedDeviceName]);
 
     useEffect(() => {
-        pushData(setFilteredEntries, () => entries.filter(e => isMatch(e, filters)), setErr);
+        const txt = filters.debouncedTxtFilter;
+        const setRanked = matches => {
+            setFilteredEntries(matches);
+            setRankedBySearch(!!normaliseSearch(txt));
+        };
+        pushData(setRanked, () => sortByMatchRank(entries.filter(e => isMatch(e, filters)), txt), setErr);
     }, [entries, filters, setErr]);
 
     useEffect(() => {
@@ -206,6 +267,7 @@ const MainView = ({
     const catalogue =
         <Suspense fallback={catalogueFallback}>
             <Catalogue entries={filteredEntries}
+                       rankedBySearch={rankedBySearch}
                        setSelectedEntryId={setSelectedEntryId}
                        selectedEntryId={selectedEntryId}
                        useWide={useWide}
