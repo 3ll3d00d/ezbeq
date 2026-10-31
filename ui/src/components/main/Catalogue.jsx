@@ -1,4 +1,4 @@
-import React, {useMemo} from "react";
+import React, {useMemo, useState} from "react";
 import {Avatar, Grid} from "@mui/material";
 import {DataGrid} from "@mui/x-data-grid";
 import {styled} from "@mui/material/styles";
@@ -48,7 +48,18 @@ const stringAvatar = name => {
     };
 }
 
-const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, selectedDevice}) => {
+const TITLE_SORT = [{field: 'sortTitle', sort: 'asc'}];
+
+const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, selectedDevice, rankedBySearch = false}) => {
+    // while searching, entries arrive ordered by match quality so the grid must not re-sort them by
+    // title. A header click still sorts as usual, until the search starts or is cleared
+    const [userSort, setUserSort] = useState(null);
+    const [sortFor, setSortFor] = useState(rankedBySearch);
+    if (sortFor !== rankedBySearch) {
+        setSortFor(rankedBySearch);
+        setUserSort(null);
+    }
+    const sortModel = userSort ?? (rankedBySearch ? [] : TITLE_SORT);
     const catalogueGridColumns = [
         {
             field: 'author',
@@ -118,7 +129,8 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, selec
                               columns={catalogueGridColumns}
                               pageSize={50}
                               density={'compact'}
-                              initialState={{sorting: {sortModel: [{field: 'sortTitle', sort: 'asc'}]}}}
+                              sortModel={sortModel}
+                              onSortModelChange={setUserSort}
                               rowSelectionModel={rowSelectionModel}
                               onRowSelectionModelChange={onRowSelectionModelChange}
                               columnVisibilityModel={{sortTitle: false, edition: useWide, author: authors.size > 1}}
