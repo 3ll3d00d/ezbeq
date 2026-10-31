@@ -15,7 +15,8 @@ type Props = {
 
 // Replaces the web UI's @mui/x-data-grid (Catalogue.jsx) - there's no RN DataGrid equivalent, so
 // this renders a scrollable card/row list instead of a sortable table. Column-visibility isn't
-// ported; sort order (by title, see MainScreen's entryList) is applied before entries reach here.
+// ported; sort order (by title, or by match quality while searching - see MainScreen's
+// filteredEntries) is applied before entries reach here.
 export default function CatalogueList({
   entries,
   selectedEntryId,

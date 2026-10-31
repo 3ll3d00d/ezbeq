@@ -1,5 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import ReconnectingSocket from './socket';
+import ReconnectingSocket, {connectionErrorCallbacks} from './socket';
 
 class FakeWebSocket {
     constructor(url) {
@@ -35,7 +35,8 @@ const makeSocket = () => {
         onOpen: vi.fn(),
         onMessage: vi.fn(),
         onConnectionChange: vi.fn(),
-        reportError: vi.fn()
+        reportError: vi.fn(),
+        clearError: vi.fn()
     };
     const socket = new ReconnectingSocket('ws://test', callbacks);
     sockets.push(socket);
@@ -65,6 +66,8 @@ afterEach(() => {
     sockets = [];
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    // a failed assertion can skip a test's own mockRestore, don't leave e.g. a hidden page behind for the next one
+    vi.restoreAllMocks();
 });
 
 describe('ReconnectingSocket messages', () => {
@@ -177,6 +180,79 @@ describe('ReconnectingSocket reconnection', () => {
         expect(reportError).toHaveBeenCalledWith('Failed to connect to ws://test');
     });
 
+    it('does not report a connection error while the page is hidden', () => {
+        const {reportError} = makeSocket();
+        const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+
+        FakeWebSocket.lastInstance.drop();
+        vi.advanceTimersByTime(60000);
+        expect(reportError).not.toHaveBeenCalled();
+
+        // still down once the page is back, the reconnect on return gets a full grace period
+        visibility.mockReturnValue('visible');
+        document.dispatchEvent(new Event('visibilitychange'));
+        vi.advanceTimersByTime(9999);
+        expect(reportError).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1);
+        expect(reportError).toHaveBeenCalledTimes(1);
+        visibility.mockRestore();
+    });
+
+    it('gives a reconnect attempt already under way a full grace period when the page becomes visible', () => {
+        const {reportError} = makeSocket();
+        const visibility = vi.spyOn(document, 'visibilityState', 'get');
+        FakeWebSocket.lastInstance.drop();
+        vi.advanceTimersByTime(9000);
+        visibility.mockReturnValue('hidden');
+        document.dispatchEvent(new Event('visibilitychange'));
+
+        // a backoff reconnect starts just before the page is back, so that attempt is left to carry on
+        FakeWebSocket.lastInstance.drop();
+        vi.advanceTimersByTime(2000);
+        const attempts = FakeWebSocket.instances.length;
+        visibility.mockReturnValue('visible');
+        document.dispatchEvent(new Event('visibilitychange'));
+        expect(FakeWebSocket.instances).toHaveLength(attempts);
+        vi.advanceTimersByTime(9999);
+
+        expect(reportError).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1);
+        expect(reportError).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not run the grace period timer while the page is hidden', () => {
+        makeSocket();
+        const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+
+        FakeWebSocket.lastInstance.drop();
+        visibility.mockRestore();
+        // only the reconnect backoff is pending
+        expect(vi.getTimerCount()).toBe(1);
+    });
+
+    it('clears a reported connection error once reconnected', () => {
+        const {reportError, clearError} = makeSocket();
+
+        FakeWebSocket.lastInstance.drop();
+        vi.advanceTimersByTime(10000);
+        expect(reportError).toHaveBeenCalledTimes(1);
+        expect(clearError).not.toHaveBeenCalled();
+        FakeWebSocket.lastInstance.open();
+
+        expect(clearError).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not clear errors when reconnecting within the grace period', () => {
+        const {clearError} = makeSocket();
+
+        FakeWebSocket.lastInstance.open();
+        FakeWebSocket.lastInstance.drop();
+        vi.advanceTimersByTime(1000);
+        FakeWebSocket.lastInstance.open();
+
+        expect(clearError).not.toHaveBeenCalled();
+    });
+
     it('reports a sustained outage once, not on every failed reconnect', () => {
         const {reportError} = makeSocket();
 
@@ -279,18 +355,27 @@ describe('ReconnectingSocket reconnection', () => {
         warnSpy.mockRestore();
     });
 
-    it('gives an immediate reconnect a fresh grace period', () => {
+    it('does not postpone the error for an immediate reconnect on a page that was never hidden', () => {
         const {reportError} = makeSocket();
         FakeWebSocket.lastInstance.drop();
-        vi.advanceTimersByTime(900);
+        vi.advanceTimersByTime(5000);
 
-        window.dispatchEvent(new Event('pageshow'));
-        vi.advanceTimersByTime(9500);
+        window.dispatchEvent(new Event('online'));
+        vi.advanceTimersByTime(4999);
         expect(reportError).not.toHaveBeenCalled();
-        FakeWebSocket.lastInstance.open();
+        vi.advanceTimersByTime(1);
+
+        expect(reportError).toHaveBeenCalledTimes(1);
+    });
+
+    it('withdraws its reported error when closed by the caller', () => {
+        const {socket, clearError} = makeSocket();
+        FakeWebSocket.lastInstance.drop();
         vi.advanceTimersByTime(10000);
 
-        expect(reportError).not.toHaveBeenCalled();
+        socket.close();
+
+        expect(clearError).toHaveBeenCalledTimes(1);
     });
 
     it('stops reconnecting once closed by the caller', () => {
@@ -420,4 +505,57 @@ describe('ReconnectingSocket heartbeat', () => {
         expect(FakeWebSocket.instances).toHaveLength(1);
     });
 
+});
+
+describe('connectionErrorCallbacks', () => {
+    // a stand in for a React state setter, applying functional updates
+    const errState = () => {
+        const state = {err: null};
+        state.setErr = vi.fn(v => {
+            state.err = typeof v === 'function' ? v(state.err) : v;
+        });
+        return state;
+    };
+
+    it('reports the error via setErr', () => {
+        const state = errState();
+        const {reportError} = connectionErrorCallbacks(() => state.setErr);
+
+        reportError('Failed to connect to ws://test');
+
+        expect(state.err).toEqual(new Error('Failed to connect to ws://test'));
+    });
+
+    it('clears the error it reported', () => {
+        const state = errState();
+        const {reportError, clearError} = connectionErrorCallbacks(() => state.setErr);
+
+        reportError('Failed to connect to ws://test');
+        clearError();
+
+        expect(state.err).toBeNull();
+    });
+
+    it('leaves a different error that has replaced it alone', () => {
+        const state = errState();
+        const {reportError, clearError} = connectionErrorCallbacks(() => state.setErr);
+        const other = new Error('Something else');
+
+        reportError('Failed to connect to ws://test');
+        state.setErr(other);
+        clearError();
+
+        expect(state.err).toBe(other);
+    });
+
+    it('logs the error when there is no setErr yet', () => {
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const {reportError, clearError} = connectionErrorCallbacks(() => null);
+
+        reportError('Failed to connect to ws://test');
+        clearError();
+
+        expect(errorSpy).toHaveBeenCalledWith('Failed to connect to ws://test');
+        errorSpy.mockRestore();
+    });
 });

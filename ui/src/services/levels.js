@@ -1,4 +1,4 @@
-import ReconnectingSocket from './socket';
+import ReconnectingSocket, {connectionErrorCallbacks} from './socket';
 
 const NO_DATA_ERROR = new Error("No data in levels update");
 
@@ -134,7 +134,7 @@ class LevelsService {
             onConnectionChange: connected => {
                 if (this.setConnected) this.setConnected(connected);
             },
-            reportError: msg => this.setErr(new Error(msg))
+            ...connectionErrorCallbacks(() => this.setErr)
         });
     };
 
