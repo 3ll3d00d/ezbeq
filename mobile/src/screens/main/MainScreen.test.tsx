@@ -8,7 +8,9 @@ import MainScreen, {
   compareByTitle,
   deriveTxtFilterFromActiveSlot,
   isMatch,
+  matchRank,
   shouldTriggerBackSwipe,
+  sortByMatchRank,
   txtMatch,
 } from './MainScreen';
 import { useDeviceState } from '../../context/DeviceStateContext';
@@ -101,6 +103,48 @@ describe('txtMatch', () => {
 
   it('does not match unrelated text', () => {
     expect(txtMatch(entry({ formattedTitle: 'Interstellar (2014)' }), 'batman')).toBe(false);
+  });
+
+  it('matches any substring, however short', () => {
+    expect(txtMatch(entry({ formattedTitle: 'Pitch Black (2000)' }), 'it')).toBe(true);
+    expect(txtMatch(entry({ formattedTitle: 'Some Movie' }), '.*')).toBe(false);
+  });
+});
+
+describe('matchRank', () => {
+  it('ranks exact, leading word, whole word, word start, then substring', () => {
+    expect(matchRank(entry({ title: 'It', formattedTitle: 'It (2017)' }), 'it')).toBe(0);
+    expect(matchRank(entry({ formattedTitle: 'X-Men (2000)' }), 'x')).toBe(1);
+    expect(matchRank(entry({ formattedTitle: 'Malcolm X (1992)' }), 'x')).toBe(2);
+    expect(matchRank(entry({ formattedTitle: 'The Italian Job (2003)' }), 'it')).toBe(3);
+    expect(matchRank(entry({ formattedTitle: 'Pitch Black (2000)' }), 'it')).toBe(4);
+    expect(matchRank(entry({ formattedTitle: 'Some Movie' }), 'xyz')).toBeNull();
+  });
+
+  it('ranks a collection-only match last', () => {
+    expect(
+      matchRank(entry({ formattedTitle: 'Rogue One (2016)', collection: 'Star Wars Collection' }), 'star')
+    ).toBe(4);
+  });
+});
+
+describe('sortByMatchRank', () => {
+  it('orders best matches first, then by title', () => {
+    const entries = ['Pitch Black', 'The Italian Job', 'It Follows', 'Kitchen', 'It'].map((t, i) =>
+      entry({ id: i, formattedTitle: t, sortTitle: t.toLowerCase() })
+    );
+    expect(sortByMatchRank(entries, 'it').map((e) => e.formattedTitle)).toEqual([
+      'It',
+      'It Follows',
+      'The Italian Job',
+      'Kitchen',
+      'Pitch Black',
+    ]);
+  });
+
+  it('leaves entries alone when there is no search', () => {
+    const entries = [entry({ formattedTitle: 'B' }), entry({ formattedTitle: 'A' })];
+    expect(sortByMatchRank(entries, '')).toBe(entries);
   });
 });
 

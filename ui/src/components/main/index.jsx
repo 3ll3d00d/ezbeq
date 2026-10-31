@@ -29,18 +29,54 @@ const TWO_WEEKS_AGO_SECS = () => Math.floor(Date.now() / 1000) - 2 * 7 * 24 * 60
 export const computeNewCount = (recentEntries, lastChecked) =>
     recentEntries.filter(e => Math.max(e.created_at || 0, e.updated_at || 0) >= lastChecked).length;
 
+// letters (anything with case) and digits, enough to find word boundaries in titles without regex
+// unicode property escapes
+const isWordChar = c => c !== undefined && (c.toLowerCase() !== c.toUpperCase() || (c >= '0' && c <= '9'));
+
+const EXACT = 0, LEADING_WORD = 1, WHOLE_WORD = 2, WORD_START = 3, SUBSTRING = 4;
+
+// how well a title matches the (trimmed, lower case) search, best first, or null for no match
+const rankTitle = (title, q) => {
+    const t = title.toLowerCase();
+    if (t === q) return EXACT;
+    let best = null;
+    for (let i = t.indexOf(q); i !== -1; i = t.indexOf(q, i + 1)) {
+        const startsWord = i === 0 || !isWordChar(t[i - 1]);
+        const endsWord = !isWordChar(t[i + q.length]);
+        const rank = startsWord ? (endsWord ? (i === 0 ? LEADING_WORD : WHOLE_WORD) : WORD_START) : SUBSTRING;
+        if (best === null || rank < best) best = rank;
+    }
+    return best;
+};
+
+const normaliseSearch = txtFilter => txtFilter.trim().toLowerCase();
+
 export const txtMatch = (entry, txtFilter) => {
-    const matchOn = txtFilter.toLowerCase();
-    if (entry.formattedTitle.toLowerCase().includes(matchOn)) {
-        return true;
-    }
-    if (entry.hasOwnProperty('altTitle') && entry.altTitle.toLowerCase().includes(matchOn)) {
-        return true;
-    }
-    if (entry.hasOwnProperty('collection') && entry.collection.toLowerCase().includes(matchOn)) {
-        return true;
-    }
-    return false;
+    const matchOn = normaliseSearch(txtFilter);
+    return [entry.formattedTitle, entry.altTitle, entry.collection].some(f => f && f.toLowerCase().includes(matchOn));
+};
+
+// lower is better, null means no match. Only titles say how good a match is, a collection name
+// matching just gets an entry into the results, otherwise every film in "Star Wars Collection"
+// would outrank "A Star Is Born" for "star"
+export const matchRank = (entry, txtFilter) => {
+    const q = normaliseSearch(txtFilter);
+    const ranks = [entry.title, entry.formattedTitle, entry.altTitle]
+        .filter(Boolean)
+        .map(t => rankTitle(t, q))
+        .filter(r => r !== null);
+    if (ranks.length) return Math.min(...ranks);
+    return entry.collection && entry.collection.toLowerCase().includes(q) ? SUBSTRING : null;
+};
+
+// best matches first, falling back to the catalogue's usual title order within a rank
+export const sortByMatchRank = (entries, txtFilter) => {
+    if (!normaliseSearch(txtFilter)) return entries;
+    const sortKey = e => e.sortTitle || e.formattedTitle;
+    return entries
+        .map(e => [matchRank(e, txtFilter) ?? SUBSTRING, e])
+        .sort(([r1, e1], [r2, e2]) => r1 - r2 || sortKey(e1).localeCompare(sortKey(e2)))
+        .map(([, e]) => e);
 };
 
 // catalogue filter: entry passes only if it satisfies every selected filter dimension
@@ -106,6 +142,8 @@ const MainView = ({
     const [selectedEntryId, setSelectedEntryId] = useState(-1);
     const [userDriven, setUserDriven] = useState(false);
     const [filteredEntries, setFilteredEntries] = useState([]);
+    // set alongside filteredEntries so the grid only stops sorting by title once ranked rows arrive
+    const [rankedBySearch, setRankedBySearch] = useState(false);
     const [uploadPendingSlotId, setUploadPendingSlotId] = useState(null);
 
     // whats new
@@ -178,7 +216,12 @@ const MainView = ({
     }, [availableDevices, selectedDeviceName, setSelectedDeviceName]);
 
     useEffect(() => {
-        pushData(setFilteredEntries, () => entries.filter(e => isMatch(e, filters)), setErr);
+        const txt = filters.debouncedTxtFilter;
+        const setRanked = matches => {
+            setFilteredEntries(matches);
+            setRankedBySearch(!!normaliseSearch(txt));
+        };
+        pushData(setRanked, () => sortByMatchRank(entries.filter(e => isMatch(e, filters)), txt), setErr);
     }, [entries, filters, setErr]);
 
     useEffect(() => {
@@ -206,6 +249,7 @@ const MainView = ({
     const catalogue =
         <Suspense fallback={catalogueFallback}>
             <Catalogue entries={filteredEntries}
+                       rankedBySearch={rankedBySearch}
                        setSelectedEntryId={setSelectedEntryId}
                        selectedEntryId={selectedEntryId}
                        useWide={useWide}

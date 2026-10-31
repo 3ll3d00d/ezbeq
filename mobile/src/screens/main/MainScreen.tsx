@@ -43,18 +43,66 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Main'>;
 const TWO_WEEKS_AGO_SECS = () => Math.floor(Date.now() / 1000) - 2 * 7 * 24 * 60 * 60;
 
 // Ported from ui/src/components/main/index.jsx.
+// letters (anything with case) and digits, enough to find word boundaries in titles without regex
+// unicode property escapes
+const isWordChar = (c: string | undefined): boolean =>
+  c !== undefined && (c.toLowerCase() !== c.toUpperCase() || (c >= '0' && c <= '9'));
+
+const EXACT = 0;
+const LEADING_WORD = 1;
+const WHOLE_WORD = 2;
+const WORD_START = 3;
+const SUBSTRING = 4;
+
+// how well a title matches the (trimmed, lower case) search, best first, or null for no match
+const rankTitle = (title: string, q: string): number | null => {
+  const t = title.toLowerCase();
+  if (t === q) return EXACT;
+  let best: number | null = null;
+  for (let i = t.indexOf(q); i !== -1; i = t.indexOf(q, i + 1)) {
+    const startsWord = i === 0 || !isWordChar(t[i - 1]);
+    const endsWord = !isWordChar(t[i + q.length]);
+    const rank = startsWord ? (endsWord ? (i === 0 ? LEADING_WORD : WHOLE_WORD) : WORD_START) : SUBSTRING;
+    if (best === null || rank < best) best = rank;
+  }
+  return best;
+};
+
+const normaliseSearch = (txtFilter: string): string => txtFilter.trim().toLowerCase();
+
 export const txtMatch = (entry: CatalogueEntry, txtFilter: string): boolean => {
-  const matchOn = txtFilter.toLowerCase();
-  if (entry.formattedTitle.toLowerCase().includes(matchOn)) return true;
-  if (entry.altTitle && entry.altTitle.toLowerCase().includes(matchOn)) return true;
-  if (entry.collection && entry.collection.toLowerCase().includes(matchOn)) return true;
-  return false;
+  const matchOn = normaliseSearch(txtFilter);
+  return [entry.formattedTitle, entry.altTitle, entry.collection].some(
+    (f) => !!f && f.toLowerCase().includes(matchOn)
+  );
+};
+
+// lower is better, null means no match. Only titles say how good a match is, a collection name
+// matching just gets an entry into the results, otherwise every film in "Star Wars Collection"
+// would outrank "A Star Is Born" for "star"
+export const matchRank = (entry: CatalogueEntry, txtFilter: string): number | null => {
+  const q = normaliseSearch(txtFilter);
+  const ranks = [entry.title, entry.formattedTitle, entry.altTitle]
+    .filter((t): t is string => !!t)
+    .map((t) => rankTitle(t, q))
+    .filter((r): r is number => r !== null);
+  if (ranks.length) return Math.min(...ranks);
+  return entry.collection && entry.collection.toLowerCase().includes(q) ? SUBSTRING : null;
 };
 
 // Matches the web UI's default DataGrid sort (Catalogue.jsx's `sortModel: [{field: 'sortTitle',
 // sort: 'asc'}]`) - falls back to formattedTitle for the rare entry with no sortTitle set.
 export const compareByTitle = (a: CatalogueEntry, b: CatalogueEntry): number =>
   (a.sortTitle || a.formattedTitle).localeCompare(b.sortTitle || b.formattedTitle);
+
+// best matches first, falling back to compareByTitle within a rank
+export const sortByMatchRank = (entries: CatalogueEntry[], txtFilter: string): CatalogueEntry[] => {
+  if (!normaliseSearch(txtFilter)) return entries;
+  return entries
+    .map((e) => [matchRank(e, txtFilter) ?? SUBSTRING, e] as const)
+    .sort(([r1, e1], [r2, e2]) => r1 - r2 || compareByTitle(e1, e2))
+    .map(([, e]) => e);
+};
 
 // A deliberate rightward swipe, not an incidental drag while scrolling or a stray tap-and-drift -
 // requires both a meaningful horizontal distance and a rightward-moving finger at release.
@@ -181,7 +229,7 @@ export default function MainScreen({ navigation }: Props) {
   );
 
   const filteredEntries = useMemo(
-    () => entryList.filter((e) => isMatch(e, filters)),
+    () => sortByMatchRank(entryList.filter((e) => isMatch(e, filters)), filters.debouncedTxtFilter),
     [entryList, filters]
   );
 

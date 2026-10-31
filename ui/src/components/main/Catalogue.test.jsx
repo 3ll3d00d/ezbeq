@@ -7,6 +7,31 @@ const entry = (id, author, formattedTitle, edition = '') => ({
 });
 
 describe('Catalogue', () => {
+    const renderedTitles = () => screen.getAllByRole('row').slice(1).map(r => r.textContent);
+
+    it('sorts by title by default', () => {
+        const entries = [entry(1, 'Alice Smith', 'Zulu'), entry(2, 'Alice Smith', 'Alpha')];
+        render(<Catalogue entries={entries} setSelectedEntryId={vi.fn()} selectedEntryId={-1} useWide={true} selectedDevice={null}/>);
+
+        expect(renderedTitles()).toEqual([expect.stringContaining('Alpha'), expect.stringContaining('Zulu')]);
+    });
+
+    it('keeps the given (match ranked) order while searching', () => {
+        const entries = [entry(1, 'Alice Smith', 'Zulu'), entry(2, 'Alice Smith', 'Alpha')];
+        render(<Catalogue entries={entries} setSelectedEntryId={vi.fn()} selectedEntryId={-1} useWide={true} selectedDevice={null} rankedBySearch={true}/>);
+
+        expect(renderedTitles()).toEqual([expect.stringContaining('Zulu'), expect.stringContaining('Alpha')]);
+    });
+
+    it('goes back to title order when the search is cleared', () => {
+        const entries = [entry(1, 'Alice Smith', 'Zulu'), entry(2, 'Alice Smith', 'Alpha')];
+        const props = {entries, setSelectedEntryId: vi.fn(), selectedEntryId: -1, useWide: true, selectedDevice: null};
+        const {rerender} = render(<Catalogue {...props} rankedBySearch={true}/>);
+        rerender(<Catalogue {...props} rankedBySearch={false}/>);
+
+        expect(renderedTitles()).toEqual([expect.stringContaining('Alpha'), expect.stringContaining('Zulu')]);
+    });
+
     it('renders a grid row per entry, with the title text', () => {
         const entries = [entry(1, 'Alice Smith', 'Movie One'), entry(2, 'Bob Jones', 'Movie Two')];
         render(<Catalogue entries={entries} setSelectedEntryId={vi.fn()} selectedEntryId={-1} useWide={true} selectedDevice={null}/>);

@@ -1,7 +1,7 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {useState} from 'react';
 import {fireEvent, render, screen, waitFor} from '@testing-library/react';
-import {computeNewCount, deriveTxtFilterFromActiveSlot, isMatch, txtMatch} from './index';
+import {computeNewCount, deriveTxtFilterFromActiveSlot, isMatch, matchRank, sortByMatchRank, txtMatch} from './index';
 import MainView from './index';
 import ezbeq from '../../services/ezbeq';
 
@@ -52,6 +52,61 @@ describe('txtMatch', () => {
 
     it('does not match altTitle/collection when the entry does not have them', () => {
         expect(txtMatch({formattedTitle: 'A'}, 'alt')).toBe(false);
+    });
+
+    it('matches any substring, however short', () => {
+        expect(txtMatch({formattedTitle: 'Pitch Black (2000)'}, 'it')).toBe(true);
+        expect(txtMatch({formattedTitle: 'Ex Machina (2014)'}, 'x')).toBe(true);
+        expect(txtMatch({formattedTitle: 'Some Movie'}, '.*')).toBe(false);
+    });
+
+    it('ignores surrounding whitespace', () => {
+        expect(txtMatch({formattedTitle: 'It'}, 'it ')).toBe(true);
+    });
+});
+
+describe('matchRank', () => {
+    const rank = (formattedTitle, q, extra = {}) => matchRank({formattedTitle, ...extra}, q);
+
+    it('ranks exact, leading word, whole word, word start, then substring', () => {
+        expect(rank('It', 'it', {title: 'It'})).toBe(0);
+        expect(rank('It Follows (2014)', 'IT')).toBe(1);
+        expect(rank('X-Men (2000)', 'x')).toBe(1);
+        expect(rank('Malcolm X (1992)', 'x')).toBe(2);
+        expect(rank('The Italian Job (2003)', 'it')).toBe(3);
+        expect(rank('Pitch Black (2000)', 'it')).toBe(4);
+        expect(rank('Some Movie', 'xyz')).toBeNull();
+    });
+
+    it('takes the best rank across title and altTitle', () => {
+        expect(rank('Pitch Black (2000)', 'it', {altTitle: 'It'})).toBe(0);
+    });
+
+    it('ranks a collection-only match last', () => {
+        expect(rank('Rogue One (2016)', 'star', {collection: 'Star Wars Collection'})).toBe(4);
+    });
+
+    it('ignores surrounding whitespace', () => {
+        expect(rank('It', ' it ', {title: 'It'})).toBe(0);
+    });
+
+    it('treats punctuation in the search literally', () => {
+        expect(rank('Movie (?x)', '(?')).toBe(3);
+        expect(rank('Who? (1974)', '?')).toBe(4);
+    });
+});
+
+describe('sortByMatchRank', () => {
+    const e = (id, formattedTitle) => ({id, formattedTitle, sortTitle: formattedTitle.toLowerCase()});
+
+    it('orders best matches first, then by sortTitle', () => {
+        const entries = [e(1, 'Pitch Black'), e(2, 'The Italian Job'), e(3, 'It Follows'), e(4, 'Kitchen'), e(5, 'It')];
+        expect(sortByMatchRank(entries, 'it').map(x => x.id)).toEqual([5, 3, 2, 4, 1]);
+    });
+
+    it('leaves entries alone when there is no search', () => {
+        const entries = [e(1, 'B'), e(2, 'A')];
+        expect(sortByMatchRank(entries, '')).toBe(entries);
     });
 });
 
