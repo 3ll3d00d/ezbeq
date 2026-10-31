@@ -58,23 +58,51 @@ export const txtMatch = (entry: CatalogueEntry, txtFilter: string): boolean => {
   );
 };
 
-// while searching, the list is grouped by how the title shown matches, each group alphabetical, so
-// "x" lists X-Men..., then e.g. Malcolm X, then Ex Machina, then anything only matched on its
-// altTitle or collection
-export const TITLE_STARTS = 0;
-export const WORD_STARTS = 1;
-export const TITLE_CONTAINS = 2;
-export const OTHER_MATCH = 3;
+// a leading article is ignored, as a library files titles, so The Thing starts with Thing
+const LEADING_ARTICLE = /^(?:the|a|an)\s+/;
+const withoutArticle = (t: string): string => t.replace(LEADING_ARTICLE, '');
+
+// while searching, the list is grouped by how the title (or the altTitle, which exists to catch such
+// searches) matches, each group alphabetical, so "thing" lists The Thing, then Swamp Thing, then
+// Things Heard & Seen, then Stranger Things, then Something in the Water, then anything only matched
+// on its collection
+export const TITLE_STARTS_WITH_WORD = 0;
+export const HAS_WORD = 1;
+export const TITLE_STARTS = 2;
+export const WORD_STARTS = 3;
+export const TITLE_CONTAINS = 4;
+export const OTHER_MATCH = 5;
+
+const rankTitle = (title: string, q: string): number | null => {
+  if (!q) return null;
+  const t = title.toLowerCase();
+  const titleStart = t.length - withoutArticle(t).length;
+  let best: number | null = null;
+  for (let i = t.indexOf(q); i !== -1; i = t.indexOf(q, i + 1)) {
+    let rank = TITLE_CONTAINS;
+    if (!isWordChar(t[i - 1])) {
+      const atTitleStart = i === 0 || i === titleStart;
+      if (!isWordChar(t[i + q.length])) {
+        if (atTitleStart) return TITLE_STARTS_WITH_WORD;
+        rank = HAS_WORD;
+      } else {
+        rank = atTitleStart ? TITLE_STARTS : WORD_STARTS;
+      }
+    }
+    if (best === null || rank < best) best = rank;
+  }
+  return best;
+};
 
 // null means no match
 export const matchRank = (entry: CatalogueEntry, txtFilter: string): number | null => {
   const q = normaliseSearch(txtFilter);
-  const t = entry.formattedTitle.toLowerCase();
-  if (t.startsWith(q)) return TITLE_STARTS;
-  for (let i = t.indexOf(q); i !== -1; i = t.indexOf(q, i + 1)) {
-    if (!isWordChar(t[i - 1])) return WORD_STARTS;
+  let rank = rankTitle(entry.formattedTitle, q);
+  if (rank !== TITLE_STARTS_WITH_WORD && entry.altTitle) {
+    const altRank = rankTitle(entry.altTitle, q);
+    if (altRank !== null && (rank === null || altRank < rank)) rank = altRank;
   }
-  if (t.includes(q)) return TITLE_CONTAINS;
+  if (rank !== null) return rank;
   return txtMatch(entry, txtFilter) ? OTHER_MATCH : null;
 };
 
@@ -83,11 +111,15 @@ export const matchRank = (entry: CatalogueEntry, txtFilter: string): number | nu
 export const compareByTitle = (a: CatalogueEntry, b: CatalogueEntry): number =>
   (a.sortTitle || a.formattedTitle).localeCompare(b.sortTitle || b.formattedTitle);
 
-// by match group then by the title as displayed, year and author
+// by match group then by the title as displayed (ignoring a leading article), year and author
 export const sortByMatchRank = (entries: CatalogueEntry[], txtFilter: string): CatalogueEntry[] => {
   if (!normaliseSearch(txtFilter)) return entries;
   return entries
-    .map((e) => ({ e, rank: matchRank(e, txtFilter) ?? OTHER_MATCH, title: e.formattedTitle.toLowerCase() }))
+    .map((e) => ({
+      e,
+      rank: matchRank(e, txtFilter) ?? OTHER_MATCH,
+      title: withoutArticle(e.formattedTitle.toLowerCase()),
+    }))
     .sort(
       (a, b) =>
         a.rank - b.rank ||

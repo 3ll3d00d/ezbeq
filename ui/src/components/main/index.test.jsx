@@ -2,8 +2,8 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {useState} from 'react';
 import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {
-    computeNewCount, deriveTxtFilterFromActiveSlot, isMatch, matchRank, OTHER_MATCH, sortByMatchRank, TITLE_CONTAINS,
-    TITLE_STARTS, txtMatch, WORD_STARTS
+    computeNewCount, deriveTxtFilterFromActiveSlot, HAS_WORD, isMatch, matchRank, OTHER_MATCH, sortByMatchRank, TITLE_CONTAINS,
+    TITLE_STARTS, TITLE_STARTS_WITH_WORD, txtMatch, WORD_STARTS
 } from './index';
 import MainView from './index';
 import ezbeq from '../../services/ezbeq';
@@ -71,13 +71,13 @@ describe('txtMatch', () => {
 describe('matchRank', () => {
     const rank = (formattedTitle, q, extra = {}) => matchRank({formattedTitle, ...extra}, q);
 
-    it('groups by title starts, a word starts, title contains, then other fields', () => {
-        expect(rank('It (2017)', 'IT')).toBe(TITLE_STARTS);
-        expect(rank('X-Men (2000)', 'x')).toBe(TITLE_STARTS);
-        expect(rank('Malcolm X (1992)', 'x')).toBe(WORD_STARTS);
-        expect(rank('The Italian Job (2003)', 'it')).toBe(WORD_STARTS);
+    it('groups by the title starting with the word, having the word, the title starting with it, a word starting with it, title contains, then collection', () => {
+        expect(rank('It (2017)', 'IT')).toBe(TITLE_STARTS_WITH_WORD);
+        expect(rank('X-Men (2000)', 'x')).toBe(TITLE_STARTS_WITH_WORD);
+        expect(rank('Malcolm X (1992)', 'x')).toBe(HAS_WORD);
+        expect(rank('Italiano (2020)', 'it')).toBe(TITLE_STARTS);
+        expect(rank('Lost in Italy (2003)', 'it')).toBe(WORD_STARTS);
         expect(rank('Pitch Black (2000)', 'it')).toBe(TITLE_CONTAINS);
-        expect(rank('Logan', 'x', {altTitle: 'X-Men Logan'})).toBe(OTHER_MATCH);
         expect(rank('Rogue One', 'star', {collection: 'Star Wars Collection'})).toBe(OTHER_MATCH);
         expect(rank('Some Movie', 'xyz')).toBeNull();
     });
@@ -87,12 +87,43 @@ describe('matchRank', () => {
         expect(rank('Ocean\u2019s Eleven', 's')).toBe(TITLE_CONTAINS);
     });
 
+    it('ranks an altTitle match like a title match', () => {
+        expect(rank('Serbuan Maut', 'the raid', {altTitle: 'The Raid'})).toBe(TITLE_STARTS_WITH_WORD);
+        expect(rank('Logan', 'men', {altTitle: 'X-Men Logan'})).toBe(HAS_WORD);
+        expect(rank('X-Men', 'x', {altTitle: 'Some Other Name'})).toBe(TITLE_STARTS_WITH_WORD);
+    });
+
+    it('ignores a leading article when deciding whether the title starts with the word', () => {
+        expect(rank('The Thing', 'thing')).toBe(TITLE_STARTS_WITH_WORD);
+        expect(rank('A Thing', 'thing')).toBe(TITLE_STARTS_WITH_WORD);
+        expect(rank('An Thing', 'thing')).toBe(TITLE_STARTS_WITH_WORD);
+        expect(rank('The Thing', 'the thing')).toBe(TITLE_STARTS_WITH_WORD);
+        expect(rank('Any Thing', 'thing')).toBe(HAS_WORD);
+        expect(rank('Theory of Everything', 'everything')).toBe(HAS_WORD);
+    });
+
+    it('ranks a whole word above a word that only starts with the search', () => {
+        expect(rank('Swamp Thing', 'thing')).toBe(HAS_WORD);
+        expect(rank('Things Heard & Seen', 'thing')).toBe(TITLE_STARTS);
+    });
+
+    it('ranks a partly typed word higher at the start of the title', () => {
+        expect(rank('Stargate', 'sta')).toBe(TITLE_STARTS);
+        expect(rank('A Star Is Born', 'sta')).toBe(TITLE_STARTS);
+        expect(rank('Lone Star', 'sta')).toBe(WORD_STARTS);
+    });
+
+    it('does not rank titles against an empty search', () => {
+        expect(rank('Some Movie', '')).toBe(OTHER_MATCH);
+        expect(rank('Some Movie', '  ', {altTitle: 'Other'})).toBe(OTHER_MATCH);
+    });
+
     it('uses the best occurrence in the title', () => {
-        expect(rank('Exit X', 'x')).toBe(WORD_STARTS);
+        expect(rank('Exit X', 'x')).toBe(HAS_WORD);
     });
 
     it('ignores surrounding whitespace', () => {
-        expect(rank('It', ' it ')).toBe(TITLE_STARTS);
+        expect(rank('It', ' it ')).toBe(TITLE_STARTS_WITH_WORD);
     });
 
     it('treats punctuation in the search literally', () => {
@@ -112,9 +143,18 @@ describe('sortByMatchRank', () => {
         expect(sortByMatchRank(entries, 'it').map(x => x.id)).toEqual([7, 6, 5, 3, 2, 4, 1]);
     });
 
-    it('lists altTitle and collection only matches last', () => {
+    it('sorts each group ignoring a leading article', () => {
         const entries = [
-            {...e(1, 'Logan'), altTitle: 'X-Men Logan'},
+            e(1, 'Something in the Water'), e(2, 'Things Heard & Seen'), e(3, 'Stranger Things'),
+            e(4, 'Swamp Thing'), e(5, 'Do the Right Thing'), e(6, 'The Thing with Feathers'),
+            e(7, 'The Thing', 2011), e(8, 'The Thing', 1982),
+        ];
+        expect(sortByMatchRank(entries, 'thing').map(x => x.id)).toEqual([8, 7, 6, 5, 4, 2, 3, 1]);
+    });
+
+    it('lists collection only matches last', () => {
+        const entries = [
+            {...e(1, 'Logan'), collection: 'X-Men Collection'},
             e(2, 'X-Men: Apocalypse'),
             e(3, 'Ex Machina'),
             e(4, 'Malcolm X'),
