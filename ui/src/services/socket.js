@@ -72,10 +72,7 @@ class ReconnectingSocket {
             console.log(`Connected to ${this.url}`);
             this.reconnectAttempt = 0;
             this.clearConnectionErrorTimer();
-            if (this.connectionErrorReported) {
-                this.connectionErrorReported = false;
-                this.callbacks.clearError?.();
-            }
+            this.withdrawConnectionError();
             this.heartbeatTimer = setInterval(this.checkAlive, this.heartbeatIntervalMs);
             this.callbacks.onConnectionChange?.(true);
             this.callbacks.onOpen?.();
@@ -152,6 +149,13 @@ class ReconnectingSocket {
         }, this.connectionErrorGraceMs);
     };
 
+    withdrawConnectionError = () => {
+        if (this.connectionErrorReported) {
+            this.connectionErrorReported = false;
+            this.callbacks.clearError?.();
+        }
+    };
+
     stopConnectionErrorTimer = () => {
         if (this.connectionErrorTimer) {
             clearTimeout(this.connectionErrorTimer);
@@ -164,11 +168,12 @@ class ReconnectingSocket {
         this.connectionErrorPending = false;
     };
 
-    // gives a pending outage a full grace period from now
-    restartConnectionErrorTimer = () => {
-        if (!this.connectionErrorPending) return;
-        this.stopConnectionErrorTimer();
-        this.startConnectionErrorTimer();
+    // a pending outage whose timer was stopped while the page was hidden gets a fresh grace period, one whose timer is
+    // still running carries on so that e.g. a stream of online events can't postpone the error indefinitely
+    resumeConnectionErrorTimer = () => {
+        if (this.connectionErrorPending) {
+            this.startConnectionErrorTimer();
+        }
     };
 
     // asks the server for a reply, reconnecting if none arrives in time
@@ -222,8 +227,7 @@ class ReconnectingSocket {
     // to be open
     handlePageReturn = () => {
         if (this.closedByCaller) return;
-        // timers can be frozen along with a hidden page so may be overdue, give any reconnect a full grace period
-        this.restartConnectionErrorTimer();
+        this.resumeConnectionErrorTimer();
         if (this.isConnected()) {
             this.checkAlive();
         } else if (!this.ws || this.ws.readyState !== CONNECTING
@@ -237,7 +241,8 @@ class ReconnectingSocket {
         if (document.visibilityState === 'visible') {
             this.handlePageReturn();
         } else {
-            // the outage stays pending, its grace period restarts when the page is visible again
+            // the outage stays pending and gets a full grace period once the page is visible again, so a timer frozen
+            // along with the page can't fire overdue as soon as it returns
             this.stopConnectionErrorTimer();
         }
     };
@@ -253,6 +258,7 @@ class ReconnectingSocket {
             this.reconnectTimer = null;
         }
         this.clearConnectionErrorTimer();
+        this.withdrawConnectionError();
         document.removeEventListener('visibilitychange', this.handleVisibilityChange);
         window.removeEventListener('pageshow', this.handlePageReturn);
         window.removeEventListener('online', this.handlePageReturn);

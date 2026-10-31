@@ -355,18 +355,27 @@ describe('ReconnectingSocket reconnection', () => {
         warnSpy.mockRestore();
     });
 
-    it('gives an immediate reconnect a fresh grace period', () => {
+    it('does not postpone the error for an immediate reconnect on a page that was never hidden', () => {
         const {reportError} = makeSocket();
         FakeWebSocket.lastInstance.drop();
-        vi.advanceTimersByTime(900);
+        vi.advanceTimersByTime(5000);
 
-        window.dispatchEvent(new Event('pageshow'));
-        vi.advanceTimersByTime(9500);
+        window.dispatchEvent(new Event('online'));
+        vi.advanceTimersByTime(4999);
         expect(reportError).not.toHaveBeenCalled();
-        FakeWebSocket.lastInstance.open();
+        vi.advanceTimersByTime(1);
+
+        expect(reportError).toHaveBeenCalledTimes(1);
+    });
+
+    it('withdraws its reported error when closed by the caller', () => {
+        const {socket, clearError} = makeSocket();
+        FakeWebSocket.lastInstance.drop();
         vi.advanceTimersByTime(10000);
 
-        expect(reportError).not.toHaveBeenCalled();
+        socket.close();
+
+        expect(clearError).toHaveBeenCalledTimes(1);
     });
 
     it('stops reconnecting once closed by the caller', () => {
