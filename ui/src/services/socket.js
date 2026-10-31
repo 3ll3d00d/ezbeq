@@ -21,7 +21,8 @@ const OPEN = 1;
 
 class ReconnectingSocket {
 
-    // onOpen(), onMessage(payload), onConnectionChange(connected) and reportError(message) are all optional
+    // onOpen(), onMessage(payload), onConnectionChange(connected), reportError(message) and clearError() are all
+    // optional, clearError is called when the connection comes back after reportError
     constructor(url, callbacks = {}, options = {}) {
         this.url = url;
         this.callbacks = callbacks;
@@ -33,6 +34,8 @@ class ReconnectingSocket {
         this.reconnectAttempt = 0;
         this.reconnectTimer = null;
         this.connectionErrorTimer = null;
+        // disconnected and not yet reported, the grace period only runs while the page is visible
+        this.connectionErrorPending = false;
         // only report once per outage, not on every failed attempt while the server stays down
         this.connectionErrorReported = false;
         this.heartbeatTimer = null;
@@ -69,7 +72,10 @@ class ReconnectingSocket {
             console.log(`Connected to ${this.url}`);
             this.reconnectAttempt = 0;
             this.clearConnectionErrorTimer();
-            this.connectionErrorReported = false;
+            if (this.connectionErrorReported) {
+                this.connectionErrorReported = false;
+                this.callbacks.clearError?.();
+            }
             this.heartbeatTimer = setInterval(this.checkAlive, this.heartbeatIntervalMs);
             this.callbacks.onConnectionChange?.(true);
             this.callbacks.onOpen?.();
@@ -125,10 +131,17 @@ class ReconnectingSocket {
         }, delay);
     };
 
+    // a hidden page (e.g. a locked phone) can't reconnect and an error raised meanwhile would still be on screen when
+    // it's next looked at, by which time the reconnect on return may well have worked, so the grace period only runs
+    // while the page is visible
     startConnectionErrorTimer = () => {
-        if (this.connectionErrorTimer || this.connectionErrorReported) return;
+        if (this.connectionErrorReported) return;
+        this.connectionErrorPending = true;
+        if (this.connectionErrorTimer || document.visibilityState === 'hidden') return;
         this.connectionErrorTimer = setTimeout(() => {
             this.connectionErrorTimer = null;
+            if (document.visibilityState === 'hidden') return;
+            this.connectionErrorPending = false;
             this.connectionErrorReported = true;
             const msg = `Failed to connect to ${this.url}`;
             if (this.callbacks.reportError) {
@@ -139,11 +152,23 @@ class ReconnectingSocket {
         }, this.connectionErrorGraceMs);
     };
 
-    clearConnectionErrorTimer = () => {
+    stopConnectionErrorTimer = () => {
         if (this.connectionErrorTimer) {
             clearTimeout(this.connectionErrorTimer);
             this.connectionErrorTimer = null;
         }
+    };
+
+    clearConnectionErrorTimer = () => {
+        this.stopConnectionErrorTimer();
+        this.connectionErrorPending = false;
+    };
+
+    // gives a pending outage a full grace period from now
+    restartConnectionErrorTimer = () => {
+        if (!this.connectionErrorPending) return;
+        this.stopConnectionErrorTimer();
+        this.startConnectionErrorTimer();
     };
 
     // asks the server for a reply, reconnecting if none arrives in time
@@ -190,12 +215,6 @@ class ReconnectingSocket {
             this.reconnectTimer = null;
         }
         this.reconnectAttempt = 0;
-        // timers are frozen while a page is hidden (e.g. a locked iPhone) so the grace period is likely already
-        // overdue, give the fresh attempt a full one rather than erroring immediately
-        if (this.connectionErrorTimer) {
-            this.clearConnectionErrorTimer();
-            this.startConnectionErrorTimer();
-        }
         this.connect();
     };
 
@@ -203,6 +222,8 @@ class ReconnectingSocket {
     // to be open
     handlePageReturn = () => {
         if (this.closedByCaller) return;
+        // timers can be frozen along with a hidden page so may be overdue, give any reconnect a full grace period
+        this.restartConnectionErrorTimer();
         if (this.isConnected()) {
             this.checkAlive();
         } else if (!this.ws || this.ws.readyState !== CONNECTING
@@ -215,6 +236,9 @@ class ReconnectingSocket {
     handleVisibilityChange = () => {
         if (document.visibilityState === 'visible') {
             this.handlePageReturn();
+        } else {
+            // the outage stays pending, its grace period restarts when the page is visible again
+            this.stopConnectionErrorTimer();
         }
     };
 
@@ -236,5 +260,27 @@ class ReconnectingSocket {
         this.ws = null;
     };
 }
+
+// reportError/clearError callbacks that show a connection error via a React error state setter, and clear it again
+// only if it is still the error being shown
+export const connectionErrorCallbacks = getSetErr => {
+    let reported = null;
+    return {
+        reportError: msg => {
+            reported = new Error(msg);
+            const setErr = getSetErr();
+            if (setErr) {
+                setErr(reported);
+            } else {
+                console.error(msg);
+            }
+        },
+        clearError: () => {
+            const cleared = reported;
+            reported = null;
+            getSetErr()?.(current => current === cleared ? null : current);
+        }
+    };
+};
 
 export default ReconnectingSocket;
