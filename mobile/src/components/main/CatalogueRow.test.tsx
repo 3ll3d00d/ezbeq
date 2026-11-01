@@ -21,6 +21,20 @@ test('renders the title, author initial, and audio type chip', async () => {
   expect(screen.getByText('Atmos')).toBeTruthy();
 });
 
+test('renders the title a search listed the entry under', async () => {
+  await render(
+    <CatalogueRow
+      entry={entry({ formattedTitle: 'Dark Phoenix', displayTitle: 'X-Men Dark Phoenix' })}
+      selected={false}
+      onPress={jest.fn()}
+    />
+  );
+
+  expect(screen.getByText('X-Men Dark Phoenix')).toBeTruthy();
+  expect(screen.queryByText('Dark Phoenix')).toBeNull();
+  expect(screen.getByLabelText('X-Men Dark Phoenix, by mkane')).toBeTruthy();
+});
+
 test('renders an edition chip when present', async () => {
   await render(<CatalogueRow entry={entry({ edition: "Director's Cut" })} selected={false} onPress={jest.fn()} />);
 

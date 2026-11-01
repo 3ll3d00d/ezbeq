@@ -4,6 +4,9 @@ import { Avatar, Chip, Text, useTheme } from 'react-native-paper';
 import { initialFor, stringToColor } from '../../utils/avatarColor';
 import type { CatalogueEntry } from '../../types/ezbeq';
 
+// a search can list an entry under its altTitle (see MainScreen's sortByMatchRank)
+const displayTitle = (entry: CatalogueEntry): string => entry.displayTitle ?? entry.formattedTitle;
+
 type Props = {
   entry: CatalogueEntry;
   selected: boolean;
@@ -27,7 +30,7 @@ export default function CatalogueRow({ entry, selected, onPress }: Props) {
         ]) as PressableProps['style']
       }
       accessibilityRole="button"
-      accessibilityLabel={`${entry.formattedTitle}, by ${entry.author}`}
+      accessibilityLabel={`${displayTitle(entry)}, by ${entry.author}`}
       accessibilityState={{ selected }}
       testID={`catalogue-row-${entry.id}`}
     >
@@ -38,7 +41,7 @@ export default function CatalogueRow({ entry, selected, onPress }: Props) {
       />
       <View style={styles.text}>
         <Text variant="bodyLarge" numberOfLines={2}>
-          {entry.formattedTitle}
+          {displayTitle(entry)}
         </Text>
         <View style={styles.chips}>
           {entry.audioTypes.map((audioType) => (

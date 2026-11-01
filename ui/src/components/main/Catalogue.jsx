@@ -3,9 +3,8 @@ import {Avatar, Grid} from "@mui/material";
 import {DataGrid} from "@mui/x-data-grid";
 import {styled} from "@mui/material/styles";
 
-const formatTitle = entry => {
-    return entry.formattedTitle;
-};
+// a search can list an entry under its altTitle (see sortByMatchRank)
+const displayTitle = entry => entry.displayTitle ?? entry.formattedTitle;
 
 const UnpaddedDataGrid = styled(DataGrid)(({theme}) => ({
     '.MuiDataGrid-footerContainer': {
@@ -74,10 +73,12 @@ const Catalogue = ({entries, setSelectedEntryId, selectedEntryId, useWide, selec
             field: 'title',
             headerName: 'Title',
             flex: 0.6,
+            // so a header click sorts by the title shown
+            valueGetter: (value, row) => displayTitle(row),
             renderCell: params => (
                 params.row.url
-                    ? <a href={params.row.avsUrl} target='_beq'>{formatTitle(params.row)}</a>
-                    : formatTitle(params.row)
+                    ? <a href={params.row.avsUrl} target='_beq'>{displayTitle(params.row)}</a>
+                    : displayTitle(params.row)
             )
         },
         {

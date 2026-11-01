@@ -266,6 +266,25 @@ describe('sortByMatchRank', () => {
     expect(sortByMatchRank(entries, 'x').map((x) => x.id)).toEqual([2, 4, 3, 1]);
   });
 
+  it('lists an entry only its altTitle matches under, and sorted by, that altTitle', () => {
+    const darkPhoenix = { ...e(1, 'Dark Phoenix'), title: 'Dark Phoenix', altTitle: 'X-Men Dark Phoenix' };
+    const entries = [darkPhoenix, e(2, 'X-Men: Apocalypse'), e(3, 'X'), e(4, 'X-Men')];
+    const sorted = sortByMatchRank(entries, 'x');
+    expect(sorted.map((x) => x.id)).toEqual([3, 4, 1, 2]);
+    expect(sorted.map((x) => x.displayTitle)).toEqual([undefined, undefined, 'X-Men Dark Phoenix', undefined]);
+    // the shared entry is not changed
+    expect(darkPhoenix.displayTitle).toBeUndefined();
+    // the title it is listed under when its title matches
+    expect(sortByMatchRank(entries, 'phoenix')[0]).toBe(darkPhoenix);
+  });
+
+  it('keeps what formattedTitle adds after the title when listing an altTitle', () => {
+    const show = { ...e(1, 'La Casa de Papel S01 E01-E09'), title: 'La Casa de Papel', altTitle: ' Money Heist \n' };
+    expect(sortByMatchRank([show], 'heist')[0].displayTitle).toBe('Money Heist S01 E01-E09');
+    const untitled = { ...e(2, ' S01'), title: '', altTitle: 'Money Heist' };
+    expect(sortByMatchRank([untitled], 'heist')[0].displayTitle).toBe('Money Heist S01');
+  });
+
   it('lists entries whose punctuation matches the search first', () => {
     const entries = [e(1, 'Spiderman'), e(2, 'The Amazing Spider-Man'), e(3, 'Spider-Man'), e(4, 'Spider Man')];
     expect(sortByMatchRank(entries, 'spider-man').map((x) => x.id)).toEqual([4, 3, 2, 1]);

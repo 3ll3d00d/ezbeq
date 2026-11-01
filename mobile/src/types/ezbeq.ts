@@ -66,6 +66,8 @@ export type CatalogueEntry = {
   formattedTitle: string;
   sortTitle?: string;
   altTitle?: string;
+  // set (client side, on a copy) when a search lists the entry under its altTitle
+  displayTitle?: string;
   collection?: string;
   author: string;
   filterAuthor?: string;
