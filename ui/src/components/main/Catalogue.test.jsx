@@ -36,6 +36,17 @@ describe('Catalogue', () => {
         expect(renderedTitles()).toEqual([expect.stringContaining('Zulu'), expect.stringContaining('Alpha')]);
     });
 
+    it('sorts by the title shown when the header is clicked during a search', () => {
+        const entries = [
+            {...entry(1, 'Alice Smith', 'Dark Phoenix'), title: 'Dark Phoenix', displayTitle: 'X-Men Dark Phoenix'},
+            {...entry(2, 'Alice Smith', 'Logan'), title: 'Logan'},
+        ];
+        render(<Catalogue entries={entries} setSelectedEntryId={vi.fn()} selectedEntryId={-1} useWide={true} selectedDevice={null} rankedBySearch={true}/>);
+        fireEvent.click(screen.getByText('Title'));
+
+        expect(renderedTitles()).toEqual([expect.stringContaining('Logan'), expect.stringContaining('X-Men Dark Phoenix')]);
+    });
+
     it('goes back to title order when the search is cleared', () => {
         const entries = [entry(1, 'Alice Smith', 'Zulu'), entry(2, 'Alice Smith', 'Alpha')];
         const props = {entries, setSelectedEntryId: vi.fn(), selectedEntryId: -1, useWide: true, selectedDevice: null};
@@ -51,6 +62,14 @@ describe('Catalogue', () => {
 
         expect(screen.getByText('Movie One')).toBeInTheDocument();
         expect(screen.getByText('Movie Two')).toBeInTheDocument();
+    });
+
+    it('renders the title a search listed the entry under', () => {
+        const entries = [{...entry(1, 'Alice Smith', 'Dark Phoenix'), displayTitle: 'X-Men Dark Phoenix'}];
+        render(<Catalogue entries={entries} setSelectedEntryId={vi.fn()} selectedEntryId={-1} useWide={true} selectedDevice={null} rankedBySearch={true}/>);
+
+        expect(screen.getByText('X-Men Dark Phoenix')).toBeInTheDocument();
+        expect(screen.queryByText('Dark Phoenix')).not.toBeInTheDocument();
     });
 
     it('calls setSelectedEntryId with the row id when a row is clicked', () => {

@@ -135,32 +135,48 @@ const rankTitle = (title, pattern) => {
     return best;
 };
 
-// the best group the entry matches pattern in, null if it doesn't
+// the best group the entry matches pattern in (null if it doesn't) and whether only its altTitle gets it
 const rankMatch = (entry, pattern) => {
-    let rank = rankTitle(entry.formattedTitle, pattern);
+    const rank = rankTitle(entry.formattedTitle, pattern);
     if (rank !== TITLE_STARTS_WITH_WORD && entry.altTitle) {
         const altRank = rankTitle(entry.altTitle, pattern);
-        if (altRank !== null && (rank === null || altRank < rank)) rank = altRank;
+        if (altRank !== null && (rank === null || altRank < rank)) return {rank: altRank, viaAltTitle: true};
     }
-    if (rank !== null) return rank;
-    return matchesAny([entry.collection], pattern) ? OTHER_MATCH : null;
+    if (rank !== null) return {rank, viaAltTitle: false};
+    return {rank: matchesAny([entry.collection], pattern) ? OTHER_MATCH : null, viaAltTitle: false};
+};
+
+const matchDetail = (entry, txtFilter) => {
+    const {strict, loose, hasPunctuation} = compileSearch(txtFilter);
+    if (!strict) return {rank: txtMatch(entry, txtFilter) ? OTHER_MATCH : null, viaAltTitle: false};
+    const match = rankMatch(entry, strict);
+    if (match.rank !== null || !hasPunctuation) return match;
+    const looseMatch = rankMatch(entry, loose);
+    return looseMatch.rank === null ? looseMatch : {...looseMatch, rank: looseMatch.rank + PUNCTUATION_DIFFERS};
 };
 
 // null means no match
-export const matchRank = (entry, txtFilter) => {
-    const {strict, loose, hasPunctuation} = compileSearch(txtFilter);
-    if (!strict) return txtMatch(entry, txtFilter) ? OTHER_MATCH : null;
-    const rank = rankMatch(entry, strict);
-    if (rank !== null || !hasPunctuation) return rank;
-    const looseRank = rankMatch(entry, loose);
-    return looseRank === null ? null : looseRank + PUNCTUATION_DIFFERS;
+export const matchRank = (entry, txtFilter) => matchDetail(entry, txtFilter).rank;
+
+// when only its altTitle matches, an entry is listed under that, in place of the title (keeping anything
+// formattedTitle adds after it, e.g. a TV season), and sorted by it, so searching for x lists Dark Phoenix
+// as X-Men Dark Phoenix among the other X-Men films rather than first. A copy, as the entry is shared
+const withAltTitle = entry => {
+    const {title, formattedTitle} = entry;
+    const suffix = title !== undefined && formattedTitle.startsWith(title) ? formattedTitle.slice(title.length) : '';
+    return {...entry, displayTitle: (entry.altTitle ?? '').trim() + suffix};
 };
 
 // by match group then by the title as displayed (ignoring a leading article), year and author
 export const sortByMatchRank = (entries, txtFilter) => {
     if (!hasSearch(txtFilter)) return entries;
     return entries
-        .map(e => ({e, rank: matchRank(e, txtFilter) ?? OTHER_MATCH, title: withoutArticle(e.formattedTitle.toLowerCase())}))
+        .map(e => {
+            const {rank, viaAltTitle} = matchDetail(e, txtFilter);
+            const shown = viaAltTitle ? withAltTitle(e) : e;
+            const title = withoutArticle((shown.displayTitle ?? shown.formattedTitle).toLowerCase());
+            return {e: shown, rank: rank ?? OTHER_MATCH, title};
+        })
         .sort((a, b) => a.rank - b.rank
             || a.title.localeCompare(b.title)
             || (a.e.year || 0) - (b.e.year || 0)
