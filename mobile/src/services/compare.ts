@@ -2,13 +2,21 @@ import type { CatalogueEntry } from '../types/ezbeq';
 
 // Ported from ui/src/services/compare.js.
 
-// candidates share a content type and title, and a season for TV since each season is its own soundtrack
-const groupKey = (e: CatalogueEntry): string =>
-  `${e.contentType}|${(e.title || '').toLowerCase()}|${e.contentType === 'TV' ? e.season || '' : ''}`;
+// candidates share a title, everything else is decided per pair by sameRelease
+const titleKey = (e: CatalogueEntry): string => (e.title || '').toLowerCase();
 
-// the TMDb id identifies the release when both entries have one, otherwise fall back to the year
-const sameRelease = (a: CatalogueEntry, b: CatalogueEntry): boolean =>
-  a.theMovieDB && b.theMovieDB ? a.theMovieDB === b.theMovieDB : (a.year || '') === (b.year || '');
+// the TMDb id identifies the release when both entries have one, and does so even when the content types disagree
+// because the catalogue has entries tagged with the wrong one (e.g. a film tagged as TV with no season), otherwise
+// fall back to the content type and year. Two TV entries must also be the same season since each season is its own
+// soundtrack.
+const sameRelease = (a: CatalogueEntry, b: CatalogueEntry): boolean => {
+  if (a.theMovieDB && b.theMovieDB) {
+    if (a.theMovieDB !== b.theMovieDB) return false;
+  } else if (a.contentType !== b.contentType || (a.year || '') !== (b.year || '')) {
+    return false;
+  }
+  return a.contentType !== 'TV' || b.contentType !== 'TV' || (a.season || '') === (b.season || '');
+};
 
 export type CompareIndex = Map<string, CatalogueEntry[]>;
 
@@ -16,7 +24,7 @@ export type CompareIndex = Map<string, CatalogueEntry[]>;
 export const buildCompareIndex = (entries: CatalogueEntry[] | null | undefined): CompareIndex => {
   const index: CompareIndex = new Map();
   (entries || []).forEach((e) => {
-    const key = groupKey(e);
+    const key = titleKey(e);
     const group = index.get(key);
     if (group) group.push(e);
     else index.set(key, [e]);
@@ -31,7 +39,7 @@ export const findComparable = (
 ): CatalogueEntry[] => {
   if (!selectedEntry || !index) return [];
   const audioTypes = new Set(selectedEntry.audioTypes || []);
-  return (index.get(groupKey(selectedEntry)) || []).filter(
+  return (index.get(titleKey(selectedEntry)) || []).filter(
     (e) =>
       e.id !== selectedEntry.id && sameRelease(selectedEntry, e) && (e.audioTypes || []).some((a) => audioTypes.has(a))
   );

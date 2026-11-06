@@ -32,7 +32,6 @@ describe('findComparable', () => {
       entry(10, { audioTypes: ['DD+'] }),
       entry(11, { title: 'Other Movie' }),
       entry(12, { theMovieDB: '999' }),
-      entry(13, { contentType: 'TV' }),
       entry(14, { audioTypes: undefined as unknown as string[] }),
       entry(15, { title: undefined }),
     ];
@@ -58,5 +57,23 @@ describe('findComparable', () => {
     const selectedTv = tv(0, '1', { episode: '1' });
     const sameSeason = [tv(1, '1', { episode: '1' }), tv(2, '1', { episode: '2', author: 'a2' })];
     expect(comparable(selectedTv, [selectedTv, ...sameSeason, tv(10, '2'), tv(11, undefined)])).toEqual(sameSeason);
+  });
+
+  it('matches across content types when the TMDb id agrees, since the catalogue has mislabelled entries', () => {
+    const filmTaggedAsTv = entry(1, { contentType: 'TV', season: '', author: 'a2' });
+    const tvWithSeason = entry(2, { contentType: 'TV', season: '1', author: 'a3' });
+    const otherTmdb = entry(10, { contentType: 'TV', season: '1', theMovieDB: '999' });
+    const noTmdb = entry(11, { contentType: 'TV', theMovieDB: undefined });
+    expect(comparable(selected, [filmTaggedAsTv, tvWithSeason, otherTmdb, noTmdb])).toEqual([
+      filmTaggedAsTv,
+      tvWithSeason,
+    ]);
+    expect(comparable(filmTaggedAsTv, [selected])).toEqual([selected]);
+  });
+
+  it('still requires the same content type when falling back to the year', () => {
+    const noTmdb = entry(0, { theMovieDB: undefined });
+    const tv = entry(10, { contentType: 'TV', theMovieDB: undefined });
+    expect(comparable(noTmdb, [tv])).toEqual([]);
   });
 });
