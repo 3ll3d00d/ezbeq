@@ -161,15 +161,27 @@ actually happens most of the time — treat it as the real gate, not a formality
    own sub-project's code in isolation, so it has no way to notice the mirrored side went stale, and
    (per the CI/CD section above) a diff that only touches `ui/` won't even trigger the mobile suite
    in CI at all — path-based skipping means it's not run, not just uninformative.
-4. **Don't push knowing a test is red**, including one you've diagnosed as "pre-existing and
+4. **Check coverage locally against `main` for every sub-project you touched** — Codecov's per-flag
+   `project` status has zero tolerance (`threshold: 0%`, see CI/CD above), so even a 0.03% drop shows
+   up as a red `codecov/project/<flag>` and a red `UI tests`/`Mobile tests`/`Required checks`
+   wrapper. Run the suite with coverage the way CI does — `uv run pytest --cov=./ezbeq` (backend),
+   `yarn test:unit --run --coverage` (`ui/`), `npm test -- --ci --coverage` (`mobile/`) — and check
+   that every file you changed has no uncovered lines *or branches* that `main` didn't already have.
+   Branch coverage is the one that slips through: a new `x || ''` fallback or an extra `if` arm is
+   100% line-covered by the happy-path test yet still drops the overall number (PR #180 is a real
+   example: new `(a.year || '')`/`(a.season || '')` fallbacks with no test for the missing-value
+   side). The quickest diff is to run the same command on `main` for the files you touched
+   (`git stash`, run, `git stash pop`) and compare their `% Branch` / uncovered-line columns; add
+   tests for the new gaps before pushing rather than waiting for Codecov to report them.
+5. **Don't push knowing a test is red**, including one you've diagnosed as "pre-existing and
    unrelated to my change." Either fix it in the same push or flag it explicitly before pushing —
    nothing will stop the push or the merge, so a silent red test is now purely on you to notice and
    call out (see git history around commit `f8c49c4` for a real example of this going unnoticed for
    two days back when it *was* enforced).
-5. **Work happens on a branch + PR, not direct commits to `main`** — branch protection still rejects
+6. **Work happens on a branch + PR, not direct commits to `main`** — branch protection still rejects
    direct pushes to `main`. Open a PR; merge whenever you decide it's ready, checks and review
    threads permitting or not.
-6. **If you want to confirm CI status before merging (optional, not required to merge), poll with a
+7. **If you want to confirm CI status before merging (optional, not required to merge), poll with a
    coarse heartbeat bounded by a timeout — not a per-check streaming watch, and not an unbounded
    blocking one either.** This repo's full check suite (Python build matrix + UI tests + Mobile
    tests + Required checks + Codecov) historically resolves in ~3 minutes (build matrix jobs run
@@ -197,7 +209,7 @@ actually happens most of the time — treat it as the real gate, not a formality
    Either way, the timeout matters: an open-ended `until ...; do sleep N; done` with no deadline
    can leave you (and the user) with zero signal if a check hangs or never reports — the loop above
    always terminates and tells you which case it hit.
-7. **If remote review was explicitly triggered** (`gh workflow run claude-code-review.yml -f
+8. **If remote review was explicitly triggered** (`gh workflow run claude-code-review.yml -f
    pr_number=<N>` — it no longer runs automatically), a green `claude-review` check means the review
    *ran*, not that it found nothing. Findings land as inline comments on the diff
    (`mcp__github_inline_comment__create_inline_comment`), under the PR's *review comments* endpoint

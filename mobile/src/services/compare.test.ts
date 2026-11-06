@@ -76,4 +76,16 @@ describe('findComparable', () => {
     const tv = entry(10, { contentType: 'TV', theMovieDB: undefined });
     expect(comparable(noTmdb, [tv])).toEqual([]);
   });
+
+  it('treats a missing year or season as empty', () => {
+    const noYear = (id: number) => entry(id, { theMovieDB: undefined, year: undefined });
+    expect(comparable(noYear(0), [noYear(1), entry(10, { theMovieDB: undefined })])).toEqual([noYear(1)]);
+    const tv = (id: number, season: string | undefined) => entry(id, { contentType: 'TV', season });
+    expect(comparable(tv(0, undefined), [tv(1, undefined), tv(10, '1')])).toEqual([tv(1, undefined)]);
+    expect(comparable(tv(0, '1'), [tv(10, undefined)])).toEqual([]);
+  });
+
+  it('matches nothing when the selection has no audio tracks', () => {
+    expect(comparable(entry(0, { audioTypes: undefined as unknown as string[] }), [entry(10)])).toEqual([]);
+  });
 });
