@@ -16,7 +16,7 @@ jest.mock('@react-native-community/netinfo', () =>
 );
 
 // expo-notifications ships no jest mock of its own - stub the handful of functions
-// filterNotification.ts/useFilterLoadedNotification.ts call so importing them in a test doesn't
+// notifications.ts/filterNotification.ts/updateNotification.ts call so importing them in a test doesn't
 // hit a native module. Individual tests override return values with jest.mocked(...) as needed.
 jest.mock('expo-notifications', () => ({
   setNotificationHandler: jest.fn(),
@@ -27,5 +27,8 @@ jest.mock('expo-notifications', () => ({
   scheduleNotificationAsync: jest.fn().mockResolvedValue('id'),
   dismissNotificationAsync: jest.fn().mockResolvedValue(undefined),
   addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  getLastNotificationResponse: jest.fn(() => null),
+  clearLastNotificationResponse: jest.fn(),
+  DEFAULT_ACTION_IDENTIFIER: 'expo.modules.notifications.actions.DEFAULT',
   AndroidImportance: { DEFAULT: 3 },
 }));

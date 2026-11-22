@@ -17,6 +17,10 @@ depends on, so any reasonably current server works. Two narrower version floors:
 - The update-available/unsupported-Python banners need `/api/1/version` to return
   `updateAvailable`/`latestVersion`/`pythonSupported`/etc. (added in v2.10.0) - those fields are
   optional in the mobile types, so an older server simply omits them and the banners don't show.
+  The same `latestVersion` also drives the update-available tray notification
+  (`src/services/updateNotification.ts`), which additionally compares it against the app's own
+  release tag (`extra.releaseVersion` in `app.config.ts`, from `APP_VERSION` at build time; null
+  for untagged builds, which skip that comparison).
 - The What's New sheet needs `/api/1/whats-new` (added slightly before v2.10.0) - on a server
   without it, the request 404s and is silently ignored (see the comment above `getWhatsNew` in
   `MainScreen.tsx`), so the bell just never gets a badge rather than surfacing an error toast.
@@ -45,13 +49,13 @@ Then either scan the QR code Expo prints with a physical device (Expo Go), or pr
 launch a simulator/emulator. Pair it with the server using either address, depending on which you
 launched:
 
-> **The persistent filter-loaded notification doesn't work in Expo Go on Android.**
+> **Notifications (filter-loaded and update-available) don't work in Expo Go on Android.**
 > `expo-notifications` runs a push-token auto-registration side effect at *import* time, which
 > throws on Android in Expo Go (SDK 53 dropped Expo Go's Android push support entirely). This app
 > only uses local notifications, but merely importing the library still hits that same crash -
-> `src/services/filterNotification.ts` avoids it by never importing `expo-notifications` at all on
-> Android+Expo Go (`isFilterNotificationSupported()`), so the rest of the app (and Expo Go on
-> iOS/everything else) is unaffected - the notification toggle just renders disabled there. To
+> `src/services/notifications.ts` avoids it by never importing `expo-notifications` at all on
+> Android+Expo Go (`isNotificationSupported()`), so the rest of the app (and Expo Go on
+> iOS/everything else) is unaffected - the notification toggles just render disabled there. To
 > exercise that one feature on Android, use the **dev client** below instead of Expo Go.
 
 - A physical device needs your machine's LAN IP (e.g. `http://192.168.1.23:9968`).

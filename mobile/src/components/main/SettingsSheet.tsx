@@ -9,8 +9,10 @@ type Props = {
   serverBaseUrl: string | null;
   onDisconnect: () => void;
   filterNotificationEnabled: boolean;
-  filterNotificationSupported: boolean;
+  notificationsSupported: boolean;
   onToggleFilterNotification: (next: boolean) => void;
+  updateNotificationEnabled: boolean;
+  onToggleUpdateNotification: (next: boolean) => void;
   versionInfo: VersionInfo;
   catalogueMeta: CatalogueMeta;
 };
@@ -46,8 +48,8 @@ export const formatAppVersion = (version: VersionInfo | null | undefined): strin
   return result || null;
 };
 
-// A single home for connection management and app-level toggles (currently just the persistent
-// filter-loaded notification) so future settings have somewhere to live other than more top-row
+// A single home for connection management and app-level toggles (currently the persistent
+// filter-loaded and update-available notifications) so future settings have somewhere to live other than more top-row
 // icons - see MainScreen.tsx's topRow. Follows WhatsNewSheet's Portal+Modal card convention.
 export default function SettingsSheet({
   visible,
@@ -55,8 +57,10 @@ export default function SettingsSheet({
   serverBaseUrl,
   onDisconnect,
   filterNotificationEnabled,
-  filterNotificationSupported,
+  notificationsSupported,
   onToggleFilterNotification,
+  updateNotificationEnabled,
+  onToggleUpdateNotification,
   versionInfo,
   catalogueMeta,
 }: Props) {
@@ -83,7 +87,7 @@ export default function SettingsSheet({
           <List.Item
             title="Persistent filter-loaded notification"
             description={
-              filterNotificationSupported
+              notificationsSupported
                 ? 'Shows a notification with a Clear Filter action while a filter is loaded on the active slot.'
                 : 'Requires a development build - unavailable in Expo Go on Android.'
             }
@@ -91,12 +95,33 @@ export default function SettingsSheet({
             right={() => (
               <Switch
                 value={filterNotificationEnabled}
-                disabled={!filterNotificationSupported}
+                disabled={!notificationsSupported}
                 onValueChange={onToggleFilterNotification}
                 accessibilityLabel={
                   filterNotificationEnabled
                     ? 'Disable persistent filter-loaded notification'
                     : 'Enable persistent filter-loaded notification'
+                }
+              />
+            )}
+          />
+          <List.Item
+            title="Update available notification"
+            description={
+              notificationsSupported
+                ? 'Shows a notification when a new ezbeq release is available.'
+                : 'Requires a development build - unavailable in Expo Go on Android.'
+            }
+            descriptionNumberOfLines={3}
+            right={() => (
+              <Switch
+                value={updateNotificationEnabled}
+                disabled={!notificationsSupported}
+                onValueChange={onToggleUpdateNotification}
+                accessibilityLabel={
+                  updateNotificationEnabled
+                    ? 'Disable update available notification'
+                    : 'Enable update available notification'
                 }
               />
             )}

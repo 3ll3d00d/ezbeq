@@ -1,6 +1,8 @@
 import { Linking } from 'react-native';
 import { Portal, Snackbar } from 'react-native-paper';
 
+import { releaseUrl } from '../../services/updateNotification';
+
 type Props = {
   updateAvailable: boolean;
   latestVersion?: string;
@@ -24,7 +26,7 @@ export default function UpdateAvailableBanner({ updateAvailable, latestVersion, 
         duration={Number.POSITIVE_INFINITY}
         action={{
           label: 'View',
-          onPress: () => Linking.openURL(`https://github.com/3ll3d00d/ezbeq/releases/tag/${latestVersion}`),
+          onPress: () => Linking.openURL(releaseUrl(latestVersion)),
         }}
       >
         {`ezbeq ${latestVersion} is available.`}

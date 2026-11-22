@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 import { PaperProvider } from 'react-native-paper';
 import type { ReactElement } from 'react';
 
@@ -13,8 +13,10 @@ const baseProps = {
   serverBaseUrl: 'http://192.168.1.50:9968',
   onDisconnect: jest.fn(),
   filterNotificationEnabled: false,
-  filterNotificationSupported: true,
+  notificationsSupported: true,
   onToggleFilterNotification: jest.fn(),
+  updateNotificationEnabled: true,
+  onToggleUpdateNotification: jest.fn(),
 };
 
 describe('formatCatalogueVersion', () => {
@@ -71,5 +73,35 @@ describe('SettingsSheet', () => {
     await renderSheet(<SettingsSheet {...baseProps} versionInfo={{}} catalogueMeta={null as unknown as CatalogueMeta} />);
 
     expect(screen.queryByText('About')).toBeNull();
+  });
+
+  it('toggles the update available notification', async () => {
+    const onToggleUpdateNotification = jest.fn();
+    await renderSheet(
+      <SettingsSheet
+        {...baseProps}
+        onToggleUpdateNotification={onToggleUpdateNotification}
+        versionInfo={{}}
+        catalogueMeta={null as unknown as CatalogueMeta}
+      />
+    );
+
+    fireEvent(screen.getByLabelText('Disable update available notification'), 'valueChange', false);
+    expect(onToggleUpdateNotification).toHaveBeenCalledWith(false);
+  });
+
+  it('offers to enable the update notification when off, and disables both toggles when unsupported', async () => {
+    await renderSheet(
+      <SettingsSheet
+        {...baseProps}
+        updateNotificationEnabled={false}
+        notificationsSupported={false}
+        versionInfo={{}}
+        catalogueMeta={null as unknown as CatalogueMeta}
+      />
+    );
+
+    expect(screen.getByLabelText('Enable update available notification')).toBeDisabled();
+    expect(screen.getAllByText('Requires a development build - unavailable in Expo Go on Android.')).toHaveLength(2);
   });
 });

@@ -46,7 +46,11 @@ failing outright:
 
 - The update-available / unsupported-Python banners need a server new enough to return
   `updateAvailable`/`latestVersion`/`pythonSupported` from `/api/1/version` (v2.10.0+) — on an
-  older server those banners simply never show.
+  older server those banners simply never show. When a newer release exists — either the server
+  reports itself behind, or this app build is older than the latest release — the app also raises
+  a system notification once per release (tap it to open the release page). It can be turned off
+  under Settings → Notifications. The check runs when the app connects and whenever it returns to
+  the foreground; there's no background polling while the app is closed.
 - The What's New sheet needs `/api/1/whats-new` (added slightly before v2.10.0) — on a server
   without it, the bell just never gets a badge rather than showing an error.
 

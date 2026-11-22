@@ -32,6 +32,15 @@ test('pressing View opens the GitHub release page', async () => {
   expect(Linking.openURL).toHaveBeenCalledWith('https://github.com/3ll3d00d/ezbeq/releases/tag/2.1.0');
 });
 
+test('pressing View without a known version falls back to the releases list', async () => {
+  const user = userEvent.setup();
+  await renderBanner(<UpdateAvailableBanner updateAvailable={true} onDismiss={jest.fn()} />);
+
+  await user.press(screen.getByText('View'));
+
+  expect(Linking.openURL).toHaveBeenCalledWith('https://github.com/3ll3d00d/ezbeq/releases');
+});
+
 test('pressing the close icon calls onDismiss', async () => {
   const onDismiss = jest.fn();
   const user = userEvent.setup();
