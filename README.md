@@ -84,10 +84,9 @@ Example is provided for rpi users
 
 ### Docker
 
-Two images are published, built and maintained independently:
+**`ghcr.io/3ll3d00d/ezbeq`** is built from this repo's [`docker/`](docker) folder, multi-arch (`linux/amd64`, `linux/arm64`), directly from source on every push to `main`/`dev` and on release tags. See [docker/README.md](docker/README.md) for setup instructions, example compose files, and Kubernetes manifests.
 
-- **`ghcr.io/3ll3d00d/ezbeq`** — built from this repo's [`docker/`](docker) folder, multi-arch (`linux/amd64`, `linux/arm64`), built directly from source on every push to `main`/`dev` and on release tags. See [docker/README.md](docker/README.md) for setup instructions, example compose files, and Kubernetes manifests.
-- **`ghcr.io/3ll3d00d/ezbeq-docker`** — the original image from [3ll3d00d/ezbeq-docker](https://github.com/3ll3d00d/ezbeq-docker), built from the released PyPI package. See that project's README for setup instructions, example compose files, and USB device configuration.
+The older `ghcr.io/3ll3d00d/ezbeq-docker` image is no longer updated; its [repo](https://github.com/3ll3d00d/ezbeq-docker) is archived. To move, change the image to `ghcr.io/3ll3d00d/ezbeq:latest` and keep everything else: it uses the same `/config` volume, port 8080, non-root `ezbeq` user and bundled `minidsp`.
 
 ```bash
 docker pull ghcr.io/3ll3d00d/ezbeq:latest
