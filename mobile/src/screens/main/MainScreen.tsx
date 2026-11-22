@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Platform, StyleSheet, View } from 'react-native';
+import { Alert, AppState, Platform, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { ActivityIndicator, Badge, IconButton, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,12 +30,14 @@ import { useServerContext } from '../../context/ServerContext';
 import { useAsyncStorageState } from '../../hooks/useAsyncStorageState';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useFilterLoadedNotification } from '../../hooks/useFilterLoadedNotification';
+import { useUpdateNotification } from '../../hooks/useUpdateNotification';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { useTVBackHandler } from '../../hooks/useTVBackHandler';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { buildCompareIndex } from '../../services/compare';
 import { isFilterNotificationSupported } from '../../services/filterNotification';
 import { useGainSync } from '../../services/gains';
+import { getAppReleaseVersion, isUpdateAvailable } from '../../services/version';
 import type { CatalogueEntry, DeviceState, VersionInfo } from '../../types/ezbeq';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Main'>;
@@ -329,7 +331,9 @@ export default function MainScreen({ navigation }: Props) {
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [versionInfo, setVersionInfo] = useState<VersionInfo>({});
-  const [dismissedUpdateVersion, setDismissedUpdateVersion] = useAsyncStorageState<string | null>(
+  const [dismissedUpdateVersion, setDismissedUpdateVersion, dismissedUpdateVersionLoaded] = useAsyncStorageState<
+    string | null
+  >(
     'dismissedUpdateVersion',
     null
   );
@@ -339,6 +343,10 @@ export default function MainScreen({ navigation }: Props) {
   const [filterNotificationEnabled, setFilterNotificationEnabled] = useAsyncStorageState(
     'filterNotificationEnabled',
     false
+  );
+  const [updateNotificationEnabled, setUpdateNotificationEnabled, updateNotificationEnabledLoaded] = useAsyncStorageState(
+    'updateNotificationEnabled',
+    true
   );
   const [selectedFilterAuthors, setSelectedFilterAuthors] = useAsyncStorageState<string[]>(
     'selectedFilterAuthors',
@@ -391,14 +399,37 @@ export default function MainScreen({ navigation }: Props) {
     api?.getWhatsNew().then(setRecentEntries).catch(() => {});
   }, [api, meta]);
 
+  // Re-fetched whenever the app returns to the foreground too, not just on connect - the server
+  // re-checks GitHub on its own schedule, and an app left running in the background for days would
+  // otherwise never hear about a release made in the meantime. Only the initial fetch surfaces an
+  // error: a resume often lands before the network is back, and a failed refresh just keeps the
+  // last known version info. `cancelled` drops responses from a previous `api` (server) that land
+  // after a reconnect, so they can't overwrite the current server's info.
   useEffect(() => {
-    api?.getVersion().then(setVersionInfo).catch((e) => setError(e));
+    if (!api) return undefined;
+    let cancelled = false;
+    const fetchVersion = (onError?: (e: Error) => void) =>
+      api
+        .getVersion()
+        .then((v) => {
+          if (!cancelled) setVersionInfo(v);
+        })
+        .catch((e) => {
+          if (!cancelled) onError?.(e);
+        });
+    fetchVersion(setError);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') fetchVersion();
+    });
+    return () => {
+      cancelled = true;
+      sub.remove();
+    };
   }, [api, setError]);
 
   const newCount = computeNewCount(filteredRecentEntries, lastChecked);
-  const updateAvailable = Boolean(
-    versionInfo.updateAvailable && versionInfo.latestVersion && versionInfo.latestVersion !== dismissedUpdateVersion
-  );
+  const updateAvailable =
+    isUpdateAvailable(versionInfo, getAppReleaseVersion()) && versionInfo.latestVersion !== dismissedUpdateVersion;
   const pythonUnsupported =
     versionInfo.pythonSupported === false && versionInfo.minPythonVersion !== dismissedPythonWarningVersion;
   const whatsNewBadgeCount = newCount + (updateAvailable ? 1 : 0) + (pythonUnsupported ? 1 : 0);
@@ -487,6 +518,14 @@ export default function MainScreen({ navigation }: Props) {
     device,
     activeSlotId: selectedSlotId,
     onClear: clearSlot,
+    onError: setError,
+  });
+
+  useUpdateNotification({
+    ready: updateNotificationEnabledLoaded && dismissedUpdateVersionLoaded,
+    enabled: updateNotificationEnabled,
+    updateAvailable,
+    latestVersion: versionInfo.latestVersion,
     onError: setError,
   });
 
@@ -665,8 +704,10 @@ export default function MainScreen({ navigation }: Props) {
         serverBaseUrl={connection?.baseUrl ?? null}
         onDisconnect={handleDisconnect}
         filterNotificationEnabled={filterNotificationEnabled}
-        filterNotificationSupported={filterNotificationSupported}
+        notificationsSupported={filterNotificationSupported}
         onToggleFilterNotification={setFilterNotificationEnabled}
+        updateNotificationEnabled={updateNotificationEnabled}
+        onToggleUpdateNotification={setUpdateNotificationEnabled}
         versionInfo={versionInfo}
         catalogueMeta={meta}
       />

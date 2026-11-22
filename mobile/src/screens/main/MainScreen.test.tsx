@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, userEvent, waitFor } from '@testing-library/react-native';
-import { Alert, BackHandler, Platform, useWindowDimensions } from 'react-native';
+import { act, fireEvent, render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { Alert, AppState, BackHandler, Platform, useWindowDimensions } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -24,6 +24,7 @@ import { useDeviceState } from '../../context/DeviceStateContext';
 import { useServerContext } from '../../context/ServerContext';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
 import * as filterNotificationService from '../../services/filterNotification';
+import * as versionService from '../../services/version';
 import type { EzbeqApi } from '../../services/ezbeqApi';
 import type { CatalogueEntry } from '../../types/ezbeq';
 
@@ -709,7 +710,8 @@ describe('MainScreen', () => {
 
     const toggle = screen.getByLabelText('Enable persistent filter-loaded notification');
     expect(toggle.props.disabled).toBe(true);
-    expect(screen.getByText('Requires a development build - unavailable in Expo Go on Android.')).toBeTruthy();
+    // One per notification toggle (filter-loaded and update-available).
+    expect(screen.getAllByText('Requires a development build - unavailable in Expo Go on Android.')).toHaveLength(2);
 
     supportedSpy.mockRestore();
   });
@@ -784,6 +786,78 @@ describe('MainScreen', () => {
     await user.press(screen.getByLabelText('Close icon'));
 
     await waitFor(() => expect(screen.queryByText('ezbeq 2.1.0 is available.')).toBeNull());
+  });
+
+  it('shows the update-available banner when only this app build is behind the latest release', async () => {
+    const appVersionSpy = jest.spyOn(versionService, 'getAppReleaseVersion').mockReturnValue('2.0.0');
+    (api.getVersion as jest.Mock).mockResolvedValue({ updateAvailable: false, latestVersion: '2.1.0' });
+    mockUseDeviceState.mockReturnValue(baseState());
+
+    await renderScreen();
+
+    expect(await screen.findByText('ezbeq 2.1.0 is available.')).toBeTruthy();
+    appVersionSpy.mockRestore();
+  });
+
+  it('re-fetches the version when the app returns to the foreground', async () => {
+    const listeners: ((state: string) => void)[] = [];
+    const remove = jest.fn();
+    // jest-expo's react-native preset already makes AppState.addEventListener a jest.fn, so spying
+    // on it returns that same mock - mockRestore() would wipe its default { remove } return for
+    // every later test. A Once implementation leaves the default untouched.
+    jest.spyOn(AppState, 'addEventListener').mockImplementationOnce((_type, listener) => {
+      listeners.push(listener as (state: string) => void);
+      return { remove };
+    });
+    (api.getVersion as jest.Mock).mockClear();
+    const state = baseState();
+    mockUseDeviceState.mockReturnValue(state);
+
+    const { unmount } = await renderScreen();
+    await waitFor(() => expect(api.getVersion).toHaveBeenCalledTimes(1));
+
+    (api.getVersion as jest.Mock).mockResolvedValue({ updateAvailable: true, latestVersion: '2.1.0' });
+    await act(async () => listeners.forEach((l) => l('background')));
+    expect(api.getVersion).toHaveBeenCalledTimes(1);
+    await act(async () => listeners.forEach((l) => l('active')));
+
+    expect(await screen.findByText('ezbeq 2.1.0 is available.')).toBeTruthy();
+    expect(api.getVersion).toHaveBeenCalledTimes(2);
+
+    // A failed refresh on resume (e.g. network not back yet) keeps the last known info, silently.
+    (api.getVersion as jest.Mock).mockRejectedValueOnce(new Error('offline'));
+    await act(async () => listeners.forEach((l) => l('active')));
+    expect(api.getVersion).toHaveBeenCalledTimes(3);
+    expect(screen.getByText('ezbeq 2.1.0 is available.')).toBeTruthy();
+    expect(state.setError).not.toHaveBeenCalled();
+
+    await unmount();
+    expect(remove).toHaveBeenCalled();
+  });
+
+  it('ignores a version response that lands after the screen has unmounted', async () => {
+    let resolve: (v: object) => void = () => {};
+    (api.getVersion as jest.Mock).mockReturnValueOnce(new Promise((r) => (resolve = r)));
+    mockUseDeviceState.mockReturnValue(baseState());
+    const errorSpy = jest.spyOn(console, 'error');
+
+    const { unmount } = await renderScreen();
+    await unmount();
+    await act(async () => resolve({ updateAvailable: true, latestVersion: '2.1.0' }));
+
+    expect(errorSpy).not.toHaveBeenCalledWith(expect.stringContaining('unmounted'), expect.anything());
+    errorSpy.mockRestore();
+  });
+
+  it('shows an error when the initial version fetch fails', async () => {
+    const err = new Error('version boom');
+    (api.getVersion as jest.Mock).mockRejectedValueOnce(err);
+    const state = baseState();
+    mockUseDeviceState.mockReturnValue(state);
+
+    await renderScreen();
+
+    await waitFor(() => expect(state.setError).toHaveBeenCalledWith(err));
   });
 
   it('shows the python version warning banner when unsupported', async () => {

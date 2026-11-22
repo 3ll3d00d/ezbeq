@@ -15,6 +15,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   // app.config.ts - a .ts file isn't jq-editable, and rewriting a config plugin's own source at
   // build time would be far more fragile than reading an env var here.
   version: process.env.APP_VERSION ?? '1.0.0',
+  extra: {
+    ...config.extra,
+    // The release tag this build was cut from, or null for local/dev builds - kept separate from
+    // `version` (which needs *some* value) so the app's own update check can tell "built from tag
+    // X" apart from "untagged build carrying the placeholder 1.0.0" and skip the comparison for
+    // the latter rather than permanently claiming every release is newer. See services/version.ts.
+    releaseVersion: process.env.APP_VERSION ?? null,
+  },
   orientation: 'default',
   icon: './assets/icon.png',
   userInterfaceStyle: 'automatic',
