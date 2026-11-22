@@ -278,7 +278,7 @@ image: ghcr.io/<owner>/ezbeq:latest
 ```
 
 > [!NOTE]
-> The legacy [3ll3d00d/ezbeq-docker](https://github.com/3ll3d00d/ezbeq-docker) repo and its `ghcr.io/3ll3d00d/ezbeq-docker` image keep publishing as before (still triggered from `create-app.yaml` on every PyPI release) - it isn't affected by this. `ghcr.io/3ll3d00d/ezbeq` (this folder) is the newer, source-built, multi-arch alternative; the two are independent and both stay maintained for now.
+> This replaces the legacy `ghcr.io/3ll3d00d/ezbeq-docker` image, which no longer gets new releases (its [repo](https://github.com/3ll3d00d/ezbeq-docker) is archived). It is a drop-in: same `/config` volume, port 8080, non-root `ezbeq` user and bundled `minidsp`, so only the image name changes.
 
 ### Publishing manually
 

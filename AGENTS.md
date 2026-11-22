@@ -83,8 +83,8 @@ GitHub Actions workflows:
   `detect-changed-paths` itself crashed.
 - `test-mobile.yaml` ("run mobile tests") — Jest + typecheck, uploads coverage (flag `mobile`) to
   Codecov. Same `test-run` / `Mobile tests` wrapper split as `test-ui.yaml`.
-- `create-app.yaml` — Builds and publishes the application (PyPI, PyInstaller, mobile). Also dispatches to the separate `3ll3d00d/ezbeq-docker` repo on every PyPI release, which publishes `ghcr.io/3ll3d00d/ezbeq-docker`.
-- `docker.yaml` — Builds `docker/Dockerfile` from local source (no PyPI dependency) and publishes `ghcr.io/3ll3d00d/ezbeq` on push to `main`/`dev` and on version tags. Independent of `create-app.yaml` and of the legacy `ezbeq-docker` repo/image — both keep publishing in parallel.
+- `create-app.yaml` — Builds and publishes the application (PyPI, PyInstaller, mobile).
+- `docker.yaml` — Builds `docker/Dockerfile` from local source (no PyPI dependency) and publishes `ghcr.io/3ll3d00d/ezbeq` on push to `main`/`dev` and on version tags. Independent of `create-app.yaml`. This is the only Docker image; the legacy `3ll3d00d/ezbeq-docker` repo is archived and its `ghcr.io/3ll3d00d/ezbeq-docker` image no longer gets new releases.
 - `claude.yml` — AI assistant integration (triggered by `@claude` comments)
 - `claude-code-review.yml` — Automated code review on PRs
 

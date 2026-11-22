@@ -117,14 +117,6 @@ jobs:
         run: uv build
       - name: Publish a Python distribution to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-      - uses: octokit/request-action@v3.0.0
-        with:
-          route: POST /repos/{owner}/{repo}/dispatches
-          owner: 3ll3d00d
-          repo: ezbeq-docker
-          event_type: 'trigger'
-        env:
-          GITHUB_TOKEN: ${{ secrets.EZBEQJR }}
   buildpyinstaller:
     name: Publish to Github
     needs: create_release
